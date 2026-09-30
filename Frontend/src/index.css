@@ -1,0 +1,4 @@
+/* Thứ tự layer: style của Ant Design nằm dưới utilities để class Tailwind ghi đè được */
+@layer theme, base, antd, components, utilities;
+
+@import 'tailwindcss';
