@@ -27,3 +27,5 @@ Thumbs.db
 *.local
 coverage/
 
+docs/superpowers
+
