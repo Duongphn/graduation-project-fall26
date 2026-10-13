@@ -26,7 +26,12 @@ export class ToyListingService {
   ) {}
 
   private assertActor(actor: RequestActor): void {
-    if (!actor || !actor.userId || actor.actorType !== 'USER') {
+    if (
+      !actor ||
+      !actor.userId ||
+      actor.actorType !== 'USER' ||
+      !mongoose.Types.ObjectId.isValid(actor.userId)
+    ) {
       throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
     }
   }
@@ -153,8 +158,11 @@ export class ToyListingService {
   ): Promise<{ items: ToyListingDto[]; page: number; limit: number; total: number }> {
     this.assertActor(actor);
 
-    const page = Math.max(1, query?.page ? Number(query.page) : 1);
-    const limit = Math.max(1, Math.min(100, query?.limit ? Number(query.limit) : 20));
+    const rawPage = query?.page !== undefined ? Number(query.page) : 1;
+    const rawLimit = query?.limit !== undefined ? Number(query.limit) : 20;
+    const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit >= 1 ? Math.min(100, Math.floor(rawLimit)) : 20;
 
     if (query?.status && !['pending', 'active', 'hidden', 'sold'].includes(query.status)) {
       throw new AppError(400, 'VALIDATION_ERROR', `Invalid status filter "${query.status}".`);
@@ -249,8 +257,12 @@ export class ToyListingService {
       }
     }
 
+    const existingImages = listing.images || [];
     const removeSet = new Set(removeImagePublicIds ?? []);
-    const remainingImages = (listing.images || []).filter((img) => !removeSet.has(img.publicId));
+    const remainingImages = existingImages.filter((img) => !removeSet.has(img.publicId));
+    const toDelete = existingImages
+      .filter((img) => removeSet.has(img.publicId))
+      .map((img) => img.publicId);
     const newFiles = files ?? [];
     const finalImageCount = remainingImages.length + newFiles.length;
 
@@ -308,9 +320,9 @@ export class ToyListingService {
 
       const saved = await listing.save();
 
-      if (removeImagePublicIds && removeImagePublicIds.length > 0) {
+      if (toDelete.length > 0) {
         try {
-          await this.imageStorage.delete(removeImagePublicIds);
+          await this.imageStorage.delete(toDelete);
         } catch {
           // Cleanup failure does not fail the DB update
         }
@@ -391,6 +403,11 @@ export class ToyListingService {
       try {
         await this.imageStorage.delete(publicIds);
       } catch (cleanupError) {
+        console.error('Failed to cleanup image assets for deleted listing:', {
+          toyId,
+          publicIds,
+          error: cleanupError,
+        });
         throw new AppError(
           500,
           'STORAGE_CLEANUP_ERROR',
