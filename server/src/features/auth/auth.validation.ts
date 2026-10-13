@@ -28,3 +28,16 @@ export const registerSchema = z.object({
     .string()
     .regex(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/, 'Số điện thoại không hợp lệ (Ví dụ: 0912345678)'),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Email không đúng định dạng'),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email('Email không đúng định dạng'),
+  otpCode: z
+    .string()
+    .length(6, 'Mã OTP phải có đúng 6 chữ số')
+    .regex(/^\d+$/, 'Mã OTP chỉ bao gồm các chữ số'),
+  newPassword: z.string().min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự'),
+});

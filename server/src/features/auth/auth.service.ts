@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 
 import { env } from '../../config/env.js';
-import { sendOtpEmail } from '../../infrastructure/email/mailer.js';
+import { sendOtpEmail, sendResetPasswordEmail } from '../../infrastructure/email/mailer.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { OtpRequest } from '../otp_requests/otp_requests.model.js';
 import { RefreshToken } from '../refresh_tokens/refresh_tokens.model.js';
@@ -15,6 +15,7 @@ import type {
   VerifyOtpResponse,
   RegisterDTO,
   RegisterResponse,
+  ResetPasswordDTO,
 } from './domain/auth.types.js';
 
 const googleClient = new OAuth2Client(env.googleClientId);
@@ -371,6 +372,98 @@ export class AuthService {
         accessToken,
         refreshToken,
       },
+    };
+  }
+
+  /**
+   * Gửi mã OTP / Link đặt lại mật khẩu về Email
+   */
+  public async forgotPassword(email: string): Promise<{ message: string }> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Tìm kiếm user trong hệ thống
+    const user = await User.findOne({ email: normalizedEmail });
+
+    // Nguyên tắc bảo mật chống dò email: Dù email có tồn tại hay không, trả về message thành công
+    if (!user) {
+      return {
+        message: 'Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi đến hòm thư của bạn.',
+      };
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new AppError(403, 'USER_INACTIVE', 'Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.');
+    }
+
+    // Sinh mã OTP 6 số (hạn 10 phút)
+    const otpCode = Math.floor(100_000 + Math.random() * 900_000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 phút
+    const purgeAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Lưu vào OtpRequest với purpose là 'reset_password'
+    await OtpRequest.create({
+      identifier: normalizedEmail,
+      otp_code: otpCode,
+      purpose: 'reset_password',
+      is_used: false,
+      expires_at: expiresAt,
+      purgeAt,
+    });
+
+    // Đường link đặt lại mật khẩu (trỏ về Frontend)
+    const resetLink = `${env.corsOrigin}/reset-password?email=${encodeURIComponent(normalizedEmail)}&otp=${otpCode}`;
+
+    try {
+      await sendResetPasswordEmail(normalizedEmail, otpCode, resetLink);
+    } catch (error) {
+      console.error('Lỗi gửi email reset password:', error);
+      throw new AppError(500, 'MAIL_SEND_FAILED', 'Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau.');
+    }
+
+    return {
+      message: 'Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi đến hòm thư của bạn.',
+    };
+  }
+
+  /**
+   * Đặt lại mật khẩu mới bằng mã OTP
+   */
+  public async resetPassword(dto: ResetPasswordDTO): Promise<{ message: string }> {
+    const normalizedEmail = dto.email.toLowerCase().trim();
+
+    // 1. Kiểm tra mã OTP hợp lệ
+    const otpRecord = await OtpRequest.findOne({
+      identifier: normalizedEmail,
+      otp_code: dto.otpCode,
+      purpose: 'reset_password',
+      is_used: false,
+      expires_at: { $gt: new Date() },
+    });
+
+    if (!otpRecord) {
+      throw new AppError(400, 'INVALID_OTP', 'Mã OTP không chính xác hoặc đã hết hạn.');
+    }
+
+    // 2. Tìm User
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'Không tìm thấy người dùng tương ứng.');
+    }
+
+    // 3. Đánh dấu OTP đã được sử dụng
+    otpRecord.is_used = true;
+    await otpRecord.save();
+
+    // 4. Hash mật khẩu mới và cập nhật
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    user.passwordHash = passwordHash;
+    await user.save();
+
+    // 5. Thu hồi toàn bộ Refresh Token cũ của người dùng (buộc đăng xuất khỏi mọi thiết bị)
+    await RefreshToken.deleteMany({ userId: user._id });
+
+    return {
+      message: 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.',
     };
   }
 }

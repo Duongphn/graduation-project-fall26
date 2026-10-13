@@ -6,6 +6,8 @@ import {
   resendGoogleOtpSchema,
   devTestLoginSchema,
   registerSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from './auth.validation.js';
 
 export class AuthController {
@@ -127,6 +129,50 @@ export class AuthController {
         statusCode: 201,
         message: 'Đăng ký tài khoản thành công!',
         data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/forgot-password
+   * Yêu cầu đặt lại mật khẩu qua Email (nhận mã OTP và Link)
+   */
+  public forgotPassword = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = forgotPasswordSchema.parse(req.body);
+      const result = await this.authService.forgotPassword(validated.email);
+
+      res.status(200).json({
+        statusCode: 200,
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/reset-password
+   * Xác thực mã OTP và đặt mật khẩu mới
+   */
+  public resetPassword = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = resetPasswordSchema.parse(req.body);
+      const result = await this.authService.resetPassword(validated);
+
+      res.status(200).json({
+        statusCode: 200,
+        message: result.message,
       });
     } catch (error) {
       next(error);

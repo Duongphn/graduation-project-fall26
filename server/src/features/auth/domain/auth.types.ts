@@ -42,3 +42,9 @@ export interface RegisterResponse {
   user: AuthenticatedUser;
   tokens: AuthTokens;
 }
+
+export interface ResetPasswordDTO {
+  email: string;
+  otpCode: string;
+  newPassword: string;
+}
