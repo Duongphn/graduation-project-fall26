@@ -16,6 +16,7 @@ import type {
   RegisterDTO,
   RegisterResponse,
   ResetPasswordDTO,
+  RefreshTokenResponse,
 } from './domain/auth.types.js';
 
 const googleClient = new OAuth2Client(env.googleClientId);
@@ -189,6 +190,7 @@ export class AuthService {
     const refreshToken = jwt.sign(
       {
         userId: String(user._id),
+        jti: crypto.randomUUID(),
       },
       env.jwtRefreshSecret,
       { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
@@ -348,6 +350,7 @@ export class AuthService {
     const refreshToken = jwt.sign(
       {
         userId: String(user._id),
+        jti: crypto.randomUUID(),
       },
       env.jwtRefreshSecret,
       { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
@@ -464,6 +467,90 @@ export class AuthService {
 
     return {
       message: 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.',
+    };
+  }
+
+  /**
+   * Làm mới Access Token bằng Refresh Token (Token Rotation)
+   */
+  public async refreshToken(token: string): Promise<RefreshTokenResponse> {
+    // 1. Kiểm tra tính hợp lệ của Refresh Token trong Database
+    const storedToken = await RefreshToken.findOne({ token });
+    if (!storedToken) {
+      throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã bị thu hồi.');
+    }
+
+    // 2. Verify chữ ký JWT của token
+    let decoded: { userId: string };
+    try {
+      decoded = jwt.verify(token, env.jwtRefreshSecret) as { userId: string };
+    } catch {
+      // Nếu token hết hạn hoặc sai chữ ký, xóa khỏi DB luôn
+      await RefreshToken.deleteOne({ token });
+      throw new AppError(401, 'EXPIRED_REFRESH_TOKEN', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    }
+
+    // 3. Kiểm tra User có còn active không
+    const user = await User.findById(decoded.userId);
+    if (!user || user.status !== 'ACTIVE') {
+      await RefreshToken.deleteOne({ token });
+      throw new AppError(403, 'USER_INACTIVE', 'Tài khoản không tồn tại hoặc đã bị khóa.');
+    }
+
+    // 4. Token Rotation: Xóa token cũ và cấp token mới
+    await RefreshToken.deleteOne({ token });
+
+    const newAccessToken = jwt.sign(
+      {
+        userId: String(user._id),
+        email: user.email,
+        role: user.role,
+      },
+      env.jwtAccessSecret,
+      { expiresIn: env.jwtAccessExpiresIn } as jwt.SignOptions
+    );
+
+    const newRefreshToken = jwt.sign(
+      {
+        userId: String(user._id),
+        jti: crypto.randomUUID(),
+      },
+      env.jwtRefreshSecret,
+      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
+    );
+
+    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await RefreshToken.create({
+      userId: user._id,
+      token: newRefreshToken,
+      expiresAt: refreshExpiresAt,
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  /**
+   * Đăng xuất tài khoản (Xóa Refresh Token khỏi DB)
+   */
+  public async logout(token: string, allDevices = false): Promise<{ message: string }> {
+    if (allDevices) {
+      try {
+        const decoded = jwt.decode(token) as { userId?: string } | null;
+        if (decoded?.userId) {
+          await RefreshToken.deleteMany({ userId: decoded.userId });
+          return { message: 'Đã đăng xuất thành công khỏi tất cả các thiết bị!' };
+        }
+      } catch {
+        // Fallback xóa token đơn lẻ nếu decode lỗi
+      }
+    }
+
+    await RefreshToken.deleteOne({ token });
+    return {
+      message: 'Đăng xuất thành công!',
     };
   }
 }

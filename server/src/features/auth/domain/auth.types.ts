@@ -48,3 +48,8 @@ export interface ResetPasswordDTO {
   otpCode: string;
   newPassword: string;
 }
+
+export interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken: string;
+}

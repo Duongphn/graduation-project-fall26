@@ -41,3 +41,12 @@ export const resetPasswordSchema = z.object({
     .regex(/^\d+$/, 'Mã OTP chỉ bao gồm các chữ số'),
   newPassword: z.string().min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự'),
 });
+
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh Token là bắt buộc'),
+});
+
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh Token là bắt buộc'),
+  allDevices: z.boolean().optional().default(false),
+});

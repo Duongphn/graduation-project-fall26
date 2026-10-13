@@ -16,5 +16,9 @@ authRouter.post('/auth/google/resend-otp', controller.resendGoogleOtp);
 authRouter.post('/auth/forgot-password', controller.forgotPassword);
 authRouter.post('/auth/reset-password', controller.resetPassword);
 
+// 4. Token Refresh & Logout
+authRouter.post('/auth/refresh-token', controller.refreshToken);
+authRouter.post('/auth/logout', controller.logout);
+
 // Endpoint test nhanh tiện lợi cho Thunder Client / Postman (chỉ chạy ở dev)
 authRouter.post('/auth/dev-test-otp', controller.devTestOtp);

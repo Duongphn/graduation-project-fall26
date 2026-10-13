@@ -8,6 +8,8 @@ import {
   registerSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  refreshTokenSchema,
+  logoutSchema,
 } from './auth.validation.js';
 
 export class AuthController {
@@ -169,6 +171,54 @@ export class AuthController {
     try {
       const validated = resetPasswordSchema.parse(req.body);
       const result = await this.authService.resetPassword(validated);
+
+      res.status(200).json({
+        statusCode: 200,
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/refresh-token
+   * Cấp lại Access Token mới bằng Refresh Token (Token Rotation)
+   */
+  public refreshToken = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = refreshTokenSchema.parse(req.body);
+      const result = await this.authService.refreshToken(validated.refreshToken);
+
+      res.status(200).json({
+        statusCode: 200,
+        message: 'Làm mới token thành công!',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/logout
+   * Đăng xuất tài khoản (thu hồi refresh token)
+   */
+  public logout = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = logoutSchema.parse(req.body);
+      const result = await this.authService.logout(
+        validated.refreshToken,
+        validated.allDevices
+      );
 
       res.status(200).json({
         statusCode: 200,
