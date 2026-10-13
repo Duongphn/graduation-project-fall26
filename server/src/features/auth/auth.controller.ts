@@ -5,6 +5,7 @@ import {
   verifyGoogleOtpSchema,
   resendGoogleOtpSchema,
   devTestLoginSchema,
+  registerSchema,
 } from './auth.validation.js';
 
 export class AuthController {
@@ -102,6 +103,29 @@ export class AuthController {
       res.status(200).json({
         statusCode: 200,
         message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/register
+   * Đăng ký tài khoản người dùng bằng Email, Mật khẩu, Họ tên và Số điện thoại
+   */
+  public register = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = registerSchema.parse(req.body);
+      const result = await this.authService.register(validated);
+
+      res.status(201).json({
+        statusCode: 201,
+        message: 'Đăng ký tài khoản thành công!',
         data: result,
       });
     } catch (error) {

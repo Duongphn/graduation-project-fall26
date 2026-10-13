@@ -14,6 +14,7 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   fullName: string;
+  phone?: string;
   role: string;
   avatar?: string;
 }
@@ -26,6 +27,18 @@ export interface GoogleLoginResponse {
 }
 
 export interface VerifyOtpResponse {
+  user: AuthenticatedUser;
+  tokens: AuthTokens;
+}
+
+export interface RegisterDTO {
+  email: string;
+  password: string;
+  fullName: string;
+  phone: string;
+}
+
+export interface RegisterResponse {
   user: AuthenticatedUser;
   tokens: AuthTokens;
 }

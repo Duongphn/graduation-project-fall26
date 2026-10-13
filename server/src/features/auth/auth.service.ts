@@ -13,6 +13,8 @@ import type {
   AuthenticatedUser,
   GoogleLoginResponse,
   VerifyOtpResponse,
+  RegisterDTO,
+  RegisterResponse,
 } from './domain/auth.types.js';
 
 const googleClient = new OAuth2Client(env.googleClientId);
@@ -296,6 +298,79 @@ export class AuthService {
       tempToken,
       email,
       message: `[DEV TEST] Mã OTP xác thực đã được gửi tới Gmail: ${email}`,
+    };
+  }
+
+  /**
+   * Đăng ký tài khoản người dùng bằng Email và Mật khẩu
+   */
+  public async register(dto: RegisterDTO): Promise<RegisterResponse> {
+    const normalizedEmail = dto.email.toLowerCase().trim();
+    const normalizedPhone = dto.phone.trim();
+
+    // 1. Kiểm tra trùng lặp email
+    const existingEmail = await User.findOne({ email: normalizedEmail });
+    if (existingEmail) {
+      throw new AppError(409, 'EMAIL_EXISTS', 'Email này đã được sử dụng. Vui lòng chọn email khác.');
+    }
+
+    // 2. Kiểm tra trùng lặp số điện thoại
+    const existingPhone = await User.findOne({ phone: normalizedPhone });
+    if (existingPhone) {
+      throw new AppError(409, 'PHONE_EXISTS', 'Số điện thoại này đã được sử dụng.');
+    }
+
+    // 3. Hash mật khẩu bằng bcrypt
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    // 4. Tạo User mới tuân thủ nghiêm ngặt MongoDB Atlas validator
+    const user = await User.create({
+      email: normalizedEmail,
+      fullName: dto.fullName.trim(),
+      phone: normalizedPhone,
+      passwordHash,
+      role: 'USER',
+      status: 'ACTIVE',
+    });
+
+    // 5. Cấp Access Token và Refresh Token để tự động đăng nhập
+    const accessToken = jwt.sign(
+      {
+        userId: String(user._id),
+        email: user.email,
+        role: user.role,
+      },
+      env.jwtAccessSecret,
+      { expiresIn: env.jwtAccessExpiresIn } as jwt.SignOptions
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        userId: String(user._id),
+      },
+      env.jwtRefreshSecret,
+      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
+    );
+
+    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await RefreshToken.create({
+      userId: user._id,
+      token: refreshToken,
+      expiresAt: refreshExpiresAt,
+    });
+
+    return {
+      user: {
+        id: String(user._id),
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone,
+        role: user.role,
+      },
+      tokens: {
+        accessToken,
+        refreshToken,
+      },
     };
   }
 }
