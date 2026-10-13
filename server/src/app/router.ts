@@ -1,9 +1,12 @@
 import { Router } from 'express';
-
-import { healthRouter } from '../features/health/health.routes.js';
+import { authRouter } from '../features/auth/auth.routes.js';
 
 export const apiRouter = Router();
 
-apiRouter.use(healthRouter);
+// Health check endpoint
+apiRouter.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'toyflow-backend' });
+});
 
-// Feature routes are mounted here after their requirements and permissions are approved.
+// Mount feature routes
+apiRouter.use(authRouter);

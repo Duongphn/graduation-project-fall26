@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { donationStatuses } from '../src/features/donations/domain/donation-status.js';
-import { rentalOrderStatuses } from '../src/features/rental-orders/domain/rental-order-status.js';
-import { resaleOrderStatuses } from '../src/features/resale-orders/domain/resale-order-status.js';
+import { donationStatuses } from '../src/features/donation_requests/domain/donation-status.js';
+import { rentalOrderStatuses } from '../src/features/rental_orders/domain/rental-order-status.js';
+import { resaleOrderStatuses } from '../src/features/purchase_orders/domain/resale-order-status.js';
 
 describe('workflow status catalog', () => {
   it('keeps Shipping as a visible status in all three lifecycle flows', () => {
