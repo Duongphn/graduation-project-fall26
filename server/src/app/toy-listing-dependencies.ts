@@ -14,6 +14,7 @@ import {
   CloudinaryImageStorage,
   type ToyImageStorage,
 } from '../infrastructure/cloudinary/cloudinary-image-storage.js';
+import { AppError } from '../shared/errors/app-error.js';
 
 export interface ToyListingDependencies {
   service: ToyListingService;
@@ -26,31 +27,51 @@ export interface CreateToyListingDependenciesOptions {
   imageStorage?: ToyImageStorage;
 }
 
-const TERMINAL_ORDER_STATUS_REGEX = /^(completed|rejected|cancelled|expired)$/i;
+const TERMINAL_ORDER_STATUS_REGEX = /^(completed|rejected|cancell?ed|expired)$/i;
 const VERIFIED_STATUS_REGEX = /^verified$/i;
 const ACTIVE_STATUS_REGEX = /^active$/i;
 const COMPLETED_STATUS_REGEX = /^completed$/i;
 
+function createDefaultToyImageStorage(): ToyImageStorage {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY || env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || env.CLOUDINARY_API_SECRET;
+
+  if (
+    !process.env.CLOUDINARY_CLOUD_NAME ||
+    !process.env.CLOUDINARY_API_KEY ||
+    !process.env.CLOUDINARY_API_SECRET ||
+    !cloudName ||
+    !apiKey ||
+    !apiSecret
+  ) {
+    return {
+      async upload(): Promise<{ url: string; publicId: string }> {
+        throw new AppError(
+          500,
+          'CLOUDINARY_NOT_CONFIGURED',
+          'Cloudinary credentials are not configured.',
+        );
+      },
+      async delete(): Promise<void> {
+        throw new AppError(
+          500,
+          'CLOUDINARY_NOT_CONFIGURED',
+          'Cloudinary credentials are not configured.',
+        );
+      },
+    };
+  }
+
+  return new CloudinaryImageStorage({
+    client: configureCloudinary({ cloudName, apiKey, apiSecret }),
+  });
+}
+
 export function createToyListingDependencies(
   options?: CreateToyListingDependenciesOptions,
 ): ToyListingDependencies {
-  const imageStorage =
-    options?.imageStorage ??
-    (() => {
-      const cloudName = env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
-      const apiKey = env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY;
-      const apiSecret = env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_API_SECRET;
-
-      if (!cloudName || !apiKey || !apiSecret) {
-        throw new Error(
-          'Missing required Cloudinary credentials. Ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set.',
-        );
-      }
-
-      return new CloudinaryImageStorage({
-        client: configureCloudinary({ cloudName, apiKey, apiSecret }),
-      });
-    })();
+  const imageStorage = options?.imageStorage ?? createDefaultToyImageStorage();
 
   const ports: ToyListingPorts = options?.ports ?? {
     async isVerifiedUser(userId: string): Promise<boolean> {

@@ -32,7 +32,7 @@ const isWebpSignature = (buffer: Buffer): boolean => {
   return startsWithRiff && containsWebp;
 };
 
-export const validateToyImage = (buffer: Buffer, mimeType: string): AllowedToyImageMimeType => {
+export const validateToyImage = (buffer: Buffer, mimeType?: string): AllowedToyImageMimeType => {
   if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 3) {
     throw new AppError(400, 'INVALID_IMAGE_FORMAT', 'Uploaded image file is empty or corrupted.');
   }
@@ -72,10 +72,11 @@ export const validateToyImage = (buffer: Buffer, mimeType: string): AllowedToyIm
     return 'image/webp';
   }
 
+  const formatName = mimeType ? `"${mimeType}"` : 'provided';
   throw new AppError(
     400,
     'INVALID_IMAGE_FORMAT',
-    `Unsupported image format "${mimeType}". Allowed formats are JPEG, PNG, and WebP.`,
+    `Unsupported image format ${formatName}. Allowed formats are JPEG, PNG, and WebP.`,
   );
 };
 
