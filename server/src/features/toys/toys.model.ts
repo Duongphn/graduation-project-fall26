@@ -16,10 +16,10 @@ export interface IToy {
   condition: string;
   listingType: ListingType;
   priceOrRate: number;
-  depositPrice?: number;
+  depositPrice?: number | undefined;
   status: StoredListingStatus;
-  location?: ToyLocation;
-  moderation?: ToyModeration;
+  location?: ToyLocation | undefined;
+  moderation?: ToyModeration | undefined;
   ageRange: ToyAgeRange;
   images: ToyImage[];
   quantity: number;
