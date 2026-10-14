@@ -11,11 +11,30 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export const sendOtpEmail = async (toEmail: string, otpCode: string): Promise<void> => {
+/** Nội dung email OTP theo mục đích sử dụng */
+const OTP_EMAIL_CONTENT = {
+  google_login: {
+    subject: 'Mã xác minh đăng nhập ToyFlow (OTP)',
+    intro: 'Bạn vừa thực hiện đăng nhập vào hệ thống ToyFlow qua tài khoản Google. Dưới đây là mã xác thực 2 bước (OTP) của bạn:',
+  },
+  register: {
+    subject: 'Mã xác minh đăng ký tài khoản ToyFlow (OTP)',
+    intro: 'Cảm ơn bạn đã đăng ký tài khoản ToyFlow. Nhập mã dưới đây để xác minh email và hoàn tất đăng ký:',
+  },
+} as const;
+
+export type OtpEmailPurpose = keyof typeof OTP_EMAIL_CONTENT;
+
+export const sendOtpEmail = async (
+  toEmail: string,
+  otpCode: string,
+  purpose: OtpEmailPurpose = 'google_login'
+): Promise<void> => {
+  const content = OTP_EMAIL_CONTENT[purpose];
   const mailOptions = {
     from: `"ToyFlow Platform" <${env.emailUser}>`,
     to: toEmail,
-    subject: 'Mã xác minh đăng nhập ToyFlow (OTP)',
+    subject: content.subject,
     html: `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -25,7 +44,7 @@ export const sendOtpEmail = async (toEmail: string, otpCode: string): Promise<vo
         
         <p style="color: #1e293b; font-size: 16px;">Xin chào,</p>
         <p style="color: #475569; font-size: 15px; line-height: 1.5;">
-          Bạn vừa thực hiện đăng nhập vào hệ thống ToyFlow qua tài khoản Google. Dưới đây là mã xác thực 2 bước (OTP) của bạn:
+          ${content.intro}
         </p>
         
         <div style="margin: 28px 0; text-align: center;">

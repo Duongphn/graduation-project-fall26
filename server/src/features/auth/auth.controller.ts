@@ -1,14 +1,20 @@
 import type { Request, Response, NextFunction } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import { AuthService } from './auth.service.js';
 import {
   googleLoginSchema,
+  googleExchangeSchema,
   verifyGoogleOtpSchema,
   resendGoogleOtpSchema,
   devTestLoginSchema,
   registerSchema,
+  verifyRegistrationOtpSchema,
+  resendRegistrationOtpSchema,
+  loginSchema,
   forgotPasswordSchema,
+  verifyResetCodeSchema,
   resetPasswordSchema,
   refreshTokenSchema,
   logoutSchema,
@@ -40,13 +46,11 @@ export class AuthController {
 
   /**
    * GET /api/v1/auth/google/callback
-   * Nhận callback từ Google, đổi code lấy tokens, gửi OTP về Gmail và chuyển về Frontend
+   * Nhận callback từ Google, đổi code lấy tokens rồi chuyển về Frontend:
+   * - Gmail đã đăng ký → kèm googleCode để Frontend đổi lấy phiên đăng nhập
+   * - Gmail chưa đăng ký → kèm tempToken để Frontend hiện bước nhập OTP
    */
-  public handleGoogleCallback = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public handleGoogleCallback = async (req: Request, res: Response): Promise<void> => {
     try {
       const code = req.query.code as string;
       if (!code) {
@@ -67,21 +71,53 @@ export class AuthController {
         return;
       }
 
-      const result = await this.authService.loginWithGoogle(tokens.id_token);
+      const result = await this.authService.handleGoogleRedirectLogin(tokens.id_token);
 
-      // Chuyển hướng về Frontend kèm tempToken để người dùng nhập OTP
+      if (result.step === 'AUTHENTICATED') {
+        res.redirect(`${env.corsOrigin}/login?googleCode=${encodeURIComponent(result.loginCode)}`);
+        return;
+      }
+
+      // Gmail chưa đăng ký: chuyển về Frontend kèm tempToken để người dùng nhập OTP
       res.redirect(
         `${env.corsOrigin}/login?tempToken=${encodeURIComponent(result.tempToken)}&email=${encodeURIComponent(result.email)}&step=otp`
       );
     } catch (error) {
       console.error('Lỗi Google Callback:', error);
-      res.redirect(`${env.corsOrigin}/login?error=google_auth_failed`);
+      // Lỗi nghiệp vụ (tài khoản bị khóa, email chưa xác minh...) trả đúng mã để Frontend hiện thông báo phù hợp
+      const errorCode = error instanceof AppError ? error.code : 'google_auth_failed';
+      res.redirect(`${env.corsOrigin}/login?error=${encodeURIComponent(errorCode)}`);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/google/exchange
+   * Đổi mã googleCode (nhận được sau khi đăng nhập Google qua Web Redirect) lấy phiên đăng nhập
+   */
+  public exchangeGoogleLoginCode = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = googleExchangeSchema.parse(req.body);
+      const result = await this.authService.exchangeGoogleLoginCode(validated.code);
+
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: 'Đăng nhập Google thành công!',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
     }
   };
 
   /**
    * POST /api/v1/auth/google
-   * Xác thực tài khoản Google và gửi mã OTP qua Gmail (khi frontend gửi ID Token trực tiếp)
+   * Xác thực tài khoản Google khi frontend gửi ID Token trực tiếp:
+   * Gmail đã đăng ký → trả phiên đăng nhập; chưa đăng ký → gửi mã OTP qua Gmail
    */
   public loginWithGoogle = async (
     req: Request,
@@ -95,7 +131,7 @@ export class AuthController {
       res.status(200).json({
         success: true,
         statusCode: 200,
-        message: result.message,
+        message: result.step === 'AUTHENTICATED' ? 'Đăng nhập Google thành công!' : result.message,
         data: result,
       });
     } catch (error) {
@@ -180,7 +216,7 @@ export class AuthController {
 
   /**
    * POST /api/v1/auth/register
-   * Đăng ký tài khoản người dùng bằng Email, Mật khẩu, Họ tên và Số điện thoại
+   * Bước 1 đăng ký: nhận Email, Mật khẩu, Họ tên, Số điện thoại và gửi mã OTP về Email
    */
   public register = async (
     req: Request,
@@ -191,10 +227,82 @@ export class AuthController {
       const validated = registerSchema.parse(req.body);
       const result = await this.authService.register(validated);
 
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/register/verify-otp
+   * Bước 2 đăng ký: xác minh mã OTP và tạo tài khoản
+   */
+  public verifyRegistrationOtp = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = verifyRegistrationOtpSchema.parse(req.body);
+      const result = await this.authService.verifyRegistrationOtp(validated);
+
       res.status(201).json({
         success: true,
         statusCode: 201,
         message: 'Đăng ký tài khoản thành công!',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/register/resend-otp
+   * Gửi lại mã OTP đăng ký
+   */
+  public resendRegistrationOtp = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = resendRegistrationOtpSchema.parse(req.body);
+      const result = await this.authService.resendRegistrationOtp(validated.email);
+
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/login
+   * Đăng nhập bằng Email hoặc Số điện thoại + Mật khẩu
+   */
+  public login = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = loginSchema.parse(req.body);
+      const result = await this.authService.login(validated);
+
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: 'Đăng nhập thành công!',
         data: result,
       });
     } catch (error) {
@@ -227,8 +335,32 @@ export class AuthController {
   };
 
   /**
+   * POST /api/v1/auth/verify-reset-code
+   * Xác minh mã OTP quên mật khẩu, trả về resetToken dùng cho bước đặt mật khẩu mới
+   */
+  public verifyResetCode = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = verifyResetCodeSchema.parse(req.body);
+      const result = await this.authService.verifyResetCode(validated);
+
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: 'Xác minh mã thành công. Vui lòng đặt mật khẩu mới.',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * POST /api/v1/auth/reset-password
-   * Xác thực mã OTP và đặt mật khẩu mới
+   * Đặt mật khẩu mới bằng resetToken nhận được sau khi xác minh mã
    */
   public resetPassword = async (
     req: Request,

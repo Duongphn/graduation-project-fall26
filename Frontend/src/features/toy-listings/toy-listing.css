@@ -1,0 +1,420 @@
+@layer components {
+  /* ---------- Khung trang ---------- */
+  .editor-page {
+    @apply min-h-dvh;
+  }
+
+  .editor-topbar {
+    @apply sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/70 bg-brand-cream/90 px-4 py-3 backdrop-blur-md sm:px-8 dark:border-night-700 dark:bg-night-950/90;
+  }
+
+  .editor-page__content {
+    @apply mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-8;
+  }
+
+  .editor-breadcrumb {
+    @apply mb-5 flex flex-wrap items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400;
+  }
+
+  .editor-breadcrumb svg {
+    @apply size-3.5;
+  }
+
+  .editor-breadcrumb__link {
+    @apply rounded hover:text-brand-button focus-ring dark:hover:text-indigo-300;
+  }
+
+  .editor-breadcrumb__current {
+    @apply font-semibold text-brand-button dark:text-indigo-300;
+  }
+
+  .editor-hero {
+    @apply mb-8 flex flex-wrap items-end justify-between gap-4;
+  }
+
+  .editor-hero__title {
+    @apply text-[28px] leading-tight font-extrabold tracking-tight text-brand-navy sm:text-4xl dark:text-white;
+  }
+
+  .editor-hero__lead {
+    @apply mt-2 max-w-xl text-[15px] leading-relaxed text-slate-600 dark:text-slate-400;
+  }
+
+  .editor-hero__meta {
+    @apply flex items-center gap-2;
+  }
+
+  .editor-hero__id {
+    @apply font-mono text-xs text-slate-400;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold before:size-1.5 before:rounded-full before:bg-current;
+  }
+
+  .status-pill--pending {
+    @apply bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-300;
+  }
+
+  .status-pill--active {
+    @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300;
+  }
+
+  .status-pill--hidden {
+    @apply bg-slate-200 text-slate-700 dark:bg-night-700 dark:text-slate-300;
+  }
+
+  .status-pill--sold {
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-400/15 dark:text-blue-300;
+  }
+
+  /* ---------- Bố cục 2 cột: form + cột xem trước dính ---------- */
+  .listing-editor {
+    @apply grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:gap-8;
+  }
+
+  .listing-editor__main {
+    @apply flex min-w-0 flex-col gap-5;
+  }
+
+  .listing-editor__aside {
+    @apply flex flex-col gap-5 lg:sticky lg:top-24;
+  }
+
+  .editor-section {
+    @apply rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgb(15_23_42/0.04)] sm:p-7 dark:border-night-700 dark:bg-night-900;
+  }
+
+  .editor-section__header {
+    @apply mb-5 flex items-start gap-3.5;
+  }
+
+  .editor-section__step {
+    @apply grid size-8 shrink-0 place-items-center rounded-xl bg-brand-navy text-sm font-extrabold text-white dark:bg-indigo-300 dark:text-night-950;
+  }
+
+  .editor-section__title {
+    @apply text-lg leading-8 font-bold tracking-tight text-slate-900 dark:text-white;
+  }
+
+  .editor-section__description {
+    @apply mt-0.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400;
+  }
+
+  .field-counter {
+    @apply text-xs text-slate-500 dark:text-slate-400;
+  }
+
+  /* ---------- Thẻ lựa chọn (hình thức, tình trạng) ---------- */
+  .choice-group {
+    @apply grid gap-3;
+  }
+
+  .choice-group--feature {
+    @apply sm:grid-cols-2;
+  }
+
+  .choice-group--compact {
+    @apply grid-cols-2 sm:grid-cols-4;
+  }
+
+  .choice-card {
+    @apply relative flex cursor-pointer flex-col rounded-2xl border-2 border-slate-200 bg-slate-50/60 p-4 transition-colors hover:border-slate-300 has-checked:border-brand-button has-checked:bg-indigo-50/70 has-focus-visible:ring-2 has-focus-visible:ring-brand-button/40 dark:border-night-700 dark:bg-night-800/50 dark:hover:border-slate-500 dark:has-checked:border-indigo-300 dark:has-checked:bg-indigo-400/10;
+  }
+
+  .choice-group--compact .choice-card {
+    @apply items-center p-3 text-center;
+  }
+
+  .choice-card__input {
+    @apply sr-only;
+  }
+
+  .choice-card__icon {
+    @apply mb-3 grid size-10 place-items-center rounded-xl bg-white text-brand-button shadow-sm dark:bg-night-700 dark:text-indigo-300;
+  }
+
+  .choice-card__icon svg {
+    @apply size-5;
+  }
+
+  .choice-card__title {
+    @apply text-[15px] font-bold text-slate-900 dark:text-white;
+  }
+
+  .choice-card__hint {
+    @apply mt-1 text-[13px] leading-snug text-slate-500 dark:text-slate-400;
+  }
+
+  .choice-group--compact .choice-card__hint {
+    @apply text-xs;
+  }
+
+  /* Dấu tick góc phải cho thẻ đang chọn */
+  .choice-group--feature .choice-card::after {
+    @apply absolute top-4 right-4 size-5 rounded-full border-2 border-slate-300 content-[''] dark:border-slate-500;
+  }
+
+  .choice-group--feature .choice-card:has(:checked)::after {
+    @apply border-[6px] border-brand-button dark:border-indigo-300;
+  }
+
+  [aria-invalid="true"].choice-group .choice-card {
+    @apply border-red-300 dark:border-red-400/60;
+  }
+
+  /* ---------- Ảnh ---------- */
+  .photo-dropzone {
+    @apply flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center transition-colors hover:border-brand-button hover:bg-indigo-50/50 dark:border-night-700 dark:bg-night-800/40 dark:hover:border-indigo-300;
+  }
+
+  #listing-photo-input:focus-visible + .photo-dropzone,
+  #listing-photo-input:focus-visible + .photo-grid .photo-tile--add {
+    @apply ring-2 ring-brand-button;
+  }
+
+  .photo-dropzone.is-dragging,
+  .photo-grid.is-dragging {
+    @apply border-brand-button bg-indigo-50 dark:bg-indigo-400/10;
+  }
+
+  .photo-dropzone.is-invalid {
+    @apply border-red-300 dark:border-red-400/60;
+  }
+
+  .photo-dropzone__icon {
+    @apply mb-1 grid size-12 place-items-center rounded-full bg-white text-brand-button shadow-sm dark:bg-night-700 dark:text-indigo-300;
+  }
+
+  .photo-dropzone__title {
+    @apply text-[15px] font-semibold text-slate-800 dark:text-slate-100;
+  }
+
+  .photo-dropzone__link {
+    @apply text-brand-button underline underline-offset-2 dark:text-indigo-300;
+  }
+
+  .photo-dropzone__hint {
+    @apply text-xs text-slate-500 dark:text-slate-400;
+  }
+
+  .photo-grid {
+    @apply grid grid-cols-3 gap-3 rounded-2xl border-2 border-transparent transition-colors sm:grid-cols-4 md:grid-cols-5;
+  }
+
+  .photo-grid > li:first-child {
+    @apply col-span-2 row-span-2;
+  }
+
+  .photo-tile {
+    @apply relative block aspect-square overflow-hidden rounded-2xl bg-slate-100 dark:bg-night-800;
+  }
+
+  .photo-tile__image {
+    @apply size-full object-cover;
+  }
+
+  .photo-tile__cover {
+    @apply absolute bottom-2 left-2 rounded-full bg-brand-navy/90 px-2.5 py-1 text-[11px] font-bold text-white;
+  }
+
+  .photo-tile__new {
+    @apply absolute top-2 left-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white;
+  }
+
+  .photo-tile__remove {
+    @apply absolute top-2 right-2 grid size-7 cursor-pointer place-items-center rounded-full bg-white/90 text-slate-700 shadow transition hover:bg-red-500 hover:text-white focus-ring disabled:cursor-not-allowed;
+  }
+
+  .photo-tile__remove svg {
+    @apply size-4;
+  }
+
+  .photo-tile--add {
+    @apply flex h-full cursor-pointer flex-col items-center justify-center gap-1 border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-brand-button hover:text-brand-button dark:border-night-700 dark:bg-night-800/40 dark:text-slate-400;
+  }
+
+  .photo-tile--add.is-disabled {
+    @apply pointer-events-none opacity-50;
+  }
+
+  .photo-tile__add-label {
+    @apply text-xs font-semibold;
+  }
+
+  .photo-tile__add-count {
+    @apply text-[11px] text-slate-400;
+  }
+
+  .photo-uploader__errors {
+    @apply mt-3 space-y-1 text-[13px] text-red-600 dark:text-red-400;
+  }
+
+  /* ---------- Độ tuổi ---------- */
+  .age-field {
+    @apply mb-5;
+  }
+
+  .age-field__legend {
+    @apply mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100;
+  }
+
+  .age-field__presets {
+    @apply mb-3 flex flex-wrap gap-2;
+  }
+
+  .age-chip {
+    @apply cursor-pointer rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] font-semibold text-slate-600 transition-colors hover:border-brand-button hover:text-brand-button focus-ring dark:border-night-700 dark:bg-night-800 dark:text-slate-300;
+  }
+
+  .age-chip.is-active {
+    @apply border-brand-button bg-brand-button text-white dark:border-indigo-300 dark:bg-indigo-300 dark:text-night-950;
+  }
+
+  .age-field__inputs {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .age-field__inputs .ant-form-item {
+    @apply mb-0;
+  }
+
+  /* ---------- Giá ---------- */
+  .price-grid {
+    @apply grid gap-x-4 sm:grid-cols-2;
+  }
+
+  .price-grid .ant-input-number-input {
+    @apply text-lg font-extrabold text-brand-button dark:text-indigo-300;
+  }
+
+  .price-hint {
+    @apply rounded-2xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-200;
+  }
+
+  /* ---------- Cột phải ---------- */
+  .editor-panel {
+    @apply rounded-3xl border border-slate-200/80 bg-white p-5 dark:border-night-700 dark:bg-night-900;
+  }
+
+  .editor-panel__eyebrow {
+    @apply mb-3 text-xs font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400;
+  }
+
+  .editor-panel__alert {
+    @apply mt-4;
+  }
+
+  .editor-panel__actions {
+    @apply mt-5 flex flex-col gap-2;
+  }
+
+  .editor-panel__note {
+    @apply mt-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400;
+  }
+
+  .listing-badge {
+    @apply rounded-full px-2.5 py-1 text-[11px] font-bold;
+  }
+
+  .listing-badge--rent {
+    @apply bg-blue-50 text-blue-700;
+  }
+
+  .listing-badge--sell {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  /* Thẻ xem trước nghiêng nhẹ như thẻ đồ chơi trên trang đăng nhập, thẳng lại khi rê chuột */
+  .preview-card {
+    @apply -rotate-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_32px_-12px_rgb(30_64_175/0.25)] transition-transform duration-300 hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none dark:border-night-700 dark:bg-night-800;
+  }
+
+  .preview-card__media {
+    @apply relative aspect-[4/3] bg-indigo-50/60 dark:bg-night-700;
+  }
+
+  .preview-card__image {
+    @apply size-full object-cover;
+  }
+
+  .preview-card__placeholder {
+    @apply flex size-full flex-col items-center justify-center gap-2 text-xs font-medium text-slate-400;
+  }
+
+  .preview-card__placeholder svg {
+    @apply size-7;
+  }
+
+  .preview-card__badge {
+    @apply absolute top-3 left-3;
+  }
+
+  .preview-card__count {
+    @apply absolute right-3 bottom-3 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white;
+  }
+
+  .preview-card__body {
+    @apply p-4;
+  }
+
+  .preview-card__title {
+    @apply line-clamp-2 text-[15px] leading-snug font-bold text-slate-900 dark:text-white;
+  }
+
+  .preview-card__title.is-empty {
+    @apply text-slate-300 dark:text-slate-600;
+  }
+
+  .preview-card__meta {
+    @apply mt-1 text-xs text-slate-500 dark:text-slate-400;
+  }
+
+  .preview-card__price {
+    @apply mt-3 text-lg font-extrabold text-brand-button dark:text-indigo-300;
+  }
+
+  .preview-card__price--sell {
+    @apply text-amber-600 dark:text-amber-400;
+  }
+
+  .preview-card__unit {
+    @apply ml-0.5 text-xs font-semibold text-slate-500;
+  }
+
+  .preview-card__deposit {
+    @apply mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400;
+  }
+
+  .preview-card__deposit svg {
+    @apply size-3.5 shrink-0;
+  }
+
+  .checklist__header {
+    @apply flex items-baseline justify-between;
+  }
+
+  .checklist__score {
+    @apply text-sm font-extrabold text-brand-button dark:text-indigo-300;
+  }
+
+  .checklist {
+    @apply space-y-2;
+  }
+
+  .checklist__item {
+    @apply flex items-center gap-2.5 text-[13px] text-slate-500 dark:text-slate-400;
+  }
+
+  .checklist__item svg {
+    @apply size-4 shrink-0 text-slate-300 dark:text-slate-600;
+  }
+
+  .checklist__item.is-done {
+    @apply text-slate-800 dark:text-slate-100;
+  }
+
+  .checklist__item.is-done svg {
+    @apply rounded-full bg-emerald-500 p-0.5 text-white;
+  }
+}

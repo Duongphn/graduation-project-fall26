@@ -7,7 +7,9 @@ const otpRequestSchema = new Schema({
     purpose: { type: String, required: true },
     is_used: { type: Boolean, required: true, default: false },
     expires_at: { type: Date, required: true },
-    purgeAt: { type: Date } // Dùng cho TTL index tự động xóa
+    purgeAt: { type: Date }, // Dùng cho TTL index tự động xóa
+    // Dữ liệu chờ xác minh đi kèm OTP, vd: thông tin đăng ký (họ tên, SĐT, passwordHash) chỉ tạo User sau khi nhập đúng mã
+    payload: { type: Schema.Types.Mixed }
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 
 // Tạo các Index đồng bộ tuyệt đối với Atlas

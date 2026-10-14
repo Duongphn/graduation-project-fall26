@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-const PHONE_PATTERN = /^(0|\+84)\d{9}$/
+// Khớp với validator phía server: đầu số di động Việt Nam 03/05/07/08/09
+const PHONE_PATTERN = /^(0|\+84)[35789]\d{8}$/
 
 const normalizePhone = (value: string) => value.replace(/\s/g, '')
 const isPhone = (value: string) => PHONE_PATTERN.test(normalizePhone(value))

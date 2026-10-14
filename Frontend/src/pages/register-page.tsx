@@ -13,8 +13,8 @@ import { OtpVerificationForm } from '../features/auth/components/otp-verificatio
 import { RegisterForm } from '../features/auth/components/register-form'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { PATHS } from '../routes/paths'
-import { saveAccessToken } from '../services/token-storage'
-import { maskPhone } from '../utils/mask-contact'
+import { maskEmail } from '../utils/mask-contact'
+import type { LoginPageState } from './login-page'
 
 const STEPS = [{ title: 'Thông tin tài khoản' }, { title: 'Xác minh OTP' }]
 
@@ -46,7 +46,7 @@ export function RegisterPage() {
           <Button block size="large" href={getGoogleAuthUrl()} icon={<GoogleIcon />}>
             Đăng ký bằng Google
           </Button>
-          <Divider plain>hoặc đăng ký bằng số điện thoại</Divider>
+          <Divider plain>hoặc đăng ký bằng email</Divider>
         </>
       )}
 
@@ -54,13 +54,14 @@ export function RegisterPage() {
 
       {challenge ? (
         <OtpVerificationForm
-          destination={maskPhone(challenge.phone)}
+          destination={maskEmail(challenge.email)}
           resendAfterSeconds={challenge.resendAfterSeconds}
-          verify={(otp) => verifyRegistrationOtp({ phone: challenge.phone, otp })}
-          resend={() => resendRegistrationOtp(challenge.phone)}
-          onVerified={({ accessToken }) => {
-            saveAccessToken(accessToken, true)
-            navigate(PATHS.home, { replace: true })
+          verify={(otp) => verifyRegistrationOtp({ email: challenge.email, otpCode: otp })}
+          resend={() => resendRegistrationOtp(challenge.email)}
+          onVerified={() => {
+            // Không tự đăng nhập: đưa người dùng về trang đăng nhập kèm thông báo thành công
+            const state: LoginPageState = { registeredIdentifier: challenge.email }
+            navigate(PATHS.login, { replace: true, state })
           }}
           submitLabel="Xác minh và tạo tài khoản"
           backLabel="Sửa thông tin đăng ký"
