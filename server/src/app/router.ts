@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { adminCategoriesRouter, categoriesRouter } from '../features/categories/index.js';
 import { healthRouter } from '../features/health/index.js';
 import { adminOrganizationsRouter, organizationsRouter } from '../features/organizations/index.js';
+import { adminToyModerationRouter } from '../features/toys/index.js';
 import { uploadsRouter } from '../features/uploads/index.js';
 import {
   createToyListingDependencies,
@@ -18,6 +19,7 @@ export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDepe
   router.use('/categories', categoriesRouter);
   router.use('/admin/organizations', adminOrganizationsRouter);
   router.use('/organizations', organizationsRouter);
+  router.use('/admin/toys', adminToyModerationRouter);
   router.use('/uploads', uploadsRouter);
 
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();

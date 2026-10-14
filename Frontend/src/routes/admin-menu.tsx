@@ -1,5 +1,6 @@
 import {
   AppstoreOutlined,
+  AuditOutlined,
   DashboardOutlined,
   HeartOutlined,
 } from '@ant-design/icons'
@@ -18,6 +19,7 @@ export interface AdminMenuItem {
 // admin-routes.tsx); import every icon in the single @ant-design/icons import above.
 export const adminMenuItems: AdminMenuItem[] = [
   { key: 'dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, path: adminPaths.dashboard },
+  { key: 'toys', label: 'Duyệt tin đăng', icon: <AuditOutlined />, path: adminPaths.toys },
   { key: 'categories', label: 'Danh mục đồ chơi', icon: <AppstoreOutlined />, path: adminPaths.categories },
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
 ]

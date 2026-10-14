@@ -18,6 +18,8 @@ export const ADMIN_ROOT = '/admin'
 
 export const adminPaths = {
   dashboard: ADMIN_ROOT,
+  toys: `${ADMIN_ROOT}/toys`,
+  toy: (id: string) => `${ADMIN_ROOT}/toys/${id}`,
   categories: `${ADMIN_ROOT}/categories`,
   organizations: `${ADMIN_ROOT}/organizations`,
 } as const
