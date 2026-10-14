@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from 'axios'
 import { env } from '../config/env'
+import { getAccessToken } from './token-storage'
 
 /** Envelope phản hồi thành công của backend — xem server/docs/api-conventions.md */
 export interface ApiResponse<T> {
@@ -21,6 +22,17 @@ export const httpClient = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: 15_000,
 })
+
+// Gắn access token (nếu đã đăng nhập) cho mọi request tới API cần xác thực
+httpClient.interceptors.request.use((config) => {
+  const token = getAccessToken()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+export function getApiErrorCode(error: unknown): string | undefined {
+  return isAxiosError<ApiErrorResponse>(error) ? error.response?.data?.error?.code : undefined
+}
 
 export function getApiErrorMessage(error: unknown): string {
   if (isAxiosError<ApiErrorResponse>(error)) {

@@ -22,7 +22,7 @@ Implement the backend portion of UC04 for creating and managing rental and resal
 - Require a verified user actor for create operations; require actor ownership for listing management.
 - List the current actor's listings with status filter and pagination.
 - Edit listing fields and manage its image set.
-- Hide and delete listings only when they have no unfinished rental or purchase orders.
+- Edit, hide, and delete listings only when they have no unfinished rental or purchase orders.
 - Support listing statuses `pending`, `active`, `hidden`, and `sold` in the owner listing response. `sold` is derived from a completed purchase order; the stored listing status is not overwritten by that derived state.
 - Use the existing Express error response convention for validation, authorization, missing records, and order conflicts.
 
@@ -59,15 +59,17 @@ All endpoints are under `/api/v1` and require the actor boundary described above
 
 - `POST /toys`: multipart listing fields plus multiple image files; returns the created pending listing.
 - `GET /toys/mine?status=&page=&limit=`: returns only the actor's listings, optionally filtered by status and paginated.
-- `PATCH /toys/:toyId`: updates allowed listing fields and optionally adds/removes images. The owner id and status are not client-editable through this route.
+- `PATCH /toys/:toyId`: updates allowed listing fields and optionally adds/removes images if no unfinished order exists. The owner id and status are not client-editable through this route.
 - `POST /toys/:toyId/hide`: hides an owned listing if no unfinished order exists.
 - `DELETE /toys/:toyId`: deletes an owned listing and its Cloudinary assets if no unfinished order exists.
 
-Responses use the repository's standard JSON error shape. Invalid listing or image data returns a validation error; missing actor returns unauthorized; wrong owner returns forbidden; nonexistent listing returns not found; unfinished orders return conflict.
+Responses use the repository's standard JSON error shape. Invalid listing or image data returns a validation error; missing actor returns unauthorized; wrong owner returns forbidden; nonexistent listing returns not found; unfinished orders return conflict (`409 ORDER_IN_PROGRESS`).
+
+Supporting endpoint outside the actor boundary: `GET /categories` (categories feature) is public and read-only. It returns active categories as `{ id, name, slug, parentId }`, ordered by `displayOrder` then `name`, so clients can offer valid `categoryId` values.
 
 ## Order conflict rule
 
-Before hide/delete, check rental and purchase orders for the listing. An order is finished only in `completed`, `rejected`, `cancelled`, or `expired` states. Any other order state, including dispute, blocks hide/delete. Queries must use the actual stored status casing in the current models, or normalize statuses consistently at the feature boundary.
+Before edit, hide, or delete, check rental and purchase orders for the listing. An order is finished only in `completed`, `rejected`, `cancelled`, or `expired` states. Any other order state, including dispute, blocks the operation with `409 ORDER_IN_PROGRESS`. For edit, the check runs right after the ownership check and before any image upload, so a blocked edit never creates Cloudinary assets. Queries must use the actual stored status casing in the current models, or normalize statuses consistently at the feature boundary.
 
 ## Cloudinary lifecycle
 
@@ -88,7 +90,7 @@ Order and identity models are read through narrowly scoped ports/services wired 
 - Keep upload and listing lifecycle failures distinguishable from ordinary validation errors.
 - Do not accept client-supplied owner, status, sold state, or sell quantity other than the fixed value `1`.
 - Avoid deleting image assets until the database operation has succeeded, except cleanup of assets uploaded during a failed create/update.
-- Do not hide/delete when an unfinished order is found.
+- Do not edit, hide, or delete when an unfinished order is found.
 
 ## Verification expectations
 

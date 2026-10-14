@@ -506,6 +506,22 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     expect(res.body.images[0].publicId).not.toBe(oldPublicId);
     expect(ctx.deletions).toContainEqual([oldPublicId]);
   });
+
+  it('returns 409 and uploads nothing when an unfinished order exists', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    const uploadsBefore = ctx.uploads.length;
+
+    ctx.state.unfinishedOrder = true;
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .field('title', 'Blocked Edit')
+      .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ORDER_IN_PROGRESS');
+    expect(ctx.uploads.length).toBe(uploadsBefore);
+  });
 });
 
 describe('POST /api/v1/toys/:toyId/hide', () => {

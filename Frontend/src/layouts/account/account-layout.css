@@ -1,0 +1,19 @@
+@layer components {
+  /* Trang tài khoản dùng bảng màu sáng của thiết kế ToyFlow Replay */
+  .account-layout {
+    @apply min-h-screen bg-tf-page text-tf-ink;
+  }
+
+  .account-main {
+    @apply lg:pl-72;
+  }
+
+  /* Chỉ hiện trên mobile/tablet, khi sidebar bị ẩn */
+  .account-topbar {
+    @apply sticky top-0 z-40 flex h-16 items-center justify-between border-b border-tf-surface bg-white/90 px-2 backdrop-blur-md sm:px-6 lg:hidden;
+  }
+
+  .account-content {
+    @apply w-full px-4 pb-16 sm:px-8;
+  }
+}

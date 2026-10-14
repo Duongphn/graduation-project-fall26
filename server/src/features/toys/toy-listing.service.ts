@@ -225,6 +225,12 @@ export class ToyListingService {
       throw new AppError(403, 'FORBIDDEN', 'You do not own this listing');
     }
 
+    // Check before any upload so a blocked edit never leaves orphaned Cloudinary assets.
+    const hasUnfinished = await this.ports.hasUnfinishedOrder(toyId);
+    if (hasUnfinished) {
+      throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot edit listing with unfinished orders');
+    }
+
     const validatedInput = validateUpdateToyListingInput(input);
 
     if (validatedInput.categoryId) {
