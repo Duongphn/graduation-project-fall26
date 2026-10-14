@@ -119,6 +119,10 @@
     @apply bg-tf-error;
   }
 
+  .app-sidebar__item--login {
+    @apply w-auto text-tf-primary;
+  }
+
   .app-sidebar-brand {
     @apply flex items-center gap-2.5 rounded-md px-3 focus-ring;
   }

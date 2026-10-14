@@ -13,7 +13,7 @@ import { OtpVerificationForm } from '../features/auth/components/otp-verificatio
 import { RegisterForm } from '../features/auth/components/register-form'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { PATHS } from '../routes/paths'
-import { saveAccessToken } from '../services/token-storage'
+import { saveSession } from '../services/token-storage'
 import { maskPhone } from '../utils/mask-contact'
 
 const STEPS = [{ title: 'Thông tin tài khoản' }, { title: 'Xác minh OTP' }]
@@ -58,8 +58,8 @@ export function RegisterPage() {
           resendAfterSeconds={challenge.resendAfterSeconds}
           verify={(otp) => verifyRegistrationOtp({ phone: challenge.phone, otp })}
           resend={() => resendRegistrationOtp(challenge.phone)}
-          onVerified={({ accessToken }) => {
-            saveAccessToken(accessToken, true)
+          onVerified={(session) => {
+            saveSession(session, true)
             navigate(PATHS.home, { replace: true })
           }}
           submitLabel="Xác minh và tạo tài khoản"

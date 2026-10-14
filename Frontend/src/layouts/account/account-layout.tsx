@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AppSidebar, LogoutButton, SidebarBrand, type SidebarItemKey } from '../../components/ui/app-sidebar'
+import { AppSidebar, SessionButton, SidebarBrand, type SidebarItemKey } from '../../components/ui/app-sidebar'
 
 interface AccountLayoutProps {
   activeItem: SidebarItemKey
@@ -15,7 +15,7 @@ export function AccountLayout({ activeItem, children }: AccountLayoutProps) {
       <div className="account-main">
         <header className="account-topbar">
           <SidebarBrand />
-          <LogoutButton />
+          <SessionButton />
         </header>
         <main className="account-content">{children}</main>
       </div>

@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { PATHS } from '../routes/paths'
-import { saveAccessToken } from '../services/token-storage'
+import { saveSession } from '../services/token-storage'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -28,8 +28,8 @@ export function LoginPage() {
       </header>
 
       <LoginForm
-        onSuccess={({ accessToken }, rememberMe) => {
-          saveAccessToken(accessToken, rememberMe)
+        onSuccess={(session, rememberMe) => {
+          saveSession(session, rememberMe)
           navigate(redirectTo, { replace: true })
         }}
       />

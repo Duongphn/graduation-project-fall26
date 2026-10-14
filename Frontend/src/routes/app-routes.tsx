@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate, type LoaderFunctionArgs } from 'react-router-dom'
 import { PageLoadingFallback } from '../components/ui/page-loading-fallback'
+import { parseCatalogSearch } from '../features/toy-catalog/catalog-search-params'
+import { toyDetailQuery, toySearchQuery } from '../features/toy-catalog/toy-catalog-queries'
 import { parseMyListingsSearch } from '../features/toy-listings/listing-display'
 import {
   categoriesQuery,
@@ -11,7 +13,9 @@ import { ForgotPasswordPage } from '../pages/forgot-password-page'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
 import { RegisterPage } from '../pages/register-page'
+import { ToyDetailPage } from '../pages/toy-detail-page'
 import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
+import { ToySearchPage } from '../pages/toy-search-page'
 import { queryClient } from '../services/query-client'
 import { PATHS } from './paths'
 
@@ -42,6 +46,20 @@ async function editListingLoader({ params }: LoaderFunctionArgs) {
   return null
 }
 
+async function toySearchLoader({ request }: LoaderFunctionArgs) {
+  const filters = parseCatalogSearch(new URL(request.url).searchParams)
+  await Promise.all([
+    queryClient.query(toySearchQuery(filters)).catch(ignoreError), // GET /toys?q=&type=&…
+    queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+  ])
+  return null
+}
+
+async function toyDetailLoader({ params }: LoaderFunctionArgs) {
+  await queryClient.query(toyDetailQuery(params.toyId!)).catch(ignoreError) // GET /toys/:toyId
+  return null
+}
+
 export const router = createBrowserRouter([
   { path: PATHS.login, element: <LoginPage /> },
   { path: PATHS.register, element: <RegisterPage /> },
@@ -62,6 +80,18 @@ export const router = createBrowserRouter([
     path: PATHS.editListing,
     loader: editListingLoader,
     element: <ToyListingEditorPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.toys,
+    loader: toySearchLoader,
+    element: <ToySearchPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.toyDetail,
+    loader: toyDetailLoader,
+    element: <ToyDetailPage />,
     HydrateFallback: PageLoadingFallback,
   },
   // Chưa có trang chủ: tạm đưa mọi đường dẫn về trang đăng nhập
