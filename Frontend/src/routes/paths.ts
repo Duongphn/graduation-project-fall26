@@ -24,6 +24,8 @@ export const adminPaths = {
   identityVerification: (id: string) => `${ADMIN_ROOT}/identity-verifications/${id}`,
   categories: `${ADMIN_ROOT}/categories`,
   organizations: `${ADMIN_ROOT}/organizations`,
+  donationRequests: `${ADMIN_ROOT}/donation-requests`,
+  donationRequest: (id: string) => `${ADMIN_ROOT}/donation-requests/${id}`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.

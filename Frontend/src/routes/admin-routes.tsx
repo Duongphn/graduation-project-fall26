@@ -16,4 +16,7 @@ export const adminRoutes: RouteObject[] = [
   { path: adminChildPath(adminPaths.categories), ...lazyPage(() => import('../features/categories/pages/CategoriesPage'), 'CategoriesPage') },
   // Charity organizations (FE-02, UC34)
   { path: adminChildPath(adminPaths.organizations), ...lazyPage(() => import('../features/organizations/pages/OrganizationsPage'), 'OrganizationsPage') },
+  // Donation requests (FE-02, BF-04)
+  { path: adminChildPath(adminPaths.donationRequests), ...lazyPage(() => import('../features/donations/pages/AdminDonationRequestsPage'), 'AdminDonationRequestsPage') },
+  { path: adminChildPath(adminPaths.donationRequests, '/:id'), ...lazyPage(() => import('../features/donations/pages/AdminDonationRequestDetailPage'), 'AdminDonationRequestDetailPage') },
 ]

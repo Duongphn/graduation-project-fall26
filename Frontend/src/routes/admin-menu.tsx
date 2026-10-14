@@ -2,6 +2,7 @@ import {
   AppstoreOutlined,
   AuditOutlined,
   DashboardOutlined,
+  GiftOutlined,
   HeartOutlined,
   IdcardOutlined,
 } from '@ant-design/icons'
@@ -24,4 +25,5 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'identity-verifications', label: 'Xác minh danh tính', icon: <IdcardOutlined />, path: adminPaths.identityVerifications },
   { key: 'categories', label: 'Danh mục đồ chơi', icon: <AppstoreOutlined />, path: adminPaths.categories },
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
+  { key: 'donation-requests', label: 'Yêu cầu nhận tặng', icon: <GiftOutlined />, path: adminPaths.donationRequests },
 ]
