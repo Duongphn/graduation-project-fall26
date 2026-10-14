@@ -18,6 +18,7 @@ export const env = Object.freeze({
 
   // Google OAuth
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
 
   // Email SMTP
   emailHost: process.env.EMAIL_HOST ?? 'smtp.gmail.com',

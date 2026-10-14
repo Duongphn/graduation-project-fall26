@@ -7,7 +7,11 @@ const controller = new AuthController();
 // 1. Đăng ký tài khoản (Email, Password, FullName, Phone)
 authRouter.post('/auth/register', controller.register);
 
-// 2. Đăng nhập Google & Xác thực OTP 2FA qua Gmail
+// 2. Đăng nhập Google qua Web Redirect (khi click nút "Tiếp tục với Google" trên Frontend)
+authRouter.get('/auth/google', controller.redirectToGoogle);
+authRouter.get('/auth/google/callback', controller.handleGoogleCallback);
+
+// Đăng nhập Google qua Direct API (POST ID Token) & Xác thực OTP 2FA qua Gmail
 authRouter.post('/auth/google', controller.loginWithGoogle);
 authRouter.post('/auth/google/verify-otp', controller.verifyGoogleOtp);
 authRouter.post('/auth/google/resend-otp', controller.resendGoogleOtp);
