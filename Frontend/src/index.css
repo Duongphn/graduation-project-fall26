@@ -65,6 +65,26 @@
   --color-night-700: #3a3b47;
 }
 
+/* Màu dùng chung: giá trị nằm trong src/styles/palette.ts và được ghi thành biến --tf-* lúc
+   khởi động (applyCssVariables). Ví dụ: bg-primary, text-muted, border-border. */
+@theme inline {
+  --color-primary: var(--tf-primary);
+  --color-primary-hover: var(--tf-primary-hover);
+  --color-primary-soft: var(--tf-primary-soft);
+  --color-secondary: var(--tf-secondary);
+  --color-secondary-soft: var(--tf-secondary-soft);
+  --color-success: var(--tf-success);
+  --color-warning: var(--tf-warning);
+  --color-danger: var(--tf-danger);
+  --color-info: var(--tf-info);
+  --color-text: var(--tf-text);
+  --color-muted: var(--tf-text-muted);
+  --color-border: var(--tf-border);
+  --color-surface: var(--tf-surface);
+  --color-background: var(--tf-background);
+  --color-sidebar: var(--tf-sidebar);
+}
+
 @layer base {
   body {
     @apply bg-brand-cream font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;

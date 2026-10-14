@@ -1,17 +1,31 @@
-const mongoose = require('mongoose');
-const { Schema } = mongoose;
+import { Schema, model, type InferSchemaType } from 'mongoose';
 
-const orderStatusHistorySchema = new Schema({
-    orderType: { type: String, required: true },
+import { appendOnlyPlugin } from '../../infrastructure/database/schema-types.js';
+import { actorTypes } from '../../shared/contracts/actor.js';
+import { orderTypes } from '../../shared/contracts/order-status-change.js';
+
+// GB-19: every status change of a rental, purchase or donation, written in the same
+// transaction as the change. Append-only.
+const orderStatusHistorySchema = new Schema(
+  {
+    orderType: { type: String, enum: orderTypes, required: true },
     orderId: { type: Schema.Types.ObjectId, required: true },
-    oldStatus: { type: String },
-    newStatus: { type: String, required: true },
-    changedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    notes: { type: String },
-    occurredAt: { type: Date, default: Date.now }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+    fromStatus: { type: String },
+    toStatus: { type: String, required: true },
+    actor: {
+      type: { type: String, enum: actorTypes, required: true },
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    },
+    reason: { type: String, trim: true, maxlength: 1000 },
+  },
+  { collection: 'order_status_history', timestamps: { createdAt: true, updatedAt: false } },
+);
 
-// Tạo Index đồng bộ tuyệt đối với Atlas
-orderStatusHistorySchema.index({ orderType: 1, orderId: 1, occurredAt: 1 }, { name: 'order_timeline' });
+orderStatusHistorySchema.plugin(appendOnlyPlugin);
+orderStatusHistorySchema.index(
+  { orderType: 1, orderId: 1, createdAt: 1 },
+  { name: 'order_timeline' },
+);
 
-module.exports = mongoose.model('OrderStatusHistory', orderStatusHistorySchema);
+export type OrderStatusHistory = InferSchemaType<typeof orderStatusHistorySchema>;
+export const OrderStatusHistoryModel = model('OrderStatusHistory', orderStatusHistorySchema);

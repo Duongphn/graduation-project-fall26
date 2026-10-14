@@ -1,31 +1,60 @@
 import { Router } from 'express';
-import Category from './categories.model.js';
 
-export interface CategoryDto {
-  id: string;
-  name: string;
-  slug: string;
-  parentId: string | null;
-}
+import { emptyObjectSchema, idParamsSchema } from '../../shared/http/schemas.js';
+import { requireAdmin } from '../../shared/middleware/auth-placeholder.js';
+import { validateRequest } from '../../shared/middleware/validate.js';
+import * as controller from './categories.controller.js';
+import './categories.openapi.js';
+import {
+  adminCategoryListQuerySchema,
+  createCategoryBodySchema,
+  reorderCategoriesBodySchema,
+  updateCategoryBodySchema,
+} from './categories.schemas.js';
 
-/** Public read-only list of active categories, in menu order, for listing forms and browse filters. */
+// Mounted at /api/v1/categories. Public: ACTIVE categories for post forms and search filters.
 export const categoriesRouter = Router();
 
-categoriesRouter.get('/', async (_req, res, next) => {
-  try {
-    const categories = await Category.find({ status: { $regex: /^active$/i } })
-      .sort({ displayOrder: 1, name: 1 })
-      .lean();
+categoriesRouter.get('/', validateRequest({ query: emptyObjectSchema }), controller.listPublic);
 
-    const items: CategoryDto[] = categories.map((category) => ({
-      id: category._id.toString(),
-      name: category.name,
-      slug: category.slug,
-      parentId: category.parent_id ? category.parent_id.toString() : null,
-    }));
+// Mounted at /api/v1/admin/categories. The guard runs before validation, so 401/403 come first.
+export const adminCategoriesRouter = Router();
 
-    res.status(200).json(items);
-  } catch (err) {
-    next(err);
-  }
-});
+adminCategoriesRouter.use(requireAdmin);
+
+adminCategoriesRouter.get(
+  '/',
+  validateRequest({ query: adminCategoryListQuerySchema }),
+  controller.listAdmin,
+);
+adminCategoriesRouter.post(
+  '/',
+  validateRequest({ body: createCategoryBodySchema }),
+  controller.create,
+);
+// Declared before "/:id", otherwise "reorder" would be read as an id.
+adminCategoriesRouter.patch(
+  '/reorder',
+  validateRequest({ body: reorderCategoriesBodySchema }),
+  controller.reorder,
+);
+adminCategoriesRouter.patch(
+  '/:id',
+  validateRequest({ params: idParamsSchema, body: updateCategoryBodySchema }),
+  controller.update,
+);
+adminCategoriesRouter.post(
+  '/:id/hide',
+  validateRequest({ params: idParamsSchema }),
+  controller.hide,
+);
+adminCategoriesRouter.post(
+  '/:id/show',
+  validateRequest({ params: idParamsSchema }),
+  controller.show,
+);
+adminCategoriesRouter.delete(
+  '/:id',
+  validateRequest({ params: idParamsSchema }),
+  controller.remove,
+);

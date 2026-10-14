@@ -4,7 +4,20 @@ import type { RequestActor } from '../../shared/contracts/request-actor.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { ToyImageStorage } from '../../infrastructure/cloudinary/cloudinary-image-storage.js';
 import { validateToyImage } from './toy-image-upload.js';
-import { Toy, type IToy } from './toys.model.js';
+import { ToyModel, type IToy } from './toys.model.js';
+import {
+  fromStoredStatus,
+  storedDeposit,
+  storedImages,
+  storedPrice,
+  toAgeGroup,
+  toListingFields,
+  toStoredCondition,
+  toStoredListingType,
+  toStoredPricing,
+  toStoredStatus,
+  fromStoredListingType,
+} from './toy-listing.storage.js';
 import type {
   ListingFilterStatus,
   ToyImage,
@@ -22,7 +35,7 @@ export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
     private readonly imageStorage: ToyImageStorage,
-    private readonly toyModel: Model<IToy> = Toy,
+    private readonly toyModel: Model<IToy> = ToyModel as unknown as Model<IToy>,
   ) {}
 
   private assertActor(actor: RequestActor): void {
@@ -46,24 +59,11 @@ export class ToyListingService {
       categoryId: doc.categoryId.toString(),
       title: doc.title,
       description: doc.description,
-      condition: doc.condition,
-      listingType: doc.listingType,
-      priceOrRate: doc.priceOrRate,
-      ...(doc.listingType === 'rent' && doc.depositPrice !== undefined
-        ? { depositPrice: doc.depositPrice }
-        : {}),
-      ageRange: {
-        minAge: doc.ageRange.minAge,
-        maxAge: doc.ageRange.maxAge,
-      },
-      images: (doc.images || []).map((img) => ({
-        url: img.url,
-        publicId: img.publicId,
-      })),
-      quantity: doc.quantity ?? 1,
+      ...toListingFields(doc),
+      quantity: 1,
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
-      ...(doc.moderation ? { moderation: doc.moderation } : {}),
+      ...(doc.moderation?.submittedAt ? { moderation: { submittedAt: doc.moderation.submittedAt } } : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -126,16 +126,19 @@ export class ToyListingService {
         categoryId: new mongoose.Types.ObjectId(validatedInput.categoryId),
         title: validatedInput.title,
         description: validatedInput.description,
-        condition: validatedInput.condition,
-        listingType: validatedInput.listingType,
-        priceOrRate: validatedInput.priceOrRate,
-        ...(validatedInput.listingType === 'rent' && validatedInput.depositPrice !== undefined
-          ? { depositPrice: validatedInput.depositPrice }
-          : {}),
-        status: 'pending',
+        condition: toStoredCondition(validatedInput.condition),
+        listingType: toStoredListingType(validatedInput.listingType),
+        pricing: toStoredPricing(
+          validatedInput.listingType,
+          validatedInput.priceOrRate,
+          validatedInput.depositPrice,
+        ),
+        status: toStoredStatus('pending'),
+        moderation: { submittedAt: new Date() },
         ageRange: validatedInput.ageRange,
-        images: uploadedAssets,
-        quantity: 1,
+        ageGroup: toAgeGroup(validatedInput.ageRange),
+        images: uploadedAssets.map((asset) => asset.url),
+        imagePublicIds: uploadedAssets.map((asset) => asset.publicId),
       });
 
       const saved = await newToy.save();
@@ -186,7 +189,9 @@ export class ToyListingService {
 
     for (const toy of candidateToys) {
       const toyIdStr = toy._id.toString();
-      const derivedStatus: ListingFilterStatus = soldToyIds.has(toyIdStr) ? 'sold' : toy.status;
+      const derivedStatus: ListingFilterStatus = soldToyIds.has(toyIdStr)
+        ? 'sold'
+        : fromStoredStatus(toy.status);
       if (!query?.status || derivedStatus === query.status) {
         matchedToys.push({
           toy: toy as IToy & { _id: mongoose.Types.ObjectId },
@@ -240,7 +245,8 @@ export class ToyListingService {
       }
     }
 
-    const effectiveListingType = validatedInput.listingType ?? listing.listingType;
+    const effectiveListingType =
+      validatedInput.listingType ?? fromStoredListingType(listing.listingType);
     if (effectiveListingType === 'sell') {
       if (validatedInput.depositPrice !== undefined) {
         throw new AppError(
@@ -253,7 +259,7 @@ export class ToyListingService {
       const effectiveDeposit =
         validatedInput.depositPrice !== undefined
           ? validatedInput.depositPrice
-          : listing.depositPrice;
+          : storedDeposit(listing);
       if (effectiveDeposit === undefined || effectiveDeposit < 0) {
         throw new AppError(
           400,
@@ -263,7 +269,7 @@ export class ToyListingService {
       }
     }
 
-    const existingImages = listing.images || [];
+    const existingImages = storedImages(listing);
     const removeSet = new Set(removeImagePublicIds ?? []);
     const remainingImages = existingImages.filter((img) => !removeSet.has(img.publicId));
     const toDelete = existingImages
@@ -304,25 +310,27 @@ export class ToyListingService {
       if (validatedInput.title !== undefined) listing.title = validatedInput.title;
       if (validatedInput.description !== undefined)
         listing.description = validatedInput.description;
-      if (validatedInput.condition !== undefined) listing.condition = validatedInput.condition;
+      if (validatedInput.condition !== undefined) {
+        listing.condition = toStoredCondition(validatedInput.condition);
+      }
       if (validatedInput.categoryId !== undefined) {
         listing.categoryId = new mongoose.Types.ObjectId(validatedInput.categoryId);
       }
-      if (validatedInput.ageRange !== undefined) listing.ageRange = validatedInput.ageRange;
-      if (validatedInput.listingType !== undefined)
-        listing.listingType = validatedInput.listingType;
-      if (validatedInput.priceOrRate !== undefined)
-        listing.priceOrRate = validatedInput.priceOrRate;
-
-      if (effectiveListingType === 'rent') {
-        if (validatedInput.depositPrice !== undefined) {
-          listing.depositPrice = validatedInput.depositPrice;
-        }
-      } else {
-        listing.depositPrice = undefined;
+      if (validatedInput.ageRange !== undefined) {
+        listing.ageRange = validatedInput.ageRange;
+        listing.ageGroup = toAgeGroup(validatedInput.ageRange);
       }
+      const price = validatedInput.priceOrRate ?? storedPrice(listing);
+      const deposit =
+        effectiveListingType === 'rent'
+          ? (validatedInput.depositPrice ?? storedDeposit(listing))
+          : undefined;
+      listing.listingType = toStoredListingType(effectiveListingType);
+      listing.pricing = toStoredPricing(effectiveListingType, price, deposit);
 
-      listing.images = [...remainingImages, ...newUploadedAssets];
+      const finalImages = [...remainingImages, ...newUploadedAssets];
+      listing.images = finalImages.map((img) => img.url);
+      listing.imagePublicIds = finalImages.map((img) => img.publicId);
 
       const saved = await listing.save();
 
@@ -335,7 +343,9 @@ export class ToyListingService {
       }
 
       const soldSet = await this.ports.getSoldToyIds([toyId]);
-      const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
+      const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
+        ? 'sold'
+        : fromStoredStatus(saved.status);
       return this.mapToDto(saved, derivedStatus);
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
@@ -370,11 +380,13 @@ export class ToyListingService {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot hide listing with unfinished orders');
     }
 
-    listing.status = 'hidden';
+    listing.status = toStoredStatus('hidden');
     const saved = await listing.save();
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
-    const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
+    const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
+        ? 'sold'
+        : fromStoredStatus(saved.status);
     return this.mapToDto(saved, derivedStatus);
   }
 
@@ -399,7 +411,7 @@ export class ToyListingService {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot delete listing with unfinished orders');
     }
 
-    const publicIds = (listing.images || [])
+    const publicIds = storedImages(listing)
       .map((img) => img.publicId)
       .filter((id) => typeof id === 'string' && id.trim().length > 0);
 

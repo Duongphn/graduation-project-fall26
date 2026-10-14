@@ -159,7 +159,7 @@ function setup(options: PortOptions = {}) {
   app.use(express.json());
   app.use((req, _res, next) => {
     if (currentActor) {
-      req.auth = currentActor;
+      req.auth = { userId: currentActor.userId, role: 'USER' };
     }
     next();
   });
