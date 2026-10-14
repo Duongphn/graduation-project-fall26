@@ -1,0 +1,329 @@
+/*
+ * Trang "Tin đăng của tôi" — cùng ngôn ngữ thiết kế với trang đăng tin (toy-listing.css):
+ * card 12px, nút/thẻ 8px, nhãn 6px; mọi chuyển động dùng `ease-out-quint`.
+ */
+@layer components {
+  /* ---------- Tiêu đề ---------- */
+  .listings-header {
+    @apply mb-6 flex animate-rise-in flex-col gap-4 border-b border-tf-surface pb-6 md:flex-row md:items-end md:justify-between;
+  }
+
+  .listings-header__text {
+    @apply flex flex-col gap-2;
+  }
+
+  .listings-header__title {
+    @apply text-2xl leading-8 font-bold tracking-[-0.02em] text-tf-ink sm:text-[28px] sm:leading-9;
+  }
+
+  .listings-header__lead {
+    @apply max-w-2xl text-[15px] leading-6 text-tf-ink-muted;
+  }
+
+  .listings-header .tf-btn {
+    @apply shrink-0 self-start md:self-auto;
+  }
+
+  /* ---------- Thống kê: 2 cột (mobile) → 3 (tablet) → 5 (desktop) ---------- */
+  .listing-stats {
+    @apply mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5;
+  }
+
+  .listing-stat {
+    @apply flex min-w-0 animate-rise-in flex-col justify-between gap-4 rounded-xl border border-tf-surface bg-white p-4 transition-[border-color,box-shadow,transform] duration-300 ease-out-quint hover:-translate-y-px hover:border-tf-surface-high hover:shadow-[0_10px_24px_-18px_rgb(18_23_31/0.45)] sm:p-5;
+  }
+
+  .listing-stat:nth-child(2) {
+    animation-delay: 40ms;
+  }
+
+  .listing-stat:nth-child(3) {
+    animation-delay: 80ms;
+  }
+
+  .listing-stat:nth-child(4) {
+    animation-delay: 120ms;
+  }
+
+  .listing-stat:nth-child(5) {
+    animation-delay: 160ms;
+  }
+
+  /* Ô tổng chiếm cả hàng trên mobile để lưới 2 cột không bị lẻ */
+  .listing-stat--all {
+    @apply col-span-2 sm:col-span-1;
+  }
+
+  .listing-stat__head {
+    @apply flex items-start justify-between gap-2;
+  }
+
+  .listing-stat__label {
+    @apply text-[11px] leading-4 font-semibold tracking-[0.08em] text-tf-ink-muted uppercase;
+  }
+
+  .listing-stat__icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-lg bg-tf-surface-low text-tf-primary transition-transform duration-300 ease-out-quint;
+  }
+
+  .listing-stat:hover .listing-stat__icon {
+    @apply -rotate-6;
+  }
+
+  .listing-stat__icon svg {
+    @apply size-4 stroke-[1.75];
+  }
+
+  .listing-stat__value-row {
+    @apply flex items-baseline gap-2;
+  }
+
+  .listing-stat__value {
+    @apply text-[32px] leading-none font-bold tracking-[-0.03em] text-tf-ink tabular-nums;
+  }
+
+  .listing-stat__hint {
+    @apply min-w-0 text-xs leading-4 text-tf-ink-muted;
+  }
+
+  .listing-stat--active .listing-stat__value,
+  .listing-stat--active .listing-stat__icon {
+    @apply text-tf-secondary;
+  }
+
+  .listing-stat--pending .listing-stat__value,
+  .listing-stat--pending .listing-stat__icon {
+    @apply text-tf-tertiary;
+  }
+
+  /* ---------- Tab lọc: cuộn ngang trên mobile thay vì xuống dòng ---------- */
+  .listings-toolbar {
+    @apply mb-4 rounded-xl border border-tf-surface bg-white p-1.5;
+  }
+
+  .status-tabs {
+    @apply flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+  }
+
+  .status-tab {
+    @apply relative flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap text-tf-ink-muted transition-[background-color,color] duration-200 ease-out-quint hover:bg-tf-surface-low hover:text-tf-ink focus-ring;
+  }
+
+  .status-tab.is-active {
+    @apply bg-tf-primary text-white hover:bg-tf-primary hover:text-white;
+  }
+
+  .status-tab__count {
+    @apply min-w-5 rounded-md bg-tf-surface-low px-1.5 text-center text-xs leading-5 font-semibold text-tf-ink-muted tabular-nums transition-colors duration-200;
+  }
+
+  .status-tab.is-active .status-tab__count {
+    @apply bg-white/15 text-white;
+  }
+
+  /* ---------- Danh sách tin ---------- */
+  .listings-list {
+    @apply flex flex-col gap-3;
+  }
+
+  .listing-row {
+    @apply grid animate-rise-in grid-cols-[88px_minmax(0,1fr)] gap-x-4 gap-y-3 rounded-xl border border-tf-surface bg-white p-3 transition-[border-color,box-shadow,opacity] duration-300 ease-out-quint hover:border-tf-surface-high hover:shadow-[0_14px_30px_-22px_rgb(18_23_31/0.5)] sm:grid-cols-[112px_minmax(0,1fr)] sm:p-4 lg:grid-cols-[120px_minmax(0,1fr)_auto] lg:items-center lg:gap-x-5;
+  }
+
+  .listing-row:nth-child(2) {
+    animation-delay: 40ms;
+  }
+
+  .listing-row:nth-child(3) {
+    animation-delay: 80ms;
+  }
+
+  .listing-row:nth-child(4) {
+    animation-delay: 120ms;
+  }
+
+  .listing-row:nth-child(5) {
+    animation-delay: 160ms;
+  }
+
+  .listing-row.is-busy {
+    @apply pointer-events-none opacity-60;
+  }
+
+  .listing-row__media {
+    @apply relative aspect-square overflow-hidden rounded-lg bg-tf-surface-low;
+  }
+
+  .listing-row__image {
+    @apply size-full object-cover transition-transform duration-500 ease-out-quint;
+  }
+
+  .listing-row:hover .listing-row__image {
+    @apply scale-[1.05];
+  }
+
+  .listing-row__placeholder {
+    @apply flex size-full items-center justify-center text-tf-ink-muted/50;
+  }
+
+  .listing-row__placeholder svg {
+    @apply size-6;
+  }
+
+  .listing-row__type {
+    @apply absolute top-1.5 left-1.5 rounded-md px-1.5 py-0.5 text-[10px] leading-4 font-semibold tracking-[0.06em] text-white uppercase;
+  }
+
+  .listing-row__type--rent {
+    @apply bg-tf-primary/90;
+  }
+
+  .listing-row__type--sell {
+    @apply bg-tf-tertiary/90;
+  }
+
+  .listing-row__body {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .listing-row__meta {
+    @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-tf-ink-muted;
+  }
+
+  .listing-row__title {
+    @apply text-[15px] leading-6 font-semibold text-tf-ink sm:text-base;
+  }
+
+  /* Gạch chân chạy từ trái sang khi hover tên tin */
+  .listing-row__title-link {
+    @apply line-clamp-2 bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_1px] bg-bottom-left bg-no-repeat transition-[background-size,color] duration-300 ease-out-quint hover:bg-[length:100%_1px] hover:text-tf-primary focus-ring;
+  }
+
+  .listing-row__price-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .listing-row__price {
+    @apply text-lg leading-6 font-bold tracking-[-0.01em] tabular-nums;
+  }
+
+  .listing-row__price--rent {
+    @apply text-tf-primary;
+  }
+
+  .listing-row__price--sell {
+    @apply text-tf-tertiary;
+  }
+
+  .listing-row__unit {
+    @apply ml-0.5 text-xs font-medium text-tf-ink-muted;
+  }
+
+  .listing-row__chip {
+    @apply rounded-md bg-tf-surface-low px-2 py-0.5 text-xs text-tf-ink-muted;
+  }
+
+  .listing-row__error {
+    @apply border-l-2 border-l-tf-error pl-2 text-xs text-tf-error;
+  }
+
+  /* Mobile/tablet: thao tác xuống hàng riêng, trải hết chiều ngang; desktop: cột phải */
+  .listing-row__actions {
+    @apply col-span-2 flex flex-wrap items-center justify-end gap-2 border-t border-tf-surface pt-3 lg:col-span-1 lg:border-t-0 lg:pt-0;
+  }
+
+  .listing-row__confirm-text {
+    @apply mr-auto text-[13px] font-medium text-tf-error lg:mr-1;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs leading-5 font-medium before:size-1.5 before:rounded-full before:bg-current;
+  }
+
+  .status-badge--active {
+    @apply bg-tf-secondary-container text-tf-secondary;
+  }
+
+  .status-badge--pending {
+    @apply bg-tf-tertiary-fixed text-tf-tertiary;
+  }
+
+  .status-badge--hidden {
+    @apply bg-tf-surface text-tf-ink-muted;
+  }
+
+  .status-badge--sold {
+    @apply bg-tf-primary-fixed text-tf-primary;
+  }
+
+  /* ---------- Nút thao tác trong dòng ---------- */
+  .row-btn {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-tf-surface bg-white px-3 py-1.5 text-[13px] font-medium whitespace-nowrap text-tf-ink-muted transition-[background-color,border-color,color,transform] duration-200 ease-out-quint hover:border-tf-surface-high hover:text-tf-ink focus-ring active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .row-btn svg {
+    @apply size-3.5 transition-transform duration-300 ease-out-quint;
+  }
+
+  .row-btn:hover:not(:disabled) svg {
+    @apply -translate-y-px;
+  }
+
+  .row-btn--primary {
+    @apply border-tf-primary/20 bg-tf-primary-fixed text-tf-primary hover:border-tf-primary hover:text-tf-primary;
+  }
+
+  .row-btn--danger {
+    @apply hover:border-tf-error/40 hover:bg-tf-error-container/60 hover:text-tf-error;
+  }
+
+  .row-btn--danger-solid {
+    @apply border-tf-error bg-tf-error text-white hover:bg-tf-error/90 hover:text-white;
+  }
+
+  /* ---------- Phân trang ---------- */
+  .listing-pagination {
+    @apply mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between;
+  }
+
+  .listing-pagination__summary {
+    @apply text-[13px] text-tf-ink-muted;
+  }
+
+  .listing-pagination__summary strong {
+    @apply font-semibold text-tf-ink tabular-nums;
+  }
+
+  .listing-pagination__pages {
+    @apply flex items-center gap-1;
+  }
+
+  .page-btn {
+    @apply flex size-9 items-center justify-center rounded-lg border border-transparent text-sm font-medium text-tf-ink-muted tabular-nums transition-[background-color,border-color,color] duration-200 ease-out-quint hover:border-tf-surface hover:bg-white hover:text-tf-ink focus-ring;
+  }
+
+  .page-btn svg {
+    @apply size-4;
+  }
+
+  .page-btn.is-active {
+    @apply bg-tf-primary text-white hover:bg-tf-primary hover:text-white;
+  }
+
+  .page-btn.is-disabled {
+    @apply pointer-events-none opacity-40;
+  }
+
+  /* ---------- Trạng thái trống ---------- */
+  .listings-empty {
+    @apply flex flex-col items-center gap-3 rounded-xl border border-dashed border-tf-outline bg-white px-6 py-12 text-center;
+  }
+
+  .listings-empty > svg {
+    @apply size-10 stroke-[1.25] text-tf-accent;
+  }
+
+  .listings-empty__title {
+    @apply text-[15px] text-tf-ink-muted;
+  }
+}

@@ -1,9 +1,23 @@
 import { Router } from 'express';
 
+import { categoriesRouter } from '../features/categories/categories.routes.js';
 import { healthRouter } from '../features/health/health.routes.js';
+import {
+  createToyListingDependencies,
+  type ToyListingDependencies,
+} from './toy-listing-dependencies.js';
 
-export const apiRouter = Router();
+export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDependencies }): Router {
+  const router = Router();
 
-apiRouter.use(healthRouter);
+  router.use(healthRouter);
+  router.use('/categories', categoriesRouter);
 
-// Feature routes are mounted here after their requirements and permissions are approved.
+  const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
+  router.use('/toys', toyListing.router);
+
+  return router;
+}
+
+export const apiRouter = createApiRouter();
+

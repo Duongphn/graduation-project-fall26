@@ -1,12 +1,8 @@
-import { Button } from 'antd'
+import { RouterProvider } from 'react-router-dom'
+import { router } from './routes/app-routes'
 
 function App() {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-      <h1 className="text-3xl font-bold">GameRent</h1>
-      <Button type="primary">Ant Design + Tailwind</Button>
-    </div>
-  )
+  return <RouterProvider router={router} />
 }
 
 export default App

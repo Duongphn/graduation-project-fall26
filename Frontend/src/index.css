@@ -2,3 +2,82 @@
 @layer theme, base, antd, components, utilities;
 
 @import 'tailwindcss';
+@import './styles/components.css';
+@import './features/auth/auth.css';
+@import './layouts/account/account-layout.css';
+@import './features/toy-listings/toy-listing.css';
+@import './features/toy-listings/my-listings.css';
+
+/* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Be Vietnam Pro: thiết kế riêng cho tiếng Việt — dấu thanh không chồng lên nhau, không lệch dòng */
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-navy: #152152;
+  --color-brand-button: #24338a;
+  --color-brand-button-hover: #1c2870;
+  --color-brand-cream: #faf8f3;
+
+  /*
+   * Bảng màu trang tài khoản: navy sẫm làm chủ đạo, ánh đồng (brass) làm điểm nhấn,
+   * nền tím nhạt của thiết kế gốc (ToyFlow Replay). Độ tương phản chữ/nền đều ≥ 4.5:1.
+   */
+  --color-tf-page: #faf8ff;
+  --color-tf-surface-low: #f2f3ff;
+  --color-tf-surface: #eaedff;
+  --color-tf-surface-high: #e2e7ff;
+  --color-tf-ink: #12171f;
+  --color-tf-ink-muted: #565c68;
+  --color-tf-outline: #c4c5d5;
+  --color-tf-primary: #14284b;
+  --color-tf-primary-container: #20396a;
+  --color-tf-primary-fixed: #e4e8f0;
+  --color-tf-accent: #a8854f;
+  --color-tf-secondary: #2c6a52;
+  --color-tf-secondary-container: #dcebe3;
+  --color-tf-tertiary: #7d5f2a;
+  --color-tf-tertiary-fixed: #f2e9d8;
+  --color-tf-error: #b3261e;
+  --color-tf-error-container: #fbe5e2;
+
+  /* Một đường cong chuyển động dùng chung: khởi động nhanh, dừng êm */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-rise-in: rise-in 520ms var(--ease-out-quint) both;
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Bề mặt dark mode: xám trung tính hơi ám xanh tím, không dùng slate (quá xanh) */
+  --color-night-950: #15161e;
+  --color-night-900: #1c1d27;
+  --color-night-800: #262733;
+  --color-night-700: #3a3b47;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-cream font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;
+  }
+
+  /* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
