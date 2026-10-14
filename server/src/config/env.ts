@@ -31,4 +31,12 @@ export const env = Object.freeze({
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET ?? 'default_refresh_secret',
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+
+  // Cloudinary
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY ?? '',
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ?? '',
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? '',
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
 });

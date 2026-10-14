@@ -1,12 +1,24 @@
 import { Router } from 'express';
 import { authRouter } from '../features/auth/auth.routes.js';
 
-export const apiRouter = Router();
+import { categoriesRouter } from '../features/categories/categories.routes.js';
+import { healthRouter } from '../features/health/health.routes.js';
+import {
+  createToyListingDependencies,
+  type ToyListingDependencies,
+} from './toy-listing-dependencies.js';
 
-// Health check endpoint
-apiRouter.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', service: 'toyflow-backend' });
-});
+export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDependencies }): Router {
+  const router = Router();
 
-// Mount feature routes
-apiRouter.use(authRouter);
+  router.use(healthRouter);
+  router.use(authRouter);
+  router.use('/categories', categoriesRouter);
+
+  const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
+  router.use('/toys', toyListing.router);
+
+  return router;
+}
+
+export const apiRouter = createApiRouter();

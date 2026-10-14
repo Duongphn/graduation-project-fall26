@@ -1,0 +1,581 @@
+/*
+ * Trang Đăng tin đồ chơi.
+ * Ngôn ngữ thiết kế: bo góc vừa phải (6–12px), viền mảnh thay cho bóng đổ dày,
+ * mọi chuyển động dùng chung `ease-out-quint` (200–300ms).
+ */
+@layer components {
+  /* ---------- Khối chung ---------- */
+  .tf-card {
+    @apply flex min-w-0 flex-col gap-3 rounded-xl border border-tf-surface bg-white p-5 sm:p-6;
+  }
+
+  .tf-card--roomy {
+    @apply gap-5;
+  }
+
+  .tf-card--side {
+    @apply gap-4;
+  }
+
+  /* Các khối hiện lần lượt khi mở trang — một lần duy nhất, không lặp */
+  .editor-header,
+  .listing-form__main > .tf-card,
+  .listing-form__side > .tf-card,
+  .listing-form__side > fieldset > .tf-card {
+    @apply animate-rise-in;
+  }
+
+  .listing-form__main > .tf-card:nth-child(1),
+  .listing-form__side > fieldset > .tf-card {
+    animation-delay: 60ms;
+  }
+
+  .listing-form__main > .tf-card:nth-child(2),
+  .listing-form__side > .tf-card {
+    animation-delay: 120ms;
+  }
+
+  .listing-form__main > .tf-card:nth-child(3) {
+    animation-delay: 180ms;
+  }
+
+  .tf-card__head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .tf-card__head--wrap {
+    @apply flex-col items-start sm:flex-row sm:items-center;
+  }
+
+  .tf-card__subtitle {
+    @apply mt-1 text-[13px] leading-5 text-tf-ink-muted;
+  }
+
+  .tf-section-title {
+    @apply flex items-center gap-2.5 font-semibold tracking-[-0.01em] text-tf-ink;
+  }
+
+  .tf-section-title--md {
+    @apply text-lg leading-7;
+  }
+
+  .tf-section-title--sm {
+    @apply text-base leading-6;
+  }
+
+  .tf-section-title__icon {
+    @apply flex text-tf-accent;
+  }
+
+  .tf-section-title__icon svg {
+    @apply size-5 stroke-[1.75];
+  }
+
+  .tf-required {
+    @apply text-tf-error;
+  }
+
+  .tf-pill {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs leading-4 font-medium;
+  }
+
+  .tf-pill svg {
+    @apply size-3.5;
+  }
+
+  .tf-pill--primary {
+    @apply bg-tf-primary-fixed text-tf-primary;
+  }
+
+  .tf-pill--secondary {
+    @apply bg-tf-secondary-container text-tf-secondary;
+  }
+
+  .tf-pill__pulse {
+    @apply size-1.5 animate-pulse rounded-full bg-tf-secondary;
+  }
+
+  /* ---------- Trường nhập ---------- */
+  /* min-w-0: <select> có tên danh mục dài không được đẩy rộng cột lưới */
+  .tf-field {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .tf-field__label-row {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .tf-field-grid {
+    @apply grid gap-4 sm:grid-cols-2;
+  }
+
+  .tf-label {
+    @apply text-sm leading-5 font-medium text-tf-ink;
+  }
+
+  .tf-caption {
+    @apply text-xs leading-4 text-tf-ink-muted;
+  }
+
+  .tf-field-error {
+    @apply text-xs font-medium text-tf-error;
+  }
+
+  /* Cỡ chữ 16px trên mobile để iOS không tự zoom khi focus */
+  .tf-input {
+    @apply w-full rounded-lg border border-tf-surface bg-tf-surface-low px-3.5 py-2.5 text-base leading-6 text-tf-ink transition-[border-color,background-color,box-shadow] duration-200 ease-out-quint placeholder:text-tf-ink-muted/55 hover:border-tf-surface-high focus:border-tf-primary focus:bg-white focus:shadow-[0_0_0_3px_rgb(20_40_75/0.08)] focus:outline-none disabled:cursor-not-allowed sm:text-[15px];
+  }
+
+  .tf-input.is-invalid {
+    @apply border-tf-error bg-tf-error-container/40;
+  }
+
+  .tf-input--textarea {
+    @apply resize-y py-3 leading-relaxed;
+  }
+
+  .tf-input--money {
+    @apply pr-28 text-base font-semibold tabular-nums;
+  }
+
+  .tf-input--primary {
+    @apply text-tf-primary;
+  }
+
+  .tf-input--tertiary {
+    @apply text-tf-tertiary;
+  }
+
+  .tf-input--locked {
+    @apply bg-tf-surface/60 pr-10 text-sm font-medium text-tf-ink-muted;
+  }
+
+  .tf-affix-input {
+    @apply relative;
+  }
+
+  .tf-affix-input__unit {
+    @apply pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs font-medium tracking-wide whitespace-nowrap text-tf-ink-muted;
+  }
+
+  .tf-affix-input__icon {
+    @apply pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-tf-ink-muted;
+  }
+
+  .tf-select {
+    @apply relative;
+  }
+
+  .tf-select .tf-input {
+    @apply cursor-pointer appearance-none pr-10;
+  }
+
+  .tf-select__chevron {
+    @apply pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-tf-ink-muted transition-transform duration-200 ease-out-quint;
+  }
+
+  .tf-select:focus-within .tf-select__chevron {
+    @apply rotate-180 text-tf-primary;
+  }
+
+  .tf-segmented {
+    @apply flex items-center rounded-lg border border-tf-surface bg-tf-surface-low p-0.5;
+  }
+
+  .tf-segmented button {
+    @apply cursor-pointer rounded-md px-3 py-1 text-xs font-medium text-tf-ink-muted transition-[background-color,color,box-shadow] duration-200 ease-out-quint hover:text-tf-ink focus-ring;
+  }
+
+  .tf-segmented button.is-active {
+    @apply bg-white text-tf-primary shadow-[0_1px_2px_rgb(18_23_31/0.08)];
+  }
+
+  /* ---------- Nút ---------- */
+  .tf-btn {
+    @apply flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg text-sm font-medium whitespace-nowrap transition-[background-color,color,box-shadow,transform] duration-200 ease-out-quint focus-ring active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .tf-btn svg {
+    @apply size-4 transition-transform duration-300 ease-out-quint;
+  }
+
+  .tf-btn--primary {
+    @apply bg-tf-primary py-3 font-semibold tracking-[0.06em] text-white uppercase hover:bg-tf-primary-container hover:shadow-[0_6px_18px_-8px_rgb(20_40_75/0.6)];
+  }
+
+  .tf-btn--primary:hover:not(:disabled) svg {
+    @apply -translate-y-0.5;
+  }
+
+  .tf-btn--soft {
+    @apply border border-tf-surface bg-white py-2.5 text-tf-primary hover:border-tf-primary;
+  }
+
+  .tf-btn--ghost {
+    @apply py-2 text-tf-ink-muted hover:text-tf-error;
+  }
+
+  .tf-btn--ghost:hover:not(:disabled) svg {
+    @apply rotate-90;
+  }
+
+  .tf-btn--inline {
+    @apply w-auto px-5;
+  }
+
+  /* ---------- Breadcrumb + tiêu đề trang ---------- */
+  .tf-breadcrumb {
+    @apply flex flex-wrap items-center gap-2 py-4 text-xs text-tf-ink-muted;
+  }
+
+  .tf-breadcrumb svg {
+    @apply size-3.5;
+  }
+
+  /* Gạch chân chạy từ trái sang khi hover */
+  .tf-breadcrumb__link {
+    @apply relative flex items-center gap-1 transition-colors duration-200 ease-out-quint after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-300 after:ease-out-quint hover:text-tf-primary hover:after:scale-x-100 focus-ring;
+  }
+
+  .tf-breadcrumb__current {
+    @apply font-medium text-tf-primary;
+  }
+
+  .editor-header {
+    @apply mb-6 justify-between gap-4 border-l-2 border-l-tf-accent md:flex-row md:items-center;
+  }
+
+  .editor-header__text {
+    @apply flex flex-col gap-2;
+  }
+
+  .editor-header__title-row {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .editor-header__title {
+    @apply text-2xl leading-8 font-bold tracking-[-0.02em] text-tf-ink sm:text-[28px] sm:leading-9;
+  }
+
+  .editor-header__lead {
+    @apply max-w-2xl text-[15px] leading-6 text-tf-ink-muted;
+  }
+
+  .load-state {
+    @apply items-start text-[15px] text-tf-ink-muted;
+  }
+
+  .load-state--error {
+    @apply text-tf-error;
+  }
+
+  /* ---------- Bố cục: 1 cột (mobile/tablet) → 12 cột, trái 7–8 / phải 5–4 (desktop) ---------- */
+  .listing-form {
+    @apply grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6;
+  }
+
+  .listing-form__main {
+    @apply flex min-w-0 flex-col gap-5 lg:col-span-7 lg:gap-6 xl:col-span-8;
+  }
+
+  /* Cột phải dính khi cuộn để nút Đăng tin luôn trong tầm mắt */
+  .listing-form__side {
+    @apply flex min-w-0 flex-col gap-5 lg:sticky lg:top-6 lg:col-span-5 lg:self-start lg:gap-6 xl:col-span-4;
+  }
+
+  /* ---------- Thẻ lựa chọn (mục đích, tình trạng) ---------- */
+  .purpose-grid {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2;
+  }
+
+  .purpose-card,
+  .condition-card {
+    @apply relative cursor-pointer rounded-lg border border-tf-surface bg-tf-surface-low transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out-quint hover:-translate-y-px hover:border-tf-surface-high hover:bg-white hover:shadow-[0_8px_20px_-14px_rgb(18_23_31/0.35)] has-focus-visible:border-tf-primary has-focus-visible:shadow-[0_0_0_3px_rgb(20_40_75/0.12)];
+  }
+
+  .purpose-card {
+    @apply flex h-full flex-col gap-2 p-4;
+  }
+
+  /* Vạch màu cạnh trái mọc ra khi được chọn */
+  .purpose-card::before {
+    @apply absolute inset-y-0 left-0 w-0.5 origin-top scale-y-0 transition-transform duration-300 ease-out-quint content-[''];
+  }
+
+  .purpose-card:has(:checked)::before {
+    @apply scale-y-100;
+  }
+
+  .purpose-card__head {
+    @apply flex items-center justify-between;
+  }
+
+  .purpose-card__title-row {
+    @apply flex items-center gap-2.5;
+  }
+
+  .purpose-card__icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-md transition-colors duration-300 ease-out-quint;
+  }
+
+  .purpose-card__icon svg {
+    @apply size-4 stroke-[1.75];
+  }
+
+  .purpose-card__title {
+    @apply text-[15px] leading-6 font-semibold text-tf-ink;
+  }
+
+  .purpose-card__check {
+    @apply size-[18px] scale-50 opacity-0 transition-[opacity,transform] duration-300 ease-out-quint;
+  }
+
+  .purpose-card:has(:checked) .purpose-card__check {
+    @apply scale-100 opacity-100;
+  }
+
+  .purpose-card__hint {
+    @apply text-[13px] leading-5 text-tf-ink-muted;
+  }
+
+  .purpose-card--rent::before {
+    @apply bg-tf-primary;
+  }
+
+  .purpose-card--rent .purpose-card__icon {
+    @apply bg-tf-primary-fixed text-tf-primary;
+  }
+
+  .purpose-card--rent:has(:checked) {
+    @apply border-tf-primary/40 bg-white;
+  }
+
+  .purpose-card--rent:has(:checked) .purpose-card__icon {
+    @apply bg-tf-primary text-white;
+  }
+
+  .purpose-card--rent .purpose-card__check {
+    @apply text-tf-primary;
+  }
+
+  .purpose-card--sell::before {
+    @apply bg-tf-accent;
+  }
+
+  .purpose-card--sell .purpose-card__icon {
+    @apply bg-tf-tertiary-fixed text-tf-tertiary;
+  }
+
+  .purpose-card--sell:has(:checked) {
+    @apply border-tf-accent/60 bg-white;
+  }
+
+  .purpose-card--sell:has(:checked) .purpose-card__icon {
+    @apply bg-tf-tertiary text-white;
+  }
+
+  .purpose-card--sell .purpose-card__check {
+    @apply text-tf-tertiary;
+  }
+
+  .condition-grid {
+    @apply grid grid-cols-2 gap-2.5 md:grid-cols-4;
+  }
+
+  .condition-card {
+    @apply flex flex-col items-center justify-center gap-0.5 p-3 text-center has-checked:border-tf-primary has-checked:bg-tf-primary has-checked:hover:bg-tf-primary;
+  }
+
+  .condition-card__title {
+    @apply text-sm font-semibold text-tf-ink transition-colors duration-200;
+  }
+
+  .condition-card__hint {
+    @apply text-xs leading-4 text-tf-ink-muted transition-colors duration-200;
+  }
+
+  .condition-card:has(:checked) .condition-card__title {
+    @apply text-white;
+  }
+
+  .condition-card:has(:checked) .condition-card__hint {
+    @apply text-white/70;
+  }
+
+  /* ---------- Ảnh ---------- */
+  .photo-dropzone {
+    @apply flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-tf-outline bg-tf-surface-low px-4 py-7 text-center transition-[border-color,background-color] duration-300 ease-out-quint hover:border-tf-primary hover:bg-white sm:px-6;
+  }
+
+  #listing-photo-input:focus-visible + .photo-dropzone {
+    @apply border-tf-primary shadow-[0_0_0_3px_rgb(20_40_75/0.12)];
+  }
+
+  .photo-dropzone.is-dragging {
+    @apply border-solid border-tf-primary bg-tf-primary-fixed;
+  }
+
+  .photo-dropzone.is-invalid {
+    @apply border-tf-error;
+  }
+
+  .photo-dropzone.is-disabled {
+    @apply pointer-events-none opacity-60;
+  }
+
+  .photo-dropzone__icon {
+    @apply mb-1 flex size-11 items-center justify-center rounded-md bg-white text-tf-primary shadow-[0_1px_2px_rgb(18_23_31/0.08)] transition-transform duration-300 ease-out-quint;
+  }
+
+  .photo-dropzone:hover .photo-dropzone__icon,
+  .photo-dropzone.is-dragging .photo-dropzone__icon {
+    @apply -translate-y-1;
+  }
+
+  .photo-dropzone__icon svg {
+    @apply size-5 stroke-[1.75];
+  }
+
+  .photo-dropzone__title {
+    @apply text-[15px] leading-6 font-medium text-tf-ink;
+  }
+
+  .photo-dropzone__link {
+    @apply text-tf-primary underline decoration-tf-accent decoration-1 underline-offset-4;
+  }
+
+  .photo-dropzone__hint {
+    @apply text-xs text-tf-ink-muted;
+  }
+
+  .photo-grid {
+    @apply grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4;
+  }
+
+  .photo-tile {
+    @apply relative block aspect-square overflow-hidden rounded-lg border border-tf-surface bg-tf-surface-low;
+  }
+
+  .photo-tile__image {
+    @apply size-full object-cover transition-transform duration-500 ease-out-quint;
+  }
+
+  .photo-tile:hover .photo-tile__image {
+    @apply scale-[1.04];
+  }
+
+  .photo-tile__cover {
+    @apply absolute top-2 left-2 flex items-center gap-1 rounded-md bg-tf-primary/90 px-2 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-sm;
+  }
+
+  .photo-tile__cover svg {
+    @apply size-3 fill-tf-accent text-tf-accent;
+  }
+
+  .photo-tile__remove {
+    @apply absolute top-2 right-2 flex size-7 cursor-pointer items-center justify-center rounded-md bg-white/90 text-tf-ink transition-[background-color,color,opacity] duration-200 ease-out-quint hover:bg-tf-error hover:text-white focus-ring md:opacity-0;
+  }
+
+  .photo-tile:hover .photo-tile__remove,
+  .photo-tile__remove:focus-visible {
+    @apply opacity-100;
+  }
+
+  .photo-tile__remove svg {
+    @apply size-3.5;
+  }
+
+  .photo-tile__make-cover {
+    @apply absolute inset-x-2 bottom-2 cursor-pointer rounded-md bg-white/95 py-1.5 text-[11px] font-medium text-tf-primary opacity-0 transition-[opacity,transform] duration-300 ease-out-quint focus-visible:translate-y-0 focus-visible:opacity-100 md:translate-y-1;
+  }
+
+  .photo-tile:hover .photo-tile__make-cover {
+    @apply translate-y-0 opacity-100;
+  }
+
+  /* Trên màn cảm ứng không có hover: luôn hiện nút */
+  @media (hover: none) {
+    .photo-tile__make-cover {
+      @apply opacity-100;
+    }
+  }
+
+  .photo-tile--add {
+    @apply flex cursor-pointer flex-col items-center justify-center border-dashed border-tf-outline p-3 text-center text-tf-ink-muted transition-[border-color,background-color,color] duration-300 ease-out-quint hover:border-tf-primary hover:bg-white hover:text-tf-primary;
+  }
+
+  .photo-tile--add svg {
+    @apply mb-1.5 size-6 stroke-[1.5] text-tf-primary transition-transform duration-300 ease-out-quint;
+  }
+
+  .photo-tile--add:hover svg {
+    @apply scale-110;
+  }
+
+  .photo-tile--add.is-disabled {
+    @apply pointer-events-none opacity-60;
+  }
+
+  .photo-tile__add-label {
+    @apply text-sm font-medium text-tf-ink;
+  }
+
+  .photo-tile__add-count {
+    @apply mt-0.5 text-xs text-tf-ink-muted tabular-nums;
+  }
+
+  .photo-errors {
+    @apply space-y-1 text-xs font-medium text-tf-error;
+  }
+
+  /* ---------- Giá & Cọc ---------- */
+  .pricing-head {
+    @apply flex flex-wrap items-center justify-between gap-2 border-b border-tf-surface pb-3;
+  }
+
+  /* ---------- Đăng tin ---------- */
+  .publish-info {
+    @apply flex items-start gap-2.5 border-l-2 border-l-tf-accent bg-tf-surface-low p-3 text-[13px] leading-5 text-tf-ink-muted;
+  }
+
+  .publish-info strong {
+    @apply font-semibold text-tf-ink;
+  }
+
+  .publish-info svg {
+    @apply mt-0.5 size-4 shrink-0 text-tf-accent;
+  }
+
+  .publish-error {
+    @apply flex flex-col gap-1 border-l-2 border-l-tf-error bg-tf-error-container/60 p-3 text-[13px] text-tf-error;
+  }
+
+  .publish-error__link {
+    @apply font-semibold underline underline-offset-2;
+  }
+
+  .publish-actions {
+    @apply flex flex-col gap-2;
+  }
+
+  /* ---------- Toast ---------- */
+  .tf-toast {
+    @apply pointer-events-none fixed top-6 right-4 left-4 z-50 flex -translate-y-4 items-center gap-3 rounded-lg border border-tf-surface border-l-2 border-l-tf-secondary bg-white p-4 opacity-0 shadow-[0_18px_40px_-20px_rgb(18_23_31/0.45)] transition-[opacity,transform] duration-300 ease-out-quint sm:left-auto sm:max-w-sm sm:right-8;
+  }
+
+  .tf-toast.is-visible {
+    @apply translate-y-0 opacity-100;
+  }
+
+  .tf-toast__icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-md bg-tf-secondary-container text-tf-secondary;
+  }
+
+  .tf-toast__icon svg {
+    @apply size-4;
+  }
+
+  .tf-toast__text {
+    @apply text-sm leading-5 font-medium text-tf-ink;
+  }
+}

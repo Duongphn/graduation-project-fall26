@@ -59,4 +59,87 @@
   .brand-logo--on-light .brand-logo__name {
     @apply text-slate-900 dark:text-white;
   }
+
+  /* ---------- AppSidebar (components/ui/app-sidebar.tsx) ---------- */
+  .app-sidebar {
+    @apply fixed inset-y-0 left-0 z-50 hidden w-72 flex-col justify-between border-r border-tf-surface bg-white px-4 py-6 lg:flex;
+  }
+
+  .app-sidebar__top {
+    @apply flex flex-col gap-8;
+  }
+
+  .app-sidebar__nav {
+    @apply flex flex-col gap-0.5;
+  }
+
+  /* Vạch đồng bên trái trượt ra khi hover / đang chọn; icon + chữ dịch nhẹ sang phải */
+  .app-sidebar__item {
+    @apply relative flex w-full cursor-pointer items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm font-medium text-tf-ink-muted transition-[background-color,color] duration-300 ease-out-quint focus-ring;
+  }
+
+  .app-sidebar__item::before {
+    @apply absolute top-2 bottom-2 left-0 w-0.5 origin-center scale-y-0 bg-tf-accent transition-transform duration-300 ease-out-quint content-[''];
+  }
+
+  .app-sidebar__item > * {
+    @apply transition-transform duration-300 ease-out-quint;
+  }
+
+  .app-sidebar__item svg {
+    @apply size-[18px] shrink-0 stroke-[1.75];
+  }
+
+  .app-sidebar__item:not(.is-unavailable):hover {
+    @apply bg-tf-surface-low text-tf-ink;
+  }
+
+  .app-sidebar__item:not(.is-unavailable):hover::before,
+  .app-sidebar__item.is-active::before {
+    @apply scale-y-100;
+  }
+
+  .app-sidebar__item:not(.is-unavailable):hover > * {
+    @apply translate-x-0.5;
+  }
+
+  .app-sidebar__item.is-active {
+    @apply bg-tf-primary-fixed font-semibold text-tf-primary;
+  }
+
+  .app-sidebar__item.is-unavailable {
+    @apply cursor-default text-tf-ink-muted/60;
+  }
+
+  .app-sidebar__item--logout {
+    @apply w-auto text-tf-error hover:bg-tf-error-container/50 hover:text-tf-error;
+  }
+
+  .app-sidebar__item--logout::before {
+    @apply bg-tf-error;
+  }
+
+  .app-sidebar-brand {
+    @apply flex items-center gap-2.5 rounded-md px-3 focus-ring;
+  }
+
+  .app-sidebar-brand__mark {
+    @apply flex size-9 items-center justify-center rounded-lg bg-tf-primary text-lg font-bold text-white shadow-[inset_0_-2px_0_var(--color-tf-accent)] transition-transform duration-300 ease-out-quint;
+  }
+
+  .app-sidebar-brand:hover .app-sidebar-brand__mark {
+    @apply -rotate-6;
+  }
+
+  .app-sidebar-brand__text {
+    @apply flex flex-col;
+  }
+
+  .app-sidebar-brand__name {
+    @apply text-lg leading-none font-bold tracking-[-0.02em] text-tf-primary;
+  }
+
+  .app-sidebar-brand__tagline {
+    @apply mt-1 text-[11px] leading-4 font-medium tracking-[0.08em] text-tf-accent uppercase;
+  }
 }

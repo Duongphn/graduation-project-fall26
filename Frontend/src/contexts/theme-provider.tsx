@@ -7,7 +7,7 @@ import { ThemeContext } from './theme-context'
 const THEME_KEY = 'toyflow-theme'
 
 const baseToken: ThemeConfig['token'] = {
-  fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif",
+  fontFamily: "'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif",
   borderRadius: 12,
   controlHeightLG: 48,
   fontSizeLG: 15,

@@ -1,6 +1,7 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { type Model, Schema } from 'mongoose';
 
-const purchaseOrderSchema = new Schema({
+const purchaseOrderSchema = new Schema(
+  {
     code: { type: String, required: true, unique: true },
     buyerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     sellerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -10,15 +11,38 @@ const purchaseOrderSchema = new Schema({
     deliveryMethod: { type: String, required: true },
     status: { type: String, required: true, default: 'pending' },
     timer: {
-        dueAt: { type: Date }
-    }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+      dueAt: { type: Date },
+    },
+  },
+  { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
+);
 
 // Tao cac Index dong bo tuyet doi voi Atlas
 purchaseOrderSchema.index({ code: 1 }, { unique: true, name: 'code_unique' });
 purchaseOrderSchema.index({ buyerId: 1, status: 1, createdAt: -1 }, { name: 'buyer_orders' });
 purchaseOrderSchema.index({ sellerId: 1, status: 1, createdAt: -1 }, { name: 'seller_orders' });
 purchaseOrderSchema.index({ toyId: 1, status: 1 }, { name: 'toy_orders' });
-purchaseOrderSchema.index({ 'timer.dueAt': 1 }, { partialFilterExpression: { 'timer.dueAt': { $exists: true } }, name: 'timer_due' });
+purchaseOrderSchema.index(
+  { 'timer.dueAt': 1 },
+  { partialFilterExpression: { 'timer.dueAt': { $exists: true } }, name: 'timer_due' },
+);
 
-export default mongoose.model('PurchaseOrder', purchaseOrderSchema);
+export interface IPurchaseOrder {
+  code: string;
+  buyerId: mongoose.Types.ObjectId;
+  sellerId: mongoose.Types.ObjectId;
+  toyId: mongoose.Types.ObjectId;
+  itemDetails: string;
+  price: number;
+  deliveryMethod: string;
+  status: string;
+  timer?: {
+    dueAt?: Date;
+  };
+}
+
+export const PurchaseOrder: Model<IPurchaseOrder> =
+  (mongoose.models.PurchaseOrder as Model<IPurchaseOrder>) ||
+  mongoose.model<IPurchaseOrder>('PurchaseOrder', purchaseOrderSchema);
+
+export default PurchaseOrder;
