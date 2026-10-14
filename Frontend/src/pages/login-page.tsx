@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
-import { AuthLayout } from '../layouts/auth/auth-layout'
 import { PATHS } from '../routes/paths'
 import { saveAccessToken } from '../services/token-storage'
 

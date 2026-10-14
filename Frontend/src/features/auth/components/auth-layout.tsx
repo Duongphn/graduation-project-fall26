@@ -2,9 +2,9 @@ import { ArrowLeftOutlined } from '@ant-design/icons'
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthBrandPanel, type AuthBrandPanelProps } from './auth-brand-panel'
-import { BrandLogo } from '../../components/ui/brand-logo'
-import { ThemeToggle } from '../../components/ui/theme-toggle'
-import { PATHS } from '../../routes/paths'
+import { BrandLogo } from '../../../components/ui/brand-logo'
+import { ThemeToggle } from '../../../components/ui/theme-toggle'
+import { PATHS } from '../../../routes/paths'
 
 interface AuthLayoutProps {
   /** Tiêu đề tab trình duyệt (không kèm hậu tố " - ToyFlow") */

@@ -3,7 +3,6 @@
 
 @import 'tailwindcss';
 @import './styles/components.css';
-@import './layouts/auth/auth-layout.css';
 @import './features/auth/auth.css';
 
 /* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */

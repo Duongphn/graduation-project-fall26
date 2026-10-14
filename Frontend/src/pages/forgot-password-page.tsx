@@ -5,7 +5,7 @@ import { requestPasswordReset, verifyPasswordResetCode, type ResetCodeChallenge 
 import { ForgotPasswordEmailForm } from '../features/auth/components/forgot-password-email-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { ResetPasswordForm } from '../features/auth/components/reset-password-form'
-import { AuthLayout } from '../layouts/auth/auth-layout'
+import { AuthLayout } from '../features/auth/components/auth-layout'
 import { PATHS } from '../routes/paths'
 import { maskEmail } from '../utils/mask-contact'
 

@@ -1,5 +1,4 @@
-import { httpClient } from '../../services/http-client'
-import type { ApiResponse } from '../../types/api'
+import { httpClient, type ApiResponse } from '../../services/http-client'
 import type { LoginFormValues, RegisterFormValues } from './auth-schemas'
 
 export interface AuthUser {

@@ -1,6 +1,21 @@
 import axios, { isAxiosError } from 'axios'
 import { env } from '../config/env'
-import type { ApiErrorResponse } from '../types/api'
+
+/** Envelope phản hồi thành công của backend — xem server/docs/api-conventions.md */
+export interface ApiResponse<T> {
+  success: true
+  data: T
+  message?: string
+}
+
+interface ApiErrorResponse {
+  success: false
+  error: {
+    code: string
+    message: string
+    details?: unknown
+  }
+}
 
 export const httpClient = axios.create({
   baseURL: env.apiBaseUrl,
