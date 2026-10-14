@@ -9,6 +9,9 @@ export const adminRoutes: RouteObject[] = [
   // Toy moderation (UC27)
   { path: adminChildPath(adminPaths.toys), ...lazyPage(() => import('../features/toy-moderation/pages/ToyModerationQueuePage'), 'ToyModerationQueuePage') },
   { path: adminChildPath(adminPaths.toys, '/:id'), ...lazyPage(() => import('../features/toy-moderation/pages/ToyModerationReviewPage'), 'ToyModerationReviewPage') },
+  // Identity review (UC27, FE-01)
+  { path: adminChildPath(adminPaths.identityVerifications), ...lazyPage(() => import('../features/identity-verifications/pages/IdentityVerificationListPage'), 'IdentityVerificationListPage') },
+  { path: adminChildPath(adminPaths.identityVerifications, '/:id'), ...lazyPage(() => import('../features/identity-verifications/pages/IdentityVerificationDetailPage'), 'IdentityVerificationDetailPage') },
   // Toy categories (UC30)
   { path: adminChildPath(adminPaths.categories), ...lazyPage(() => import('../features/categories/pages/CategoriesPage'), 'CategoriesPage') },
   // Charity organizations (FE-02, UC34)

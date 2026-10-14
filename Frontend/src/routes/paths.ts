@@ -20,6 +20,8 @@ export const adminPaths = {
   dashboard: ADMIN_ROOT,
   toys: `${ADMIN_ROOT}/toys`,
   toy: (id: string) => `${ADMIN_ROOT}/toys/${id}`,
+  identityVerifications: `${ADMIN_ROOT}/identity-verifications`,
+  identityVerification: (id: string) => `${ADMIN_ROOT}/identity-verifications/${id}`,
   categories: `${ADMIN_ROOT}/categories`,
   organizations: `${ADMIN_ROOT}/organizations`,
 } as const

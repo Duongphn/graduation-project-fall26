@@ -3,6 +3,7 @@ import {
   AuditOutlined,
   DashboardOutlined,
   HeartOutlined,
+  IdcardOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
@@ -20,6 +21,7 @@ export interface AdminMenuItem {
 export const adminMenuItems: AdminMenuItem[] = [
   { key: 'dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, path: adminPaths.dashboard },
   { key: 'toys', label: 'Duyệt tin đăng', icon: <AuditOutlined />, path: adminPaths.toys },
+  { key: 'identity-verifications', label: 'Xác minh danh tính', icon: <IdcardOutlined />, path: adminPaths.identityVerifications },
   { key: 'categories', label: 'Danh mục đồ chơi', icon: <AppstoreOutlined />, path: adminPaths.categories },
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
 ]
