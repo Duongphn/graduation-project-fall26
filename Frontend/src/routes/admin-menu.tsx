@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   DashboardOutlined,
+  HeartOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
@@ -18,4 +19,5 @@ export interface AdminMenuItem {
 export const adminMenuItems: AdminMenuItem[] = [
   { key: 'dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, path: adminPaths.dashboard },
   { key: 'categories', label: 'Danh mục đồ chơi', icon: <AppstoreOutlined />, path: adminPaths.categories },
+  { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
 ]

@@ -19,6 +19,7 @@ export const ADMIN_ROOT = '/admin'
 export const adminPaths = {
   dashboard: ADMIN_ROOT,
   categories: `${ADMIN_ROOT}/categories`,
+  organizations: `${ADMIN_ROOT}/organizations`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.

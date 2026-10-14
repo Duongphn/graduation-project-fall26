@@ -8,4 +8,6 @@ import { adminChildPath, adminPaths } from './paths'
 export const adminRoutes: RouteObject[] = [
   // Toy categories (UC30)
   { path: adminChildPath(adminPaths.categories), ...lazyPage(() => import('../features/categories/pages/CategoriesPage'), 'CategoriesPage') },
+  // Charity organizations (FE-02, UC34)
+  { path: adminChildPath(adminPaths.organizations), ...lazyPage(() => import('../features/organizations/pages/OrganizationsPage'), 'OrganizationsPage') },
 ]
