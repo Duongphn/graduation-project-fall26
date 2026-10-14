@@ -1,0 +1,203 @@
+@layer components {
+  .auth-layout {
+    @apply flex min-h-screen w-full;
+  }
+
+  .auth-brand {
+    @apply relative hidden flex-col justify-between overflow-hidden bg-brand-navy p-14 text-white lg:flex lg:w-1/2;
+    background-image: radial-gradient(rgb(255 255 255 / 0.12) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .auth-brand__glow {
+    @apply pointer-events-none absolute -top-40 -right-40 size-[28rem] rounded-full bg-blue-500/20 blur-3xl;
+  }
+
+  .auth-brand__hero {
+    @apply relative my-auto py-10;
+  }
+
+  .auth-brand__eyebrow {
+    @apply mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-slate-200 backdrop-blur-sm;
+  }
+
+  .auth-brand__eyebrow-dot {
+    @apply size-1.5 rounded-full bg-amber-400;
+  }
+
+  .auth-brand__title {
+    @apply mb-4 text-[40px] leading-tight font-extrabold tracking-tight xl:text-5xl;
+  }
+
+  .auth-brand__title-highlight {
+    @apply text-amber-500;
+  }
+
+  .auth-brand__lead {
+    @apply mb-12 max-w-md leading-relaxed text-slate-300;
+  }
+
+  .auth-brand__trust-list {
+    @apply relative flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-white/10 pt-6 text-xs font-medium text-slate-300;
+  }
+
+  .auth-brand__trust-item {
+    @apply flex items-center gap-1.5;
+  }
+
+  .auth-brand__trust-icon {
+    @apply size-4;
+  }
+
+  .auth-brand__trust-icon--verified {
+    @apply text-emerald-400;
+  }
+
+  .auth-brand__trust-icon--deposit {
+    @apply text-amber-400;
+  }
+
+  .auth-brand__trust-icon--handover {
+    @apply text-sky-400;
+  }
+
+  .toy-showcase {
+    @apply relative h-80 w-full max-w-md select-none;
+  }
+
+  .showcase-card {
+    @apply absolute w-56 overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl transition-transform duration-300 hover:-translate-y-1 motion-reduce:transition-none;
+  }
+
+  .showcase-card--rental {
+    @apply top-4 left-2 z-10 -rotate-3;
+  }
+
+  .showcase-card--resale {
+    @apply top-12 right-0 z-20 rotate-3;
+  }
+
+  .showcase-card__media {
+    @apply flex h-32 items-center justify-center;
+  }
+
+  .showcase-card--rental .showcase-card__media {
+    @apply bg-[#eafaf2] text-emerald-600;
+  }
+
+  .showcase-card--resale .showcase-card__media {
+    @apply bg-[#fff4eb] text-amber-700;
+  }
+
+  .showcase-card__frame {
+    @apply flex h-12 min-w-16 items-center justify-center rounded-lg border-2 border-current/70 px-2 text-[11px] font-bold;
+  }
+
+  .showcase-card__body {
+    @apply p-3.5;
+  }
+
+  .showcase-card__name {
+    @apply truncate text-xs font-bold text-slate-800;
+  }
+
+  .showcase-card__meta {
+    @apply mt-1.5 flex items-center justify-between text-xs font-extrabold;
+  }
+
+  .showcase-card--rental .showcase-card__price {
+    @apply text-blue-700;
+  }
+
+  .showcase-card--resale .showcase-card__price {
+    @apply text-amber-600;
+  }
+
+  .showcase-card__price-unit {
+    @apply ml-1 text-[10px] font-normal text-slate-400;
+  }
+
+  .showcase-card__rating {
+    @apply flex items-center gap-0.5 text-[11px] font-bold text-slate-600;
+  }
+
+  .showcase-card__rating-star {
+    @apply text-amber-400;
+  }
+
+  .showcase-badge {
+    @apply absolute z-30 flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-slate-800 shadow-xl;
+  }
+
+  .showcase-badge--ai-check {
+    @apply -top-3 right-4;
+  }
+
+  .showcase-badge--deposit {
+    @apply -bottom-2 left-0;
+  }
+
+  .showcase-badge__icon {
+    @apply flex size-7 items-center justify-center rounded-lg;
+  }
+
+  .showcase-badge__icon > svg {
+    @apply size-4;
+  }
+
+  .showcase-badge--ai-check .showcase-badge__icon {
+    @apply bg-emerald-50 text-emerald-600;
+  }
+
+  .showcase-badge--deposit .showcase-badge__icon {
+    @apply bg-blue-50 text-blue-600;
+  }
+
+  .showcase-badge__title {
+    @apply text-xs leading-tight font-bold text-slate-900;
+  }
+
+  .showcase-badge__subtitle {
+    @apply text-[10px] leading-tight text-slate-500;
+  }
+
+  .auth-panel {
+    @apply flex min-h-screen w-full flex-col px-4 py-6 sm:px-12 lg:w-1/2 lg:p-14;
+  }
+
+  .auth-panel__nav {
+    @apply flex items-center justify-between;
+  }
+
+  .auth-panel__back-link {
+    @apply inline-flex items-center gap-1.5 rounded text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 focus-ring dark:text-slate-400 dark:hover:text-white;
+  }
+
+  .auth-panel__content {
+    @apply mx-auto my-auto w-full max-w-md py-10;
+  }
+
+  .auth-panel__mobile-logo {
+    @apply mb-8 lg:hidden;
+  }
+
+  .auth-panel__header {
+    @apply mb-8;
+  }
+
+  .auth-panel__title {
+    @apply text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white;
+  }
+
+  .auth-panel__subtitle {
+    @apply mt-2 text-sm text-slate-600 dark:text-slate-400;
+  }
+
+  .auth-panel__footer {
+    @apply text-center text-xs text-slate-500;
+  }
+
+  .auth-panel__steps {
+    @apply mb-6;
+  }
+}

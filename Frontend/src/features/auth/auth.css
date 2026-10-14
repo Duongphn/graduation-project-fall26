@@ -1,0 +1,47 @@
+@layer components {
+  .auth-form__options {
+    @apply mb-6 flex items-center justify-between gap-4;
+  }
+
+  .auth-form__alert {
+    @apply mb-5;
+  }
+
+  .auth-form__actions {
+    @apply flex flex-col gap-2;
+  }
+
+  .otp-input {
+    @apply flex w-full justify-between;
+  }
+
+  .otp-resend {
+    @apply -mt-2 mb-5 flex min-h-6 items-center justify-between text-xs;
+  }
+
+  /* Bỏ padding mặc định để nút link thẳng hàng với mép form */
+  .otp-resend__button {
+    @apply px-0;
+  }
+
+  .password-strength {
+    @apply mt-2 flex items-center gap-3;
+  }
+
+  .password-strength__bar {
+    @apply m-0 flex-1 leading-none;
+  }
+
+  /* Progress dạng steps mặc định có độ rộng cố định — kéo giãn từng vạch theo chiều ngang */
+  .password-strength__bar .ant-progress-steps-body {
+    @apply flex w-full gap-1.5;
+  }
+
+  .password-strength__bar .ant-progress-steps-item {
+    @apply m-0 flex-1 rounded-full;
+  }
+
+  .password-strength__label {
+    @apply shrink-0 text-[11px] font-medium text-slate-500;
+  }
+}

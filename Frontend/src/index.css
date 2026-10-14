@@ -2,3 +2,30 @@
 @layer theme, base, antd, components, utilities;
 
 @import 'tailwindcss';
+@import './styles/components.css';
+@import './layouts/auth/auth-layout.css';
+@import './features/auth/auth.css';
+
+/* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-navy: #152152;
+  --color-brand-button: #24338a;
+  --color-brand-button-hover: #1c2870;
+  --color-brand-cream: #faf8f3;
+
+  /* Bề mặt dark mode: xám trung tính hơi ám xanh tím, không dùng slate (quá xanh) */
+  --color-night-950: #15161e;
+  --color-night-900: #1c1d27;
+  --color-night-800: #262733;
+  --color-night-700: #3a3b47;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-cream font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;
+  }
+}

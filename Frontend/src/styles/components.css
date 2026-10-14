@@ -1,0 +1,62 @@
+@utility focus-ring {
+  @apply focus-visible:ring-2 focus-visible:ring-brand-button focus-visible:outline-none dark:focus-visible:ring-indigo-300;
+}
+
+@layer components {
+  .text-link {
+    @apply rounded font-bold text-brand-button hover:underline focus-ring dark:text-indigo-300;
+  }
+
+  .text-link--small {
+    @apply text-xs;
+  }
+
+  .text-link--inline {
+    @apply font-semibold;
+  }
+
+  /* Label form antd đậm vừa như thiết kế (antd không có token cho độ đậm label) */
+  .ant-form-vertical .ant-form-item-label > label {
+    @apply font-semibold;
+  }
+
+  .form-control__icon {
+    @apply text-slate-400;
+  }
+
+  .brand-logo {
+    @apply flex items-center gap-3;
+  }
+
+  .brand-logo__mark {
+    @apply grid size-10 grid-cols-2 gap-1 rounded-xl border border-white/10 bg-blue-500/20 p-2 shadow-inner;
+  }
+
+  .brand-logo__tile {
+    @apply rounded-[3px];
+  }
+
+  .brand-logo__tile--emerald {
+    @apply bg-emerald-400;
+  }
+
+  .brand-logo__tile--amber {
+    @apply bg-amber-400;
+  }
+
+  .brand-logo__tile--sky {
+    @apply bg-sky-400;
+  }
+
+  .brand-logo__tile--blue {
+    @apply bg-blue-500;
+  }
+
+  .brand-logo__name {
+    @apply text-2xl font-bold tracking-tight text-white;
+  }
+
+  .brand-logo--on-light .brand-logo__name {
+    @apply text-slate-900 dark:text-white;
+  }
+}
