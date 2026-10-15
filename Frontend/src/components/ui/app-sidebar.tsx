@@ -10,6 +10,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import brandMark from "../../assets/brand/toyflow-mark.png";
+import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
 import { clearAuthTokens } from "../../services/token-storage";
 
@@ -56,6 +58,12 @@ export function SidebarBrand() {
     <Link to={PATHS.home} className="app-sidebar-brand">
       <span className="app-sidebar-brand__mark">T</span>
       <span className="app-sidebar-brand__name">ToyFlow</span>
+    <Link to={PATHS.home} className="app-sidebar-brand" aria-label="ToyFlow - Trang chủ">
+      <img src={brandMark} alt="" className="app-sidebar-brand__mark" width={226} height={160} />
+      <span className="app-sidebar-brand__text">
+        <img src={brandWordmark} alt="" className="app-sidebar-brand__wordmark" width={366} height={96} />
+        <span className="app-sidebar-brand__tagline">Cổng phụ huynh</span>
+      </span>
     </Link>
   );
 }

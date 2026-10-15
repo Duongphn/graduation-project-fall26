@@ -25,39 +25,20 @@
   }
 
   .brand-logo {
-    @apply flex items-center gap-3;
+    @apply flex items-center gap-1.5;
   }
 
   .brand-logo__mark {
-    @apply grid size-10 grid-cols-2 gap-1 rounded-xl border border-white/10 bg-blue-500/20 p-2 shadow-inner;
+    @apply h-12 w-auto drop-shadow-[0_4px_8px_rgb(37_99_235/0.18)];
   }
 
-  .brand-logo__tile {
-    @apply rounded-[3px];
+  /* Chữ "Toy" xanh đậm: tăng sáng trên nền tối (panel navy, dark mode) để đủ tương phản */
+  .brand-logo__wordmark {
+    @apply h-8 w-auto brightness-[1.6] saturate-[1.1];
   }
 
-  .brand-logo__tile--emerald {
-    @apply bg-emerald-400;
-  }
-
-  .brand-logo__tile--amber {
-    @apply bg-amber-400;
-  }
-
-  .brand-logo__tile--sky {
-    @apply bg-sky-400;
-  }
-
-  .brand-logo__tile--blue {
-    @apply bg-blue-500;
-  }
-
-  .brand-logo__name {
-    @apply text-2xl font-bold tracking-tight text-white;
-  }
-
-  .brand-logo--on-light .brand-logo__name {
-    @apply text-slate-900 dark:text-white;
+  .brand-logo--on-light .brand-logo__wordmark {
+    @apply brightness-100 saturate-100 dark:brightness-[1.6] dark:saturate-[1.1];
   }
 
   /* ---------- AppSidebar (components/ui/app-sidebar.tsx) ---------- */
@@ -124,7 +105,7 @@
   }
 
   .app-sidebar-brand__mark {
-    @apply flex size-9 items-center justify-center rounded-lg bg-tf-primary text-lg font-bold text-white shadow-[inset_0_-2px_0_var(--color-tf-accent)] transition-transform duration-300 ease-out-quint;
+    @apply h-10 w-auto transition-transform duration-300 ease-out-quint;
   }
 
   .app-sidebar-brand:hover .app-sidebar-brand__mark {
@@ -133,5 +114,11 @@
 
   .app-sidebar-brand__name {
     @apply text-lg leading-none font-bold tracking-[-0.02em] text-tf-primary;
+  .app-sidebar-brand__text {
+    @apply flex flex-col;
+  }
+
+  .app-sidebar-brand__wordmark {
+    @apply h-5 w-auto;
   }
 }
