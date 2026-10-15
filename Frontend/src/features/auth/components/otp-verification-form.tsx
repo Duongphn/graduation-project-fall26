@@ -12,6 +12,8 @@ interface OtpVerificationFormProps<TResult> {
   /** Nơi nhận mã đã được che bớt, vd: "0901 *** 567" hoặc "ng***@gmail.com" */
   destination: string
   hint?: string
+  /** Mã điền sẵn, vd: khi mở từ link trong email */
+  initialOtp?: string
   resendAfterSeconds: number
   verify: (otp: string) => Promise<TResult>
   resend: () => Promise<{ resendAfterSeconds: number }>
@@ -24,6 +26,7 @@ interface OtpVerificationFormProps<TResult> {
 export function OtpVerificationForm<TResult>({
   destination,
   hint,
+  initialOtp = '',
   resendAfterSeconds,
   verify,
   resend,
@@ -36,7 +39,7 @@ export function OtpVerificationForm<TResult>({
 
   const { control, handleSubmit } = useForm<OtpFormValues>({
     resolver: zodResolver(otpSchema),
-    defaultValues: { otp: '' },
+    defaultValues: { otp: initialOtp },
   })
 
   const verifyMutation = useMutation({

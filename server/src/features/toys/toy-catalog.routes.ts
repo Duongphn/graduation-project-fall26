@@ -2,6 +2,10 @@ import { Router } from 'express';
 import { ToyCatalogController } from './toy-catalog.controller.js';
 import type { ToyCatalogService } from './toy-catalog.service.js';
 
+/**
+ * Router công khai của /toys — KHÔNG dùng requireActor.
+ * Chỉ khai báo đúng `GET /`; mọi đường dẫn khác (/mine, /:toyId…) đi tiếp sang router đăng tin.
+ */
 export function createToyCatalogRouter(
   service: ToyCatalogService,
   controller: ToyCatalogController = new ToyCatalogController(service),
@@ -11,6 +15,7 @@ export function createToyCatalogRouter(
   router.get('/', controller.search);
   router.get('/:toyId/availability', controller.getAvailability);
   router.get('/:toyId', controller.getDetail);
+  router.get('/', controller.list);
 
   return router;
 }
