@@ -1,6 +1,6 @@
 import { Button, Result, Steps } from 'antd'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { requestPasswordReset, verifyPasswordResetCode, type ResetCodeChallenge } from '../features/auth/auth-api'
 import { ForgotPasswordEmailForm } from '../features/auth/components/forgot-password-email-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
@@ -13,14 +13,23 @@ const STEPS = [{ title: 'Email' }, { title: 'Nhập mã' }, { title: 'Mật kh�
 
 type RecoveryState =
   | { step: 'email'; email?: string }
-  | { step: 'code'; challenge: ResetCodeChallenge }
+  | { step: 'code'; challenge: ResetCodeChallenge; initialOtp?: string }
   | { step: 'new-password'; resetToken: string }
   | { step: 'done' }
 
 const STEP_INDEX = { email: 0, code: 1, 'new-password': 2, done: 2 } as const
 
+/** Link trong email có dạng /forgot-password?email=...&otp=... → vào thẳng bước nhập mã, điền sẵn mã */
+function getInitialState(params: URLSearchParams): RecoveryState {
+  const email = params.get('email')
+  const otp = params.get('otp')
+  if (!email || !otp) return { step: 'email' }
+  return { step: 'code', challenge: { email, resendAfterSeconds: 0 }, initialOtp: otp }
+}
+
 export function ForgotPasswordPage() {
-  const [state, setState] = useState<RecoveryState>({ step: 'email' })
+  const [searchParams] = useSearchParams()
+  const [state, setState] = useState<RecoveryState>(() => getInitialState(searchParams))
 
   return (
     <AuthLayout
@@ -69,8 +78,9 @@ export function ForgotPasswordPage() {
               destination={maskEmail(state.challenge.email)}
               // Không khẳng định email tồn tại, để không lộ danh sách tài khoản đã đăng ký
               hint="Nếu email này đã đăng ký tài khoản, mã sẽ đến trong vài phút. Không thấy email? Hãy kiểm tra thư mục Spam."
+              initialOtp={state.initialOtp}
               resendAfterSeconds={state.challenge.resendAfterSeconds}
-              verify={(code) => verifyPasswordResetCode({ email: state.challenge.email, code })}
+              verify={(otpCode) => verifyPasswordResetCode({ email: state.challenge.email, otpCode })}
               resend={() => requestPasswordReset(state.challenge.email)}
               onVerified={(resetToken) => setState({ step: 'new-password', resetToken })}
               submitLabel="Xác minh mã"

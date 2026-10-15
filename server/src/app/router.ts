@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authRouter } from '../features/auth/auth.routes.js';
 
 import { categoriesRouter } from '../features/categories/categories.routes.js';
 import { healthRouter } from '../features/health/health.routes.js';
@@ -11,6 +12,7 @@ export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDepe
   const router = Router();
 
   router.use(healthRouter);
+  router.use(authRouter);
   router.use('/categories', categoriesRouter);
 
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
@@ -20,4 +22,3 @@ export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDepe
 }
 
 export const apiRouter = createApiRouter();
-
