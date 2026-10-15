@@ -1,6 +1,5 @@
 import { PackagePlus } from 'lucide-react'
 import { browseToysPath, PATHS } from '../../../routes/paths'
-import { MockDataBadge } from '../components/mock-data-badge'
 import { SectionHeader } from '../components/section-header'
 import { ToyGrid } from '../components/toy-grid'
 import { featuredRentalsQuery } from '../home-queries'
@@ -15,7 +14,6 @@ export function FeaturedRentalsSection() {
         subtitle="Được thuê nhiều trong tuần, giá tính theo ngày"
         action={{ label: 'Xem tất cả', to: browseToysPath({ type: 'rent' }) }}
       />
-      <MockDataBadge />
       <ToyGrid
         query={featuredRentalsQuery}
         listingType="rent"

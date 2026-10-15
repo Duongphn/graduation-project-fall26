@@ -1,6 +1,5 @@
 import { Tag } from 'lucide-react'
 import { browseToysPath, PATHS } from '../../../routes/paths'
-import { MockDataBadge } from '../components/mock-data-badge'
 import { SectionHeader } from '../components/section-header'
 import { ToyGrid } from '../components/toy-grid'
 import { resaleToysQuery } from '../home-queries'
@@ -15,7 +14,6 @@ export function ResaleSection() {
         subtitle="Tiền được giữ trung gian, chỉ chuyển cho người bán khi bạn xác nhận đã nhận đồ"
         action={{ label: 'Xem tất cả', to: browseToysPath({ type: 'sell' }) }}
       />
-      <MockDataBadge />
       <ToyGrid
         query={resaleToysQuery}
         listingType="sell"
