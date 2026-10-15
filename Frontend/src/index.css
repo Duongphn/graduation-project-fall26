@@ -7,6 +7,9 @@
 @import './layouts/account/account-layout.css';
 @import './features/toy-listings/toy-listing.css';
 @import './features/toy-listings/my-listings.css';
+@import './layouts/site/site-layout.css';
+@import './features/home/home.css';
+@import './features/ai-chat/ai-chat.css';
 
 /* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -41,6 +44,27 @@
   --color-tf-tertiary-fixed: #f2e9d8;
   --color-tf-error: #b3261e;
   --color-tf-error-container: #fbe5e2;
+
+  /*
+   * Trang công khai (trang chủ, header/footer site): nền hero xanh navy, nút xanh dương,
+   * điểm nhấn hổ phách cho chữ nổi bật, xanh lá cho khu quyên góp.
+   */
+  --color-site-page: #faf8ff;
+  --color-site-hero: #14284b;
+  --color-site-hero-deep: #20396a;
+  --color-site-hero-accent: #e4e8f0;
+  --color-site-primary: #14284b;
+  --color-site-primary-hover: #20396a;
+  --color-site-ink: #12171f;
+  --color-site-muted: #565c68; /* chữ phụ: ≥ 4.5:1 trên nền trang và nền xám nhạt */
+  --color-site-line: #eaedff;
+  /* Chữ nhấn trên nền sáng: ≥ 3:1 với chữ tiêu đề lớn (WCAG AA); bản sáng chỉ dùng trên nền tối / làm nền nút */
+  --color-site-highlight: #a8854f;
+  --color-site-highlight-bright: #a8854f;
+  /* Giá đồ bán lại, nhãn "Bán lại": ≥ 4.5:1 trên nền trắng (chữ thường) */
+  --color-site-sale: #7d5f2a;
+  --color-site-night: #14284b;
+  --color-site-donate: #2c6a52;
 
   /* Một đường cong chuyển động dùng chung: khởi động nhanh, dừng êm */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
