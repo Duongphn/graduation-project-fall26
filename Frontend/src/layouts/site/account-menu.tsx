@@ -1,7 +1,7 @@
 import { Heart, LogOut, Package, Plus, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PATHS } from '../../routes/paths'
-import { clearAccessToken } from '../../services/token-storage'
+import { clearAuthTokens } from '../../services/token-storage'
 import { HeaderPopover } from './header-popover'
 
 /** Ảnh đại diện góc phải header (chỉ hiện khi đã đăng nhập): menu tài khoản */
@@ -30,7 +30,7 @@ export function AccountMenu() {
             type="button"
             className="account-menu__link account-menu__link--danger"
             onClick={() => {
-              clearAccessToken()
+              clearAuthTokens()
               close()
               navigate(PATHS.home)
             }}

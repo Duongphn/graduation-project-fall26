@@ -10,8 +10,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import brandMark from "../../assets/brand/toyflow-mark.png";
+import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
-import { clearAccessToken } from "../../services/token-storage";
+import { clearAuthTokens } from "../../services/token-storage";
 
 export type SidebarItemKey =
   | "profile"
@@ -48,10 +50,10 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 
 export function SidebarBrand() {
   return (
-    <Link to={PATHS.home} className="app-sidebar-brand">
-      <span className="app-sidebar-brand__mark">T</span>
+    <Link to={PATHS.home} className="app-sidebar-brand" aria-label="ToyFlow - Trang chủ">
+      <img src={brandMark} alt="" className="app-sidebar-brand__mark" width={226} height={160} />
       <span className="app-sidebar-brand__text">
-        <span className="app-sidebar-brand__name">ToyFlow</span>
+        <img src={brandWordmark} alt="" className="app-sidebar-brand__wordmark" width={366} height={96} />
         <span className="app-sidebar-brand__tagline">Cổng phụ huynh</span>
       </span>
     </Link>
@@ -67,7 +69,7 @@ export function LogoutButton() {
       type="button"
       className="app-sidebar__item app-sidebar__item--logout"
       onClick={() => {
-        clearAccessToken();
+        clearAuthTokens();
         navigate(PATHS.login, { replace: true });
       }}
     >
