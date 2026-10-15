@@ -9,6 +9,7 @@ import {
 } from '../features/toy-listings/toy-listing-queries'
 import { ForgotPasswordPage } from '../pages/forgot-password-page'
 import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
+import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
 import { ProfilePage } from '../pages/profile-page'
@@ -60,6 +61,12 @@ export const router = createBrowserRouter([
     path: PATHS.profile,
     loader: profileLoader,
     element: <ProfilePage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.identityVerification,
+    loader: profileLoader,
+    element: <IdentityVerificationPage />,
     HydrateFallback: PageLoadingFallback,
   },
   {

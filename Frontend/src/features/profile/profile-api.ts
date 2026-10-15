@@ -54,13 +54,38 @@ export async function fetchLatestVerification(): Promise<LatestVerification | nu
   return data.data
 }
 
+export interface IdentityVerificationPayload {
+  idCardNumber: string
+  phone: string
+  frontImage: File
+  backImage: File
+  selfie: File
+}
+
+/** Gửi hồ sơ CCCD (multipart). Thành công → hồ sơ ở trạng thái chờ duyệt */
+export async function submitIdentityVerification(payload: IdentityVerificationPayload): Promise<{ id: string; status: 'pending'; submittedAt: string }> {
+  const form = new FormData()
+  form.append('idCardNumber', payload.idCardNumber)
+  form.append('phone', payload.phone)
+  form.append('frontImage', payload.frontImage)
+  form.append('backImage', payload.backImage)
+  form.append('selfie', payload.selfie)
+  const { data } = await httpClient.post<ApiResponse<{ id: string; status: 'pending'; submittedAt: string }>>('/identity-verifications', form, {
+    timeout: 90_000,
+  })
+  return data.data
+}
+
 /** Backend trả message tiếng Anh; dịch các mã lỗi người dùng có thể tự khắc phục */
 const PROFILE_ERROR_MESSAGES: Record<string, string> = {
   UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem hồ sơ.',
   USER_NOT_FOUND: 'Không tìm thấy tài khoản. Vui lòng đăng nhập lại.',
-  FILE_TOO_LARGE: 'Ảnh đại diện lớn hơn 5 MB. Hãy chọn ảnh nhỏ hơn.',
+  FILE_TOO_LARGE: 'Có ảnh lớn hơn 5 MB. Hãy chọn ảnh nhỏ hơn.',
   INVALID_IMAGE_TYPE: 'Ảnh không đúng định dạng JPG, PNG hoặc WebP. Hãy chọn ảnh khác.',
   STORAGE_ERROR: 'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau ít phút.',
+  MISSING_REQUIRED_IMAGE: 'Thiếu ảnh. Hãy chọn đủ mặt trước, mặt sau CCCD và ảnh chân dung.',
+  ALREADY_VERIFIED: 'Tài khoản đã được xác minh, không cần gửi lại hồ sơ.',
+  VERIFICATION_ALREADY_PENDING: 'Bạn đã có hồ sơ đang chờ duyệt. Hãy chờ kết quả trước khi gửi hồ sơ mới.',
 }
 
 export function getProfileErrorMessage(error: unknown): string {

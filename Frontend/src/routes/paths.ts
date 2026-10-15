@@ -6,6 +6,7 @@ export const PATHS = {
   terms: '/terms',
   privacy: '/privacy',
   profile: '/profile',
+  identityVerification: '/profile/verification',
   myListings: '/listings',
   newListing: '/listings/new',
   editListing: '/listings/:toyId/edit',

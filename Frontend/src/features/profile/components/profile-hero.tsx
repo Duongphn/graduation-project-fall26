@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Camera, CircleCheck, Circle, Clock3, Mail, Phone, ShieldAlert, ShieldCheck, ShieldX, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Camera, CircleCheck, Circle, Clock3, Mail, Phone, ShieldAlert, ShieldCheck, ShieldX, type LucideIcon } from 'lucide-react'
 import { useRef, useState, type ChangeEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { PATHS } from '../../../routes/paths'
 import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../toy-listings/toy-listing-schema'
 import { getProfileErrorMessage, uploadAvatar, type LatestVerification, type UserProfile, type VerificationStatus } from '../profile-api'
 import { profileQuery } from '../profile-queries'
@@ -145,6 +147,13 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
                 <StatusIcon aria-hidden />
                 <span>{note}</span>
               </p>
+            )}
+
+            {(profile.verificationStatus === 'unverified' || profile.verificationStatus === 'rejected') && (
+              <Link to={PATHS.identityVerification} className="tf-btn tf-btn--primary tf-btn--inline profile-hero__verify">
+                {profile.verificationStatus === 'rejected' ? 'Gửi lại hồ sơ xác minh' : 'Xác minh danh tính'}
+                <ArrowRight aria-hidden />
+              </Link>
             )}
 
             {avatarMutation.isPending && <p className="profile-hero__avatar-msg">Đang tải ảnh đại diện lên...</p>}

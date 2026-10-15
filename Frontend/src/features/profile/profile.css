@@ -246,4 +246,14 @@
   .address-empty {
     @apply rounded-lg border border-dashed border-tf-outline bg-tf-surface-low/50 px-4 py-6 text-center text-sm text-tf-ink-muted;
   }
+
+  /* ---------- Nút xác minh trong phần đầu hồ sơ ---------- */
+  .profile-hero__verify {
+    @apply mt-1 self-start;
+  }
+
+  .profile-hero__verify:hover svg {
+    @apply translate-x-0.5;
+  }
+
 }
