@@ -39,7 +39,7 @@
   }
 
   .site-brand__mark {
-    @apply h-11 w-auto drop-shadow-[0_4px_8px_rgb(37_99_235/0.18)] transition-transform duration-300 ease-out-quint;
+    @apply h-11 w-auto drop-shadow-[0_4px_8px_rgb(20_40_75/0.18)] transition-transform duration-300 ease-out-quint;
   }
 
   .site-brand:hover .site-brand__mark {
@@ -70,7 +70,7 @@
   }
 
   .site-nav__link {
-    @apply rounded-full px-3 py-2 text-sm font-semibold whitespace-nowrap 2xl:px-4 2xl:text-[15px] text-slate-600 transition-colors duration-200 hover:bg-slate-100 hover:text-site-ink focus-ring dark:text-slate-300 dark:hover:bg-night-800 dark:hover:text-white;
+    @apply rounded-full px-3 py-2 text-sm font-semibold whitespace-nowrap 2xl:px-4 2xl:text-[15px] text-tf-ink-muted transition-colors duration-200 hover:bg-tf-surface-low hover:text-site-ink focus-ring dark:text-slate-300 dark:hover:bg-night-800 dark:hover:text-white;
   }
 
   .site-nav__link svg {
@@ -103,12 +103,12 @@
   }
 
   .search-menu__input {
-    @apply h-10 min-w-0 flex-1 rounded-xl border border-site-line bg-slate-50 px-3 text-sm text-site-ink placeholder:text-slate-400 focus:border-site-primary focus:bg-white focus:outline-none dark:border-night-700 dark:bg-night-800 dark:text-white;
+    @apply h-10 min-w-0 flex-1 rounded-xl border border-site-line bg-tf-surface-low px-3 text-base sm:text-sm text-site-ink placeholder:text-tf-ink-muted focus:border-site-primary focus:bg-white focus:outline-none dark:border-night-700 dark:bg-night-800 dark:text-white;
   }
 
   /* ---------- Nút icon, nút đăng đồ, ảnh đại diện ---------- */
   .site-icon-button {
-    @apply relative grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-slate-600 transition-colors duration-200 hover:bg-slate-100 hover:text-site-ink focus-ring dark:text-slate-300 dark:hover:bg-night-800 dark:hover:text-white;
+    @apply relative grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-tf-ink-muted transition-colors duration-200 hover:bg-tf-surface-low hover:text-site-ink focus-ring dark:text-slate-300 dark:hover:bg-night-800 dark:hover:text-white;
   }
 
   .site-icon-button svg {
@@ -116,7 +116,7 @@
   }
 
   .site-post-button {
-    @apply ml-1 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-brand-button px-3 text-sm font-semibold whitespace-nowrap text-white shadow-[0_6px_16px_-8px_rgb(36_51_138/0.8)] transition-[background-color,transform] duration-200 hover:bg-brand-button-hover focus-ring active:scale-[0.97] sm:px-4 dark:bg-indigo-300 dark:text-night-950 dark:hover:bg-indigo-200;
+    @apply ml-1 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-tf-primary px-3 text-sm font-semibold whitespace-nowrap text-white shadow-[0_6px_16px_-8px_rgb(20_40_75/0.8)] transition-[background-color,transform] duration-200 hover:bg-tf-primary-container focus-ring active:scale-[0.97] sm:px-4 dark:bg-indigo-300 dark:text-night-950 dark:hover:bg-indigo-200;
   }
 
   .site-post-button svg {
@@ -129,7 +129,7 @@
   }
 
   .site-avatar {
-    @apply ml-1 grid size-10 shrink-0 cursor-pointer place-items-center rounded-full border border-transparent bg-site-primary text-white transition-[border-color,box-shadow] duration-200 hover:border-site-primary/40 hover:shadow-[0_0_0_3px_rgb(37_99_235/0.12)] focus-ring dark:border-night-700 dark:bg-night-800 dark:text-slate-300;
+    @apply ml-1 grid size-10 shrink-0 cursor-pointer place-items-center rounded-full border border-transparent bg-site-primary text-white transition-[border-color,box-shadow] duration-200 hover:border-site-primary/40 hover:shadow-[0_0_0_3px_rgb(20_40_75/0.12)] focus-ring dark:border-night-700 dark:bg-night-800 dark:text-slate-300;
   }
 
   .site-avatar svg {
@@ -138,7 +138,7 @@
 
   /* Nút Đăng nhập cho khách (thay chỗ ảnh đại diện) */
   .site-login-button {
-    @apply ml-1 inline-flex h-10 shrink-0 items-center rounded-full border border-site-line px-4 text-sm font-semibold whitespace-nowrap text-site-ink transition-[border-color,background-color] duration-200 hover:border-site-ink hover:bg-slate-50 focus-ring dark:border-night-700 dark:text-white dark:hover:border-slate-400 dark:hover:bg-night-800;
+    @apply ml-1 inline-flex h-10 shrink-0 items-center rounded-full border border-site-line px-4 text-sm font-semibold whitespace-nowrap text-site-ink transition-[border-color,background-color] duration-200 hover:border-site-ink hover:bg-tf-surface-low focus-ring dark:border-night-700 dark:text-white dark:hover:border-slate-400 dark:hover:bg-night-800;
   }
 
   .site-header__optional {
@@ -147,7 +147,7 @@
 
   /* Nút 3 gạch góc trái: mở menu danh mục */
   .site-header__menu-button {
-    @apply grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-site-ink hover:bg-slate-100 focus-ring dark:text-slate-200 dark:hover:bg-night-800;
+    @apply grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-site-ink hover:bg-tf-surface-low focus-ring dark:text-slate-200 dark:hover:bg-night-800;
   }
 
   .site-header__menu-button svg {
@@ -160,7 +160,7 @@
   }
 
   .header-popover__panel {
-    @apply absolute top-[calc(100%+10px)] right-0 z-50 w-[min(22rem,calc(100vw-1.5rem))] animate-rise-in rounded-2xl border border-site-line bg-white p-4 shadow-[0_24px_48px_-20px_rgb(15_23_42/0.4)] dark:border-night-700 dark:bg-night-900;
+    @apply absolute top-[calc(100%+10px)] right-0 z-50 w-[min(22rem,calc(100vw-1.5rem))] animate-rise-in rounded-2xl border border-site-line bg-white p-4 shadow-[0_24px_48px_-20px_rgb(18_23_31/0.4)] dark:border-night-700 dark:bg-night-900;
   }
 
   .account-menu__links {
@@ -168,11 +168,11 @@
   }
 
   .account-menu__link {
-    @apply flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-site-ink hover:bg-slate-100 focus-ring dark:text-slate-100 dark:hover:bg-night-800;
+    @apply flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-site-ink hover:bg-tf-surface-low focus-ring dark:text-slate-100 dark:hover:bg-night-800;
   }
 
   .account-menu__link svg {
-    @apply size-4 text-slate-500;
+    @apply size-4 text-tf-ink-muted;
   }
 
   .account-menu__link--danger {
@@ -192,7 +192,7 @@
   }
 
   .notification-menu__empty svg {
-    @apply size-7 text-slate-400;
+    @apply size-7 text-tf-ink-muted;
   }
 
   /* ---------- Menu trượt từ trái (site-menu-drawer.tsx) ---------- */
@@ -217,7 +217,7 @@
   }
 
   .site-menu__category {
-    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-site-ink transition-colors duration-200 hover:bg-slate-100 focus-ring dark:text-slate-100 dark:hover:bg-night-800;
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-site-ink transition-colors duration-200 hover:bg-tf-surface-low focus-ring dark:text-slate-100 dark:hover:bg-night-800;
   }
 
   .site-menu__category-name {
@@ -225,7 +225,7 @@
   }
 
   .site-menu__chevron {
-    @apply size-4 text-slate-400 transition-transform duration-200;
+    @apply size-4 text-tf-ink-muted transition-transform duration-200;
   }
 
   .site-menu__category:hover .site-menu__chevron {

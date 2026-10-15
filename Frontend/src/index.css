@@ -49,22 +49,22 @@
    * Trang công khai (trang chủ, header/footer site): nền hero xanh navy, nút xanh dương,
    * điểm nhấn hổ phách cho chữ nổi bật, xanh lá cho khu quyên góp.
    */
-  --color-site-page: #f6f8fc;
-  --color-site-hero: #1f3a93;
-  --color-site-hero-deep: #172c73;
-  --color-site-hero-accent: #8fb4ff;
-  --color-site-primary: #2563eb;
-  --color-site-primary-hover: #1d4ed8;
-  --color-site-ink: #0f172a;
-  --color-site-muted: #5f6b7f; /* chữ phụ: ≥ 4.5:1 trên nền trang và nền xám nhạt */
-  --color-site-line: #e5e9f2;
+  --color-site-page: #faf8ff;
+  --color-site-hero: #14284b;
+  --color-site-hero-deep: #20396a;
+  --color-site-hero-accent: #e4e8f0;
+  --color-site-primary: #14284b;
+  --color-site-primary-hover: #20396a;
+  --color-site-ink: #12171f;
+  --color-site-muted: #565c68; /* chữ phụ: ≥ 4.5:1 trên nền trang và nền xám nhạt */
+  --color-site-line: #eaedff;
   /* Chữ nhấn trên nền sáng: ≥ 3:1 với chữ tiêu đề lớn (WCAG AA); bản sáng chỉ dùng trên nền tối / làm nền nút */
-  --color-site-highlight: #c76a05;
-  --color-site-highlight-bright: #f59e0b;
+  --color-site-highlight: #a8854f;
+  --color-site-highlight-bright: #a8854f;
   /* Giá đồ bán lại, nhãn "Bán lại": ≥ 4.5:1 trên nền trắng (chữ thường) */
-  --color-site-sale: #c2410c;
-  --color-site-night: #111a3a;
-  --color-site-donate: #1d6b45;
+  --color-site-sale: #7d5f2a;
+  --color-site-night: #14284b;
+  --color-site-donate: #2c6a52;
 
   /* Một đường cong chuyển động dùng chung: khởi động nhanh, dừng êm */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);

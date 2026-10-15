@@ -41,15 +41,15 @@
   }
 
   .home-button--primary {
-    @apply bg-site-primary text-white hover:bg-site-primary-hover hover:shadow-[0_8px_20px_-10px_rgb(37_99_235/0.8)];
+    @apply bg-site-primary text-white hover:bg-site-primary-hover hover:shadow-[0_8px_20px_-10px_rgb(20_40_75/0.8)];
   }
 
   .home-button--navy {
-    @apply bg-brand-button text-white hover:bg-brand-button-hover dark:bg-indigo-300 dark:text-night-950 dark:hover:bg-indigo-200;
+    @apply bg-tf-primary text-white hover:bg-tf-primary-container dark:bg-indigo-300 dark:text-night-950 dark:hover:bg-indigo-200;
   }
 
   .home-button--highlight {
-    @apply self-start bg-site-highlight-bright text-site-ink hover:bg-amber-400;
+    @apply self-start bg-site-highlight-bright text-site-ink hover:bg-tf-accent;
   }
 
   .home-button--outline {
@@ -57,7 +57,7 @@
   }
 
   .home-button--light {
-    @apply bg-white text-site-donate hover:bg-emerald-50;
+    @apply bg-white text-site-donate hover:bg-tf-secondary-container;
   }
 
   .home-button--ghost-light {
@@ -66,7 +66,7 @@
 
   /* ---------- Card, tiêu đề section, skeleton, trạng thái trống ---------- */
   .home-card {
-    @apply flex flex-col gap-2.5 rounded-2xl border border-transparent bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgb(15_23_42/0.05),0_1px_12px_-4px_rgb(15_23_42/0.06)] transition-[border-color,box-shadow,transform] duration-300 ease-out-quint dark:border-night-700 dark:bg-night-900 dark:shadow-none;
+    @apply flex flex-col gap-2.5 rounded-2xl border border-transparent bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgb(18_23_31/0.05),0_1px_12px_-4px_rgb(18_23_31/0.06)] transition-[border-color,box-shadow,transform] duration-300 ease-out-quint dark:border-night-700 dark:bg-night-900 dark:shadow-none;
   }
 
   .home-card__title {
@@ -87,7 +87,7 @@
 
   /* Nhãn cảnh báo khi đang xem bằng dữ liệu mẫu (chỉ dev) */
   .home-mock-badge {
-    @apply -mt-2 mb-4 inline-flex items-center rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 dark:border-amber-400/50 dark:bg-amber-400/10 dark:text-amber-200;
+    @apply -mt-2 mb-4 inline-flex items-center rounded-lg border border-dashed border-tf-accent bg-tf-tertiary-fixed px-3 py-1.5 text-xs font-medium text-tf-tertiary dark:border-amber-400/50 dark:bg-amber-400/10 dark:text-amber-200;
   }
 
   .home-section-header__subtitle {
@@ -95,7 +95,7 @@
   }
 
   .home-skeleton {
-    @apply animate-pulse rounded-2xl bg-slate-200/70 dark:bg-night-800;
+    @apply animate-pulse rounded-2xl bg-tf-surface/70 dark:bg-night-800;
   }
 
   .home-skeleton--line {
@@ -111,7 +111,7 @@
   }
 
   .home-empty__icon {
-    @apply mb-1 size-8 text-slate-400;
+    @apply mb-1 size-8 text-tf-ink-muted;
   }
 
   .home-empty__title {
@@ -152,40 +152,40 @@
   }
 
   .tone--sky {
-    @apply bg-sky-50 text-sky-600 dark:bg-sky-400/10 dark:text-sky-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-sky-400/10 dark:text-sky-300;
   }
   .tone--indigo {
-    @apply bg-indigo-50 text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-indigo-400/10 dark:text-indigo-300;
   }
   .tone--rose {
-    @apply bg-rose-50 text-rose-600 dark:bg-rose-400/10 dark:text-rose-300;
+    @apply bg-tf-error-container text-tf-error dark:bg-rose-400/10 dark:text-rose-300;
   }
   .tone--emerald {
-    @apply bg-emerald-50 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-300;
+    @apply bg-tf-secondary-container text-tf-secondary dark:bg-emerald-400/10 dark:text-emerald-300;
   }
   .tone--amber {
-    @apply bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300;
+    @apply bg-tf-tertiary-fixed text-tf-tertiary dark:bg-amber-400/10 dark:text-amber-300;
   }
   .tone--violet {
-    @apply bg-violet-50 text-violet-600 dark:bg-violet-400/10 dark:text-violet-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-violet-400/10 dark:text-violet-300;
   }
   .tone--cyan {
-    @apply bg-cyan-50 text-cyan-600 dark:bg-cyan-400/10 dark:text-cyan-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-cyan-400/10 dark:text-cyan-300;
   }
   .tone--orange {
-    @apply bg-orange-50 text-orange-600 dark:bg-orange-400/10 dark:text-orange-300;
+    @apply bg-tf-tertiary-fixed text-tf-tertiary dark:bg-orange-400/10 dark:text-orange-300;
   }
   .tone--blue {
-    @apply bg-blue-50 text-blue-600 dark:bg-blue-400/10 dark:text-blue-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-blue-400/10 dark:text-blue-300;
   }
   .tone--lime {
-    @apply bg-lime-50 text-lime-700 dark:bg-lime-400/10 dark:text-lime-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-lime-400/10 dark:text-lime-300;
   }
   .tone--fuchsia {
-    @apply bg-fuchsia-50 text-fuchsia-600 dark:bg-fuchsia-400/10 dark:text-fuchsia-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-fuchsia-400/10 dark:text-fuchsia-300;
   }
   .tone--slate {
-    @apply bg-slate-100 text-slate-600 dark:bg-slate-400/10 dark:text-slate-300;
+    @apply bg-tf-surface-low text-tf-ink-muted dark:bg-slate-400/10 dark:text-slate-300;
   }
 
   /* ---------- Hero ---------- */
@@ -216,7 +216,7 @@
   }
 
   .home-hero__title {
-    @apply text-4xl leading-[1.1] font-bold tracking-[-0.03em] sm:text-5xl lg:text-[56px];
+    @apply text-4xl leading-[1.1] font-bold tracking-[-0.02em] sm:text-5xl lg:text-[56px];
   }
 
   .home-hero__title-highlight {
@@ -245,15 +245,15 @@
   }
 
   .home-hero__search {
-    @apply relative flex items-center gap-2 rounded-2xl bg-white p-2 shadow-[0_20px_40px_-20px_rgb(0_0_0/0.5)] dark:bg-night-900;
+    @apply relative flex items-center gap-2 rounded-2xl bg-white p-2 shadow-[0_20px_40px_-20px_rgb(18_23_31/0.5)] dark:bg-night-900;
   }
 
   .home-hero__search-icon {
-    @apply pointer-events-none ml-2 size-5 shrink-0 text-slate-400;
+    @apply pointer-events-none ml-2 size-5 shrink-0 text-tf-ink-muted;
   }
 
   .home-hero__search-input {
-    @apply h-11 min-w-0 flex-1 bg-transparent text-sm text-site-ink placeholder:text-slate-400 focus:outline-none dark:text-white;
+    @apply h-11 min-w-0 flex-1 bg-transparent text-base sm:text-sm text-site-ink placeholder:text-tf-ink-muted focus:outline-none dark:text-white;
   }
 
   /* ---------- Banner tự trượt ở hero (hero-banner-carousel.tsx) ---------- */
@@ -262,7 +262,7 @@
   }
 
   .hero-banner__viewport {
-    @apply touch-pan-y overflow-hidden rounded-3xl shadow-[0_30px_60px_-25px_rgb(0_0_0/0.55)] select-none;
+    @apply touch-pan-y overflow-hidden rounded-3xl shadow-[0_30px_60px_-25px_rgb(18_23_31/0.55)] select-none;
   }
 
   .hero-banner__track {
@@ -284,7 +284,7 @@
 
   /* Hình minh hoạ khi chưa có ảnh: icon lớn trên nền gradient, có vòng sáng phía sau */
   .hero-banner__illustration {
-    @apply relative grid size-24 place-items-center rounded-[28px] bg-white/80 shadow-[0_18px_40px_-18px_rgb(15_23_42/0.45)] ring-8 ring-white/40 dark:bg-white/10 dark:ring-white/5;
+    @apply relative grid size-24 place-items-center rounded-[28px] bg-white/80 shadow-[0_18px_40px_-18px_rgb(18_23_31/0.45)] ring-8 ring-white/40 dark:bg-white/10 dark:ring-white/5;
   }
 
   .hero-banner__illustration svg {
@@ -292,15 +292,15 @@
   }
 
   .hero-banner__slide--sky .hero-banner__media {
-    @apply bg-gradient-to-br from-sky-100 via-sky-50 to-indigo-100 text-sky-600 dark:from-sky-400/20 dark:via-night-900 dark:to-indigo-400/15 dark:text-sky-300;
+    @apply bg-gradient-to-br from-tf-primary-fixed via-tf-primary-fixed to-tf-primary-fixed text-tf-primary dark:from-sky-400/20 dark:via-night-900 dark:to-indigo-400/15 dark:text-sky-300;
   }
 
   .hero-banner__slide--orange .hero-banner__media {
-    @apply bg-gradient-to-br from-orange-100 via-amber-50 to-rose-100 text-orange-600 dark:from-orange-400/20 dark:via-night-900 dark:to-rose-400/15 dark:text-orange-300;
+    @apply bg-gradient-to-br from-tf-tertiary-fixed via-tf-tertiary-fixed to-tf-error-container text-tf-tertiary dark:from-orange-400/20 dark:via-night-900 dark:to-rose-400/15 dark:text-orange-300;
   }
 
   .hero-banner__slide--emerald .hero-banner__media {
-    @apply bg-gradient-to-br from-emerald-100 via-teal-50 to-lime-100 text-emerald-600 dark:from-emerald-400/20 dark:via-night-900 dark:to-lime-400/15 dark:text-emerald-300;
+    @apply bg-gradient-to-br from-tf-secondary-container via-tf-secondary-container to-tf-primary-fixed text-tf-secondary dark:from-emerald-400/20 dark:via-night-900 dark:to-lime-400/15 dark:text-emerald-300;
   }
 
   .hero-banner__body {
@@ -312,15 +312,15 @@
   }
 
   .hero-banner__slide--sky .hero-banner__eyebrow {
-    @apply text-sky-700 dark:text-sky-300;
+    @apply text-tf-primary dark:text-sky-300;
   }
 
   .hero-banner__slide--orange .hero-banner__eyebrow {
-    @apply text-orange-700 dark:text-orange-300;
+    @apply text-tf-tertiary dark:text-orange-300;
   }
 
   .hero-banner__slide--emerald .hero-banner__eyebrow {
-    @apply text-emerald-700 dark:text-emerald-300;
+    @apply text-tf-secondary dark:text-emerald-300;
   }
 
   .hero-banner__title {
@@ -336,7 +336,7 @@
   }
 
   .hero-banner__highlights li {
-    @apply rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-night-800 dark:text-slate-300;
+    @apply rounded-full bg-tf-surface-low px-2.5 py-1 text-xs font-medium text-tf-ink-muted dark:bg-night-800 dark:text-slate-300;
   }
 
   .hero-banner__cta {
@@ -394,7 +394,7 @@
 
   /* ---------- Danh mục: 1 hàng ngang gọn, cuộn ngang + mũi tên khi dài (categories-section.tsx) ---------- */
   .category-strip {
-    @apply relative rounded-2xl bg-white px-2 py-3 shadow-[0_1px_2px_rgb(15_23_42/0.05),0_1px_12px_-4px_rgb(15_23_42/0.06)] dark:bg-night-900 dark:shadow-none;
+    @apply relative rounded-2xl bg-white px-2 py-3 shadow-[0_1px_2px_rgb(18_23_31/0.05),0_1px_12px_-4px_rgb(18_23_31/0.06)] dark:bg-night-900 dark:shadow-none;
   }
 
   .category-strip__list {
@@ -407,7 +407,7 @@
   }
 
   .category-strip__link {
-    @apply flex h-full flex-col items-center gap-2 rounded-xl px-1.5 py-2 text-center transition-colors duration-200 hover:bg-slate-50 focus-ring dark:hover:bg-night-800;
+    @apply flex h-full flex-col items-center gap-2 rounded-xl px-1.5 py-2 text-center transition-colors duration-200 hover:bg-tf-surface-low focus-ring dark:hover:bg-night-800;
   }
 
   .category-strip__icon {
@@ -420,7 +420,7 @@
 
   /* Ảnh minh hoạ nền trong suốt đặt trên nền màu nhạt của danh mục */
   .category-strip__image {
-    @apply size-12 object-contain drop-shadow-[0_2px_3px_rgb(15_23_42/0.12)];
+    @apply size-12 object-contain drop-shadow-[0_2px_3px_rgb(18_23_31/0.12)];
   }
 
   .category-strip__link:hover .category-strip__icon {
@@ -445,7 +445,7 @@
 
   /* Mũi tên tròn nổi ở mép, che phần mục bị cắt; ẩn trên màn cảm ứng nhỏ (vuốt là đủ) */
   .category-strip__arrow {
-    @apply absolute top-1/2 hidden size-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full border border-site-line bg-white text-site-ink shadow-[0_4px_14px_-4px_rgb(15_23_42/0.3)] transition-[background-color,transform] duration-200 hover:scale-105 hover:bg-slate-50 focus-ring sm:grid dark:border-night-700 dark:bg-night-800 dark:text-white;
+    @apply absolute top-1/2 hidden size-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full border border-site-line bg-white text-site-ink shadow-[0_4px_14px_-4px_rgb(18_23_31/0.3)] transition-[background-color,transform] duration-200 hover:scale-105 hover:bg-tf-surface-low focus-ring sm:grid dark:border-night-700 dark:bg-night-800 dark:text-white;
   }
 
   .category-strip__arrow svg {
@@ -487,7 +487,7 @@
   }
 
   .toy-card:not(.toy-card--skeleton):hover {
-    @apply -translate-y-0.5 border-site-primary/30 shadow-[0_18px_36px_-26px_rgb(15_23_42/0.55)];
+    @apply -translate-y-0.5 border-site-primary/30 shadow-[0_18px_36px_-26px_rgb(18_23_31/0.55)];
   }
 
   .toy-card:focus-within {
@@ -499,7 +499,7 @@
   }
 
   .toy-card__badge {
-    @apply absolute top-2 left-2 rounded-md bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-sky-700 shadow-sm dark:bg-night-900/90 dark:text-sky-300;
+    @apply absolute top-2 left-2 rounded-md bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-tf-primary shadow-sm dark:bg-night-900/90 dark:text-sky-300;
   }
 
   /* ♡ góc phải ảnh: z-10 để nằm trên link phủ thẻ (bấm ♡ không mở trang chi tiết) */
@@ -508,7 +508,7 @@
   }
 
   .favorite-button {
-    @apply grid size-8 cursor-pointer place-items-center rounded-full bg-white/95 text-slate-500 shadow-sm transition-[color,transform,background-color] duration-200 ease-out-quint hover:scale-110 hover:text-rose-500 focus-ring active:scale-95 dark:bg-night-900/90 dark:text-slate-300;
+    @apply grid size-8 cursor-pointer place-items-center rounded-full bg-white/95 text-tf-ink-muted shadow-sm transition-[color,transform,background-color] duration-200 ease-out-quint hover:scale-110 hover:text-tf-error focus-ring active:scale-95 dark:bg-night-900/90 dark:text-slate-300;
   }
 
   .favorite-button svg {
@@ -516,7 +516,7 @@
   }
 
   .favorite-button.is-active {
-    @apply text-rose-500 dark:text-rose-400;
+    @apply text-tf-error dark:text-rose-400;
   }
 
   .favorite-button.is-active svg {
@@ -545,7 +545,7 @@
   }
 
   .toy-card__price {
-    @apply mt-1 text-base font-bold text-site-primary dark:text-indigo-300;
+    @apply mt-1 text-base font-bold text-site-primary dark:text-indigo-300 tabular-nums;
   }
 
   .toy-card--sell .toy-card__price {
@@ -557,7 +557,7 @@
   }
 
   .toy-card__deposit {
-    @apply text-xs text-site-muted;
+    @apply text-xs text-site-muted tabular-nums;
   }
 
   .toy-card__location {
@@ -565,7 +565,7 @@
   }
 
   .toy-card__location svg {
-    @apply size-3.5 shrink-0 text-rose-500 dark:text-rose-400;
+    @apply size-3.5 shrink-0 text-tf-error dark:text-rose-400;
   }
 
   .toy-card__location-text {
@@ -588,7 +588,7 @@
   /* Chỉ giữ 1 hàng thẻ khung, mờ dần xuống dưới */
   .toy-grid-empty__ghosts {
     @apply max-h-72 overflow-hidden;
-    mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent 92%);
+    mask-image: linear-gradient(to bottom, rgb(18 23 31 / 0.55), transparent 92%);
   }
 
   .toy-card--ghost {
@@ -596,19 +596,19 @@
   }
 
   .toy-card--ghost .toy-card__media {
-    @apply bg-slate-100 dark:bg-night-800;
+    @apply bg-tf-surface-low dark:bg-night-800;
   }
 
   .toy-grid-empty--sell .toy-card--ghost .toy-card__media {
-    @apply bg-orange-50 dark:bg-orange-400/10;
+    @apply bg-tf-tertiary-fixed dark:bg-orange-400/10;
   }
 
   .toy-grid-empty--rent .toy-card--ghost .toy-card__media {
-    @apply bg-sky-50 dark:bg-sky-400/10;
+    @apply bg-tf-primary-fixed dark:bg-sky-400/10;
   }
 
   .toy-card--ghost__line {
-    @apply block h-3 w-full rounded-full bg-slate-100 dark:bg-night-800;
+    @apply block h-3 w-full rounded-full bg-tf-surface-low dark:bg-night-800;
   }
 
   .toy-card--ghost__line--short {
@@ -616,7 +616,7 @@
   }
 
   .toy-grid-empty__message {
-    @apply absolute inset-x-0 top-1/2 mx-auto flex w-[min(100%-2rem,26rem)] -translate-y-1/2 flex-col items-center gap-2 rounded-2xl bg-white/95 px-6 py-6 text-center shadow-[0_20px_50px_-24px_rgb(15_23_42/0.45)] backdrop-blur-sm dark:bg-night-900/95;
+    @apply absolute inset-x-0 top-1/2 mx-auto flex w-[min(100%-2rem,26rem)] -translate-y-1/2 flex-col items-center gap-2 rounded-2xl bg-white/95 px-6 py-6 text-center shadow-[0_20px_50px_-24px_rgb(18_23_31/0.45)] backdrop-blur-sm dark:bg-night-900/95;
   }
 
   .toy-grid-empty__icon {
@@ -624,11 +624,11 @@
   }
 
   .toy-grid-empty--rent .toy-grid-empty__icon {
-    @apply bg-sky-50 text-sky-600 dark:bg-sky-400/10 dark:text-sky-300;
+    @apply bg-tf-primary-fixed text-tf-primary dark:bg-sky-400/10 dark:text-sky-300;
   }
 
   .toy-grid-empty--sell .toy-grid-empty__icon {
-    @apply bg-orange-50 text-orange-600 dark:bg-orange-400/10 dark:text-orange-300;
+    @apply bg-tf-tertiary-fixed text-tf-tertiary dark:bg-orange-400/10 dark:text-orange-300;
   }
 
   .toy-grid-empty__icon svg {
@@ -669,7 +669,7 @@
   }
 
   .toy-media__placeholder-image {
-    @apply size-3/5 max-h-28 object-contain drop-shadow-[0_6px_10px_rgb(15_23_42/0.15)];
+    @apply size-3/5 max-h-28 object-contain drop-shadow-[0_6px_10px_rgb(18_23_31/0.15)];
   }
 
   .toy-media__placeholder-label {
@@ -696,11 +696,11 @@
 
   /* Ô ảnh minh hoạ của từng bước */
   .home-step__media {
-    @apply relative mb-1 grid h-36 place-items-center rounded-xl bg-gradient-to-b from-white to-slate-100/80 dark:from-night-800 dark:to-night-900;
+    @apply relative mb-1 grid h-36 place-items-center rounded-xl bg-gradient-to-b from-white to-tf-surface-low/80 dark:from-night-800 dark:to-night-900;
   }
 
   .home-step__image {
-    @apply size-28 object-contain drop-shadow-[0_10px_14px_rgb(15_23_42/0.14)] transition-transform duration-300 ease-out-quint;
+    @apply size-28 object-contain drop-shadow-[0_10px_14px_rgb(18_23_31/0.14)] transition-transform duration-300 ease-out-quint;
   }
 
   .home-step:hover .home-step__image {
@@ -709,11 +709,11 @@
 
   /* Desktop: đường nét đứt nối sang bước kế tiếp, ngang tầm ô ảnh */
   .home-step:not(:last-child)::after {
-    @apply absolute top-[5.5rem] -right-4 hidden h-0 w-4 border-t-2 border-dashed border-slate-300 content-[''] lg:block dark:border-night-700;
+    @apply absolute top-[5.5rem] -right-4 hidden h-0 w-4 border-t-2 border-dashed border-tf-outline content-[''] lg:block dark:border-night-700;
   }
 
   .home-step__number {
-    @apply absolute top-2.5 left-2.5 rounded-full bg-brand-navy px-2.5 py-1 text-xs font-bold text-white shadow-sm dark:bg-indigo-300 dark:text-night-950;
+    @apply absolute top-2.5 left-2.5 rounded-full bg-tf-primary px-2.5 py-1 text-xs font-bold text-white shadow-sm dark:bg-indigo-300 dark:text-night-950;
   }
 
   .home-steps__guarantee {
@@ -721,7 +721,7 @@
   }
 
   .home-steps__guarantee svg {
-    @apply mt-0.5 size-4 shrink-0 text-violet-600 dark:text-violet-300;
+    @apply mt-0.5 size-4 shrink-0 text-tf-primary dark:text-violet-300;
   }
 
   .home-step__title {
@@ -744,7 +744,7 @@
 
   /* Ô độ tuổi: chữ bên trái, ảnh minh hoạ bên phải, mũi tên góc dưới phải */
   .age-tile {
-    @apply relative h-full min-h-32 flex-row items-center gap-3 overflow-hidden py-4 pr-4 pl-5 hover:-translate-y-0.5 hover:border-site-primary/30 hover:shadow-[0_14px_30px_-22px_rgb(37_99_235/0.6)] focus-ring;
+    @apply relative h-full min-h-32 flex-row items-center gap-3 overflow-hidden py-4 pr-4 pl-5 hover:-translate-y-0.5 hover:border-site-primary/30 hover:shadow-[0_14px_30px_-22px_rgb(20_40_75/0.6)] focus-ring;
   }
 
   .age-tile__text {
@@ -764,7 +764,7 @@
   }
 
   .age-tile__image {
-    @apply h-20 w-28 shrink-0 object-contain drop-shadow-[0_8px_10px_rgb(15_23_42/0.14)] transition-transform duration-300 ease-out-quint sm:h-24 sm:w-32;
+    @apply h-20 w-28 shrink-0 object-contain drop-shadow-[0_8px_10px_rgb(18_23_31/0.14)] transition-transform duration-300 ease-out-quint sm:h-24 sm:w-32;
   }
 
   .age-tile:hover .age-tile__image {
@@ -772,7 +772,7 @@
   }
 
   .age-tile__arrow {
-    @apply absolute right-3 bottom-3 size-4 text-slate-400 transition-transform duration-300 ease-out-quint;
+    @apply absolute right-3 bottom-3 size-4 text-tf-ink-muted transition-transform duration-300 ease-out-quint;
   }
 
   .age-tile:hover .age-tile__arrow {
@@ -781,11 +781,11 @@
 
   /* Thẻ "Hỏi AI tư vấn": nền navy có ánh sáng, robot lơ lửng góc phải, nút vàng nổi bật */
   .ai-advisor {
-    @apply relative isolate flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-3xl p-6 text-white shadow-[0_30px_60px_-30px_rgb(17_26_58/0.9)] sm:p-7;
+    @apply relative isolate flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-3xl p-6 text-white shadow-[0_30px_60px_-30px_rgb(20_40_75/0.9)] sm:p-7;
     background:
-      radial-gradient(120% 80% at 100% 0%, rgb(59 130 246 / 0.35), transparent 60%),
-      radial-gradient(90% 70% at 0% 100%, rgb(245 158 11 / 0.18), transparent 60%),
-      linear-gradient(150deg, #16245a, var(--color-site-night));
+      radial-gradient(120% 80% at 100% 0%, rgb(20 40 75 / 0.35), transparent 60%),
+      radial-gradient(90% 70% at 0% 100%, rgb(168 133 79 / 0.18), transparent 60%),
+      linear-gradient(150deg, #20396a, var(--color-site-night));
   }
 
   /*
@@ -802,11 +802,11 @@
   }
 
   .ai-advisor__robot-glow {
-    @apply absolute inset-4 -z-10 rounded-full bg-sky-400/40 blur-2xl;
+    @apply absolute inset-4 -z-10 rounded-full bg-tf-primary-fixed/40 blur-2xl;
   }
 
   .ai-advisor__robot-svg {
-    @apply size-full drop-shadow-[0_16px_24px_rgb(0_0_0/0.35)];
+    @apply size-full drop-shadow-[0_16px_24px_rgb(18_23_31/0.35)];
   }
 
   .ai-advisor__sparkle {
@@ -819,12 +819,12 @@
   }
 
   .ai-advisor__sparkle--2 {
-    @apply right-6 bottom-4 size-3.5 text-sky-200;
+    @apply right-6 bottom-4 size-3.5 text-tf-primary-fixed;
     animation: ai-sparkle 2.4s ease-in-out 1.2s infinite;
   }
 
   .ai-advisor__badge {
-    @apply inline-flex items-center gap-1.5 self-start rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-sky-100 ring-1 ring-white/15;
+    @apply inline-flex items-center gap-1.5 self-start rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-tf-primary-fixed ring-1 ring-white/15;
   }
 
   .ai-advisor__badge svg {
@@ -855,7 +855,7 @@
   }
 
   .ai-advisor__input {
-    @apply h-10 min-w-0 flex-1 bg-transparent px-3 text-sm text-white placeholder:text-white/50 focus:outline-none;
+    @apply h-10 min-w-0 flex-1 bg-transparent px-3 text-base sm:text-sm text-white placeholder:text-white/50 focus:outline-none;
   }
 
   .ai-advisor__prompts {
@@ -892,7 +892,7 @@
   }
 
   .ai-advisor__chat-status {
-    @apply mt-0.5 flex items-center gap-1.5 text-xs text-white/65 before:size-2 before:rounded-full before:bg-emerald-400 before:content-[''];
+    @apply mt-0.5 flex items-center gap-1.5 text-xs text-white/65 before:size-2 before:rounded-full before:bg-tf-secondary before:content-[''];
   }
 
   .ai-advisor__restart {
@@ -933,7 +933,7 @@
   }
 
   .ai-bubble--error {
-    @apply border border-amber-300/40 bg-amber-400/15 text-amber-100;
+    @apply border border-tf-tertiary-fixed/40 bg-tf-accent/15 text-tf-tertiary-fixed;
   }
 
   .ai-typing {
@@ -953,7 +953,7 @@
   }
 
   .ai-advisor__send {
-    @apply grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl bg-site-highlight-bright text-site-ink shadow-[0_6px_16px_-8px_rgb(245_158_11/0.9)] transition-[background-color,transform,opacity] duration-200 hover:bg-amber-400 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/50 disabled:shadow-none;
+    @apply grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl bg-site-highlight-bright text-site-ink shadow-[0_6px_16px_-8px_rgb(168_133_79/0.9)] transition-[background-color,transform,opacity] duration-200 hover:bg-tf-accent focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/50 disabled:shadow-none;
   }
 
   .ai-advisor__send svg {
@@ -987,7 +987,7 @@
   }
 
   .ai-advisor.is-chatting .ai-advisor__input {
-    @apply h-9 px-2.5 text-[13px];
+    @apply h-9 px-2.5 text-base sm:text-[13px];
   }
 
   .ai-advisor.is-chatting .ai-advisor__send {
@@ -1004,7 +1004,7 @@
 
   /* ---------- Quyên góp: banner chữ trái · thùng quà phải · sóng trang trí ---------- */
   .donation-hero {
-    @apply relative isolate grid items-center gap-6 overflow-hidden rounded-3xl bg-site-donate p-6 text-white shadow-[0_24px_48px_-28px_rgb(29_107_69/0.9)] sm:p-10 md:grid-cols-[1.3fr_1fr];
+    @apply relative isolate grid items-center gap-6 overflow-hidden rounded-3xl bg-site-donate p-6 text-white shadow-[0_24px_48px_-28px_rgb(44_106_82/0.9)] sm:p-10 md:grid-cols-[1.3fr_1fr];
   }
 
   .donation-hero__waves {
@@ -1018,11 +1018,11 @@
   }
 
   .donation-hero__wave--mint {
-    stroke: rgb(167 243 208 / 0.28);
+    stroke: rgb(220 235 227 / 0.28);
   }
 
   .donation-hero__wave--cream {
-    stroke: rgb(254 243 199 / 0.32);
+    stroke: rgb(242 233 216 / 0.32);
   }
 
   .donation-hero__content {
@@ -1030,11 +1030,11 @@
   }
 
   .donation-hero__badge {
-    @apply inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1.5 text-xs font-semibold text-emerald-900;
+    @apply inline-flex items-center gap-1.5 rounded-full bg-tf-tertiary-fixed px-3.5 py-1.5 text-xs font-semibold text-tf-secondary;
   }
 
   .donation-hero__badge svg {
-    @apply size-3.5 text-emerald-700;
+    @apply size-3.5 text-tf-secondary;
   }
 
   .donation-hero__title {
@@ -1042,7 +1042,7 @@
   }
 
   .donation-hero__title-icon {
-    @apply size-8 shrink-0 text-rose-300 sm:size-9;
+    @apply size-8 shrink-0 text-tf-error-container sm:size-9;
   }
 
   .donation-hero__text {
@@ -1058,7 +1058,7 @@
   }
 
   .donation-hero__highlights svg {
-    @apply size-4 text-amber-200;
+    @apply size-4 text-tf-tertiary-fixed;
   }
 
   .donation-hero__actions {
@@ -1071,16 +1071,16 @@
   }
 
   .donation-hero__glow {
-    @apply absolute inset-8 -z-10 rounded-full bg-amber-200/30 blur-3xl;
+    @apply absolute inset-8 -z-10 rounded-full bg-tf-tertiary-fixed/30 blur-3xl;
   }
 
   .donation-hero__image {
-    @apply w-full drop-shadow-[0_24px_30px_rgb(0_0_0/0.35)];
+    @apply w-full drop-shadow-[0_24px_30px_rgb(18_23_31/0.35)];
     animation: donation-float 5s ease-in-out infinite;
   }
 
   .donation-hero__star {
-    @apply absolute text-amber-200;
+    @apply absolute text-tf-tertiary-fixed;
     animation: ai-sparkle 2.6s ease-in-out infinite;
   }
 
