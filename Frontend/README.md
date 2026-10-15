@@ -13,6 +13,32 @@ npm run dev
 
 Lệnh khác: `npm run build`, `npm run lint`, `npm run preview`.
 
+## Kiểm thử
+
+```bash
+npm test             # chạy một lần (vitest run) — chạy trước khi đẩy code
+npm run test:watch   # chạy lại khi sửa file
+```
+
+Vitest + jsdom + Testing Library (`@testing-library/react`, `user-event`, `jest-dom`). Cấu hình
+ở `vitest.config.ts` (dùng chung plugin của `vite.config.ts`, `css: false`), setup ở
+`src/test/setup.ts` (matcher jest-dom, `matchMedia`/`ResizeObserver` cho antd).
+
+- **Vị trí:** file `*.test.ts(x)` đặt cạnh file được kiểm thử (`useListParams.test.tsx` cạnh
+  `useListParams.ts`). Test không nằm trong bản build: `tsconfig.app.json` loại chúng ra,
+  `tsconfig.test.json` kiểm tra kiểu riêng (`npx tsc -b` vẫn kiểm cả hai).
+- **Provider:** dùng `renderWithProviders` / `renderHookWithProviders` trong `src/test/render.tsx`
+  (QueryClient mới mỗi test, không retry, kèm antd `App`); `deferred()` để giữ một request "đang
+  chạy". Hook đọc URL thì bọc `MemoryRouter`.
+- **Không gọi mạng:** mock ở mức module — `vi.mock('../api')` (api của feature) hoặc
+  `vi.mock('../services/http')`; mỗi test tự quyết server trả gì. Không cần backend chạy.
+- **Kiểm hành vi người dùng thấy:** tìm phần tử theo role/label/text, thao tác bằng `userEvent`;
+  không kiểm class nội bộ hay snapshot.
+- **Bảng màu:** `src/styles/palette.test.ts` so `--tf-*` trong `src/index.css` (`:root`/`.dark`)
+  với `styles/palette.ts`; đổi màu ở một nơi mà quên nơi kia thì test báo lỗi.
+- `src/utils/text.test.ts` so `normalizeText` với bản của server
+  (`server/src/shared/utils/text.ts`) để form và server chuẩn hoá giống nhau.
+
 ## Quy ước
 
 **Code:** không dấu chấm phẩy, `import type` cho kiểu, không dùng `enum` (dùng mảng `as const`).
@@ -24,9 +50,20 @@ Lệnh khác: `npm run build`, `npm run lint`, `npm run preview`.
 - dayjs: import từ `src/utils/dayjs.ts` (locale `vi` và plugin chỉ khai báo ở đây).
 - `@ant-design/icons` hoặc `lucide-react` cho icon.
 
-**Màu:** chỉ khai báo trong `src/styles/palette.ts`. Ant Design đọc qua `src/styles/theme.ts`,
-Tailwind đọc qua biến `--tf-*` trong `src/index.css` (`bg-primary`, `text-muted`,
-`border-border`…). Không viết mã màu trong component.
+**Giao diện và màu (một hệ duy nhất, light + dark):**
+- Bảng màu duy nhất: `src/styles/palette.ts` (`palettes.light`, `palettes.dark`): navy `#24338a`,
+  font Be Vietnam Pro, bo góc 12.
+- Ant Design: `src/styles/theme.ts` dựng `lightTheme`/`darkTheme` từ palette;
+  `ThemeProvider` (`src/contexts/theme-provider.tsx`) là `ConfigProvider` duy nhất của app, chọn
+  light/dark (nút `ThemeToggle`) và bọc `<App>` của antd (cho `App.useApp()`).
+- Khu admin chỉ thêm token Sider/Menu (`adminComponentTokens(isDark)`), không đặt lại màu khác.
+- Tailwind: biến `--tf-*` khai báo tĩnh trong `src/index.css` (`:root` = light, `.dark` = dark),
+  cùng giá trị với palette.ts (đổi màu thì sửa cả hai); dùng `bg-primary`, `text-muted`,
+  `border-border`… Token `brand-*`/`night-*` trong `@theme` dùng cùng mã màu.
+- Không viết mã màu trong component.
+
+**Thư mục component:** `src/components/ui` = khung app (sidebar, logo, theme toggle…);
+`src/components/common` = khối dữ liệu/form dùng lại (bảng, bộ lọc, form modal…).
 
 **Giá trị và trạng thái (một nguồn duy nhất):**
 
@@ -51,10 +88,10 @@ trạng thái hay nhãn trong feature.
 |---|---|
 | `PageHeader` | Tiêu đề trang, breadcrumb, nút hành động |
 | `FilterBar` | Hàng bộ lọc trên danh sách |
-| `DataTable` | Bảng phân trang theo envelope của backend; `onRowOpen` mở dòng bằng một click hoặc Enter |
+| `DataTable` | Bảng phân trang theo envelope của backend; `onRowOpen` mở dòng bằng một click hoặc Enter; lỗi khi tải lại nền vẫn giữ dữ liệu cũ và hiện cảnh báo phía trên |
 | `QueryErrorAlert` | Thông báo lỗi của query (có nút thử lại) |
 | `StatusTag`, `StatusTabs` | Trạng thái theo domain |
-| `FormModal`, `FormField` | Form react-hook-form trong modal |
+| `FormModal`, `FormField` | Form react-hook-form trong modal; không đóng được khi đang lưu; `okDisabled` (vd. form sửa chưa đổi gì; chỉ gửi trường đã đổi) |
 | `ReasonModal`, `ReasonInput` | Nhập lý do (từ chối, ẩn…), có `presets` và `presetMode` `replace`/`append` |
 | `Thumbnail` | Ảnh vuông có placeholder (ảnh đồ chơi, logo) |
 | `ImageGallery` | Bộ ảnh xem phóng to |
@@ -69,19 +106,22 @@ Component nào dùng được ở hơn một nơi thì tách thành file riêng 
 do mẫu của từng feature là nội dung, đặt trong `constants.ts` của feature.
 
 **Gọi API:**
+- Một axios instance duy nhất: `httpClient` (`src/services/http-client.ts`). Nó gắn
+  `Authorization: Bearer` khi đã đăng nhập; khi dev và chưa đăng nhập thì gắn header dev-auth
+  (`VITE_DEV_USER_ID`/`VITE_DEV_ROLE`). Lỗi gọi trực tiếp `httpClient` là `AxiosError`.
 - `src/services/http.ts`: `apiGet`, `apiGetPage`, `apiPost`, `apiPatch`, `apiPut`, `apiDelete`
-  (tự bóc envelope `{ success, data }`). Cần giữ `message` của backend cho toast thì dùng
-  `apiSendWithMessage(method, url, body)` (trả `WithMessage<T>` trong `src/types/api.ts`); câu
-  dự phòng khi backend không gửi `message` đặt trong `hooks.ts`. Không gọi `http` trực tiếp. Lỗi được ném ra dưới dạng `ApiError` (`code`, `message`,
-  `fieldErrors`).
-- `getErrorMessage(error)` (`src/services/api-error.ts`) lấy thông báo để hiển thị.
+  là lớp mỏng trên `httpClient` (tự bóc envelope `{ success, data }` và ném `ApiError` với
+  `code`, `message`, `fieldErrors`). Cần giữ `message` của backend cho toast thì dùng
+  `apiSendWithMessage(method, url, body)` (trả `WithMessage<T>`); câu dự phòng đặt trong `hooks.ts`.
+- Thông báo lỗi: `getApiErrorMessage`/`getApiErrorCode` (http-client.ts) nhận cả `AxiosError` lẫn
+  `ApiError`; `getErrorMessage(error)` (`src/services/api-error.ts`) cho `ApiError`.
 - Lỗi theo trường từ backend: `useServerFieldErrors(setError)` (hoặc `applyServerFieldErrors`).
 - Tải ảnh: `src/services/upload.ts` (`uploadImage(file, purpose)`); không dùng upload preset
   không ký.
-- Kiểu envelope: `src/types/api.ts`.
+- Kiểu envelope (`ApiResponse` khai báo một lần), `MAX_PAGE_LIMIT` (100): `src/types/api.ts`.
 
 **Hooks:**
-- `useListParams({ schema, sortFields })`: trang, số dòng, sắp xếp và bộ lọc nằm trên URL. `schema`
+- `useListParams({ schema, sortFields })`: trang, số dòng (tối đa `MAX_PAGE_LIMIT`), sắp xếp và bộ lọc nằm trên URL. `schema`
   là `z.object` bộ lọc của feature (`xxxFiltersSchema` trong `schemas.ts`, dựng từ
   `schemas/list-params.ts`), nên `filters` đã đúng kiểu, không cần ép kiểu; `sortFields` là enum
   `sortBy` của list đó. `params` truyền thẳng vào api và query key. Ô tìm kiếm luôn dùng khoá `q`
@@ -105,8 +145,14 @@ do mẫu của từng feature là nội dung, đặt trong `constants.ts` của 
 **Trang admin:** thêm đường dẫn vào `adminPaths` (`src/routes/paths.ts`), một khối vào
 `src/routes/admin-routes.tsx` bằng `lazyPage(() => import('…/pages/XxxPage'), 'XxxPage')` và một
 dòng vào `src/routes/admin-menu.tsx`. Link và `navigate` dùng `adminPaths`, không viết chuỗi
-`'/admin/...'`. Mỗi trang có breadcrumb bắt đầu bằng `adminHomeCrumb`; cột nút của bảng tên là
+`'/admin/...'`. Khối route `/admin` nằm ở `src/routes/admin-route.tsx`: loader chỉ cho
+ADMIN đã đăng nhập (role đọc từ access token, khi dev thì từ `VITE_DEV_ROLE`), còn lại chuyển
+về trang đăng nhập. Menu dùng `<Link>` (mở tab mới được). Mỗi trang có breadcrumb bắt đầu bằng `adminHomeCrumb`; cột nút của bảng tên là
 `'Thao tác'`. Lý do mẫu không có dấu chấm cuối; placeholder ô tìm kiếm bắt đầu bằng "Tìm theo…".
 
 **Chưa có đăng nhập:** đặt `VITE_DEV_USER_ID` và `VITE_DEV_ROLE=ADMIN` trong `.env.local`.
 Backend chỉ nhận hai header này khi chạy với `ALLOW_DEV_AUTH=true` và không phải production.
+`VITE_DEV_ROLE` chỉ để frontend mở/ẩn `/admin`; backend bỏ qua header role và đọc role của
+`VITE_DEV_USER_ID` trong collection `users`. Hai giá trị phải khớp: user đó phải có role ADMIN
+trong database, nếu không `/admin` vẫn mở nhưng mọi API admin trả 403. Khi chưa đăng nhập,
+`/admin` chuyển về `/login?redirect=/admin/...` và đăng nhập xong quay lại đúng trang đó.

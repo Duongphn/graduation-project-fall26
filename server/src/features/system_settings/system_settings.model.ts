@@ -23,6 +23,9 @@ export const settingDefinitions = {
   TOY_MIN_PHOTOS_DONATION: 'number',
   // Minimum age to use the platform (GB-07).
   USER_MIN_AGE_YEARS: 'number',
+  // Internal marker (value 1) written once the default categories were seeded, so deleting every
+  // category never brings the defaults back. Not an Admin-editable setting.
+  CATEGORIES_SEEDED: 'number',
 } as const;
 
 export type SettingKey = keyof typeof settingDefinitions;

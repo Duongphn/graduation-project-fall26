@@ -39,6 +39,12 @@ export const rentalOrderStatuses = [
 ] as const;
 export type RentalOrderStatus = (typeof rentalOrderStatuses)[number];
 
+/** Rental statuses after which the order no longer involves the toy. */
+export const finishedRentalOrderStatuses = [
+  'COMPLETED',
+  'CANCELLED',
+] as const satisfies readonly RentalOrderStatus[];
+
 /** Rental statuses that hold the toy calendar (checked when the Owner accepts). */
 export const calendarBlockingStatuses = [
   'ACCEPTED',
@@ -59,6 +65,12 @@ export const resaleOrderStatuses = [
   'DISPUTED',
 ] as const;
 export type ResaleOrderStatus = (typeof resaleOrderStatuses)[number];
+
+/** Purchase statuses after which the order no longer involves the toy. */
+export const finishedResaleOrderStatuses = [
+  'COMPLETED',
+  'CANCELLED',
+] as const satisfies readonly ResaleOrderStatus[];
 
 /** Purchase statuses that keep a toy sold to a single buyer. */
 export const activeResaleStatuses = [

@@ -5,10 +5,6 @@ import './index.css'
 import App from './App.tsx'
 import { ThemeProvider } from './contexts/theme-provider'
 import { queryClient } from './services/query-client'
-import { applyCssVariables } from './styles/theme'
-
-// Write the shared palette as CSS variables before the first render (Tailwind colours).
-applyCssVariables()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

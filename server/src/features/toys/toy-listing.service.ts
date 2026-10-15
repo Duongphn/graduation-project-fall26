@@ -31,39 +31,50 @@ import {
   validateUpdateToyListingInput,
 } from './toy-listing.schemas.js';
 
+const categoryNotAvailable = () =>
+  new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+
 export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
     private readonly imageStorage: ToyImageStorage,
-    private readonly toyModel: Model<IToy> = ToyModel as unknown as Model<IToy>,
+    private readonly toyModel: Model<IToy> = ToyModel,
   ) {}
 
   private assertActor(actor: RequestActor): void {
     if (
       !actor ||
       !actor.userId ||
-      actor.actorType !== 'USER' ||
       !mongoose.Types.ObjectId.isValid(actor.userId)
     ) {
       throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+    }
+    // Policy: toy listings belong to member accounts; an Admin account may not own or edit them.
+    if (actor.actorType !== 'USER') {
+      throw new AppError(403, 'FORBIDDEN', 'Admin accounts cannot manage toy listings.');
     }
   }
 
   private mapToDto(
     doc: IToy & { _id: mongoose.Types.ObjectId | string },
     derivedStatus: ListingFilterStatus,
+    categoryNames: Map<string, string>,
   ): ToyListingDto {
+    const categoryId = doc.categoryId.toString();
     return {
       id: doc._id.toString(),
       ownerId: doc.ownerId.toString(),
-      categoryId: doc.categoryId.toString(),
+      categoryId,
+      categoryName: categoryNames.get(categoryId) ?? '',
       title: doc.title,
       description: doc.description,
       ...toListingFields(doc),
       quantity: 1,
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
-      ...(doc.moderation?.submittedAt ? { moderation: { submittedAt: doc.moderation.submittedAt } } : {}),
+      ...(doc.moderation?.submittedAt
+        ? { moderation: { submittedAt: doc.moderation.submittedAt } }
+        : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -89,7 +100,7 @@ export class ToyListingService {
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
-      throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+      throw categoryNotAvailable();
     }
 
     if (!files || files.length === 0) {
@@ -141,8 +152,16 @@ export class ToyListingService {
         imagePublicIds: uploadedAssets.map((asset) => asset.publicId),
       });
 
-      const saved = await newToy.save();
-      return this.mapToDto(saved, 'pending');
+      const touched = await this.ports.saveWithActiveCategory(validatedInput.categoryId, (session) =>
+        newToy.save({ session }),
+      );
+      if (!touched) throw categoryNotAvailable();
+      const saved = touched.result;
+      return this.mapToDto(
+        saved,
+        'pending',
+        new Map([[saved.categoryId.toString(), touched.categoryName]]),
+      );
     } catch (dbError) {
       if (uploadedAssets.length > 0) {
         try {
@@ -203,7 +222,12 @@ export class ToyListingService {
     const total = matchedToys.length;
     const startIndex = (page - 1) * limit;
     const paginated = matchedToys.slice(startIndex, startIndex + limit);
-    const items = paginated.map(({ toy, derivedStatus }) => this.mapToDto(toy, derivedStatus));
+    const categoryNames = await this.ports.getCategoryNames([
+      ...new Set(paginated.map(({ toy }) => toy.categoryId.toString())),
+    ]);
+    const items = paginated.map(({ toy, derivedStatus }) =>
+      this.mapToDto(toy, derivedStatus, categoryNames),
+    );
 
     return { items, page, limit, total };
   }
@@ -238,10 +262,15 @@ export class ToyListingService {
 
     const validatedInput = validateUpdateToyListingInput(input);
 
-    if (validatedInput.categoryId) {
-      const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
+    // Only a new category must be ACTIVE: a toy keeps a category an Admin hid later (RQ-02).
+    const newCategoryId = validatedInput.categoryId;
+    const categoryChanged =
+      newCategoryId !== undefined &&
+      !new mongoose.Types.ObjectId(newCategoryId).equals(listing.categoryId);
+    if (categoryChanged) {
+      const categoryExists = await this.ports.categoryExists(newCategoryId);
       if (!categoryExists) {
-        throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+        throw categoryNotAvailable();
       }
     }
 
@@ -332,7 +361,20 @@ export class ToyListingService {
       listing.images = finalImages.map((img) => img.url);
       listing.imagePublicIds = finalImages.map((img) => img.publicId);
 
-      const saved = await listing.save();
+      let saved: typeof listing;
+      // Set when the category changed: the touch write already returned the new category's name.
+      let touchedCategoryName: string | undefined;
+      if (categoryChanged) {
+        const touched = await this.ports.saveWithActiveCategory(
+          listing.categoryId.toString(),
+          (session) => listing.save({ session }),
+        );
+        if (!touched) throw categoryNotAvailable();
+        saved = touched.result;
+        touchedCategoryName = touched.categoryName;
+      } else {
+        saved = await listing.save();
+      }
 
       if (toDelete.length > 0) {
         try {
@@ -346,7 +388,11 @@ export class ToyListingService {
       const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
         ? 'sold'
         : fromStoredStatus(saved.status);
-      return this.mapToDto(saved, derivedStatus);
+      const categoryNames =
+        touchedCategoryName !== undefined
+          ? new Map([[saved.categoryId.toString(), touchedCategoryName]])
+          : await this.ports.getCategoryNames([saved.categoryId.toString()]);
+      return this.mapToDto(saved, derivedStatus, categoryNames);
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
         try {
@@ -385,9 +431,10 @@ export class ToyListingService {
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
-        ? 'sold'
-        : fromStoredStatus(saved.status);
-    return this.mapToDto(saved, derivedStatus);
+      ? 'sold'
+      : fromStoredStatus(saved.status);
+    const categoryNames = await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, derivedStatus, categoryNames);
   }
 
   public async delete(actor: RequestActor, toyId: string): Promise<void> {

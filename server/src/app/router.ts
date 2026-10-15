@@ -8,11 +8,14 @@ import {
   type ToyListingDependencies,
 } from './toy-listing-dependencies.js';
 
-export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDependencies }): Router {
+export function createApiRouter(deps?: {
+  toyListingDependencies?: ToyListingDependencies;
+}): Router {
   const router = Router();
 
   router.use(healthRouter);
-  // One line per feature: the app mounts each feature router on its prefix.
+  // The app mounts each feature router on its prefix. A feature without ports exports a static
+  // router; a feature with ports (toys) is built by a factory that wires its dependencies.
   router.use('/admin/categories', adminCategoriesRouter);
   router.use('/categories', categoriesRouter);
   router.use('/uploads', uploadsRouter);

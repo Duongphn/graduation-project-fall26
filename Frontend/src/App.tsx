@@ -1,14 +1,10 @@
 import { RouterProvider } from 'react-router-dom'
 
-import { AppProviders } from './app/AppProviders'
 import { router } from './routes/app-routes'
 
+// Providers (theme, antd App, React Query) are in main.tsx and contexts/theme-provider.tsx.
 function App() {
-  return (
-    <AppProviders>
-      <RouterProvider router={router} />
-    </AppProviders>
-  )
+  return <RouterProvider router={router} />
 }
 
 export default App

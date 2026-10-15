@@ -8,7 +8,6 @@ import {
 import { withTransaction } from '../../infrastructure/database/schema-types.js';
 import type { VisibilityStatus } from '../../shared/domain/statuses.js';
 import { assertTransition } from '../../shared/domain/transitions.js';
-import { notFound } from '../../shared/errors/app-error.js';
 import type { AdminContext } from '../../shared/http/admin-context.js';
 import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
 import { toSkipLimit } from '../../shared/utils/response.js';
@@ -17,6 +16,8 @@ import { accentInsensitivePattern } from '../../shared/utils/text.js';
 import { toAdminCategory, toAuditSnapshot, toPublicCategory } from './categories.mapper.js';
 import { categoriesRepository as repo, type CategoryRecord } from './categories.repository.js';
 import {
+  categoriesNotFound,
+  reorderIncomplete,
   categoryInUse,
   categoryNameTaken,
   categoryNotFound,
@@ -53,6 +54,8 @@ const audit = (
     session,
   );
 
+// Counted after the commit, outside the transaction: the count is display-only (toyCount and
+// canDelete in the Admin list); delete re-counts inside its own transaction.
 const withToyCount = async (category: CategoryRecord): Promise<AdminCategoryView> => {
   const counts = await repo.countToys([category._id]);
   return toAdminCategory(category, counts.get(String(category._id)) ?? 0);
@@ -88,7 +91,7 @@ export const createCategory = async (
   input: CreateCategoryBody,
   context: AdminContext,
 ): Promise<AdminCategoryView> => {
-  for (let attempt = 1; ; attempt += 1) {
+  for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt += 1) {
     try {
       const created = await withTransaction(async (session) => {
         if (await repo.existsByName(input.name, undefined, session)) throw categoryNameTaken();
@@ -120,6 +123,8 @@ export const createCategory = async (
       return rethrowNameTaken(error);
     }
   }
+  // Unreachable: the last attempt returns or rethrows above.
+  throw new Error('Category create retries exhausted.');
 };
 
 // The slug is NOT regenerated on rename: it is the stable public key of the category (filter
@@ -211,8 +216,8 @@ export const deleteCategory = async (id: string, context: AdminContext): Promise
   });
 };
 
-// displayOrder = 1, 2, 3... in the given order. Categories left out keep their relative order
-// after the listed ones, so a slightly stale list still gives a complete, gap-free order.
+// displayOrder = 1, 2, 3... in the given order. The list must name every category (422
+// REORDER_INCOMPLETE otherwise), so a stale client cannot move the categories it did not see.
 export const reorderCategories = async (
   input: ReorderCategoriesBody,
   context: AdminContext,
@@ -222,13 +227,12 @@ export const reorderCategories = async (
     const byId = new Map(all.map((category) => [String(category._id), category]));
     const missing = input.ids.filter((id) => !byId.has(id));
     if (missing.length > 0) {
-      throw notFound('CATEGORY_NOT_FOUND', `Không tìm thấy ${missing.length} danh mục.`);
+      throw categoriesNotFound(missing.length);
     }
-    const listed = new Set(input.ids);
-    const ordered = [
-      ...input.ids.map((id) => byId.get(id) as CategoryRecord),
-      ...all.filter((category) => !listed.has(String(category._id))),
-    ];
+    if (input.ids.length < all.length) {
+      throw reorderIncomplete(all.length - input.ids.length);
+    }
+    const ordered = input.ids.map((id) => byId.get(id) as CategoryRecord);
     const changes = ordered
       .map((category, index) => ({
         id: category._id,

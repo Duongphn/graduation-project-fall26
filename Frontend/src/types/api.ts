@@ -30,6 +30,9 @@ export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown }
 }
 
+// Largest page size the backend accepts (MAX_PAGE_LIMIT on the server).
+export const MAX_PAGE_LIMIT = 100
+
 export interface PaginationParams {
   page?: number
   limit?: number

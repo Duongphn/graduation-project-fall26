@@ -5,31 +5,32 @@ import { useState } from 'react'
 
 import { DataTable, FilterBar, PageHeader, StatusTag } from '../../../components/common'
 import type { VisibilityStatus } from '../../../constants/domain'
-import { useListParams } from '../../../hooks/useListParams'
+import { useClampPage, useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb } from '../../../routes/paths'
 import { statusOptions } from '../../../styles/status'
+import { MAX_PAGE_LIMIT } from '../../../types/api'
 import { CategoryFormModal } from '../components/CategoryFormModal'
 import { CategoryOrderControl } from '../components/CategoryOrderControl'
 import { CategoryRowActions } from '../components/CategoryRowActions'
-import { useAdminCategories, useReorderCategories } from '../hooks'
+import { useAdminCategories, useCategoryMutationPending, useReorderCategories } from '../hooks'
 import { categoryFiltersSchema } from '../schemas'
 import type { AdminCategory } from '../types'
 
 const FILTERED_ORDER_HINT = 'Bỏ bộ lọc để sắp xếp thứ tự'
 const PAGED_ORDER_HINT = 'Chỉ sắp xếp được khi mọi danh mục nằm trên một trang'
-// The backend maximum: one page normally holds every category.
-const PAGE_SIZE = 100
 
 // UC30 (categories): add, edit, hide/show, delete unused ones and reorder toy categories.
 export function CategoriesPage() {
-  const { params, filters, setFilter, setPage } = useListParams({
+  const { page, params, filters, setFilter, setPage, update } = useListParams({
     schema: categoryFiltersSchema,
-    defaultLimit: PAGE_SIZE,
+    // The backend maximum: one page normally holds every category.
+    defaultLimit: MAX_PAGE_LIMIT,
   })
   const { status, q } = filters
 
   const categoriesQuery = useAdminCategories(params)
   const reorderMutation = useReorderCategories()
+  const categoryMutationPending = useCategoryMutationPending()
   // `opening` remounts the form for each opening; the category stays set while it closes.
   const [form, setForm] = useState<{ open: boolean; opening: number; category?: AdminCategory }>({
     open: false,
@@ -40,6 +41,7 @@ export function CategoriesPage() {
 
   const items = categoriesQuery.data?.items ?? []
   const pagination = categoriesQuery.data?.pagination
+  useClampPage(page, pagination?.totalPages, update)
   // Moving swaps neighbours in the whole list, so it needs the complete, up-to-date list.
   const orderBlockedReason =
     status || q
@@ -47,7 +49,8 @@ export function CategoriesPage() {
       : pagination && pagination.totalPages > 1
         ? PAGED_ORDER_HINT
         : undefined
-  const orderBusy = reorderMutation.isPending || categoriesQuery.isFetching
+  // Any pending change (another row's hide/delete, the form) may shift the order: wait for it.
+  const orderBusy = categoryMutationPending || categoriesQuery.isFetching
 
   const move = (index: number, offset: -1 | 1) => {
     const ids = items.map((item) => item.id)
@@ -81,7 +84,7 @@ export function CategoriesPage() {
       render: (name: string) => <Typography.Text strong>{name}</Typography.Text>,
     },
     {
-      title: 'Slug',
+      title: 'Đường dẫn',
       dataIndex: 'slug',
       key: 'slug',
       render: (slug: string) => <Typography.Text code>{slug}</Typography.Text>,
@@ -149,6 +152,7 @@ export function CategoriesPage() {
             allowClear
             defaultValue={q}
             placeholder="Tìm theo tên hoặc mô tả"
+            aria-label="Tìm danh mục"
             onSearch={(value) => setFilter('q', value.trim() || undefined)}
           />
         </div>
@@ -156,6 +160,7 @@ export function CategoriesPage() {
           className="w-48"
           allowClear
           placeholder="Tất cả trạng thái"
+          aria-label="Lọc theo trạng thái"
           value={status}
           options={statusOptions('visibility')}
           onChange={(value) => setFilter('status', value)}
@@ -164,7 +169,11 @@ export function CategoriesPage() {
 
       <DataTable<AdminCategory>
         items={categoriesQuery.data?.items}
-        pagination={pagination && pagination.totalPages > 1 ? pagination : undefined}
+        pagination={
+          pagination && (pagination.totalPages > 1 || page > pagination.totalPages)
+            ? pagination
+            : undefined
+        }
         error={categoriesQuery.error}
         onRetry={() => void categoriesQuery.refetch()}
         loading={categoriesQuery.isFetching}

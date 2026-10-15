@@ -23,6 +23,8 @@ const organization = (overrides: Record<string, unknown> = {}) => ({
 
 describe('schema extensions', () => {
   it('treats category names that differ only by case as duplicates', async () => {
+    // syncDatabase seeds the default categories; start from an empty collection.
+    await CategoryModel.deleteMany({});
     await CategoryModel.create({ name: 'Đồ chơi gỗ', slug: 'do-choi-go' });
     await expect(CategoryModel.create({ name: 'đồ CHƠI GỖ', slug: 'x-1' })).rejects.toThrow(
       /duplicate key/,

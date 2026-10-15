@@ -70,7 +70,8 @@ export const reorderCategoriesBodySchema = z
       .max(MAX_REORDER_IDS, `Tối đa ${MAX_REORDER_IDS} danh mục.`)
       .refine((ids) => new Set(ids).size === ids.length, {
         message: 'Danh sách có danh mục bị lặp.',
-      }),
+      })
+      .describe('Every category id, in the new order (a partial list answers 422).'),
   })
   .strict()
   .openapi('ReorderCategoriesRequest');

@@ -1,13 +1,17 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AuditLogModel } from '../../src/features/audit_logs/audit_logs.model.js';
 import { CategoryModel } from '../../src/features/categories/categories.model.js';
 import { adminCategoriesRouter, categoriesRouter } from '../../src/features/categories/index.js';
+import { SystemSettingModel } from '../../src/features/system_settings/system_settings.model.js';
 import { ToyModel } from '../../src/features/toys/toys.model.js';
 import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+import {
+  seedDefaultCategories,
+  defaultCategories,
+} from '../../src/features/categories/categories.seed.js';
 import { createToy, newId, useTestDatabase } from '../database/helpers.js';
 
 useTestDatabase();
@@ -121,7 +125,10 @@ describe('create and edit', () => {
     expect(renamed.body.message).toBe('Đã cập nhật danh mục.');
     expect(renamed.body.data).toMatchObject({ name: 'Sách vải', slug: 'sach' });
     expect(renamed.body.data.description).toBeUndefined();
-    expect((await patch(`/${category.id}`, { name: 'BÓNG' })).status).toBe(409);
+    const clash = await patch(`/${category.id}`, { name: 'BÓNG' });
+    expect(clash.status).toBe(409);
+    expect(clash.body.error.code).toBe('CATEGORY_NAME_TAKEN');
+    expect(await AuditLogModel.countDocuments({ action: 'category.update' })).toBe(1);
   });
 });
 
@@ -189,39 +196,15 @@ describe('delete', () => {
     expect(refused.body.error).toMatchObject({ code: 'CATEGORY_IN_USE', details: { toyCount: 1 } });
     expect(await AuditLogModel.countDocuments({ action: 'category.delete' })).toBe(1);
   });
-
-  it('never deletes a category while a toy transaction that touched it is saving a toy', async () => {
-    const category = await createCategory('Tranh chấp');
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    // What the toys feature does when it saves a toy (see the feature README).
-    await CategoryModel.findOneAndUpdate(
-      { _id: category.id, status: 'ACTIVE' },
-      { $inc: { __v: 1 } },
-      { session },
-    );
-    const toy = (await createToy({ categoryId: category.id })).toObject();
-    await ToyModel.deleteOne({ _id: toy._id });
-    await ToyModel.create([{ ...toy, _id: newId() }], { session });
-
-    const pending = del(`/${category.id}`).then((response) => response);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await session.commitTransaction();
-    await session.endSession();
-
-    const response = await pending;
-    expect(response.status).toBe(409);
-    expect(response.body.error.code).toBe('CATEGORY_IN_USE');
-    expect(await CategoryModel.exists({ _id: category.id })).not.toBeNull();
-  });
+  // The race with a real toy save is in toy-categories.test.ts.
 });
 
 describe('reorder', () => {
-  it('numbers the given ids first and keeps the others after them', async () => {
+  it('numbers the ids in the given order', async () => {
     const a = await createCategory('A gỗ');
     const b = await createCategory('B nhựa');
     const c = await createCategory('C vải');
-    const response = await patch('/reorder', { ids: [c.id, a.id] });
+    const response = await patch('/reorder', { ids: [c.id, a.id, b.id] });
     expect(response.status).toBe(200);
     const order = (await get()).body.data.map((item: { id: string; displayOrder: number }) => [
       item.id,
@@ -237,8 +220,70 @@ describe('reorder', () => {
     expect(audit?.meta).toMatchObject({ after: [c.id, a.id, b.id] });
   });
 
+  it('answers 404 for an unknown id and changes nothing', async () => {
+    const a = await createCategory('Có thật');
+    const response = await patch('/reorder', { ids: [a.id, newId().toString()] });
+    expect(response.status).toBe(404);
+    expect(response.body.error).toMatchObject({
+      code: 'CATEGORY_NOT_FOUND',
+      message: 'Không tìm thấy 1 danh mục.',
+    });
+    expect(await AuditLogModel.countDocuments({ action: 'category.reorder' })).toBe(0);
+  });
+
+  it('answers 422 REORDER_INCOMPLETE for a partial list and changes nothing', async () => {
+    const a = await createCategory('Một');
+    const b = await createCategory('Hai');
+    await createCategory('Ba');
+    const response = await patch('/reorder', { ids: [b.id, a.id] });
+    expect(response.status).toBe(422);
+    expect(response.body.error).toMatchObject({
+      code: 'REORDER_INCOMPLETE',
+      details: { missingCount: 1 },
+    });
+    const order = (await get()).body.data.map((item: { id: string }) => item.id);
+    expect(order.slice(0, 2)).toEqual([a.id, b.id]);
+    expect(await AuditLogModel.countDocuments({ action: 'category.reorder' })).toBe(0);
+  });
+
   it('rejects duplicate ids', async () => {
     const a = await createCategory('Một');
     expect((await patch('/reorder', { ids: [a.id, a.id.toUpperCase()] })).status).toBe(400);
+  });
+});
+
+describe('default categories seed', () => {
+  beforeEach(async () => {
+    await SystemSettingModel.deleteMany({ key: 'CATEGORIES_SEEDED' });
+  });
+
+  it('fills an empty collection once and is safe to run again', async () => {
+    await seedDefaultCategories();
+    await seedDefaultCategories();
+    const seeded = await CategoryModel.find().sort({ displayOrder: 1 }).lean();
+    expect(seeded.length).toBe(defaultCategories.length);
+    expect(seeded.length).toBeGreaterThanOrEqual(10);
+    expect(new Set(seeded.map((category) => category.slug)).size).toBe(seeded.length);
+    expect(seeded.every((category) => category.status === 'ACTIVE')).toBe(true);
+    expect(seeded.map((category) => category.displayOrder)).toEqual(
+      seeded.map((_category, index) => index + 1),
+    );
+  });
+
+  it('never brings back a deleted category nor undoes a rename', async () => {
+    await seedDefaultCategories();
+    const [first, second] = await CategoryModel.find().sort({ displayOrder: 1 });
+    await CategoryModel.deleteOne({ _id: first?._id });
+    await CategoryModel.updateOne({ _id: second?._id }, { name: 'Tên mới' });
+    await seedDefaultCategories();
+    expect(await CategoryModel.countDocuments()).toBe(defaultCategories.length - 1);
+    expect((await CategoryModel.findById(second?._id).lean())?.name).toBe('Tên mới');
+  });
+
+  it('does not reseed after the Admin deleted every category', async () => {
+    await seedDefaultCategories();
+    await CategoryModel.deleteMany({});
+    await seedDefaultCategories();
+    expect(await CategoryModel.countDocuments()).toBe(0);
   });
 });

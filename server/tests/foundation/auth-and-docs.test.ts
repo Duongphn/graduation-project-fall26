@@ -92,6 +92,22 @@ describe('development auth header', () => {
     const locked = await as(LOCKED_ID);
     expect(locked.status).toBe(403);
     expect(locked.body.error.code).toBe('ACCOUNT_LOCKED');
+
+    // Admin routes and the toys routes use the same guards.
+    const lockedAdmin = await request(app)
+      .get('/api/v1/admin/categories')
+      .set('x-dev-user-id', LOCKED_ID);
+    expect(lockedAdmin.status).toBe(403);
+    expect(lockedAdmin.body.error.code).toBe('ACCOUNT_LOCKED');
+    const lockedToys = await request(app).get('/api/v1/toys/mine').set('x-dev-user-id', LOCKED_ID);
+    expect(lockedToys.status).toBe(403);
+    expect(lockedToys.body.error.code).toBe('ACCOUNT_LOCKED');
+    const anonymousToys = await request(app).get('/api/v1/toys/mine');
+    expect(anonymousToys.status).toBe(401);
+    expect(anonymousToys.body).toMatchObject({
+      success: false,
+      error: { code: 'UNAUTHENTICATED', message: 'Bạn cần đăng nhập để thực hiện thao tác này.' },
+    });
   });
 
   it('identify the caller when enabled, and roles are checked', async () => {

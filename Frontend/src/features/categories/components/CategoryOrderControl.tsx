@@ -17,7 +17,8 @@ const moves = [
 ] as const
 
 // Display order with up/down buttons that swap the row with its neighbour. The buttons sit in a
-// span so the tooltip still explains why they are disabled.
+// span so the tooltip still explains why they are disabled; when a reason blocks them, the span
+// is focusable and carries the reason, so keyboard and screen reader users get it too.
 export function CategoryOrderControl({
   displayOrder,
   isFirst,
@@ -32,7 +33,9 @@ export function CategoryOrderControl({
       <span className="w-8 text-right tabular-nums text-muted">{displayOrder}</span>
       {moves.map(({ offset, label, icon }) => (
         <Tooltip key={offset} title={disabledReason ?? label}>
-          <span>
+          <span
+            {...(disabledReason ? { tabIndex: 0, role: 'note', 'aria-label': `${label}: ${disabledReason}` } : {})}
+          >
             <Button
               size="small"
               type="text"

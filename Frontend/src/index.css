@@ -23,20 +23,23 @@
   /*
    * Bảng màu trang tài khoản: navy sẫm làm chủ đạo, ánh đồng (brass) làm điểm nhấn,
    * nền tím nhạt của thiết kế gốc (ToyFlow Replay). Độ tương phản chữ/nền đều ≥ 4.5:1.
+   * Màu nào có trong src/styles/palette.ts (light) thì dùng đúng giá trị đó (ghi bên cạnh), để
+   * bg-tf-primary và bg-primary là cùng một màu navy. Các màu còn lại (nền tím nhạt, brass,
+   * error) chỉ trang tài khoản dùng. Code mới (admin) dùng token palette (bg-primary...).
    */
   --color-tf-page: #faf8ff;
   --color-tf-surface-low: #f2f3ff;
   --color-tf-surface: #eaedff;
   --color-tf-surface-high: #e2e7ff;
-  --color-tf-ink: #12171f;
-  --color-tf-ink-muted: #565c68;
+  --color-tf-ink: #0f172a; /* palette text */
+  --color-tf-ink-muted: #565c68; /* palette textMuted */
   --color-tf-outline: #c4c5d5;
-  --color-tf-primary: #14284b;
-  --color-tf-primary-container: #20396a;
-  --color-tf-primary-fixed: #e4e8f0;
+  --color-tf-primary: #24338a; /* palette primary */
+  --color-tf-primary-container: #1c2870; /* palette primaryHover */
+  --color-tf-primary-fixed: #e4e8f0; /* palette primarySoft */
   --color-tf-accent: #a8854f;
-  --color-tf-secondary: #2c6a52;
-  --color-tf-secondary-container: #dcebe3;
+  --color-tf-secondary: #2c6a52; /* palette secondary */
+  --color-tf-secondary-container: #dcebe3; /* palette secondarySoft */
   --color-tf-tertiary: #7d5f2a;
   --color-tf-tertiary-fixed: #f2e9d8;
   --color-tf-error: #b3261e;
@@ -65,12 +68,55 @@
   --color-night-700: #3a3b47;
 }
 
-/* Màu dùng chung: giá trị nằm trong src/styles/palette.ts và được ghi thành biến --tf-* lúc
-   khởi động (applyCssVariables). Ví dụ: bg-primary, text-muted, border-border. */
+/* Màu dùng chung (bg-primary, text-muted, border-border...): cùng giá trị với src/styles/palette.ts.
+   :root = light, .dark = dark. Đổi màu thì sửa cả palette.ts và hai khối dưới đây. */
+:root {
+  --tf-primary: #24338a;
+  --tf-primary-hover: #1c2870;
+  --tf-primary-soft: #e4e8f0;
+  --tf-text-on-primary: #ffffff;
+  --tf-secondary: #2c6a52;
+  --tf-secondary-soft: #dcebe3;
+  --tf-success: #52c41a;
+  --tf-warning: #faad14;
+  --tf-danger: #ff4d4f;
+  --tf-info: #1677ff;
+  --tf-text: #0f172a;
+  --tf-text-muted: #565c68;
+  --tf-border: #e2e8f0;
+  --tf-surface: #ffffff;
+  --tf-elevated: #ffffff;
+  --tf-background: #faf8f3;
+  --tf-sidebar: #152152;
+  --tf-sidebar-text: #e4e8f0;
+}
+
+.dark {
+  --tf-primary: #a5b4fc;
+  --tf-primary-hover: #c7d2fe;
+  --tf-primary-soft: #262733;
+  --tf-text-on-primary: #15161e;
+  --tf-secondary: #86c5a9;
+  --tf-secondary-soft: #1f3329;
+  --tf-success: #52c41a;
+  --tf-warning: #faad14;
+  --tf-danger: #ff4d4f;
+  --tf-info: #1677ff;
+  --tf-text: #f1f5f9;
+  --tf-text-muted: #a1a6b3;
+  --tf-border: #3a3b47;
+  --tf-surface: #1c1d27;
+  --tf-elevated: #262733;
+  --tf-background: #15161e;
+  --tf-sidebar: #1c1d27;
+  --tf-sidebar-text: #c7cbe0;
+}
+
 @theme inline {
   --color-primary: var(--tf-primary);
   --color-primary-hover: var(--tf-primary-hover);
   --color-primary-soft: var(--tf-primary-soft);
+  --color-text-on-primary: var(--tf-text-on-primary);
   --color-secondary: var(--tf-secondary);
   --color-secondary-soft: var(--tf-secondary-soft);
   --color-success: var(--tf-success);
@@ -81,8 +127,10 @@
   --color-muted: var(--tf-text-muted);
   --color-border: var(--tf-border);
   --color-surface: var(--tf-surface);
+  --color-elevated: var(--tf-elevated);
   --color-background: var(--tf-background);
   --color-sidebar: var(--tf-sidebar);
+  --color-sidebar-text: var(--tf-sidebar-text);
 }
 
 @layer base {

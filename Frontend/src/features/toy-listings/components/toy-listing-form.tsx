@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { Link, useLocation } from 'react-router-dom'
@@ -18,6 +18,8 @@ import {
   type Category,
   type ToyListing,
 } from '../toy-listing-api'
+import { categoriesQuery } from '../toy-listing-queries'
+import { getApiErrorCode } from '../../../services/http-client'
 import { EMPTY_LISTING_VALUES, listingSchema, MIN_IMAGES, type ListingFormValues } from '../toy-listing-schema'
 
 /** Đưa tin đăng từ backend về giá trị form */
@@ -41,11 +43,20 @@ interface ToyListingFormProps {
   listing?: ToyListing
   categories: Category[]
   categoriesLoading: boolean
+  /** true khi GET /categories thành công: chỉ khi đó mới biết danh mục của tin đã bị ẩn */
+  categoriesLoaded: boolean
   onSaved: (listing: ToyListing) => void
 }
 
-export function ToyListingForm({ listing, categories, categoriesLoading, onSaved }: ToyListingFormProps) {
+export function ToyListingForm({
+  listing,
+  categories,
+  categoriesLoading,
+  categoriesLoaded,
+  onSaved,
+}: ToyListingFormProps) {
   const location = useLocation()
+  const queryClient = useQueryClient()
   const isEdit = Boolean(listing)
 
   const form = useForm<ListingFormValues>({
@@ -63,10 +74,17 @@ export function ToyListingForm({ listing, categories, categoriesLoading, onSaved
         ? updateToyListing({
             toyId: listing.id,
             values,
+            savedCategoryId: listing.categoryId,
             newImages: photos.newFiles,
             removeImagePublicIds: photos.removedPublicIds,
           })
         : createToyListing({ values, newImages: photos.newFiles }),
+    onError: (error) => {
+      // Danh mục vừa bị ẩn/xoá: tải lại danh sách để ô chọn không còn danh mục đó
+      if (getApiErrorCode(error) === 'CATEGORY_NOT_FOUND') {
+        void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
+      }
+    },
     onSuccess: (saved) => {
       onSaved(saved)
       if (!isEdit) return
@@ -75,6 +93,13 @@ export function ToyListingForm({ listing, categories, categoriesLoading, onSaved
       setSubmitAttempted(false)
     },
   })
+
+  // Danh mục của tin đã bị Admin ẩn thì không có trong GET /categories: vẫn hiện để giữ nguyên lựa chọn
+  const savedCategoryHidden =
+    listing && categoriesLoaded && !categories.some((category) => category.id === listing.categoryId)
+  const categoryOptions = savedCategoryHidden
+    ? [...categories, { id: listing.categoryId, name: `${listing.categoryName || 'Danh mục hiện tại'} (đã ẩn)`, slug: '' }]
+    : categories
 
   const isSaving = saveMutation.isPending
   const photoRequiredError =
@@ -128,7 +153,7 @@ export function ToyListingForm({ listing, categories, categoriesLoading, onSaved
             onRemove={photos.removePhoto}
             onMakeCover={photos.makeCover}
           />
-          <ListingDetailsSection categories={categories} categoriesLoading={categoriesLoading} />
+          <ListingDetailsSection categories={categoryOptions} categoriesLoading={categoriesLoading} />
         </fieldset>
 
         <div className="listing-form__side">

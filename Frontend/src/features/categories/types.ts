@@ -18,13 +18,6 @@ export interface AdminCategory {
   updatedAt: string
 }
 
-export interface PublicCategory {
-  id: string
-  name: string
-  slug: string
-  description?: string
-}
-
 export interface CategoryListParams extends PaginationParams {
   status?: VisibilityStatus
   q?: string

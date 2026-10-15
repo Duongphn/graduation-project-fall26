@@ -14,7 +14,7 @@ import { RegisterPage } from '../pages/register-page'
 import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
 import { queryClient } from '../services/query-client'
 import { PATHS } from './paths'
-import { adminRoute } from './router'
+import { adminRoute } from './admin-route'
 
 // Lỗi vẫn được lưu trong cache query, trang tự đọc và hiển thị (vd. 401 kèm nút đăng nhập)
 const ignoreError = () => undefined

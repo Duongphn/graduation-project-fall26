@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { PATHS } from '../routes/paths'
@@ -7,7 +7,13 @@ import { saveAccessToken } from '../services/token-storage'
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const redirectTo = (location.state as { from?: string } | null)?.from ?? PATHS.home
+  const [searchParams] = useSearchParams()
+  // ?redirect= comes from route guards (e.g. /admin); only same-site paths are followed.
+  const redirectParam = searchParams.get('redirect')
+  const safeRedirect =
+    redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : undefined
+  const redirectTo =
+    (location.state as { from?: string } | null)?.from ?? safeRedirect ?? PATHS.home
 
   return (
     <AuthLayout

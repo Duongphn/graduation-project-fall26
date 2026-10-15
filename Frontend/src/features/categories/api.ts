@@ -1,27 +1,22 @@
-import { apiGet, apiGetPage, apiSendWithMessage } from '../../services/http'
+import { apiGetPage, apiSendWithMessage } from '../../services/http'
+import { MAX_PAGE_LIMIT } from '../../types/api'
 import type {
   AdminCategory,
   CategoryCreateInput,
   CategoryListParams,
   CategoryOption,
   CategoryUpdateInput,
-  PublicCategory,
 } from './types'
 
 const ADMIN_URL = '/admin/categories'
-// The backend maximum page size: one page holds every category.
-const ALL_CATEGORIES_LIMIT = 100
 
 // Mutations keep the backend message for the success toast (apiSendWithMessage).
 export const categoriesApi = {
-  // Public: ACTIVE categories in menu order (post forms, search filters).
-  listPublic: () => apiGet<PublicCategory[]>('/categories'),
-
   listAdmin: (params: CategoryListParams) => apiGetPage<AdminCategory>(ADMIN_URL, params),
 
   // Every category, hidden ones included: options of Admin filters (e.g. toy moderation).
   adminOptions: async (): Promise<CategoryOption[]> =>
-    (await apiGetPage<AdminCategory>(ADMIN_URL, { page: 1, limit: ALL_CATEGORIES_LIMIT })).items,
+    (await apiGetPage<AdminCategory>(ADMIN_URL, { page: 1, limit: MAX_PAGE_LIMIT })).items,
 
   create: (input: CategoryCreateInput) =>
     apiSendWithMessage<AdminCategory>('post', ADMIN_URL, input),

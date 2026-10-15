@@ -15,6 +15,8 @@ export interface ToyListing {
   id: string
   ownerId: string
   categoryId: string
+  /** Tên danh mục nếu backend trả kèm (cần khi danh mục đã bị ẩn, không còn trong GET /categories) */
+  categoryName?: string
   title: string
   description: string
   condition: string
@@ -76,10 +78,11 @@ export async function fetchMyListing(toyId: string): Promise<ToyListing | null> 
   }
 }
 
-function appendListingFields(form: FormData, values: ListingFormValues) {
+function appendListingFields(form: FormData, values: ListingFormValues, savedCategoryId?: string) {
   form.append('listingType', values.listingType)
   form.append('title', values.title)
-  form.append('categoryId', values.categoryId)
+  // Khi sửa: chỉ gửi categoryId nếu đã đổi, để tin thuộc danh mục đã bị Admin ẩn vẫn sửa được
+  if (values.categoryId !== savedCategoryId) form.append('categoryId', values.categoryId)
   form.append('condition', values.condition)
   form.append('description', values.description)
   form.append('priceOrRate', String(values.priceOrRate))
@@ -102,11 +105,13 @@ export async function createToyListing(payload: { values: ListingFormValues; new
 export async function updateToyListing(payload: {
   toyId: string
   values: ListingFormValues
+  /** categoryId hiện tại của tin (trước khi sửa) */
+  savedCategoryId: string
   newImages: File[]
   removeImagePublicIds: string[]
 }): Promise<ToyListing> {
   const form = new FormData()
-  appendListingFields(form, payload.values)
+  appendListingFields(form, payload.values, payload.savedCategoryId)
   payload.newImages.forEach((file) => form.append('images', file))
   if (payload.removeImagePublicIds.length > 0) {
     form.append('removeImagePublicIds', JSON.stringify(payload.removeImagePublicIds))
@@ -118,7 +123,7 @@ export async function updateToyListing(payload: {
 
 /** Backend trả message tiếng Anh; dịch các mã lỗi người dùng có thể tự khắc phục */
 const LISTING_ERROR_MESSAGES: Record<string, string> = {
-  UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.',
+  UNAUTHENTICATED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.',
   USER_NOT_VERIFIED: 'Bạn cần xác thực danh tính (CCCD) trước khi đăng tin.',
   FORBIDDEN: 'Bạn không có quyền chỉnh sửa tin đăng này.',
   NOT_FOUND: 'Không tìm thấy tin đăng. Có thể tin đã bị xoá.',
@@ -134,5 +139,5 @@ export function getListingErrorMessage(error: unknown): string {
 }
 
 export function isUnauthorizedError(error: unknown): boolean {
-  return getApiErrorCode(error) === 'UNAUTHORIZED'
+  return getApiErrorCode(error) === 'UNAUTHENTICATED'
 }

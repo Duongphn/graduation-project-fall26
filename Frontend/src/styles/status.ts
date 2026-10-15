@@ -12,7 +12,7 @@ import type {
   VisibilityStatus,
   WithdrawalStatus,
 } from '../constants/domain'
-import { palette } from './palette'
+import { palettes, type Palette } from './palette'
 
 // Colour tone and Vietnamese label of every status shown in the UI, per domain: the same value
 // (e.g. ACTIVE or PENDING) means different things for a toy, a category or a donation.
@@ -117,13 +117,16 @@ export const statusStyles = {
 export type StatusDomain = keyof typeof statusStyles
 export type StatusOf<D extends StatusDomain> = keyof (typeof statusStyles)[D] & string
 
-export const toneColors: Record<StatusTone, string> = {
+const toneColorsOf = (palette: Palette): Record<StatusTone, string> => ({
   default: palette.textMuted,
   processing: palette.info,
   success: palette.success,
   warning: palette.warning,
   error: palette.danger,
-}
+})
+
+export const toneColors = toneColorsOf(palettes.light)
+export const darkToneColors = toneColorsOf(palettes.dark)
 
 export const getStatusStyle = <D extends StatusDomain>(domain: D, status: string): StatusStyle =>
   (statusStyles[domain] as Record<string, StatusStyle>)[status] ?? {
@@ -142,7 +145,7 @@ export const statusOptions = <D extends StatusDomain>(
 
 // Colour of each listing type (ListingTypeTag): not a status, but shown the same way.
 export const listingTypeColors: Record<ListingType, string> = {
-  RENT: palette.primary,
-  SALE: palette.secondary,
-  DONATION: palette.success,
+  RENT: palettes.light.primary,
+  SALE: palettes.light.secondary,
+  DONATION: palettes.light.success,
 }

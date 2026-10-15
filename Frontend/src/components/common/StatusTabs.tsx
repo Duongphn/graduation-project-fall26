@@ -1,6 +1,5 @@
 import { Badge, Tabs } from 'antd'
 
-import { palette } from '../../styles/palette'
 import { statusOptions } from '../../styles/status'
 import type { StatusDomain, StatusOf } from '../../styles/status'
 
@@ -34,7 +33,13 @@ export function StatusTabs<D extends StatusDomain>({
       <span className="flex items-center gap-2">
         {option.label}
         {counts?.[option.value] !== undefined && (
-          <Badge count={counts[option.value]} showZero overflowCount={999} color={palette.textMuted} />
+          <Badge
+            count={counts[option.value]}
+            showZero
+            overflowCount={999}
+            // Palette variables (light and dark): primary text on the soft primary fill.
+            style={{ backgroundColor: 'var(--tf-primary-soft)', color: 'var(--tf-primary)' }}
+          />
         )}
       </span>
     ),

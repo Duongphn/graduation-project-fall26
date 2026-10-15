@@ -1,5 +1,5 @@
 import express from 'express';
-import mongoose, { type Model } from 'mongoose';
+import mongoose, { type ClientSession, type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -12,6 +12,7 @@ import type { ToyImageStorage } from '../src/infrastructure/cloudinary/cloudinar
 import { errorHandler } from '../src/shared/middleware/error-handler.js';
 
 const CATEGORY_ID = '64b000000000000000000001';
+const CATEGORY_NAME = 'Đồ chơi STEM';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -114,8 +115,16 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
   const ports: ToyListingPorts = {
     isVerifiedUser: async () => state.verified,
     categoryExists: async () => state.categoryExists,
+    saveWithActiveCategory: async (_categoryId, save) =>
+      state.categoryExists
+        ? { result: await save({} as ClientSession), categoryName: CATEGORY_NAME }
+        : null,
     hasUnfinishedOrder: async () => state.unfinishedOrder,
     getSoldToyIds: async (toyIds) => new Set(toyIds.filter((id) => state.soldIds.has(id))),
+    getCategoryNames: async (categoryIds) =>
+      new Map(
+        categoryIds.filter((id) => id === CATEGORY_ID).map((id) => [id, CATEGORY_NAME] as const),
+      ),
   };
 
   return { ports, state };
@@ -273,7 +282,7 @@ describe('POST /api/v1/toys', () => {
     const res = await postListing(ctx, rentFields());
 
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body.error.code).toBe('UNAUTHENTICATED');
   });
 
   it('creates a rental listing with 201 and pending status', async () => {
@@ -281,6 +290,8 @@ describe('POST /api/v1/toys', () => {
 
     expect(listing).toMatchObject({
       ownerId: ctx.actor1.userId,
+      categoryId: CATEGORY_ID,
+      categoryName: CATEGORY_NAME,
       title: 'Wooden Train',
       listingType: 'rent',
       priceOrRate: 12,
@@ -394,9 +405,10 @@ describe('GET /api/v1/toys/mine', () => {
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(2);
     expect(res.body.items).toHaveLength(2);
-    expect(res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId)).toBe(
-      true,
-    );
+    expect(res.body.items[0].categoryName).toBe(CATEGORY_NAME);
+    expect(
+      res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId),
+    ).toBe(true);
   });
 
   it('paginates results', async () => {
@@ -455,6 +467,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Updated Train');
+    expect(res.body.categoryName).toBe(CATEGORY_NAME);
     expect(res.body.priceOrRate).toBe(15);
     expect(res.body.status).toBe('pending');
   });
@@ -533,6 +546,7 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('hidden');
+    expect(res.body.categoryName).toBe(CATEGORY_NAME);
   });
 
   it('returns 409 when an unfinished order exists', async () => {

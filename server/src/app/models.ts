@@ -3,6 +3,7 @@ import mongoose, { type Model } from 'mongoose';
 import { AiRequestModel } from '../features/ai_requests/ai_requests.model.js';
 import { AuditLogModel } from '../features/audit_logs/audit_logs.model.js';
 import { CategoryModel } from '../features/categories/categories.model.js';
+import { seedDefaultCategories } from '../features/categories/categories.seed.js';
 import { ConversationModel } from '../features/conversations/conversations.model.js';
 import { DisputeModel } from '../features/disputes/disputes.model.js';
 import { DonationRequestModel } from '../features/donation_requests/donation_requests.model.js';
@@ -58,7 +59,8 @@ export const allModels: readonly Model<never>[] = [
 
 /**
  * Creates the collections, brings their indexes in line with the schemas, applies the
- * server-side wallet validator and inserts missing system settings. Run it once per environment (needs the dbAdmin role) and in
+ * server-side wallet validator, inserts missing system settings and, into an empty collection,
+ * the default categories. Run it once per environment (needs the dbAdmin role) and in
  * the database tests.
  */
 export const syncDatabase = async (): Promise<void> => {
@@ -78,4 +80,5 @@ export const syncDatabase = async (): Promise<void> => {
     validationAction: 'error',
   });
   await seedDefaultSettings();
+  await seedDefaultCategories();
 };

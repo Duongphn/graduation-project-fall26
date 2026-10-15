@@ -11,10 +11,14 @@ Rules:
 
 - Names are unique ignoring case, not accents (`name_unique` collation `{ vi, 2 }`).
 - The slug is derived on create and never changes on rename.
-- The list is flat: `parentId` is not used (always `null`).
+- The list is flat: `parentId` is optional and unused (always `null`).
+- A new database gets the default categories from `categories.seed.ts` (run by `syncDatabase`) once;
+  the `system_settings` marker `CATEGORIES_SEEDED` stops any reseed, even if every category is deleted.
 - A category with any toy (any status) cannot be deleted, only hidden.
+- Reorder takes every category id in the new order; a partial list answers 422
+  `REORDER_INCOMPLETE` (an unknown id answers 404 `CATEGORY_NOT_FOUND`).
 
-## Delete race (for the toys feature)
+## Delete race (implemented by the toys feature)
 
 `deleteCategory` first writes to the category document (`$inc: { __v: 1 }`), then counts toys,
 then deletes. To close the race, the toys feature must, inside the transaction that creates a toy
@@ -26,8 +30,11 @@ const category = await CategoryModel.findOneAndUpdate(
   { $inc: { __v: 1 } },
   { session },
 );
-if (!category) throw conflict('CATEGORY_NOT_AVAILABLE', 'Danh mục không còn được sử dụng.');
+if (!category) return null; // the toy service answers 400 CATEGORY_NOT_FOUND
 ```
+
+This is the port `saveWithActiveCategory` of the toys feature, wired in
+`app/toy-listing-dependencies.ts`. An edit that keeps the category does not touch it.
 
 The two transactions then write the same document, so MongoDB aborts one with a write conflict
 and `withTransaction` retries it with fresh data: either the delete sees the toy (409

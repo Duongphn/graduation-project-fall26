@@ -77,10 +77,12 @@ openApiRegistry.registerPath({
   path: `${ADMIN}/reorder`,
   tags,
   summary: 'Set the display order (Admin)',
-  description: 'displayOrder becomes 1, 2, 3... in the order of ids; others follow.',
+  description:
+    'displayOrder becomes 1, 2, 3... in the order of ids. ids must list every category ' +
+    '(422 REORDER_INCOMPLETE otherwise).',
   security: devAuthSecurity,
   request: { body: { content: jsonContent(reorderCategoriesBodySchema) } },
-  responses: { 200: noData('Reordered'), ...errorResponses(400, 401, 403, 404) },
+  responses: { 200: noData('Reordered'), ...errorResponses(400, 401, 403, 404, 422) },
 });
 
 openApiRegistry.registerPath({

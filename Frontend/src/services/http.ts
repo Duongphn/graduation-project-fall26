@@ -1,6 +1,5 @@
-import axios, { AxiosError } from 'axios'
+import { isAxiosError, type AxiosRequestConfig } from 'axios'
 
-import { env } from '../config/env'
 import type {
   ApiErrorBody,
   ApiResponse,
@@ -10,73 +9,58 @@ import type {
   WithMessage,
 } from '../types/api'
 import { ApiError } from './api-error'
-import { getAccessToken } from './token-storage'
+import { httpClient } from './http-client'
 
-// One axios instance for the shared helpers below. Same base URL as httpClient (config/env.ts:
-// VITE_API_BASE_URL, default /api/v1 through the Vite proxy).
-export const http = axios.create({
-  baseURL: env.apiBaseUrl,
-  withCredentials: true,
-  timeout: 15_000,
-})
-
-// TEMPORARY until login exists: the backend accepts these headers only when it runs with
-// ALLOW_DEV_AUTH=true. Set VITE_DEV_USER_ID / VITE_DEV_ROLE in .env.local; ignored in builds.
-http.interceptors.request.use((config) => {
-  // Access token after login (same storage as httpClient).
-  const token = getAccessToken()
-  if (token) config.headers.set('Authorization', `Bearer ${token}`)
-  const devUserId = import.meta.env.VITE_DEV_USER_ID
-  if (import.meta.env.DEV && devUserId) {
-    config.headers.set('x-dev-user-id', devUserId)
-    config.headers.set('x-dev-role', import.meta.env.VITE_DEV_ROLE ?? 'USER')
-  }
-  return config
-})
-
-http.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError<ApiErrorBody>) => {
+// Helpers over the one axios instance (httpClient in http-client.ts): they unwrap the envelope,
+// so feature api.ts files return plain data, and they throw ApiError. The conversion happens
+// here, not in a global interceptor, so code that calls httpClient directly still gets the raw
+// AxiosError that getApiErrorMessage reads.
+const toApiError = (error: unknown): ApiError => {
+  if (error instanceof ApiError) return error
+  if (isAxiosError<ApiErrorBody>(error)) {
+    const status = error.response?.status ?? 0
     const body = error.response?.data
     if (body && body.success === false) {
-      throw new ApiError(
-        error.response?.status ?? 0,
-        body.error.code,
-        body.error.message,
-        body.error.details,
-      )
+      return new ApiError(status, body.error.code, body.error.message, body.error.details)
     }
-    throw new ApiError(
-      error.response?.status ?? 0,
-      'NETWORK_ERROR',
-      'Không kết nối được máy chủ. Vui lòng thử lại.',
-    )
-  },
-)
+    if (!error.response) {
+      return new ApiError(0, 'NETWORK_ERROR', 'Không kết nối được máy chủ. Vui lòng thử lại.')
+    }
+    return new ApiError(status, 'HTTP_ERROR', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
+  }
+  return new ApiError(0, 'UNKNOWN_ERROR', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
+}
 
-// Helpers that unwrap the envelope, so feature api.ts files return plain data.
+const request = async <R>(config: AxiosRequestConfig): Promise<R> => {
+  try {
+    return (await httpClient.request<R>(config)).data
+  } catch (error) {
+    throw toApiError(error)
+  }
+}
+
 export const apiGet = async <T>(url: string, params?: object): Promise<T> =>
-  (await http.get<ApiResponse<T>>(url, { params })).data.data
+  (await request<ApiResponse<T>>({ method: 'get', url, params })).data
 
 export const apiGetPage = async <T>(
   url: string,
   params?: PaginationParams & object,
 ): Promise<Paginated<T>> => {
-  const { data } = await http.get<PaginatedResponse<T>>(url, { params })
-  return { items: data.data, pagination: data.pagination }
+  const body = await request<PaginatedResponse<T>>({ method: 'get', url, params })
+  return { items: body.data, pagination: body.pagination }
 }
 
 export const apiPost = async <T>(url: string, body?: unknown): Promise<T> =>
-  (await http.post<ApiResponse<T>>(url, body)).data.data
+  (await request<ApiResponse<T>>({ method: 'post', url, data: body })).data
 
 export const apiPatch = async <T>(url: string, body?: unknown): Promise<T> =>
-  (await http.patch<ApiResponse<T>>(url, body)).data.data
+  (await request<ApiResponse<T>>({ method: 'patch', url, data: body })).data
 
 export const apiPut = async <T>(url: string, body?: unknown): Promise<T> =>
-  (await http.put<ApiResponse<T>>(url, body)).data.data
+  (await request<ApiResponse<T>>({ method: 'put', url, data: body })).data
 
 export const apiDelete = async <T>(url: string): Promise<T> =>
-  (await http.delete<ApiResponse<T>>(url)).data.data
+  (await request<ApiResponse<T>>({ method: 'delete', url })).data
 
 // Like apiPost/apiPatch/apiDelete, but also returns the backend `message` for the success toast
 // (e.g. "2 yêu cầu đang chạy vẫn tiếp tục"). Fallback texts belong in the feature hooks.
@@ -85,6 +69,6 @@ export const apiSendWithMessage = async <T>(
   url: string,
   body?: unknown,
 ): Promise<WithMessage<T>> => {
-  const { data } = await http.request<ApiResponse<T>>({ method, url, data: body })
-  return { data: data.data, ...(data.message ? { message: data.message } : {}) }
+  const result = await request<ApiResponse<T>>({ method, url, data: body })
+  return { data: result.data, ...(result.message ? { message: result.message } : {}) }
 }
