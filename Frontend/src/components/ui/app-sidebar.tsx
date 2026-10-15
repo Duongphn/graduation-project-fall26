@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { PATHS } from "../../routes/paths";
-import { clearAccessToken } from "../../services/token-storage";
+import { clearAuthTokens } from "../../services/token-storage";
 
 export type SidebarItemKey =
   | "profile"
@@ -67,7 +67,7 @@ export function LogoutButton() {
       type="button"
       className="app-sidebar__item app-sidebar__item--logout"
       onClick={() => {
-        clearAccessToken();
+        clearAuthTokens();
         navigate(PATHS.login, { replace: true });
       }}
     >

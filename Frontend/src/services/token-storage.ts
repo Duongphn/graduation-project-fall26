@@ -1,4 +1,10 @@
-const TOKEN_KEY = 'toyflow-access-token'
+const ACCESS_TOKEN_KEY = 'toyflow-access-token'
+const REFRESH_TOKEN_KEY = 'toyflow-refresh-token'
+
+interface StoredTokens {
+  accessToken: string
+  refreshToken: string
+}
 
 /** Sự kiện báo token vừa đổi trong tab hiện tại (sự kiện `storage` chỉ báo thay đổi từ tab khác) */
 const TOKEN_CHANGE_EVENT = 'toyflow:access-token-change'
@@ -10,10 +16,19 @@ export function saveAccessToken(token: string, remember: boolean) {
   clearAccessToken()
   ;(remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token)
   notifyTokenChange()
+export function saveAuthTokens({ accessToken, refreshToken }: StoredTokens, remember: boolean) {
+  clearAuthTokens()
+  const storage = remember ? localStorage : sessionStorage
+  storage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  storage.setItem(REFRESH_TOKEN_KEY, refreshToken)
 }
 
 export function getAccessToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
+  return localStorage.getItem(ACCESS_TOKEN_KEY) ?? sessionStorage.getItem(ACCESS_TOKEN_KEY)
+}
+
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY) ?? sessionStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
 export function clearAccessToken() {
@@ -32,5 +47,9 @@ export function subscribeAccessToken(onChange: () => void): () => void {
   return () => {
     window.removeEventListener(TOKEN_CHANGE_EVENT, onChange)
     window.removeEventListener('storage', handleStorage)
+export function clearAuthTokens() {
+  for (const storage of [localStorage, sessionStorage]) {
+    storage.removeItem(ACCESS_TOKEN_KEY)
+    storage.removeItem(REFRESH_TOKEN_KEY)
   }
 }

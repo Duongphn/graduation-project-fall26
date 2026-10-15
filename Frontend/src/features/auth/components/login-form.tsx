@@ -12,13 +12,14 @@ import { PATHS } from '../../../routes/paths'
 import { getApiErrorMessage } from '../../../services/http-client'
 
 interface LoginFormProps {
+  defaultIdentifier?: string
   onSuccess: (session: AuthSession, rememberMe: boolean) => void
 }
 
-export function LoginForm({ onSuccess }: LoginFormProps) {
+export function LoginForm({ defaultIdentifier = '', onSuccess }: LoginFormProps) {
   const { control, handleSubmit } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { identifier: '', password: '', rememberMe: true },
+    defaultValues: { identifier: defaultIdentifier, password: '', rememberMe: true },
     mode: 'onTouched',
   })
 

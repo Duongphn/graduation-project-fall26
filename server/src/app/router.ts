@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authRouter } from '../features/auth/auth.routes.js';
 
 import { categoriesRouter } from '../features/categories/categories.routes.js';
 import { healthRouter } from '../features/health/health.routes.js';
@@ -18,6 +19,7 @@ export function createApiRouter(deps?: {
   const router = Router();
 
   router.use(healthRouter);
+  router.use(authRouter);
   router.use('/categories', categoriesRouter);
 
   // Thứ tự quan trọng: router công khai (chỉ GET /toys) đứng trước router đăng tin (bắt đăng nhập),
