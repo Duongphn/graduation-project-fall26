@@ -27,6 +27,19 @@ if (allowDevAuth && !DEV_AUTH_ENVIRONMENTS.has(process.env.NODE_ENV ?? '')) {
   );
 }
 
+// JWT secrets: required in production; development and test fall back to local-only defaults.
+const jwtSecret = (
+  name: 'JWT_ACCESS_SECRET' | 'JWT_REFRESH_SECRET',
+  devDefault: string,
+): string => {
+  const value = optional(process.env[name]);
+  if (value) return value;
+  if (isProduction) {
+    throw new Error(`${name} must be set when NODE_ENV=production.`);
+  }
+  return devDefault;
+};
+
 export const env = Object.freeze({
   nodeEnv,
   port: parsePort(process.env.PORT),
@@ -42,4 +55,20 @@ export const env = Object.freeze({
     apiKey: optional(process.env.CLOUDINARY_API_KEY),
     apiSecret: optional(process.env.CLOUDINARY_API_SECRET),
   },
+
+  // Google OAuth
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+
+  // Email SMTP
+  emailHost: process.env.EMAIL_HOST ?? 'smtp.gmail.com',
+  emailPort: Number(process.env.EMAIL_PORT ?? 587),
+  emailUser: process.env.EMAIL_USER ?? '',
+  emailAppPassword: process.env.EMAIL_APP_PASSWORD ?? '',
+
+  // JWT
+  jwtAccessSecret: jwtSecret('JWT_ACCESS_SECRET', 'default_access_secret'),
+  jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
+  jwtRefreshSecret: jwtSecret('JWT_REFRESH_SECRET', 'default_refresh_secret'),
+  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
 });

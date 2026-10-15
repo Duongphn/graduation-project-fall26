@@ -9,6 +9,8 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     fullName: { type: String, required: true, trim: true, maxlength: 100 },
     avatarUrl: { type: String },
+    // Google account subject (`sub`), set on the first Google login.
+    googleId: { type: String },
     // GB-07: minimum age (setting USER_MIN_AGE_YEARS). Optional for earlier accounts.
     dateOfBirth: { type: Date },
     role: { type: String, enum: userRoles, required: true, default: 'USER' },
@@ -37,6 +39,14 @@ const userSchema = new Schema(
 
 userSchema.index({ phone: 1 }, { unique: true, name: 'phone_unique' });
 userSchema.index({ email: 1 }, { unique: true, name: 'email_unique' });
+userSchema.index(
+  { googleId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { googleId: { $exists: true } },
+    name: 'google_id_unique',
+  },
+);
 userSchema.index({ role: 1, status: 1, createdAt: -1 }, { name: 'admin_user_list' });
 userSchema.index(
   { 'trust.reviewRequestedAt': 1 },

@@ -175,7 +175,12 @@ describe('API docs', () => {
   });
 
   it('are never mounted in production', async () => {
-    const app = await loadApp({ NODE_ENV: 'production', API_DOCS_ENABLED: 'true' });
+    const app = await loadApp({
+      NODE_ENV: 'production',
+      API_DOCS_ENABLED: 'true',
+      JWT_ACCESS_SECRET: 'access',
+      JWT_REFRESH_SECRET: 'refresh',
+    });
     expect((await request(app).get('/api/docs/json')).status).toBe(404);
   });
 
