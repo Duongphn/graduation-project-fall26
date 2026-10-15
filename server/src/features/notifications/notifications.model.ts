@@ -1,17 +1,31 @@
-const mongoose = require('mongoose');
-const { Schema } = mongoose;
+import { Schema, model, type InferSchemaType } from 'mongoose';
 
-const notificationSchema = new Schema({
+import { referenceSchema } from '../../infrastructure/database/schema-types.js';
+import { notificationTypes } from '../../shared/domain/enums.js';
+
+const notificationSchema = new Schema(
+  {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    title: { type: String, required: true },
-    body: { type: String, required: true },
-    type: { type: String, required: true },
-    isRead: { type: Boolean, required: true, default: false }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+    type: { type: String, enum: notificationTypes, required: true },
+    title: { type: String, required: true, trim: true, maxlength: 200 },
+    body: { type: String, required: true, trim: true, maxlength: 1000 },
+    // The order, toy, dispute... the notification opens.
+    target: { type: referenceSchema },
+    isRead: { type: Boolean, required: true, default: false },
+  },
+  { collection: 'notifications', timestamps: { createdAt: true, updatedAt: false } },
+);
 
-// Tạo các Index đồng bộ tuyệt đối với Atlas
 notificationSchema.index({ userId: 1, createdAt: -1 }, { name: 'user_feed' });
-notificationSchema.index({ userId: 1 }, { partialFilterExpression: { isRead: false }, name: 'unread_count' });
-notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000, name: 'retention_ttl' }); // Ví dụ giữ thông báo trong 30 ngày
+notificationSchema.index(
+  { userId: 1 },
+  { partialFilterExpression: { isRead: false }, name: 'unread_count' },
+);
+// Notifications are kept for 30 days.
+notificationSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 2_592_000, name: 'retention_ttl' },
+);
 
-module.exports = mongoose.model('Notification', notificationSchema);
+export type Notification = InferSchemaType<typeof notificationSchema>;
+export const NotificationModel = model('Notification', notificationSchema);

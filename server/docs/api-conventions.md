@@ -264,3 +264,39 @@ server/src/
     └── toy-catalog/
         └── schemas/             # Zod validation schemas cho feature
 ```
+
+---
+
+## Phụ lục A. Bảng mã lỗi dùng chung (Shared Error Codes)
+
+Mã lỗi viết `UPPER_SNAKE_CASE`. Quy tắc đặt mã cho từng feature:
+
+| Mẫu mã | HTTP | Khi nào dùng |
+|---|---|---|
+| `<ENTITY>_NOT_FOUND` | 404 | Không có tài nguyên (hoặc người gọi không được thấy nó, để id không lộ thông tin). |
+| `<ENTITY>_NOT_AVAILABLE` | 409 | Tài nguyên được tham chiếu tồn tại nhưng trạng thái hiện tại không cho phép (ví dụ `TOY_NOT_AVAILABLE`, `ORGANIZATION_NOT_AVAILABLE`, `CATEGORY_NOT_AVAILABLE`). |
+| `<ENTITY>_STATUS_CHANGED`, `<ENTITY>_CHANGED` | 409 | Một Admin hoặc người dùng khác vừa đổi tài nguyên giữa lúc đọc và lúc ghi; tải lại rồi thử lại. |
+| `<ENTITY>_ALREADY_<STATE>` | 409 | Tài nguyên đã ở đúng trạng thái được yêu cầu (ví dụ `CATEGORY_ALREADY_HIDDEN`). |
+| `<ENTITY>_NAME_TAKEN`, `<ENTITY>_EXISTS` | 409 | Trùng dữ liệu duy nhất theo quy tắc nghiệp vụ. |
+| Mã nghiệp vụ riêng (ví dụ `OWN_TOY`, `OWNER_NOT_ELIGIBLE`, `REASON_REQUIRED`, `HANDOVER_PHOTO_NOT_OWNED`) | 422 | Dữ liệu hợp lệ về cú pháp nhưng vi phạm quy tắc nghiệp vụ. |
+
+Các mã chung do middleware trả về:
+
+| Mã | HTTP | Nguồn |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | Zod: body, query hoặc params sai (kể cả tham số lạ, `sortBy` ngoài danh sách cho phép). `details` là danh sách `{ field, message }`. |
+| `VALIDATION_ERROR` | 422 | Mongoose ValidationError: quy tắc của schema cơ sở dữ liệu. |
+| `INVALID_JSON` | 400 | Body không phải JSON hợp lệ. |
+| `INVALID_ID` | 400 | Giá trị không ép được sang kiểu của trường (CastError). |
+| `BAD_REQUEST` | 4xx | Lỗi phía client khác do Express phát hiện. |
+| `UNAUTHENTICATED` | 401 | Chưa đăng nhập. |
+| `FORBIDDEN` | 403 | Đã đăng nhập nhưng không đủ quyền. |
+| `ACCOUNT_LOCKED` | 403 | Tài khoản đang bị khoá. |
+| `INVALID_STATUS_TRANSITION` | 409 | Bước chuyển trạng thái không có trong bảng `shared/domain/transitions.ts` (hoặc không dành cho người gọi). `details` là `{ from, to }`. |
+| `DUPLICATE` | 409 | Trùng unique index không được feature xử lý riêng. `details.fields` nếu có. |
+| `PAYLOAD_TOO_LARGE` | 413 | Body vượt giới hạn (1 MB). |
+| `BUSINESS_RULE_VIOLATION` | 422 | Quy tắc phía MongoDB (document validation) bị vi phạm. |
+| `UPLOAD_NOT_CONFIGURED` | 503 | Chưa cấu hình Cloudinary. |
+| `INTERNAL_SERVER_ERROR` | 500 | Lỗi không lường trước; chi tiết chỉ ghi log phía máy chủ. |
+
+Tham số danh sách: tìm kiếm tự do luôn là `q`; `sortBy` của mỗi danh sách là một `enum` riêng (Swagger liệt kê các giá trị); mọi query schema dùng `.strict()`.

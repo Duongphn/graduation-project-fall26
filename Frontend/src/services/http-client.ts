@@ -1,22 +1,13 @@
 import axios, { isAxiosError } from 'axios'
 import { env } from '../config/env'
+import type { ApiErrorBody } from '../types/api'
+import { ApiError } from './api-error'
 import { getAccessToken } from './token-storage'
 
-/** Envelope phản hồi thành công của backend — xem server/docs/api-conventions.md */
-export interface ApiResponse<T> {
-  success: true
-  data: T
-  message?: string
-}
+/** Envelope phản hồi thành công của backend: khai báo một lần trong types/api.ts */
+export type { ApiResponse } from '../types/api'
 
-interface ApiErrorResponse {
-  success: false
-  error: {
-    code: string
-    message: string
-    details?: unknown
-  }
-}
+type ApiErrorResponse = ApiErrorBody
 
 export const httpClient = axios.create({
   baseURL: env.apiBaseUrl,
@@ -27,14 +18,23 @@ export const httpClient = axios.create({
 httpClient.interceptors.request.use((config) => {
   const token = getAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // Chỉ khi dev và chưa đăng nhập: backend nhận hai header này khi chạy với ALLOW_DEV_AUTH=true
+  const devUserId = import.meta.env.VITE_DEV_USER_ID
+  if (import.meta.env.DEV && devUserId && !token) {
+    config.headers.set('x-dev-user-id', devUserId)
+    config.headers.set('x-dev-role', import.meta.env.VITE_DEV_ROLE ?? 'USER')
+  }
   return config
 })
 
 export function getApiErrorCode(error: unknown): string | undefined {
+  if (error instanceof ApiError) return error.code
   return isAxiosError<ApiErrorResponse>(error) ? error.response?.data?.error?.code : undefined
 }
 
 export function getApiErrorMessage(error: unknown): string {
+  // Lỗi từ các helper apiGet/apiPost… (services/http.ts)
+  if (error instanceof ApiError) return error.message
   if (isAxiosError<ApiErrorResponse>(error)) {
     const message = error.response?.data?.error?.message
     if (message) return message

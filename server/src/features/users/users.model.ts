@@ -1,44 +1,64 @@
-import mongoose, { Schema } from 'mongoose';
+import { Schema, model, type InferSchemaType } from 'mongoose';
 
-const userSchema = new Schema({
-    phone: { type: String, required: true },
-    email: { type: String, required: true },
-    passwordHash: { type: String, required: true },
-    fullName: { type: String, required: true },
-    avatar: { type: String },
+import { identityStatuses, userRoles, userStatuses } from '../../shared/domain/statuses.js';
+
+const userSchema = new Schema(
+  {
+    phone: { type: String, required: true, trim: true },
+    email: { type: String, required: true, trim: true, lowercase: true },
+    passwordHash: { type: String, required: true, select: false },
+    fullName: { type: String, required: true, trim: true, maxlength: 100 },
+    avatarUrl: { type: String },
+    // Google account subject (`sub`), set on the first Google login.
     googleId: { type: String },
-    role: { type: String, required: true, default: 'USER', enum: ['USER', 'ADMIN'] },
-    status: { type: String, required: true, default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] },
+    // GB-07: minimum age (setting USER_MIN_AGE_YEARS). Optional for earlier accounts.
+    dateOfBirth: { type: Date },
+    role: { type: String, enum: userRoles, required: true, default: 'USER' },
+    status: { type: String, enum: userStatuses, required: true, default: 'ACTIVE' },
+    // Copy of the latest identity_verifications result, written in the same transaction.
+    identityStatus: {
+      type: String,
+      enum: identityStatuses,
+      required: true,
+      default: 'UNVERIFIED',
+    },
+    // FE-09: the score is ratingSum / ratingCount.
     trust: {
-        score: { type: Number, min: 0, max: 100 },
-        review: {
-            requestedAt: { type: Date }
-        }
+      ratingCount: { type: Number, required: true, default: 0, min: 0 },
+      ratingSum: { type: Number, required: true, default: 0, min: 0 },
+      bookingBlocked: { type: Boolean, required: true, default: false },
+      reviewRequestedAt: { type: Date },
     },
     lock: {
-        until: { type: Date }
-    }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
-
-// Tạo các Index đồng bộ tuyệt đối với Atlas
-userSchema.index({ phone: 1 }, { unique: true, name: 'phone_unique' });
-userSchema.index(
-    { email: 1 },
-    { unique: true, partialFilterExpression: { email: { $exists: true, $ne: null } }, name: 'email_unique' }
+      until: { type: Date },
+      reason: { type: String, trim: true, maxlength: 500 },
+    },
+  },
+  { collection: 'users', timestamps: true },
 );
+
+userSchema.index({ phone: 1 }, { unique: true, name: 'phone_unique' });
+userSchema.index({ email: 1 }, { unique: true, name: 'email_unique' });
 userSchema.index(
-    { googleId: 1 },
-    { unique: true, partialFilterExpression: { googleId: { $exists: true, $ne: null } }, name: 'google_id_unique' }
+  { googleId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { googleId: { $exists: true } },
+    name: 'google_id_unique',
+  },
 );
 userSchema.index({ role: 1, status: 1, createdAt: -1 }, { name: 'admin_user_list' });
 userSchema.index(
-    { "trust.review.requestedAt": 1 },
-    { partialFilterExpression: { "trust.review.requestedAt": { $exists: true } }, name: 'trust_review_queue' }
+  { 'trust.reviewRequestedAt': 1 },
+  {
+    partialFilterExpression: { 'trust.reviewRequestedAt': { $exists: true } },
+    name: 'trust_review_queue',
+  },
 );
 userSchema.index(
-    { "lock.until": 1 },
-    { partialFilterExpression: { "lock.until": { $exists: true } }, name: 'lock_expiry' }
+  { 'lock.until': 1 },
+  { partialFilterExpression: { 'lock.until': { $exists: true } }, name: 'lock_expiry' },
 );
 
-export const User = (mongoose.models.User as mongoose.Model<any>) || mongoose.model('User', userSchema);
-export default User;
+export type User = InferSchemaType<typeof userSchema>;
+export const UserModel = model('User', userSchema);

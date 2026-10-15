@@ -1,5 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 
+import { env } from '../../config/env.js';
+
 export type CloudinaryClient = typeof cloudinary;
 
 export interface CloudinaryClientConfig {
@@ -10,9 +12,9 @@ export interface CloudinaryClientConfig {
 }
 
 export function configureCloudinary(config?: CloudinaryClientConfig): CloudinaryClient {
-  const cloudName = config?.cloudName ?? process.env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = config?.apiKey ?? process.env.CLOUDINARY_API_KEY;
-  const apiSecret = config?.apiSecret ?? process.env.CLOUDINARY_API_SECRET;
+  const cloudName = config?.cloudName ?? env.cloudinary.cloudName;
+  const apiKey = config?.apiKey ?? env.cloudinary.apiKey;
+  const apiSecret = config?.apiSecret ?? env.cloudinary.apiSecret;
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw new Error(

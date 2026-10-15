@@ -4,7 +4,20 @@ import type { RequestActor } from '../../shared/contracts/request-actor.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { ToyImageStorage } from '../../infrastructure/cloudinary/cloudinary-image-storage.js';
 import { validateToyImage } from './toy-image-upload.js';
-import { Toy, type IToy } from './toys.model.js';
+import { ToyModel, type IToy } from './toys.model.js';
+import {
+  fromStoredStatus,
+  storedDeposit,
+  storedImages,
+  storedPrice,
+  toAgeGroup,
+  toListingFields,
+  toStoredCondition,
+  toStoredListingType,
+  toStoredPricing,
+  toStoredStatus,
+  fromStoredListingType,
+} from './toy-listing.storage.js';
 import type {
   ListingFilterStatus,
   ToyImage,
@@ -18,52 +31,50 @@ import {
   validateUpdateToyListingInput,
 } from './toy-listing.schemas.js';
 
+const categoryNotAvailable = () =>
+  new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+
 export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
     private readonly imageStorage: ToyImageStorage,
-    private readonly toyModel: Model<IToy> = Toy,
+    private readonly toyModel: Model<IToy> = ToyModel,
   ) {}
 
   private assertActor(actor: RequestActor): void {
     if (
       !actor ||
       !actor.userId ||
-      actor.actorType !== 'USER' ||
       !mongoose.Types.ObjectId.isValid(actor.userId)
     ) {
       throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+    }
+    // Policy: toy listings belong to member accounts; an Admin account may not own or edit them.
+    if (actor.actorType !== 'USER') {
+      throw new AppError(403, 'FORBIDDEN', 'Admin accounts cannot manage toy listings.');
     }
   }
 
   private mapToDto(
     doc: IToy & { _id: mongoose.Types.ObjectId | string },
     derivedStatus: ListingFilterStatus,
+    categoryNames: Map<string, string>,
   ): ToyListingDto {
+    const categoryId = doc.categoryId.toString();
     return {
       id: doc._id.toString(),
       ownerId: doc.ownerId.toString(),
-      categoryId: doc.categoryId.toString(),
+      categoryId,
+      categoryName: categoryNames.get(categoryId) ?? '',
       title: doc.title,
       description: doc.description,
-      condition: doc.condition,
-      listingType: doc.listingType,
-      priceOrRate: doc.priceOrRate,
-      ...(doc.listingType === 'rent' && doc.depositPrice !== undefined
-        ? { depositPrice: doc.depositPrice }
-        : {}),
-      ageRange: {
-        minAge: doc.ageRange.minAge,
-        maxAge: doc.ageRange.maxAge,
-      },
-      images: (doc.images || []).map((img) => ({
-        url: img.url,
-        publicId: img.publicId,
-      })),
-      quantity: doc.quantity ?? 1,
+      ...toListingFields(doc),
+      quantity: 1,
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
-      ...(doc.moderation ? { moderation: doc.moderation } : {}),
+      ...(doc.moderation?.submittedAt
+        ? { moderation: { submittedAt: doc.moderation.submittedAt } }
+        : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -89,7 +100,7 @@ export class ToyListingService {
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
-      throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+      throw categoryNotAvailable();
     }
 
     if (!files || files.length === 0) {
@@ -126,20 +137,31 @@ export class ToyListingService {
         categoryId: new mongoose.Types.ObjectId(validatedInput.categoryId),
         title: validatedInput.title,
         description: validatedInput.description,
-        condition: validatedInput.condition,
-        listingType: validatedInput.listingType,
-        priceOrRate: validatedInput.priceOrRate,
-        ...(validatedInput.listingType === 'rent' && validatedInput.depositPrice !== undefined
-          ? { depositPrice: validatedInput.depositPrice }
-          : {}),
-        status: 'pending',
+        condition: toStoredCondition(validatedInput.condition),
+        listingType: toStoredListingType(validatedInput.listingType),
+        pricing: toStoredPricing(
+          validatedInput.listingType,
+          validatedInput.priceOrRate,
+          validatedInput.depositPrice,
+        ),
+        status: toStoredStatus('pending'),
+        moderation: { submittedAt: new Date() },
         ageRange: validatedInput.ageRange,
-        images: uploadedAssets,
-        quantity: 1,
+        ageGroup: toAgeGroup(validatedInput.ageRange),
+        images: uploadedAssets.map((asset) => asset.url),
+        imagePublicIds: uploadedAssets.map((asset) => asset.publicId),
       });
 
-      const saved = await newToy.save();
-      return this.mapToDto(saved, 'pending');
+      const touched = await this.ports.saveWithActiveCategory(validatedInput.categoryId, (session) =>
+        newToy.save({ session }),
+      );
+      if (!touched) throw categoryNotAvailable();
+      const saved = touched.result;
+      return this.mapToDto(
+        saved,
+        'pending',
+        new Map([[saved.categoryId.toString(), touched.categoryName]]),
+      );
     } catch (dbError) {
       if (uploadedAssets.length > 0) {
         try {
@@ -186,7 +208,9 @@ export class ToyListingService {
 
     for (const toy of candidateToys) {
       const toyIdStr = toy._id.toString();
-      const derivedStatus: ListingFilterStatus = soldToyIds.has(toyIdStr) ? 'sold' : toy.status;
+      const derivedStatus: ListingFilterStatus = soldToyIds.has(toyIdStr)
+        ? 'sold'
+        : fromStoredStatus(toy.status);
       if (!query?.status || derivedStatus === query.status) {
         matchedToys.push({
           toy: toy as IToy & { _id: mongoose.Types.ObjectId },
@@ -198,7 +222,12 @@ export class ToyListingService {
     const total = matchedToys.length;
     const startIndex = (page - 1) * limit;
     const paginated = matchedToys.slice(startIndex, startIndex + limit);
-    const items = paginated.map(({ toy, derivedStatus }) => this.mapToDto(toy, derivedStatus));
+    const categoryNames = await this.ports.getCategoryNames([
+      ...new Set(paginated.map(({ toy }) => toy.categoryId.toString())),
+    ]);
+    const items = paginated.map(({ toy, derivedStatus }) =>
+      this.mapToDto(toy, derivedStatus, categoryNames),
+    );
 
     return { items, page, limit, total };
   }
@@ -233,14 +262,20 @@ export class ToyListingService {
 
     const validatedInput = validateUpdateToyListingInput(input);
 
-    if (validatedInput.categoryId) {
-      const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
+    // Only a new category must be ACTIVE: a toy keeps a category an Admin hid later (RQ-02).
+    const newCategoryId = validatedInput.categoryId;
+    const categoryChanged =
+      newCategoryId !== undefined &&
+      !new mongoose.Types.ObjectId(newCategoryId).equals(listing.categoryId);
+    if (categoryChanged) {
+      const categoryExists = await this.ports.categoryExists(newCategoryId);
       if (!categoryExists) {
-        throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+        throw categoryNotAvailable();
       }
     }
 
-    const effectiveListingType = validatedInput.listingType ?? listing.listingType;
+    const effectiveListingType =
+      validatedInput.listingType ?? fromStoredListingType(listing.listingType);
     if (effectiveListingType === 'sell') {
       if (validatedInput.depositPrice !== undefined) {
         throw new AppError(
@@ -253,7 +288,7 @@ export class ToyListingService {
       const effectiveDeposit =
         validatedInput.depositPrice !== undefined
           ? validatedInput.depositPrice
-          : listing.depositPrice;
+          : storedDeposit(listing);
       if (effectiveDeposit === undefined || effectiveDeposit < 0) {
         throw new AppError(
           400,
@@ -263,7 +298,7 @@ export class ToyListingService {
       }
     }
 
-    const existingImages = listing.images || [];
+    const existingImages = storedImages(listing);
     const removeSet = new Set(removeImagePublicIds ?? []);
     const remainingImages = existingImages.filter((img) => !removeSet.has(img.publicId));
     const toDelete = existingImages
@@ -304,27 +339,42 @@ export class ToyListingService {
       if (validatedInput.title !== undefined) listing.title = validatedInput.title;
       if (validatedInput.description !== undefined)
         listing.description = validatedInput.description;
-      if (validatedInput.condition !== undefined) listing.condition = validatedInput.condition;
+      if (validatedInput.condition !== undefined) {
+        listing.condition = toStoredCondition(validatedInput.condition);
+      }
       if (validatedInput.categoryId !== undefined) {
         listing.categoryId = new mongoose.Types.ObjectId(validatedInput.categoryId);
       }
-      if (validatedInput.ageRange !== undefined) listing.ageRange = validatedInput.ageRange;
-      if (validatedInput.listingType !== undefined)
-        listing.listingType = validatedInput.listingType;
-      if (validatedInput.priceOrRate !== undefined)
-        listing.priceOrRate = validatedInput.priceOrRate;
-
-      if (effectiveListingType === 'rent') {
-        if (validatedInput.depositPrice !== undefined) {
-          listing.depositPrice = validatedInput.depositPrice;
-        }
-      } else {
-        listing.depositPrice = undefined;
+      if (validatedInput.ageRange !== undefined) {
+        listing.ageRange = validatedInput.ageRange;
+        listing.ageGroup = toAgeGroup(validatedInput.ageRange);
       }
+      const price = validatedInput.priceOrRate ?? storedPrice(listing);
+      const deposit =
+        effectiveListingType === 'rent'
+          ? (validatedInput.depositPrice ?? storedDeposit(listing))
+          : undefined;
+      listing.listingType = toStoredListingType(effectiveListingType);
+      listing.pricing = toStoredPricing(effectiveListingType, price, deposit);
 
-      listing.images = [...remainingImages, ...newUploadedAssets];
+      const finalImages = [...remainingImages, ...newUploadedAssets];
+      listing.images = finalImages.map((img) => img.url);
+      listing.imagePublicIds = finalImages.map((img) => img.publicId);
 
-      const saved = await listing.save();
+      let saved: typeof listing;
+      // Set when the category changed: the touch write already returned the new category's name.
+      let touchedCategoryName: string | undefined;
+      if (categoryChanged) {
+        const touched = await this.ports.saveWithActiveCategory(
+          listing.categoryId.toString(),
+          (session) => listing.save({ session }),
+        );
+        if (!touched) throw categoryNotAvailable();
+        saved = touched.result;
+        touchedCategoryName = touched.categoryName;
+      } else {
+        saved = await listing.save();
+      }
 
       if (toDelete.length > 0) {
         try {
@@ -335,8 +385,14 @@ export class ToyListingService {
       }
 
       const soldSet = await this.ports.getSoldToyIds([toyId]);
-      const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-      return this.mapToDto(saved, derivedStatus);
+      const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
+        ? 'sold'
+        : fromStoredStatus(saved.status);
+      const categoryNames =
+        touchedCategoryName !== undefined
+          ? new Map([[saved.categoryId.toString(), touchedCategoryName]])
+          : await this.ports.getCategoryNames([saved.categoryId.toString()]);
+      return this.mapToDto(saved, derivedStatus, categoryNames);
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
         try {
@@ -370,12 +426,15 @@ export class ToyListingService {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot hide listing with unfinished orders');
     }
 
-    listing.status = 'hidden';
+    listing.status = toStoredStatus('hidden');
     const saved = await listing.save();
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
-    const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-    return this.mapToDto(saved, derivedStatus);
+    const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
+      ? 'sold'
+      : fromStoredStatus(saved.status);
+    const categoryNames = await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, derivedStatus, categoryNames);
   }
 
   public async delete(actor: RequestActor, toyId: string): Promise<void> {
@@ -399,7 +458,7 @@ export class ToyListingService {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot delete listing with unfinished orders');
     }
 
-    const publicIds = (listing.images || [])
+    const publicIds = storedImages(listing)
       .map((img) => img.publicId)
       .filter((id) => typeof id === 'string' && id.trim().length > 0);
 

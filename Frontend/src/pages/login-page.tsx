@@ -40,7 +40,11 @@ export function LoginPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as LoginPageState | null
-  const redirectTo = state?.from ?? PATHS.home
+  // ?redirect= comes from route guards (e.g. /admin); only same-site paths are followed.
+  const redirectParam = searchParams.get('redirect')
+  const safeRedirect =
+    redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : undefined
+  const redirectTo = state?.from ?? safeRedirect ?? PATHS.home
   const registeredIdentifier = state?.registeredIdentifier
 
   // Sau khi Google xác thực, backend chuyển về một trong hai dạng:
@@ -112,7 +116,7 @@ export function LoginPage() {
           onVerified={({ tokens }) => completeLogin(tokens, true)}
           submitLabel="Xác minh và tạo tài khoản"
           backLabel="Đăng nhập cách khác"
-          onBack={() => setSearchParams({}, { replace: true })}
+          onBack={() => setSearchParams(safeRedirect ? { redirect: safeRedirect } : {}, { replace: true })}
         />
       ) : (
         <>

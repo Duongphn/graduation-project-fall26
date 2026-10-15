@@ -28,6 +28,8 @@ export const myListingsQuery = (params: { status?: ListingStatus; page: number }
     queryFn: () => fetchMyListings({ ...params, limit: MY_LISTINGS_PAGE_SIZE }),
     staleTime: 30_000,
     retry: false,
+    // Loader đã gọi API; lỗi (401/403...) không gọi lại khi trang mount, dùng nút "Thử lại"
+    retryOnMount: false,
   })
 
 export type ListingCounts = Record<ListingStatus | 'all', number>
@@ -44,4 +46,5 @@ export const listingCountsQuery = queryOptions({
   },
   staleTime: 30_000,
   retry: false,
+  retryOnMount: false,
 })

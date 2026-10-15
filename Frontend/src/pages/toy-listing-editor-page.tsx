@@ -26,7 +26,18 @@ export function ToyListingEditorPage() {
   const listing = listingQuery.data ?? undefined
 
   const justCreated = (location.state as { justCreated?: boolean } | null)?.justCreated === true
-  const [toast, setToast] = useState<string | null>(justCreated ? 'Đăng tin thành công! Tin đang ở trạng thái chờ duyệt.' : null)
+  const [toast, setToast] = useState<string | null>(null)
+  // /listings/new và /listings/:toyId/edit dùng chung một instance: xử lý mỗi lần điều hướng (location.key)
+  const [handledKey, setHandledKey] = useState<string | null>(null)
+  if (justCreated && handledKey !== location.key) {
+    setHandledKey(location.key)
+    setToast('Đăng tin thành công! Tin đang ở trạng thái chờ duyệt.')
+  }
+
+  // Xoá state để tải lại trang không hiện lại thông báo
+  useEffect(() => {
+    if (justCreated) navigate(location.pathname, { replace: true, state: null })
+  }, [justCreated, location.pathname, navigate])
 
   useEffect(() => {
     if (!toast) return
@@ -106,6 +117,7 @@ export function ToyListingEditorPage() {
           listing={listing}
           categories={categoriesResult.data ?? []}
           categoriesLoading={categoriesResult.isPending}
+          categoriesLoaded={categoriesResult.isSuccess}
           onSaved={handleSaved}
         />
       )}

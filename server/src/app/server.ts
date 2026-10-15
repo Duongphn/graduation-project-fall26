@@ -1,15 +1,19 @@
 import { createServer } from 'node:http';
 
 import { env } from '../config/env.js';
-import {
-  connectDatabase,
-  disconnectDatabase,
-} from '../infrastructure/database/mongoose.js';
+import { connectDatabase, disconnectDatabase } from '../infrastructure/database/mongoose.js';
 import { createSocketServer } from '../infrastructure/realtime/socket.js';
 import { createApp } from './create-app.js';
+import { registerEventHandlers } from './event-handlers.js';
 
 const startServer = async (): Promise<void> => {
   await connectDatabase(env.mongoDbUri);
+  registerEventHandlers();
+  if (env.allowDevAuth) {
+    console.warn(
+      `ALLOW_DEV_AUTH is on (NODE_ENV=${env.nodeEnv}): the x-dev-user-id header signs callers in.`,
+    );
+  }
 
   const httpServer = createServer(createApp());
   const socketServer = createSocketServer(httpServer, env.corsOrigin);

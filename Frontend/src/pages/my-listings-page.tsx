@@ -117,7 +117,7 @@ export function MyListingsPage() {
         <>
           <div className="listings-list">
             {listings.items.map((listing) => (
-              <MyListingRow key={listing.id} listing={listing} categoryName={categoryNames.get(listing.categoryId)} />
+              <MyListingRow key={listing.id} listing={listing} categoryName={categoryNames.get(listing.categoryId) ?? listing.categoryName} />
             ))}
           </div>
           <ListingPagination page={page} pageSize={MY_LISTINGS_PAGE_SIZE} total={listings.total} hrefFor={hrefForPage} />
