@@ -76,6 +76,8 @@ donationRequestSchema.index(
 donationRequestSchema.index({ toyId: 1, status: 1, createdAt: -1 }, { name: 'toy_requests' });
 donationRequestSchema.index({ donorId: 1, status: 1, createdAt: -1 }, { name: 'donor_requests' });
 donationRequestSchema.index({ requestedBy: 1, createdAt: -1 }, { name: 'requester_requests' });
+// Expiry job: PENDING requests by age (ACCEPTED ones, at most one per toy, use the status prefix).
+donationRequestSchema.index({ status: 1, createdAt: 1 }, { name: 'expiry_scan' });
 // Requests of one organization (admin list counts, "hidden while requests are open").
 donationRequestSchema.index(
   { organizationId: 1, status: 1, createdAt: -1 },

@@ -23,9 +23,33 @@ export const isRequester = (record: DonationRecord, actor: DonationActor) =>
 export const canView = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor) || isRequester(record, actor);
 
-/** The Donor (for their toy) or an Admin accepts or rejects. */
+/**
+ * D-04: only the Donor accepts or rejects (user routes). An Admin passes this check on the admin
+ * routes, but `assertNotAdminDecision` then refuses a PENDING decision (409
+ * DONOR_DECISION_REQUIRED): Admins only resolve stuck ACCEPTED/SHIPPING requests.
+ */
 export const canDecide = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor);
+
+/** D-03: the two parties see each other's contact only while the toy is being handed over. */
+export const CONTACT_SHARING_STATUSES: readonly DonationStatus[] = ['ACCEPTED', 'SHIPPING'];
+
+/**
+ * Whose contact the viewer may see on this request: the Donor sees the receiver (the requesting
+ * user, or the organization), the requesting USER sees the Donor. Admin views keep their own
+ * (masked) contacts, so this is for user views only.
+ */
+export const counterpartOf = (
+  record: DonationRecord,
+  viewerId: string | undefined,
+): 'DONOR' | 'REQUESTER' | 'ORGANIZATION' | null => {
+  if (!viewerId || !CONTACT_SHARING_STATUSES.includes(record.status)) return null;
+  if (same(record.donorId, viewerId)) {
+    return record.receiverType === 'ORGANIZATION' ? 'ORGANIZATION' : 'REQUESTER';
+  }
+  if (record.receiverType === 'USER' && same(record.requestedBy, viewerId)) return 'DONOR';
+  return null;
+};
 
 /**
  * The requester side of a request. For an ORGANIZATION request that is the Admin team (the

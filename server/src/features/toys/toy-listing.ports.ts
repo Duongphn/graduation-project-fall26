@@ -47,5 +47,17 @@ export interface ToyListingPorts {
   isVerifiedUser(userId: string): Promise<boolean>;
   categoryExists(categoryId: string): Promise<boolean>;
   hasUnfinishedOrder(toyId: string): Promise<boolean>;
+  /** An ACCEPTED or SHIPPING donation request holds the toy (GB-12). */
+  hasActiveDonationRequest(toyId: string): Promise<boolean>;
+  /**
+   * Closes (REJECTED, with a reason) the PENDING donation requests of a toy its owner has just
+   * hidden or deleted, and notifies the requesters (D-06).
+   */
+  closePendingDonationRequests(
+    toyId: string,
+    ownerId: string,
+    toyTitle: string,
+    why: 'HIDDEN' | 'DELETED',
+  ): Promise<void>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
 }

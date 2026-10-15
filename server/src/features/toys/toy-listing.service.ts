@@ -31,12 +31,65 @@ import {
   validateUpdateToyListingInput,
 } from './toy-listing.schemas.js';
 
+// A RESERVED toy belongs to an order or an ACCEPTED/SHIPPING donation request (GB-12).
+const OWNER_LOCKED_STATUSES = ['RESERVED'];
+
+const activeDonationError = (action: 'edit' | 'hide' | 'delete') =>
+  new AppError(
+    409,
+    'TOY_HAS_ACTIVE_DONATION',
+    `Cannot ${action} a listing with an accepted or in-progress donation request.`,
+  );
+
 export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
     private readonly imageStorage: ToyImageStorage,
     private readonly toyModel: Model<IToy> = ToyModel as unknown as Model<IToy>,
   ) {}
+
+  /**
+   * GB-12: a toy with an ACCEPTED or SHIPPING donation request (the toy is RESERVED) cannot
+   * be edited, hidden or deleted by its owner until the request ends.
+   */
+  private async assertNoActiveDonation(
+    toyId: string,
+    action: 'edit' | 'hide' | 'delete',
+  ): Promise<void> {
+    if (await this.ports.hasActiveDonationRequest(toyId)) {
+      throw activeDonationError(action);
+    }
+  }
+
+  /** The error for a conditional write that found the toy RESERVED (a race with an accept). */
+  private async changedWhileReserved(
+    toyId: string,
+    action: 'edit' | 'hide' | 'delete',
+  ): Promise<AppError> {
+    if (await this.ports.hasActiveDonationRequest(toyId)) return activeDonationError(action);
+    return new AppError(409, 'TOY_STATUS_CHANGED', 'The listing has just changed, please reload.');
+  }
+
+  /**
+   * Saves the owner's change only while the toy is not RESERVED: the status filter is part of
+   * the update (Mongoose `$where` on save), so an accept that wins the race blocks the change.
+   */
+  private async saveUnlessReserved(
+    listing: mongoose.HydratedDocument<IToy>,
+    action: 'edit' | 'hide' = 'edit',
+  ) {
+    (listing as unknown as { $where?: Record<string, unknown> }).$where = {
+      status: { $nin: OWNER_LOCKED_STATUSES },
+    };
+    try {
+      return await listing.save();
+    } catch (error) {
+      if (error instanceof mongoose.Error.DocumentNotFoundError) {
+        throw await this.changedWhileReserved(String(listing._id), action);
+      }
+      throw error;
+    }
+  }
 
   private assertActor(actor: RequestActor): void {
     if (
@@ -63,7 +116,9 @@ export class ToyListingService {
       quantity: 1,
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
-      ...(doc.moderation?.submittedAt ? { moderation: { submittedAt: doc.moderation.submittedAt } } : {}),
+      ...(doc.moderation?.submittedAt
+        ? { moderation: { submittedAt: doc.moderation.submittedAt } }
+        : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -231,6 +286,7 @@ export class ToyListingService {
     }
 
     // Check before any upload so a blocked edit never leaves orphaned Cloudinary assets.
+    await this.assertNoActiveDonation(toyId, 'edit');
     const hasUnfinished = await this.ports.hasUnfinishedOrder(toyId);
     if (hasUnfinished) {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot edit listing with unfinished orders');
@@ -332,7 +388,7 @@ export class ToyListingService {
       listing.images = finalImages.map((img) => img.url);
       listing.imagePublicIds = finalImages.map((img) => img.publicId);
 
-      const saved = await listing.save();
+      const saved = await this.saveUnlessReserved(listing);
 
       if (toDelete.length > 0) {
         try {
@@ -375,18 +431,21 @@ export class ToyListingService {
       throw new AppError(403, 'FORBIDDEN', 'You do not own this listing');
     }
 
+    await this.assertNoActiveDonation(toyId, 'hide');
     const hasUnfinished = await this.ports.hasUnfinishedOrder(toyId);
     if (hasUnfinished) {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot hide listing with unfinished orders');
     }
 
     listing.status = toStoredStatus('hidden');
-    const saved = await listing.save();
+    const saved = await this.saveUnlessReserved(listing, 'hide');
+    // D-06: the PENDING donation requests of a hidden toy are closed (requesters notified).
+    await this.ports.closePendingDonationRequests(toyId, actor.userId, saved.title, 'HIDDEN');
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId)
-        ? 'sold'
-        : fromStoredStatus(saved.status);
+      ? 'sold'
+      : fromStoredStatus(saved.status);
     return this.mapToDto(saved, derivedStatus);
   }
 
@@ -406,6 +465,7 @@ export class ToyListingService {
       throw new AppError(403, 'FORBIDDEN', 'You do not own this listing');
     }
 
+    await this.assertNoActiveDonation(toyId, 'delete');
     const hasUnfinished = await this.ports.hasUnfinishedOrder(toyId);
     if (hasUnfinished) {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot delete listing with unfinished orders');
@@ -415,7 +475,17 @@ export class ToyListingService {
       .map((img) => img.publicId)
       .filter((id) => typeof id === 'string' && id.trim().length > 0);
 
-    await this.toyModel.findByIdAndDelete(toyId);
+    // Conditional: a donation request accepted after the checks above moved the toy to
+    // RESERVED, and then the delete must not happen.
+    const deleted = await this.toyModel.findOneAndDelete({
+      _id: toyId,
+      status: { $nin: OWNER_LOCKED_STATUSES },
+    });
+    if (!deleted) {
+      throw await this.changedWhileReserved(toyId, 'delete');
+    }
+    // D-06: the PENDING donation requests of a deleted toy are closed (requesters notified).
+    await this.ports.closePendingDonationRequests(toyId, actor.userId, listing.title, 'DELETED');
 
     if (publicIds.length > 0) {
       try {

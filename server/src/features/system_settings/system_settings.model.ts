@@ -23,6 +23,10 @@ export const settingDefinitions = {
   TOY_MIN_PHOTOS_DONATION: 'number',
   // Minimum age to use the platform (GB-07).
   USER_MIN_AGE_YEARS: 'number',
+  // Donation expiry job (R03 job 9, UC "Step 5.1_Expiration"): days a request may stay
+  // PENDING without a decision, and ACCEPTED without the Donor's handover.
+  DONATION_PENDING_EXPIRY_DAYS: 'number',
+  DONATION_HANDOVER_EXPIRY_DAYS: 'number',
 } as const;
 
 export type SettingKey = keyof typeof settingDefinitions;
@@ -34,6 +38,8 @@ export const settingDefaults: Partial<Record<SettingKey, number>> = {
   TOY_MIN_PHOTOS_SALE: 4,
   TOY_MIN_PHOTOS_DONATION: 3,
   USER_MIN_AGE_YEARS: 18,
+  DONATION_PENDING_EXPIRY_DAYS: 14,
+  DONATION_HANDOVER_EXPIRY_DAYS: 14,
 };
 
 const systemSettingSchema = new Schema(

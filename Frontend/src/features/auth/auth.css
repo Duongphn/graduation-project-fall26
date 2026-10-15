@@ -1,6 +1,8 @@
 @layer components {
+  /* Desktop: khung cố định đúng 1 màn hình, chỉ panel form tự cuộn. Nhờ vậy form dài (đăng ký)
+     không làm trang hiện thanh cuộn và kéo giãn panel thương hiệu → hai trang hiển thị giống hệt nhau */
   .auth-layout {
-    @apply flex min-h-screen w-full;
+    @apply flex min-h-screen w-full lg:h-screen lg:overflow-hidden;
   }
 
   .auth-brand {
@@ -162,7 +164,7 @@
   }
 
   .auth-panel {
-    @apply flex min-h-screen w-full flex-col px-4 py-6 sm:px-12 lg:w-1/2 lg:p-14;
+    @apply flex min-h-screen w-full flex-col px-4 py-6 sm:px-12 lg:h-screen lg:w-1/2 lg:overflow-y-auto lg:p-14;
   }
 
   .auth-panel__nav {

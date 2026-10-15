@@ -64,19 +64,24 @@ export const handoverBodySchema = z
   .openapi('DonationHandoverInput');
 export type HandoverBody = z.infer<typeof handoverBodySchema>;
 
-/** Receipt photos are optional: without them no RECEIVER_RECEIVED handover is recorded. */
+/**
+ * The receiving user confirms receipt with at least one photo of the toy as received (BF-04
+ * step 4, FE-02 "same photo steps as FE-07", GB-20). Recorded as a RECEIVER_RECEIVED handover.
+ */
 export const confirmReceivedBodySchema = z
-  .object({ photos: photosSchema.optional(), note: noteSchema })
+  .object({ photos: photosSchema, note: noteSchema })
   .strict()
   .openapi('DonationReceiptInput');
 export type ConfirmReceivedBody = z.infer<typeof confirmReceivedBodySchema>;
 
 /**
- * An Admin confirms receipt for an organization, or for a USER receiver whose SHIPPING request
- * is stuck; in that second case `reason` is required (422 REASON_REQUIRED) and audited.
+ * An Admin confirms receipt for an organization (which has no account to upload from), or for
+ * a USER receiver whose SHIPPING request is stuck; in that second case `reason` is required
+ * (422 REASON_REQUIRED) and audited. Photos are optional for the Admin: when given they are
+ * recorded as the RECEIVER_RECEIVED handover.
  */
-export const adminConfirmReceivedBodySchema = confirmReceivedBodySchema
-  .extend({ reason: reasonSchema.optional() })
+export const adminConfirmReceivedBodySchema = z
+  .object({ photos: photosSchema.optional(), note: noteSchema, reason: reasonSchema.optional() })
   .strict()
   .openapi('AdminDonationReceiptInput');
 export type AdminConfirmReceivedBody = z.infer<typeof adminConfirmReceivedBodySchema>;
@@ -143,6 +148,16 @@ const adminOrganizationSchema = organizationSummarySchema
   })
   .openapi('DonationAdminOrganization');
 
+const counterpartContactSchema = z
+  .object({ name: z.string(), phone: z.string().nullable() })
+  .openapi('DonationCounterpartContact', {
+    description:
+      'D-03: full name and full phone (no email) of the other party, only while the request is ' +
+      'ACCEPTED or SHIPPING and only for the Donor (sees the requesting user, or the ' +
+      "organization's name and phone) and the requesting USER (sees the Donor). null otherwise, " +
+      'and always null on admin routes (they carry masked contacts instead).',
+  });
+
 export const donationRequestSchema = z
   .object({
     id: z.string(),
@@ -154,6 +169,7 @@ export const donationRequestSchema = z
     donor: personSchema.nullable(),
     requester: personSchema.nullable(),
     organization: organizationSummarySchema.nullable(),
+    counterpartContact: counterpartContactSchema.nullable(),
     decidedAt: isoDateTimeSchema.nullable(),
     rejectReason: z.string().nullable(),
     completedAt: isoDateTimeSchema.nullable(),

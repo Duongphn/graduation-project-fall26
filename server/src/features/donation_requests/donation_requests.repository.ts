@@ -7,6 +7,11 @@ import type { DonationStatus, ToyStatus } from '../../shared/domain/statuses.js'
 import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
 import { OrderStatusHistoryModel } from '../order_status_history/order_status_history.model.js';
 import { OrganizationModel } from '../organizations/organizations.model.js';
+import {
+  settingDefaults,
+  SystemSettingModel,
+  type SettingKey,
+} from '../system_settings/system_settings.model.js';
 import { ToyModel } from '../toys/toys.model.js';
 import { UserModel } from '../users/users.model.js';
 import { DonationRequestModel, type DonationRequest } from './donation_requests.model.js';
@@ -42,6 +47,52 @@ export const findOrganization = (id: string | Types.ObjectId, session?: ClientSe
     .select('name status')
     .session(session ?? null)
     .lean();
+
+/** Whether the user exists and is not LOCKED (GB-05: a locked account's toys are hidden). */
+export const findUserStatus = async (userId: string | Types.ObjectId, session?: ClientSession) =>
+  (
+    await UserModel.findById(userId)
+      .select('status')
+      .session(session ?? null)
+      .lean()
+  )?.status;
+
+/** The numeric value of a system setting, or its default (system_settings.model.ts). */
+export const getNumberSetting = async (key: SettingKey): Promise<number | undefined> => {
+  const setting = await SystemSettingModel.findOne({ key }, { value: 1 }).lean();
+  return typeof setting?.value === 'number' ? setting.value : settingDefaults[key];
+};
+
+/** An ACCEPTED or SHIPPING request holds the toy (GB-12). */
+export const hasActiveRequestForToy = async (toyId: string): Promise<boolean> =>
+  Types.ObjectId.isValid(toyId) &&
+  (await DonationRequestModel.exists({
+    toyId: oid(toyId),
+    status: { $in: ['ACCEPTED', 'SHIPPING'] },
+  })) !== null;
+
+/** Ids of requests in `status` whose `dateField` is before `before` (expiry job). */
+export const findStaleRequestIds = async (
+  status: DonationStatus,
+  dateField: 'createdAt' | 'decidedAt',
+  before: Date,
+  limit: number,
+) =>
+  (
+    await DonationRequestModel.find({ status, [dateField]: { $lt: before } })
+      .select('_id')
+      .sort({ [dateField]: 1 })
+      .limit(limit)
+      .lean()
+  ).map((item) => item._id);
+
+/** Ids of the PENDING requests of a toy. */
+export const findPendingRequestIdsOfToy = async (toyId: string) =>
+  (
+    await DonationRequestModel.find({ toyId: oid(toyId), status: 'PENDING' })
+      .select('_id')
+      .lean()
+  ).map((item) => item._id);
 
 export const userExists = async (userId: string): Promise<boolean> =>
   (await UserModel.exists({ _id: oid(userId) })) !== null;
@@ -246,10 +297,11 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
       .select(toySummaryFields)
       .lean(),
     UserModel.find({ _id: { $in: userIds } })
-      .select(withContacts ? 'fullName avatarUrl phone email' : 'fullName avatarUrl')
+      // phone: also the D-03 counterpart contact of user views (the mapper decides who sees it).
+      .select(withContacts ? 'fullName avatarUrl phone email' : 'fullName avatarUrl phone')
       .lean(),
     OrganizationModel.find({ _id: { $in: organizationIds } })
-      .select(withContacts ? 'name status address contactInfo phone logoUrl' : 'name status')
+      .select(withContacts ? 'name status address contactInfo phone logoUrl' : 'name status phone')
       .lean(),
   ]);
   return {

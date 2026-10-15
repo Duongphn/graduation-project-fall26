@@ -9,7 +9,15 @@ export type ToyCondition = (typeof toyConditions)[number];
 export const ageGroups = ['AGE_0_2', 'AGE_3_5', 'AGE_6_8', 'AGE_9_12', 'AGE_13_PLUS'] as const;
 export type AgeGroup = (typeof ageGroups)[number];
 
-export const otpPurposes = ['SIGN_UP', 'RESET_PASSWORD', 'CHANGE_PHONE'] as const;
+// GOOGLE_SIGN_UP: email OTP before an account is created from a Google profile.
+// GOOGLE_LOGIN_EXCHANGE: one-time code exchanged for a session after the Google redirect.
+export const otpPurposes = [
+  'SIGN_UP',
+  'RESET_PASSWORD',
+  'CHANGE_PHONE',
+  'GOOGLE_SIGN_UP',
+  'GOOGLE_LOGIN_EXCHANGE',
+] as const;
 export type OtpPurpose = (typeof otpPurposes)[number];
 
 export const paymentGateways = ['VNPAY', 'MOMO'] as const;
@@ -94,6 +102,8 @@ export const cancellationReasons = [
   'SELLER_NO_CONFIRMATION',
   'CANCELLED_BY_USER',
   'CANCELLED_BY_ADMIN',
+  // A donation request not accepted, or not handed over, in time (donation expiry job).
+  'EXPIRED',
 ] as const;
 export type CancellationReason = (typeof cancellationReasons)[number];
 

@@ -3,6 +3,10 @@ import mongoose from 'mongoose';
 
 import { env } from '../config/env.js';
 import { CategoryModel as Category } from '../features/categories/categories.model.js';
+import {
+  closePendingRequestsForToy,
+  hasActiveRequestForToy,
+} from '../features/donation_requests/index.js';
 import { IdentityVerificationModel as IdentityVerification } from '../features/identity_verifications/identity_verifications.model.js';
 import { PurchaseOrderModel as PurchaseOrder } from '../features/purchase_orders/purchase_orders.model.js';
 import { RentalOrderModel as RentalOrder } from '../features/rental_orders/rental_orders.model.js';
@@ -111,6 +115,12 @@ export function createToyListingDependencies(
       ]);
 
       return Boolean(hasRental || hasPurchase);
+    },
+
+    hasActiveDonationRequest: hasActiveRequestForToy,
+
+    async closePendingDonationRequests(toyId, ownerId, toyTitle, why): Promise<void> {
+      await closePendingRequestsForToy(toyId, ownerId, why, toyTitle);
     },
 
     async getSoldToyIds(toyIds: string[]): Promise<Set<string>> {

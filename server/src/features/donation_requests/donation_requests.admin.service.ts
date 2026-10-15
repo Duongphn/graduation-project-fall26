@@ -15,7 +15,8 @@ import type {
 } from './donation_requests.schemas.js';
 import * as service from './donation_requests.service.js';
 
-// Admin use cases: the queue of every request, decisions for any request, requests and receipt
+// Admin use cases: the queue of every request (no decisions: accept/reject answer 409
+// DONOR_DECISION_REQUIRED, D-04), requests and receipt
 // confirmation on behalf of an ACTIVE organization, and the way out of a stuck SHIPPING request
 // (cancel, or confirm receipt for a USER receiver with a reason). Every move is audited.
 
@@ -42,7 +43,7 @@ const buildFilter = async (filters: AdminFilters): Promise<RequestFilter> => {
 export const list = async (query: AdminListQuery) => {
   const filter = await buildFilter(query);
   if (query.status) filter.status = query.status;
-  return service.listPage(filter, query);
+  return service.listPage(filter, query, { admin: true });
 };
 
 /** Number of requests per status for the StatusTabs (same filters, any status). */

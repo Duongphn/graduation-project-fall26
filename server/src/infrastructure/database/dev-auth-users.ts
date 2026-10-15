@@ -10,7 +10,7 @@ export interface DevAuthUser {
 }
 
 /**
- * The account behind an x-dev-user-id header (development auth only): its real role and
+ * The account behind an access token or an x-dev-user-id header: its real role and
  * status, or null when no such user exists.
  */
 export const findDevAuthUser = async (userId: string): Promise<DevAuthUser | null> => {

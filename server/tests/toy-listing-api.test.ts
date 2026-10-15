@@ -43,6 +43,7 @@ interface FakeToyModel {
   };
   findById(id: string): Promise<FakeToy | null>;
   findByIdAndDelete(id: string): Promise<FakeToy | null>;
+  findOneAndDelete(filter: { _id: string }): Promise<FakeToy | null>;
 }
 
 function createInMemoryToyModel(): { model: Model<IToy>; store: FakeToy[] } {
@@ -86,6 +87,8 @@ function createInMemoryToyModel(): { model: Model<IToy>; store: FakeToy[] } {
     return store.splice(index, 1)[0] ?? null;
   };
 
+  ToyModel.findOneAndDelete = (filter) => ToyModel.findByIdAndDelete(String(filter._id));
+
   return { model: ToyModel as unknown as Model<IToy>, store };
 }
 
@@ -93,6 +96,7 @@ interface PortOptions {
   verified?: boolean;
   categoryExists?: boolean;
   unfinishedOrder?: boolean;
+  activeDonation?: boolean;
   soldIds?: string[];
 }
 
@@ -100,6 +104,8 @@ interface PortState {
   verified: boolean;
   categoryExists: boolean;
   unfinishedOrder: boolean;
+  activeDonation: boolean;
+  closedDonationToys: Array<{ toyId: string; why: string }>;
   soldIds: Set<string>;
 }
 
@@ -108,6 +114,8 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
     verified: options.verified ?? true,
     categoryExists: options.categoryExists ?? true,
     unfinishedOrder: options.unfinishedOrder ?? false,
+    activeDonation: options.activeDonation ?? false,
+    closedDonationToys: [],
     soldIds: new Set<string>(options.soldIds ?? []),
   };
 
@@ -115,6 +123,10 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
     isVerifiedUser: async () => state.verified,
     categoryExists: async () => state.categoryExists,
     hasUnfinishedOrder: async () => state.unfinishedOrder,
+    hasActiveDonationRequest: async () => state.activeDonation,
+    closePendingDonationRequests: async (toyId, _ownerId, _title, why) => {
+      state.closedDonationToys.push({ toyId, why });
+    },
     getSoldToyIds: async (toyIds) => new Set(toyIds.filter((id) => state.soldIds.has(id))),
   };
 
@@ -394,9 +406,9 @@ describe('GET /api/v1/toys/mine', () => {
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(2);
     expect(res.body.items).toHaveLength(2);
-    expect(res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId)).toBe(
-      true,
-    );
+    expect(
+      res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId),
+    ).toBe(true);
   });
 
   it('paginates results', async () => {
@@ -588,5 +600,42 @@ describe('DELETE /api/v1/toys/:toyId', () => {
 
     expect(res.status).toBe(409);
     expect(ctx.store).toHaveLength(1);
+  });
+});
+
+describe('active donation request (GB-12) and PENDING requests (D-06)', () => {
+  it('returns 409 TOY_HAS_ACTIVE_DONATION for edit, hide and delete', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    const uploadsBefore = ctx.uploads.length;
+    ctx.state.activeDonation = true;
+    ctx.setActor(ctx.actor1);
+
+    const edit = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .field('title', 'Blocked Edit')
+      .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
+    const hide = await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`);
+    const del = await request(ctx.app).delete(`/api/v1/toys/${listing.id}`);
+
+    for (const res of [edit, hide, del]) {
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('TOY_HAS_ACTIVE_DONATION');
+    }
+    expect(ctx.uploads.length).toBe(uploadsBefore);
+    expect(ctx.store).toHaveLength(1);
+    expect(ctx.state.closedDonationToys).toEqual([]);
+  });
+
+  it('closes the PENDING donation requests after a hide or a delete', async () => {
+    const first = await createListing(ctx, ctx.actor1, rentFields());
+    const second = await createListing(ctx, ctx.actor1, rentFields());
+    ctx.setActor(ctx.actor1);
+
+    expect((await request(ctx.app).post(`/api/v1/toys/${first.id}/hide`)).status).toBe(200);
+    expect((await request(ctx.app).delete(`/api/v1/toys/${second.id}`)).status).toBe(204);
+    expect(ctx.state.closedDonationToys).toEqual([
+      { toyId: first.id, why: 'HIDDEN' },
+      { toyId: second.id, why: 'DELETED' },
+    ]);
   });
 });

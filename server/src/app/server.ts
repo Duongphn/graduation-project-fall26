@@ -5,6 +5,7 @@ import { connectDatabase, disconnectDatabase } from '../infrastructure/database/
 import { createSocketServer } from '../infrastructure/realtime/socket.js';
 import { createApp } from './create-app.js';
 import { registerEventHandlers } from './event-handlers.js';
+import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 
 const startServer = async (): Promise<void> => {
   await connectDatabase(env.mongoDbUri);
@@ -21,9 +22,11 @@ const startServer = async (): Promise<void> => {
   httpServer.listen(env.port, () => {
     console.info(`ToyFlow backend is listening on port ${env.port}.`);
   });
+  const donationExpiryJob = startDonationExpiryJob();
 
   const shutdown = async (signal: string): Promise<void> => {
     console.info(`${signal} received. Shutting down ToyFlow backend.`);
+    donationExpiryJob?.stop();
     socketServer.close();
     httpServer.close(async () => {
       await disconnectDatabase();

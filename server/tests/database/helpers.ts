@@ -1,23 +1,26 @@
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { randomBytes } from 'node:crypto';
+
 import mongoose, { Types, type ClientSession } from 'mongoose';
-import { afterAll, beforeAll } from 'vitest';
+import { afterAll, beforeAll, inject } from 'vitest';
 
 import { syncDatabase } from '../../src/app/models.js';
 import { ToyModel } from '../../src/features/toys/toys.model.js';
 
-/** Starts a one-node replica set (transactions need one) and syncs every model. */
+/**
+ * Connects to the shared one-node replica set started by tests/setup/mongo-global-setup.ts
+ * (transactions need a replica set), on a database of this test file only, and syncs every model.
+ */
 export const useTestDatabase = (): void => {
-  let replSet: MongoMemoryReplSet | undefined;
+  const dbName = `toyflow_test_${randomBytes(6).toString('hex')}`;
 
   beforeAll(async () => {
-    replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-    await mongoose.connect(replSet.getUri(), { dbName: 'toyflow_test' });
+    await mongoose.connect(inject('mongoUri'), { dbName });
     await syncDatabase();
   }, 120_000);
 
   afterAll(async () => {
+    await mongoose.connection.dropDatabase().catch(() => undefined);
     await mongoose.disconnect();
-    await replSet?.stop();
   });
 };
 

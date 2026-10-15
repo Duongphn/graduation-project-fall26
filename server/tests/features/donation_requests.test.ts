@@ -194,7 +194,7 @@ describe('decisions', () => {
     expect(await AuditLogModel.countDocuments({ action: 'donation.accept' })).toBe(0);
   });
 
-  it('only the donor or an Admin decides; others get 403/404', async () => {
+  it('only the donor decides; others get 403/404, an Admin 409', async () => {
     const id = await createRequest();
     expect(
       (await request(app).post(`/donation-requests/${id}/accept`).set(as(receiver))).status,
@@ -207,11 +207,17 @@ describe('decisions', () => {
       .post(`/admin/donation-requests/${id}/reject`)
       .set(as(admin, 'ADMIN'))
       .send({ reason: 'Không phù hợp tiêu chí' });
-    expect(reject.body.data).toMatchObject({
+    expect(reject.status).toBe(409);
+    expect(reject.body.error.code).toBe('DONOR_DECISION_REQUIRED');
+    expect(await AuditLogModel.countDocuments({ action: 'donation.reject' })).toBe(0);
+    const byDonor = await request(app)
+      .post(`/donation-requests/${id}/reject`)
+      .set(as(donor))
+      .send({ reason: 'Không phù hợp tiêu chí' });
+    expect(byDonor.body.data).toMatchObject({
       status: 'REJECTED',
       rejectReason: 'Không phù hợp tiêu chí',
     });
-    expect(await AuditLogModel.countDocuments({ action: 'donation.reject' })).toBe(1);
     const again = await request(app).post(`/donation-requests/${id}/accept`).set(as(donor));
     expect(again.status).toBe(409);
     expect(again.body.error.code).toBe('INVALID_STATUS_TRANSITION');
@@ -228,7 +234,7 @@ describe('decisions', () => {
     const b = await createRequest(other);
     const results = await Promise.all([
       request(app).post(`/donation-requests/${a}/accept`).set(as(donor)),
-      request(app).post(`/admin/donation-requests/${b}/accept`).set(as(admin, 'ADMIN')),
+      request(app).post(`/donation-requests/${b}/accept`).set(as(donor)),
     ]);
     expect(results.map((res) => res.status).sort()).toEqual([200, 409]);
     expect(await DonationRequestModel.countDocuments({ status: 'ACCEPTED' })).toBe(1);
@@ -272,7 +278,7 @@ describe('handover, receipt and cancel', () => {
     const done = await request(app)
       .post(`/donation-requests/${id}/confirm-received`)
       .set(as(receiver))
-      .send({});
+      .send({ photos: [photoOf(receiver)] });
     expect(done.body.data.status).toBe('COMPLETED');
     expect(await toyStatus()).toBe('DONATED');
 
@@ -475,12 +481,25 @@ describe('handover and receipt validation', () => {
     expect((await DonationRequestModel.findById(id).lean())?.status).toBe('ACCEPTED');
   });
 
-  it('confirms receipt without photos; only the receiver, and photos must be theirs', async () => {
+  it('receipt needs photos (GB-20); only the receiver, and photos must be theirs', async () => {
     const id = await shipping();
     expect(
-      (await request(app).post(`/donation-requests/${id}/confirm-received`).set(as(donor)).send({}))
-        .status,
+      (
+        await request(app)
+          .post(`/donation-requests/${id}/confirm-received`)
+          .set(as(donor))
+          .send({ photos: [photoOf(donor)] })
+      ).status,
     ).toBe(403);
+    for (const body of [{}, { photos: [] }, { note: 'Đã nhận' }]) {
+      const noPhotos = await request(app)
+        .post(`/donation-requests/${id}/confirm-received`)
+        .set(as(receiver))
+        .send(body);
+      expect(noPhotos.status).toBe(400);
+      expect(noPhotos.body.error.code).toBe('VALIDATION_ERROR');
+    }
+    expect((await DonationRequestModel.findById(id).lean())?.status).toBe('SHIPPING');
     const foreign = await request(app)
       .post(`/donation-requests/${id}/confirm-received`)
       .set(as(receiver))

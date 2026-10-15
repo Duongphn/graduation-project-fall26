@@ -2,7 +2,14 @@ import { buildPrivateImageUrl } from '../../infrastructure/storage/cloudinary.js
 import { toIsoString } from '../../shared/utils/dates.js';
 import { maskPhone } from '../../shared/utils/phone.js';
 import { maskEmail } from '../../shared/utils/privacy.js';
+import { counterpartOf } from './donation_requests.policy.js';
 import type { DonationRecord, findHistory, Relations } from './donation_requests.repository.js';
+
+/** Who reads the DTO: Admin views get masked contacts, user views the D-03 counterpart. */
+export interface DonationView {
+  admin: boolean;
+  viewerId?: string;
+}
 
 // Database documents -> API DTOs. Handover photos are private: stored as "<publicId>.<format>"
 // (handovers.photos is a string array) and returned only as 5-minute signed links.
@@ -46,11 +53,25 @@ const organization = (relations: Relations, id: unknown, withContacts: boolean) 
     : base;
 };
 
+/** D-03: full name and full phone (no email) of the other party while ACCEPTED or SHIPPING. */
+const counterpartContact = (record: DonationRecord, relations: Relations, view: DonationView) => {
+  if (view.admin) return null;
+  const side = counterpartOf(record, view.viewerId);
+  if (side === 'ORGANIZATION') {
+    const org = relations.organizations.get(String(record.organizationId));
+    return org ? { name: org.name, phone: org.phone ?? null } : null;
+  }
+  if (side === null) return null;
+  const user = relations.users.get(String(side === 'DONOR' ? record.donorId : record.requestedBy));
+  return user ? { name: user.fullName, phone: user.phone ?? null } : null;
+};
+
 export const toDonationRequestDto = (
   record: DonationRecord,
   relations: Relations,
-  withContacts = false,
+  view: DonationView = { admin: false },
 ) => {
+  const withContacts = view.admin;
   const toy = relations.toys.get(String(record.toyId));
   return {
     id: String(record._id),
@@ -71,6 +92,7 @@ export const toDonationRequestDto = (
     donor: person(relations, record.donorId, withContacts),
     requester: person(relations, record.requestedBy, withContacts),
     organization: organization(relations, record.organizationId, withContacts),
+    counterpartContact: counterpartContact(record, relations, view),
     decidedAt: iso(record.decidedAt),
     rejectReason: record.rejectReason ?? null,
     completedAt: iso(record.completedAt),
@@ -83,9 +105,9 @@ export const toDonationRequestDetailDto = (
   record: DonationRecord,
   relations: Relations,
   history: Awaited<ReturnType<typeof findHistory>>,
-  withContacts = false,
+  view: DonationView = { admin: false },
 ) => ({
-  ...toDonationRequestDto(record, relations, withContacts),
+  ...toDonationRequestDto(record, relations, view),
   decidedBy: record.decidedBy ? String(record.decidedBy) : null,
   handovers: record.handovers.map((handover) => ({
     step: handover.step as 'DONOR_SENT' | 'RECEIVER_RECEIVED',

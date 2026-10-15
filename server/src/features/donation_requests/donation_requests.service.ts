@@ -7,6 +7,7 @@ import { domainEvents } from '../../shared/events/domain-events.js';
 import { toMongoPaging } from '../../shared/utils/response.js';
 import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
 import {
+  type DonationView,
   encodePhoto,
   toDonationRequestDetailDto,
   toDonationRequestDto,
@@ -43,29 +44,33 @@ import {
 
 // ---- DTO helpers -----------------------------------------------------------------------------
 
-export const toDtos = async (records: DonationRecord[], withContacts = false) => {
-  const relations = await repository.loadRelations(records, withContacts);
-  return records.map((record) => toDonationRequestDto(record, relations, withContacts));
+/** The DTO view of an actor: Admins get masked contacts, users the D-03 counterpart. */
+export const viewOf = (actor: DonationActor): DonationView =>
+  actor.isAdmin ? { admin: true } : { admin: false, viewerId: actor.userId };
+
+export const toDtos = async (records: DonationRecord[], view: DonationView) => {
+  const relations = await repository.loadRelations(records, view.admin);
+  return records.map((record) => toDonationRequestDto(record, relations, view));
 };
 
-export const toDetail = async (record: DonationRecord, withContacts = false) => {
+export const toDetail = async (record: DonationRecord, view: DonationView) => {
   const [relations, history] = await Promise.all([
-    repository.loadRelations([record], withContacts),
+    repository.loadRelations([record], view.admin),
     repository.findHistory(record._id),
   ]);
-  return toDonationRequestDetailDto(record, relations, history, withContacts);
+  return toDonationRequestDetailDto(record, relations, history, view);
 };
 
 export const listPage = async (
   filter: RequestFilter,
   query: MyRequestsQuery,
-  withContacts = false,
+  view: DonationView,
 ) => {
   const { items, total } = await repository.listRequests(
     filter,
     toMongoPaging(query, donationRequestSortFields),
   );
-  return { items: await toDtos(items, withContacts), total };
+  return { items: await toDtos(items, view), total };
 };
 
 // ---- Create (receiver, or an Admin for an organization) ---------------------------------------
@@ -86,6 +91,10 @@ export const createRequest = async (
     }
     if (String(toy.ownerId) === actor.userId) {
       throw unprocessable('OWN_TOY', 'Bạn không thể xin đồ chơi do chính mình tặng.');
+    }
+    // GB-05: the toys of a locked account are hidden, so they cannot be requested.
+    if ((await repository.findUserStatus(toy.ownerId, session)) === 'LOCKED') {
+      throw conflict('DONOR_LOCKED', 'Người quyên góp đang bị khóa, không thể gửi yêu cầu.');
     }
     if (input.organizationId) {
       if (!(await repository.touchActiveOrganization(input.organizationId, session))) {
@@ -149,7 +158,7 @@ export const createRequest = async (
     to: 'PENDING',
     changedBy: actor.userId,
   });
-  return toDetail(record, actor.isAdmin);
+  return toDetail(record, viewOf(actor));
 };
 
 // ---- Reads -----------------------------------------------------------------------------------
@@ -165,15 +174,20 @@ export const listMine = (actor: DonationActor, query: MyRequestsQuery) =>
       ...statusFilter(query),
     },
     query,
+    viewOf(actor),
   );
 
 export const listIncoming = (actor: DonationActor, query: MyRequestsQuery) =>
-  listPage({ donorId: new Types.ObjectId(actor.userId), ...statusFilter(query) }, query);
+  listPage(
+    { donorId: new Types.ObjectId(actor.userId), ...statusFilter(query) },
+    query,
+    viewOf(actor),
+  );
 
 export const getRequest = async (actor: DonationActor, id: string) => {
   const record = await repository.findRequestById(id);
   if (!record || !canView(record, actor)) throw requestNotFound();
-  return toDetail(record, actor.isAdmin);
+  return toDetail(record, viewOf(actor));
 };
 
 /** Public donor profile: number of completed donations, counted on demand. */
@@ -192,11 +206,32 @@ const decided = (actor: DonationActor) => ({
 });
 
 const detailOf = async (record: DonationRecord, actor: DonationActor) =>
-  toDetail(record, actor.isAdmin);
+  toDetail(record, viewOf(actor));
+
+/**
+ * D-04: the Donor decides. An Admin may not accept or reject a PENDING request (not even an
+ * organization request an Admin filed); Admins only resolve stuck ACCEPTED/SHIPPING requests
+ * (cancel, confirm receipt). Runs after the 404 and status checks of the transition.
+ */
+const assertNotAdminDecision = (actor: DonationActor) => () => {
+  if (actor.isAdmin) {
+    throw conflict(
+      'DONOR_DECISION_REQUIRED',
+      'Chỉ người quyên góp mới được chấp nhận hoặc từ chối yêu cầu nhận tặng.',
+    );
+  }
+};
 
 export const accept = async (actor: DonationActor, id: string) =>
   detailOf(
-    await transition({ id, to: 'ACCEPTED', actor, allowed: canDecide, set: decided(actor) }),
+    await transition({
+      id,
+      to: 'ACCEPTED',
+      actor,
+      allowed: canDecide,
+      check: assertNotAdminDecision(actor),
+      set: decided(actor),
+    }),
     actor,
   );
 
@@ -207,6 +242,7 @@ export const reject = async (actor: DonationActor, id: string, reason: string) =
       to: 'REJECTED',
       actor,
       allowed: canDecide,
+      check: assertNotAdminDecision(actor),
       set: { ...decided(actor), rejectReason: reason },
       reason,
     }),
@@ -283,9 +319,18 @@ export const handOver = async (actor: DonationActor, id: string, body: HandoverB
 export const confirmReceived = async (
   actor: DonationActor,
   id: string,
-  body: ConfirmReceivedBody,
+  body: Omit<ConfirmReceivedBody, 'photos'> & {
+    photos?: ConfirmReceivedBody['photos'] | undefined;
+  },
   options: { reason?: string | undefined } = {},
 ) => {
+  // GB-20: the receiving user always gives receipt photos (the route schema requires them).
+  if (!actor.isAdmin && (body.photos ?? []).length === 0) {
+    throw unprocessable(
+      'HANDOVER_PHOTOS_REQUIRED',
+      'Cần tải lên ít nhất một ảnh đồ chơi khi xác nhận đã nhận.',
+    );
+  }
   assertOwnPhotos(actor, body.photos);
   return detailOf(
     await transition({

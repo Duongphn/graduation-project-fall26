@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import { authRouter } from '../features/auth/index.js';
 import { adminCategoriesRouter, categoriesRouter } from '../features/categories/index.js';
 import {
   adminDonationRequestsRouter,
@@ -23,6 +24,8 @@ export function createApiRouter(deps?: { toyListingDependencies?: ToyListingDepe
   router.use(healthRouter);
   // One line per feature: the app mounts each feature router on its prefix.
   router.use('/admin/categories', adminCategoriesRouter);
+  // The auth router declares its own /auth/* paths.
+  router.use(authRouter);
   router.use('/categories', categoriesRouter);
   router.use('/admin/organizations', adminOrganizationsRouter);
   router.use('/organizations', organizationsRouter);

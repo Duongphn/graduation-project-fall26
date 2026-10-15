@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import jwt from 'jsonwebtoken';
 
 import { env } from '../../config/env.js';
 import { findDevAuthUser } from '../../infrastructure/database/dev-auth-users.js';
@@ -6,11 +7,14 @@ import type { ActorReference } from '../contracts/actor.js';
 import type { UserRole } from '../domain/statuses.js';
 import { AppError, forbidden, unauthorized } from '../errors/app-error.js';
 
-// TEMPORARY until the Sprint 1 task "JWT authentication middleware & role-based authorization"
-// is merged. That middleware must set `request.auth` from the access token (R04 III.1: claims
-// { sub, role }); these guards then use it unchanged.
+// Callers authenticate with the access token issued by /auth/login (header
+// `Authorization: Bearer <token>`, signed with JWT_ACCESS_SECRET; claims { userId, email, role },
+// `sub` is accepted too). The token only names the user: the role and the account status are read
+// from the users collection on every request, so a demoted or locked account loses access at once.
+// A missing, invalid or expired token answers 401; other tokens signed with the same secret (the
+// Google sign-up and password reset tokens carry a `type` claim) are refused.
 //
-// Without `request.auth`, the caller may act through the header `x-dev-user-id` ONLY when
+// Without a token, the caller may act through the header `x-dev-user-id` ONLY when
 // ALLOW_DEV_AUTH=true and NODE_ENV is development or test (env.allowDevAuth). The id must be an
 // existing user; the role and the account status come from the users collection (the old
 // x-dev-role header is ignored), and a locked account is refused. Otherwise every guarded
@@ -30,11 +34,8 @@ const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 const accountLocked = () => new AppError(403, 'ACCOUNT_LOCKED', 'Tài khoản của bạn đang bị khoá.');
 
-/** The development caller from x-dev-user-id, checked against the users collection. */
-const resolveDevAuth = async (request: Request): Promise<RequestAuth | undefined> => {
-  if (!env.allowDevAuth) return undefined;
-  const userId = request.header('x-dev-user-id');
-  if (!userId || !OBJECT_ID.test(userId)) return undefined;
+/** The account named by a user id: refused when missing or locked. */
+const resolveUser = async (userId: string): Promise<RequestAuth | undefined> => {
   const user = await findDevAuthUser(userId);
   if (!user) return undefined;
   if (user.status !== 'ACTIVE' || (user.lockedUntil && user.lockedUntil > new Date())) {
@@ -43,10 +44,44 @@ const resolveDevAuth = async (request: Request): Promise<RequestAuth | undefined
   return { userId, role: user.role };
 };
 
-/** Sets `request.auth` from the development header when no token middleware has set it. */
+/** The development caller from x-dev-user-id, checked against the users collection. */
+const resolveDevAuth = async (request: Request): Promise<RequestAuth | undefined> => {
+  if (!env.allowDevAuth) return undefined;
+  const userId = request.header('x-dev-user-id');
+  if (!userId || !OBJECT_ID.test(userId)) return undefined;
+  return resolveUser(userId);
+};
+
+const invalidToken = () =>
+  new AppError(401, 'INVALID_ACCESS_TOKEN', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.');
+
+/** The caller from `Authorization: Bearer`, null without that header. */
+const resolveBearerAuth = async (request: Request): Promise<RequestAuth | null> => {
+  const header = request.header('authorization');
+  if (!header) return null;
+  const [scheme, token] = header.split(' ');
+  if (scheme?.toLowerCase() !== 'bearer' || !token) throw invalidToken();
+
+  let claims: unknown;
+  try {
+    claims = jwt.verify(token, env.jwtAccessSecret, { algorithms: ['HS256'] });
+  } catch {
+    throw invalidToken();
+  }
+  if (typeof claims !== 'object' || claims === null || 'type' in claims) throw invalidToken();
+  const { userId, sub } = claims as { userId?: unknown; sub?: unknown };
+  const id = typeof userId === 'string' ? userId : typeof sub === 'string' ? sub : undefined;
+  if (!id || !OBJECT_ID.test(id)) throw invalidToken();
+
+  const auth = await resolveUser(id);
+  if (!auth) throw invalidToken();
+  return auth;
+};
+
+/** Sets `request.auth` from the access token, else from the development header. */
 const authenticate = async (request: Request): Promise<RequestAuth | undefined> => {
   if (!request.auth) {
-    const auth = await resolveDevAuth(request);
+    const auth = (await resolveBearerAuth(request)) ?? (await resolveDevAuth(request));
     if (auth) request.auth = auth;
   }
   return request.auth;
@@ -72,7 +107,7 @@ export const requireAdmin = requireRole('ADMIN');
 
 /**
  * For public routes that show more to a signed-in caller: sets `request.auth` when the caller is
- * known and never answers 401 (a locked development caller is treated as anonymous).
+ * known and never answers 401 (an invalid token or a locked caller is treated as anonymous).
  */
 export const optionalAuth: RequestHandler = (request, _response, next) => {
   authenticate(request)

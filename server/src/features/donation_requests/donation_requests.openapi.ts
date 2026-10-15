@@ -93,7 +93,7 @@ register({
     "The toy must be a DONATION post in status ACTIVE and not the caller's own. One PENDING " +
     'request per toy and requester (per organization for Admin requests). No fee, no deposit. ' +
     'Errors: 404 TOY_NOT_FOUND, 409 ' +
-    'TOY_NOT_AVAILABLE / DONATION_REQUEST_EXISTS, 422 OWN_TOY.',
+    'TOY_NOT_AVAILABLE / DONATION_REQUEST_EXISTS / DONOR_LOCKED, 422 OWN_TOY.',
   body: createRequestBodySchema,
   response: donationRequestDetailSchema,
   status: 201,
@@ -124,6 +124,11 @@ register({
   path: `${userBase}/{id}`,
   tag: USER_TAG,
   summary: 'Requester or donor: one request with handovers and status history',
+  description:
+    'While ACCEPTED or SHIPPING, `counterpartContact` gives the full name and full phone of ' +
+    'the other party (Donor: the requesting user or the organization; requesting user: the ' +
+    'Donor). ' +
+    'null before acceptance and after COMPLETED / CANCELLED / REJECTED. 404 for anyone else.',
   params: idParamsSchema,
   response: donationRequestDetailSchema,
   errors: [400, 401, 404],
@@ -135,7 +140,8 @@ register({
   summary: 'Donor: accept (PENDING -> ACCEPTED)',
   description:
     'The toy moves ACTIVE -> RESERVED and every other PENDING request of the toy is rejected. ' +
-    '409 TOY_NOT_AVAILABLE when another request was accepted first.',
+    '409 TOY_NOT_AVAILABLE when another request was accepted first. Only the Donor decides ' +
+    '(also for organization requests); anyone else gets 403.',
   params: idParamsSchema,
   response: donationRequestDetailSchema,
   errors: MOVE_ERRORS,
@@ -181,6 +187,9 @@ register({
   path: `${userBase}/{id}/confirm-received`,
   tag: USER_TAG,
   summary: 'Receiving user: confirm receipt (SHIPPING -> COMPLETED, toy DONATED)',
+  description:
+    'At least one photo of the received toy is required (GB-20): own HANDOVER_PHOTO uploads, ' +
+    '400 VALIDATION_ERROR without photos, 422 HANDOVER_PHOTO_NOT_OWNED for foreign photos.',
   params: idParamsSchema,
   body: confirmReceivedBodySchema,
   response: donationRequestDetailSchema,
@@ -242,7 +251,11 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/accept`,
   tag: ADMIN_TAG,
-  summary: 'Admin: accept (PENDING -> ACCEPTED, toy RESERVED, other PENDING rejected)',
+  summary: 'Admin: accept - always refused, the Donor decides (D-04)',
+  description:
+    '409 DONOR_DECISION_REQUIRED for a PENDING request (also an organization request an Admin ' +
+    'filed); 409 INVALID_STATUS_TRANSITION for any other status, 404 for an unknown id. Admins ' +
+    'resolve stuck ACCEPTED/SHIPPING requests with cancel or confirm-received.',
   params: idParamsSchema,
   response: adminDonationRequestDetailSchema,
   errors: MOVE_ERRORS,
@@ -251,7 +264,10 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/reject`,
   tag: ADMIN_TAG,
-  summary: 'Admin: reject with a reason',
+  summary: 'Admin: reject - always refused, the Donor decides (D-04)',
+  description:
+    '409 DONOR_DECISION_REQUIRED for a PENDING request; 409 INVALID_STATUS_TRANSITION for any ' +
+    'other status. An Admin who wants a request gone cancels it (reason required, audited).',
   params: idParamsSchema,
   body: rejectBodySchema,
   response: adminDonationRequestDetailSchema,
