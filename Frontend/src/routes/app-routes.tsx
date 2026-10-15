@@ -8,8 +8,10 @@ import {
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
 import { ForgotPasswordPage } from '../pages/forgot-password-page'
+import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
+import { ProfilePage } from '../pages/profile-page'
 import { RegisterPage } from '../pages/register-page'
 import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
 import { queryClient } from '../services/query-client'
@@ -21,6 +23,14 @@ const ignoreError = () => undefined
 /** Loader gọi API trước khi render trang và lưu kết quả vào cache react-query */
 async function newListingLoader() {
   await queryClient.query(categoriesQuery).catch(ignoreError) // GET /categories
+  return null
+}
+
+async function profileLoader() {
+  await Promise.all([
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
+    queryClient.query(latestVerificationQuery).catch(ignoreError), // GET /identity-verifications/my-latest
+  ])
   return null
 }
 
@@ -46,6 +56,12 @@ export const router = createBrowserRouter([
   { path: PATHS.login, element: <LoginPage /> },
   { path: PATHS.register, element: <RegisterPage /> },
   { path: PATHS.forgotPassword, element: <ForgotPasswordPage /> },
+  {
+    path: PATHS.profile,
+    loader: profileLoader,
+    element: <ProfilePage />,
+    HydrateFallback: PageLoadingFallback,
+  },
   {
     path: PATHS.myListings,
     loader: myListingsLoader,

@@ -14,6 +14,7 @@ import { LoginForm } from '../features/auth/components/login-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { PATHS } from '../routes/paths'
 import { getApiErrorMessage } from '../services/http-client'
+import { queryClient } from '../services/query-client'
 import { saveAuthTokens } from '../services/token-storage'
 import { maskEmail } from '../utils/mask-contact'
 
@@ -40,7 +41,8 @@ export function LoginPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as LoginPageState | null
-  const redirectTo = state?.from ?? PATHS.home
+  // Chưa có trang chủ (`/` đang quay về /login) nên mặc định đưa vào trang hồ sơ
+  const redirectTo = state?.from ?? PATHS.profile
   const registeredIdentifier = state?.registeredIdentifier
 
   // Sau khi Google xác thực, backend chuyển về một trong hai dạng:
@@ -64,6 +66,8 @@ export function LoginPage() {
   const completeLogin = useCallback(
     (tokens: AuthTokens, rememberMe: boolean) => {
       saveAuthTokens(tokens, rememberMe)
+      // Bỏ dữ liệu/lỗi 401 đã cache trước khi đăng nhập để trang đích tải lại bằng token mới
+      queryClient.clear()
       navigate(redirectTo, { replace: true })
     },
     [navigate, redirectTo],

@@ -1,0 +1,249 @@
+/*
+ * Trang Hồ sơ cá nhân — dùng lại khối `tf-*` của trang Đăng tin.
+ * Dải navy phẳng (không gradient) + vạch đồng mảnh làm điểm nhấn cho phần đầu hồ sơ.
+ */
+@layer components {
+  .profile-page {
+    @apply flex min-w-0 flex-col gap-5 lg:gap-6;
+  }
+
+  .profile-page > * {
+    @apply animate-rise-in;
+  }
+
+  .profile-page > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .profile-page > :nth-child(3) {
+    animation-delay: 120ms;
+  }
+
+  .profile-actions {
+    @apply flex flex-col-reverse gap-2 border-t border-tf-surface pt-4 sm:flex-row sm:justify-end;
+  }
+
+  .profile-actions .tf-btn {
+    @apply w-full sm:w-auto;
+  }
+
+  /* ---------- Phần đầu hồ sơ ---------- */
+  .profile-hero {
+    @apply min-w-0 overflow-hidden rounded-xl border border-tf-surface bg-white;
+  }
+
+  .profile-hero__band {
+    @apply h-20 border-b-2 border-b-tf-accent bg-tf-primary sm:h-24;
+  }
+
+  .profile-hero__body {
+    @apply grid grid-cols-1 gap-5 px-5 pb-5 sm:px-6 sm:pb-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-8;
+  }
+
+  .profile-hero__identity {
+    @apply flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5;
+  }
+
+  .profile-hero__text {
+    @apply flex min-w-0 flex-col gap-2 sm:pt-4;
+  }
+
+  .profile-hero__name-row {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1.5;
+  }
+
+  .profile-hero__name {
+    @apply text-xl leading-7 font-bold tracking-[-0.02em] break-words text-tf-ink sm:text-[22px];
+  }
+
+  .profile-hero__contacts {
+    @apply flex min-w-0 flex-col gap-1.5 text-sm text-tf-ink-muted sm:flex-row sm:flex-wrap sm:gap-x-5;
+  }
+
+  .profile-hero__contacts li {
+    @apply flex min-w-0 items-center gap-1.5;
+  }
+
+  .profile-hero__contacts svg {
+    @apply size-4 shrink-0 stroke-[1.75] text-tf-accent;
+  }
+
+  .profile-hero__note {
+    @apply mt-1 flex items-start gap-2 border-l-2 bg-tf-surface-low px-3 py-2 text-[13px] leading-5 text-tf-ink;
+  }
+
+  .profile-hero__note svg {
+    @apply mt-0.5 size-4 shrink-0;
+  }
+
+  .profile-hero__note--neutral,
+  .profile-hero__note--pending {
+    @apply border-l-tf-accent;
+  }
+
+  .profile-hero__note--neutral svg,
+  .profile-hero__note--pending svg {
+    @apply text-tf-accent;
+  }
+
+  .profile-hero__note--rejected {
+    @apply border-l-tf-error bg-tf-error-container/60;
+  }
+
+  .profile-hero__note--rejected svg {
+    @apply text-tf-error;
+  }
+
+  .profile-hero__avatar-msg {
+    @apply text-xs font-medium text-tf-ink-muted;
+  }
+
+  .profile-hero__avatar-msg.is-error {
+    @apply text-tf-error;
+  }
+
+  /* ---------- Trạng thái xác minh ---------- */
+  .profile-status {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs leading-5 font-medium;
+  }
+
+  .profile-status svg {
+    @apply size-3.5;
+  }
+
+  .profile-status--neutral {
+    @apply bg-tf-surface text-tf-ink-muted;
+  }
+
+  .profile-status--pending {
+    @apply bg-tf-tertiary-fixed text-tf-tertiary;
+  }
+
+  .profile-status--verified {
+    @apply bg-tf-secondary-container text-tf-secondary;
+  }
+
+  .profile-status--rejected {
+    @apply bg-tf-error-container text-tf-error;
+  }
+
+  /* ---------- Ảnh đại diện: nằm đè lên dải navy ---------- */
+  .profile-avatar {
+    @apply relative -mt-10 size-24 shrink-0 sm:-mt-12 sm:size-28;
+  }
+
+  .profile-avatar__frame {
+    @apply size-full overflow-hidden rounded-full border-4 border-white bg-tf-primary-container shadow-[0_1px_2px_rgb(18_23_31/0.12)] transition-opacity duration-200 ease-out-quint;
+  }
+
+  .profile-avatar__frame.is-busy {
+    @apply opacity-60;
+  }
+
+  .profile-avatar__image {
+    @apply size-full object-cover transition-transform duration-500 ease-out-quint;
+  }
+
+  .profile-avatar:hover .profile-avatar__image {
+    @apply scale-[1.04];
+  }
+
+  .profile-avatar__initial {
+    @apply flex size-full items-center justify-center text-4xl font-semibold tracking-[-0.02em] text-white select-none;
+  }
+
+  .profile-avatar__change {
+    @apply absolute right-0 bottom-0.5 flex size-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-tf-primary text-white transition-[background-color,transform] duration-200 ease-out-quint hover:-translate-y-px hover:bg-tf-primary-container focus-ring disabled:cursor-wait disabled:opacity-70;
+  }
+
+  .profile-avatar__change svg {
+    @apply size-4 stroke-[1.75];
+  }
+
+  /* ---------- Hoàn thiện hồ sơ ---------- */
+  .profile-completion {
+    @apply flex min-w-0 flex-col gap-3 rounded-lg border border-tf-surface bg-tf-surface-low/60 p-4 lg:mt-4;
+  }
+
+  .profile-completion__head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .profile-completion__title {
+    @apply text-sm font-semibold text-tf-ink;
+  }
+
+  .profile-completion__value {
+    @apply text-sm font-semibold text-tf-primary tabular-nums;
+  }
+
+  .profile-completion__track {
+    @apply h-1.5 overflow-hidden rounded-full bg-tf-surface;
+  }
+
+  .profile-completion__bar {
+    @apply block h-full origin-left rounded-full bg-tf-primary transition-transform duration-300 ease-out-quint;
+  }
+
+  .profile-completion__list {
+    @apply flex flex-col gap-1.5 text-[13px] leading-5 text-tf-ink-muted;
+  }
+
+  .profile-completion__list li {
+    @apply flex items-center gap-2;
+  }
+
+  .profile-completion__list svg {
+    @apply size-4 shrink-0 stroke-[1.75] text-tf-outline;
+  }
+
+  .profile-completion__list li.is-done {
+    @apply text-tf-ink;
+  }
+
+  .profile-completion__list li.is-done svg {
+    @apply text-tf-secondary;
+  }
+
+  /* ---------- Địa chỉ nhận hàng ---------- */
+  .address-card {
+    @apply relative flex max-w-xl min-w-0 flex-col gap-2 rounded-lg border border-tf-primary/25 bg-tf-surface-low p-4 pl-5 transition-[border-color,transform] duration-300 ease-out-quint hover:-translate-y-px hover:border-tf-primary/50;
+  }
+
+  /* Vạch đồng cạnh trái đánh dấu địa chỉ đang dùng */
+  .address-card::before {
+    @apply absolute inset-y-3 left-0 w-0.5 rounded-full bg-tf-accent content-[''];
+  }
+
+  .address-card__head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .address-card__who {
+    @apply flex min-w-0 flex-wrap items-center gap-1.5 text-sm;
+  }
+
+  .address-card__who svg {
+    @apply size-4 shrink-0 text-tf-accent;
+  }
+
+  .address-card__line {
+    @apply text-sm leading-6 break-words text-tf-ink;
+  }
+
+  .address-card__edit {
+    @apply -ml-1 flex w-fit cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-[13px] font-medium text-tf-primary transition-colors duration-200 ease-out-quint hover:text-tf-primary-container focus-ring;
+  }
+
+  .address-card__edit svg {
+    @apply size-3.5 transition-transform duration-200 ease-out-quint;
+  }
+
+  .address-card__edit:hover svg {
+    @apply translate-x-0.5;
+  }
+
+  .address-empty {
+    @apply rounded-lg border border-dashed border-tf-outline bg-tf-surface-low/50 px-4 py-6 text-center text-sm text-tf-ink-muted;
+  }
+}

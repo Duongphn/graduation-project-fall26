@@ -32,7 +32,12 @@ interface SidebarItem {
 
 /** Menu chung của mọi trang tài khoản — thêm `to` khi trang tương ứng được xây */
 const SIDEBAR_ITEMS: SidebarItem[] = [
-  { key: "profile", label: "Hồ sơ của tôi", icon: CircleUserRound },
+  {
+    key: "profile",
+    label: "Hồ sơ của tôi",
+    icon: CircleUserRound,
+    to: PATHS.profile,
+  },
   {
     key: "listings",
     label: "Tin đăng của tôi",

@@ -7,6 +7,7 @@
 @import './layouts/account/account-layout.css';
 @import './features/toy-listings/toy-listing.css';
 @import './features/toy-listings/my-listings.css';
+@import './features/profile/profile.css';
 
 /* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
 @custom-variant dark (&:where(.dark, .dark *));

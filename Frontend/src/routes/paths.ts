@@ -5,6 +5,7 @@ export const PATHS = {
   forgotPassword: '/forgot-password',
   terms: '/terms',
   privacy: '/privacy',
+  profile: '/profile',
   myListings: '/listings',
   newListing: '/listings/new',
   editListing: '/listings/:toyId/edit',
