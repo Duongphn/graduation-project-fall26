@@ -25,8 +25,9 @@
     @apply absolute top-3.5 right-2 left-10 hidden h-px bg-tf-surface-high content-[''] sm:block;
   }
 
+  /* Bước đã xong: chấm xám-navy + đường nối navy, nhường màu đậm cho bước hiện tại */
   .verify-stepper__item.is-done:not(:last-child)::after {
-    @apply bg-tf-secondary/50;
+    @apply bg-tf-primary/45;
   }
 
   .verify-stepper__dot {
@@ -42,7 +43,7 @@
   }
 
   .verify-stepper__item.is-done .verify-stepper__dot {
-    @apply border-tf-secondary bg-tf-secondary text-white;
+    @apply border-tf-primary/25 bg-tf-primary-fixed text-tf-primary;
   }
 
   .verify-stepper__text {
@@ -347,28 +348,103 @@
     @apply text-[13px] leading-5 text-tf-ink-muted;
   }
 
-  /* ---------- Trạng thái đã gửi / đã xác minh ---------- */
-  .verify-result {
-    @apply items-center gap-2 py-10 text-center;
+  /* ---------- Thanh tiến trình: biến thể nằm trong thẻ + bước bị từ chối ---------- */
+  .verify-stepper--embedded {
+    @apply border-0 bg-tf-surface-low/70;
   }
 
-  .verify-result > svg {
-    @apply size-10 stroke-[1.5];
+  .verify-stepper__item.is-failed .verify-stepper__dot {
+    @apply border-tf-error bg-tf-error text-white;
   }
 
-  .verify-result--verified > svg {
-    @apply text-tf-secondary;
+  .verify-stepper__item.is-failed .verify-stepper__title,
+  .verify-stepper__item.is-failed .verify-stepper__hint {
+    @apply text-tf-error;
   }
 
-  .verify-result--pending > svg {
-    @apply text-tf-accent;
+  /* Đoạn nối dẫn tới bước bị từ chối chuyển đỏ */
+  .verify-stepper__item.is-done:not(:last-child):has(+ .is-failed)::after {
+    @apply bg-tf-error/50;
   }
 
-  .verify-result__title {
-    @apply text-lg font-semibold tracking-[-0.01em] text-tf-ink;
+  /* ---------- Thẻ kết quả lần nộp gần nhất ---------- */
+  .verify-status {
+    @apply gap-5;
   }
 
-  .verify-result__text {
-    @apply mb-2 max-w-md text-sm text-tf-ink-muted;
+  .verify-status__head {
+    @apply flex items-start gap-4;
+  }
+
+  .verify-status__icon {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-lg;
+  }
+
+  .verify-status__icon svg {
+    @apply size-6 stroke-[1.75];
+  }
+
+  .verify-status--pending .verify-status__icon {
+    @apply bg-tf-tertiary-fixed text-tf-tertiary;
+  }
+
+  .verify-status--verified .verify-status__icon {
+    @apply bg-tf-secondary-container text-tf-secondary;
+  }
+
+  .verify-status--rejected .verify-status__icon {
+    @apply bg-tf-error-container text-tf-error;
+  }
+
+  .verify-status__title-row {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1;
+  }
+
+  .verify-status__title {
+    @apply text-lg leading-7 font-semibold tracking-[-0.01em] text-tf-ink;
+  }
+
+  .verify-status__summary {
+    @apply mt-1 text-sm leading-6 text-tf-ink-muted;
+  }
+
+  .verify-status__summary strong {
+    @apply font-semibold text-tf-ink tabular-nums;
+  }
+
+  .verify-status__actions {
+    @apply flex justify-end;
+  }
+
+  .verify-reason {
+    @apply flex flex-col gap-4 rounded-lg border border-tf-error/25 bg-tf-error-container/50 p-4 sm:p-5 md:flex-row md:items-start md:justify-between;
+  }
+
+  .verify-reason__body {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .verify-reason__title {
+    @apply flex items-center gap-2 text-[15px] font-semibold text-tf-ink;
+  }
+
+  .verify-reason__title svg {
+    @apply size-[18px] shrink-0 text-tf-error;
+  }
+
+  .verify-reason__text {
+    @apply text-sm leading-6 break-words text-tf-ink md:pl-[26px];
+  }
+
+  .verify-reason__hint {
+    @apply text-xs leading-5 text-tf-ink-muted md:pl-[26px];
+  }
+
+  .verify-reason__action {
+    @apply shrink-0 self-stretch md:self-start;
+  }
+
+  .verify-reason__action:hover:not(:disabled) svg {
+    @apply rotate-90 translate-y-0;
   }
 }

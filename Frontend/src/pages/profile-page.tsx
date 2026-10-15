@@ -44,11 +44,8 @@ export function ProfilePage() {
         </span>
       </nav>
 
-      <header className="listings-header">
-        <div className="listings-header__text">
-          <h1 className="listings-header__title">Hồ sơ của tôi</h1>
-          <p className="listings-header__lead">Xem và cập nhật thông tin, ảnh đại diện và địa chỉ nhận hàng của bạn.</p>
-        </div>
+      <header className="tf-card editor-header">
+        <h1 className="editor-header__title">Hồ sơ của tôi</h1>
       </header>
 
       {profileResult.error ? (

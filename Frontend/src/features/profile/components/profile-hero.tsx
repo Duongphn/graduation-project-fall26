@@ -14,6 +14,14 @@ const STATUS_META: Record<VerificationStatus, { label: string; icon: LucideIcon;
   rejected: { label: 'Bị từ chối', icon: ShieldX, tone: 'rejected' },
 }
 
+/** Nút dẫn tới trang xác minh: việc cần làm thì nút chính, chỉ để xem thì nút phụ */
+const VERIFY_ACTION: Record<VerificationStatus, { label: string; primary: boolean }> = {
+  unverified: { label: 'Xác minh danh tính', primary: true },
+  rejected: { label: 'Xem lý do & nộp lại', primary: true },
+  pending: { label: 'Xem trạng thái xác minh', primary: false },
+  verified: { label: 'Xem trạng thái xác minh', primary: false },
+}
+
 /** Lời nhắc dưới tên, theo trạng thái xác minh danh tính */
 function verificationNote(status: VerificationStatus, latest: LatestVerification | null | undefined): string | null {
   if (status === 'unverified') return 'Xác minh danh tính (CCCD) để đăng đồ chơi, thuê và thanh toán.'
@@ -79,6 +87,7 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
   }
 
   const status = STATUS_META[profile.verificationStatus]
+  const verifyAction = VERIFY_ACTION[profile.verificationStatus]
   const StatusIcon = status.icon
   const note = verificationNote(profile.verificationStatus, latestVerification)
   const items = completionItems(profile)
@@ -149,12 +158,13 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
               </p>
             )}
 
-            {(profile.verificationStatus === 'unverified' || profile.verificationStatus === 'rejected') && (
-              <Link to={PATHS.identityVerification} className="tf-btn tf-btn--primary tf-btn--inline profile-hero__verify">
-                {profile.verificationStatus === 'rejected' ? 'Gửi lại hồ sơ xác minh' : 'Xác minh danh tính'}
-                <ArrowRight aria-hidden />
-              </Link>
-            )}
+            <Link
+              to={PATHS.identityVerification}
+              className={`tf-btn tf-btn--inline profile-hero__verify ${verifyAction.primary ? 'tf-btn--primary' : 'tf-btn--soft'}`}
+            >
+              {verifyAction.label}
+              <ArrowRight aria-hidden />
+            </Link>
 
             {avatarMutation.isPending && <p className="profile-hero__avatar-msg">Đang tải ảnh đại diện lên...</p>}
             {avatarError && (

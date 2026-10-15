@@ -55,10 +55,7 @@ export function SidebarBrand() {
   return (
     <Link to={PATHS.home} className="app-sidebar-brand">
       <span className="app-sidebar-brand__mark">T</span>
-      <span className="app-sidebar-brand__text">
-        <span className="app-sidebar-brand__name">ToyFlow</span>
-        <span className="app-sidebar-brand__tagline">Cổng phụ huynh</span>
-      </span>
+      <span className="app-sidebar-brand__name">ToyFlow</span>
     </Link>
   );
 }
@@ -86,7 +83,7 @@ interface AppSidebarProps {
   activeKey: SidebarItemKey;
 }
 
-/** Sidebar "Cổng phụ huynh" cố định bên trái, chỉ hiện từ màn hình lg trở lên */
+/** Sidebar tài khoản cố định bên trái, chỉ hiện từ màn hình lg trở lên */
 export function AppSidebar({ activeKey }: AppSidebarProps) {
   return (
     <aside className="app-sidebar">
