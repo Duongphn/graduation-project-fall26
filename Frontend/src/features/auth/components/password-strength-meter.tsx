@@ -1,30 +1,25 @@
-import { Progress } from 'antd'
 import { getPasswordStrength, PASSWORD_MIN_LENGTH } from '../auth-schemas'
 
-const STRENGTH_LEVELS = [
-  { label: '', color: '' },
-  { label: 'Yếu', color: '#ef4444' },
-  { label: 'Trung bình', color: '#f59e0b' },
-  { label: 'Mạnh', color: '#10b981' },
-] as const
+const STRENGTH_LABELS = ['', 'Yếu', 'Trung bình', 'Mạnh'] as const
+const STRENGTH_MODIFIERS = ['', 'weak', 'medium', 'strong'] as const
+
 
 export function PasswordStrengthMeter({ password }: { password: string }) {
   const strength = getPasswordStrength(password)
-  const level = STRENGTH_LEVELS[strength]
 
   return (
-    <div className="password-strength">
-      <Progress
-        steps={3}
-        percent={(strength / 3) * 100}
-        strokeColor={level.color || undefined}
-        showInfo={false}
-        size={{ height: 4 }}
-        className="password-strength__bar"
-        aria-hidden
-      />
+    <div className={`password-strength password-strength--${STRENGTH_MODIFIERS[strength] || 'empty'}`}>
+      <div className="password-strength__bars" aria-hidden>
+        {[1, 2, 3].map((level) => (
+          <span
+            key={level}
+            className={`password-strength__bar ${level <= strength ? 'password-strength__bar--filled' : ''}`}
+          />
+        ))}
+      </div>
+      {/* aria-live để trình đọc màn hình thông báo khi độ mạnh thay đổi */}
       <span className="password-strength__label" aria-live="polite">
-        {strength ? level.label : `${PASSWORD_MIN_LENGTH}+ ký tự`}
+        {strength ? STRENGTH_LABELS[strength] : `${PASSWORD_MIN_LENGTH}+ ký tự`}
       </span>
     </div>
   )
