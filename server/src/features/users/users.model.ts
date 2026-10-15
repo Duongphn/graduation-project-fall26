@@ -9,6 +9,7 @@ const userSchema = new Schema({
     googleId: { type: String },
     role: { type: String, required: true, default: 'USER', enum: ['USER', 'ADMIN'] },
     status: { type: String, required: true, default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] },
+    isPhoneVerified: { type: Boolean, default: false },
     trust: {
         score: { type: Number, min: 0, max: 100 },
         review: {

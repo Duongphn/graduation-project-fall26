@@ -75,3 +75,19 @@ export const logoutSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh Token là bắt buộc'),
   allDevices: z.boolean().optional().default(false),
 });
+
+export const sendPhoneOtpSchema = z.object({
+  phone: z
+    .string()
+    .regex(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/, 'Số điện thoại không hợp lệ (Ví dụ: 0912345678)'),
+});
+
+export const verifyPhoneOtpSchema = z.object({
+  phone: z
+    .string()
+    .regex(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/, 'Số điện thoại không hợp lệ (Ví dụ: 0912345678)'),
+  otpCode: z
+    .string()
+    .length(6, 'Mã OTP phải có đúng 6 chữ số')
+    .regex(/^\d+$/, 'Mã OTP chỉ bao gồm các chữ số'),
+});

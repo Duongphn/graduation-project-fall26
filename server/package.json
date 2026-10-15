@@ -19,6 +19,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@payos/node": "^2.0.5",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
@@ -33,6 +34,7 @@
     "multer": "^2.4.0",
     "nodemailer": "^10.1.0",
     "socket.io": "^4.8.1",
+    "twilio": "^6.2.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

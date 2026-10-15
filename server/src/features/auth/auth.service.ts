@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 
 import { env } from '../../config/env.js';
 import { sendOtpEmail, sendResetPasswordEmail } from '../../infrastructure/email/mailer.js';
+import { sendPhoneOtpSms, formatPhoneNumberE164, formatPhoneNumberForVietnam } from '../../infrastructure/sms/sms.service.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { OtpRequest } from '../otp_requests/otp_requests.model.js';
 import { RefreshToken } from '../refresh_tokens/refresh_tokens.model.js';
@@ -804,6 +805,137 @@ export class AuthService {
     await RefreshToken.deleteOne({ token });
     return {
       message: 'Đăng xuất thành công!',
+    };
+  }
+
+  /**
+   * Gửi mã OTP xác minh số điện thoại
+   */
+  public async sendPhoneOtp(
+    phone: string
+  ): Promise<{ phone: string; resendAfterSeconds: number; message: string; devOtpCode?: string }> {
+    const formattedPhone = formatPhoneNumberE164(phone);
+    const localPhone = formatPhoneNumberForVietnam(phone);
+    const phoneVariants = [formattedPhone, localPhone];
+
+    // 1. Kiểm tra xem số điện thoại này đã được xác minh thành công trước đó hay chưa
+    const alreadyVerifiedUser = await User.findOne({
+      phone: { $in: phoneVariants },
+      isPhoneVerified: true,
+    });
+
+    const alreadyVerifiedOtp = await OtpRequest.findOne({
+      identifier: { $in: phoneVariants },
+      purpose: 'phone_verification',
+      is_used: true,
+    });
+
+    if (alreadyVerifiedUser || alreadyVerifiedOtp) {
+      throw new AppError(
+        400,
+        'PHONE_ALREADY_VERIFIED',
+        'Số điện thoại này đã được xác minh thành công trước đó. Không thể gửi lại mã OTP.'
+      );
+    }
+
+    // 2. Chống spam: kiểm tra yêu cầu gần nhất trong vòng 60 giây
+    const recentOtp = await OtpRequest.findOne({
+      identifier: { $in: phoneVariants },
+      purpose: 'phone_verification',
+      createdAt: { $gt: new Date(Date.now() - 60 * 1000) },
+    });
+    if (recentOtp) {
+      throw new AppError(429, 'OTP_RATE_LIMITED', 'Vui lòng đợi 60 giây trước khi yêu cầu gửi lại mã.');
+    }
+
+    const otpCode = crypto.randomInt(100_000, 1_000_000).toString();
+
+    const otpRecord = await OtpRequest.create({
+      phone: localPhone,
+      identifier: localPhone,
+      otp_code: otpCode,
+      purpose: 'phone_verification',
+      is_used: false,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000),
+      purgeAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    try {
+      await sendPhoneOtpSms(localPhone, otpCode);
+    } catch (err) {
+      await OtpRequest.deleteOne({ _id: otpRecord._id }).catch(() => {});
+      throw err;
+    }
+
+    return {
+      phone: localPhone,
+      resendAfterSeconds: 60,
+      message: `Mã OTP đã được gửi về số điện thoại ${localPhone}`,
+      ...(env.nodeEnv === 'development' ? { devOtpCode: otpCode } : {}),
+    };
+  }
+
+  /**
+   * Xác thực mã OTP số điện thoại
+   */
+  public async verifyPhoneOtp(
+    phone: string,
+    otpCode: string
+  ): Promise<{ verified: boolean; phone: string; message: string }> {
+    const formattedPhone = formatPhoneNumberE164(phone);
+    const localPhone = formatPhoneNumberForVietnam(phone);
+    const phoneVariants = [formattedPhone, localPhone];
+
+    // Kiểm tra xem số điện thoại đã xác minh trước đó hay chưa
+    const alreadyVerifiedUser = await User.findOne({
+      phone: { $in: phoneVariants },
+      isPhoneVerified: true,
+    });
+    const alreadyVerifiedOtp = await OtpRequest.findOne({
+      identifier: { $in: phoneVariants },
+      purpose: 'phone_verification',
+      is_used: true,
+    });
+
+    if (alreadyVerifiedUser || alreadyVerifiedOtp) {
+      throw new AppError(
+        400,
+        'PHONE_ALREADY_VERIFIED',
+        'Số điện thoại này đã được xác minh thành công trước đó.'
+      );
+    }
+
+    const otpRecord = await OtpRequest.findOneAndUpdate(
+      {
+        identifier: { $in: phoneVariants },
+        otp_code: otpCode,
+        purpose: 'phone_verification',
+        is_used: false,
+        expires_at: { $gt: new Date() },
+      },
+      {
+        $set: {
+          is_used: true,
+          // Bỏ purgeAt để giữ lại vĩnh viễn mốc đã xác minh thành công, ngăn gửi lại mã trong tương lai
+          purgeAt: null,
+        },
+      }
+    );
+
+    if (!otpRecord) {
+      throw new AppError(400, 'INVALID_OTP', 'Mã OTP không chính xác hoặc đã hết hạn.');
+    }
+
+    // Đánh dấu số điện thoại đã xác minh cho User nếu tài khoản đã tồn tại
+    await User.updateMany(
+      { phone: { $in: phoneVariants } },
+      { $set: { isPhoneVerified: true } }
+    );
+
+    return {
+      verified: true,
+      phone: localPhone,
+      message: 'Xác minh số điện thoại thành công!',
     };
   }
 }

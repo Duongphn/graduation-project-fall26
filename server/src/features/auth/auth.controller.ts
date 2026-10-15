@@ -18,6 +18,8 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   logoutSchema,
+  sendPhoneOtpSchema,
+  verifyPhoneOtpSchema,
 } from './auth.validation.js';
 
 export class AuthController {
@@ -426,6 +428,57 @@ export class AuthController {
         success: true,
         statusCode: 200,
         message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/phone/send-otp
+   * Gửi mã OTP xác minh số điện thoại qua SMS (Twilio)
+   */
+  public sendPhoneOtp = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = sendPhoneOtpSchema.parse(req.body);
+      const result = await this.authService.sendPhoneOtp(validated.phone);
+
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/phone/verify-otp
+   * Xác thực mã OTP gửi về số điện thoại
+   */
+  public verifyPhoneOtp = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const validated = verifyPhoneOtpSchema.parse(req.body);
+      const result = await this.authService.verifyPhoneOtp(
+        validated.phone,
+        validated.otpCode
+      );
+
+      res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message: result.message,
+        data: result,
       });
     } catch (error) {
       next(error);

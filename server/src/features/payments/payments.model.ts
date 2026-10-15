@@ -21,4 +21,19 @@ paymentSchema.index(
 paymentSchema.index({ userId: 1, createdAt: -1 }, { name: 'user_payments' });
 paymentSchema.index({ expiresAt: 1 }, { partialFilterExpression: { status: 'pending' }, name: 'pending_expiry' });
 
-export default mongoose.model('Payment', paymentSchema);
+export interface IPayment {
+  code: string;
+  userId: mongoose.Types.ObjectId;
+  orderType: string;
+  orderId: mongoose.Types.ObjectId;
+  amount: number;
+  gateway: string;
+  gatewayTransactionNo?: string;
+  status: 'pending' | 'completed' | 'cancelled';
+  expiresAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export const Payment = mongoose.model('Payment', paymentSchema);
+export default Payment;

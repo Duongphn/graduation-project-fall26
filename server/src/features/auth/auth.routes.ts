@@ -31,5 +31,9 @@ authRouter.post('/auth/reset-password', controller.resetPassword);
 authRouter.post('/auth/refresh-token', controller.refreshToken);
 authRouter.post('/auth/logout', controller.logout);
 
+// 5. Xác minh số điện thoại qua tin nhắn SMS OTP (Twilio)
+authRouter.post('/auth/phone/send-otp', controller.sendPhoneOtp);
+authRouter.post('/auth/phone/verify-otp', controller.verifyPhoneOtp);
+
 // Endpoint test nhanh tiện lợi cho Thunder Client / Postman (chỉ chạy ở dev)
 authRouter.post('/auth/dev-test-otp', controller.devTestOtp);

@@ -39,4 +39,18 @@ export const env = Object.freeze({
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? '',
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
+
+  // Twilio SMS
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? '',
+  twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER ?? '',
+
+  // eSMS Việt Nam
+  esmsApiKey: process.env.ESMS_API_KEY ?? '',
+  esmsSecretKey: process.env.ESMS_SECRET_KEY ?? '',
+
+  // PayOS Payment Gateway
+  payosClientId: process.env.PAYOS_CLIENT_ID ?? '',
+  payosApiKey: process.env.PAYOS_API_KEY ?? '',
+  payosChecksumKey: process.env.PAYOS_CHECKSUM_KEY ?? '',
 });
