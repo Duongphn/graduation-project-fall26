@@ -1,6 +1,19 @@
 import mongoose, { Schema } from 'mongoose';
 
-const otpRequestSchema = new Schema({
+export interface IOtpRequest {
+  phone?: string;
+  identifier: string;
+  otp_code: string;
+  purpose: string;
+  is_used: boolean;
+  expires_at: Date;
+  purgeAt?: Date;
+  payload?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const otpRequestSchema = new Schema<IOtpRequest>({
     phone: { type: String },
     identifier: { type: String, required: true },
     otp_code: { type: String, required: true },
@@ -20,5 +33,7 @@ otpRequestSchema.index(
 );
 otpRequestSchema.index({ purgeAt: 1 }, { expireAfterSeconds: 0, name: 'purge_ttl' });
 
-export const OtpRequest = (mongoose.models.OtpRequest as mongoose.Model<any>) || mongoose.model('OtpRequest', otpRequestSchema);
+export const OtpRequest: mongoose.Model<IOtpRequest> =
+  (mongoose.models.OtpRequest as mongoose.Model<IOtpRequest>) ||
+  mongoose.model<IOtpRequest>('OtpRequest', otpRequestSchema);
 export default OtpRequest;

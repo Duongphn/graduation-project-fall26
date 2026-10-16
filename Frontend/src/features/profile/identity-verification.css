@@ -1,0 +1,450 @@
+/*
+ * Trang Xác minh danh tính: thanh 3 bước, form 3 mục có ô tick, cột hướng dẫn chụp ảnh.
+ * Dùng chung bảng màu `tf-*`; xanh lá (secondary) chỉ để báo "đã xong".
+ */
+@layer components {
+  .verify-layout {
+    @apply grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_20rem] xl:gap-6;
+  }
+
+  .verify-guide {
+    @apply grid min-w-0 grid-cols-1 items-start gap-5 md:grid-cols-2 xl:sticky xl:top-6 xl:grid-cols-1;
+  }
+
+  /* ---------- Thanh 3 bước: dọc trên mobile, ngang từ sm ---------- */
+  .verify-stepper {
+    @apply grid grid-cols-1 gap-3 rounded-xl border border-tf-surface bg-white p-4 sm:grid-cols-3 sm:gap-4 sm:p-5;
+  }
+
+  .verify-stepper__item {
+    @apply relative flex min-w-0 items-start gap-3 sm:flex-col sm:gap-2;
+  }
+
+  /* Đường nối từ chấm của bước này sang bước sau (chỉ trên màn ngang) */
+  .verify-stepper__item:not(:last-child)::after {
+    @apply absolute top-3.5 right-2 left-10 hidden h-px bg-tf-surface-high content-[''] sm:block;
+  }
+
+  /* Bước đã xong: chấm xám-navy + đường nối navy, nhường màu đậm cho bước hiện tại */
+  .verify-stepper__item.is-done:not(:last-child)::after {
+    @apply bg-tf-primary/45;
+  }
+
+  .verify-stepper__dot {
+    @apply relative flex size-7 shrink-0 items-center justify-center rounded-full border border-tf-outline bg-white text-xs font-semibold text-tf-ink-muted tabular-nums;
+  }
+
+  .verify-stepper__dot svg {
+    @apply size-3.5 stroke-[2.5];
+  }
+
+  .verify-stepper__item.is-current .verify-stepper__dot {
+    @apply border-tf-primary bg-tf-primary text-white;
+  }
+
+  .verify-stepper__item.is-done .verify-stepper__dot {
+    @apply border-tf-primary/25 bg-tf-primary-fixed text-tf-primary;
+  }
+
+  .verify-stepper__text {
+    @apply flex min-w-0 flex-col pt-0.5 sm:pt-0;
+  }
+
+  .verify-stepper__title {
+    @apply text-sm font-semibold text-tf-ink-muted;
+  }
+
+  .verify-stepper__item.is-current .verify-stepper__title,
+  .verify-stepper__item.is-done .verify-stepper__title {
+    @apply text-tf-ink;
+  }
+
+  .verify-stepper__hint {
+    @apply text-xs leading-4 text-tf-ink-muted;
+  }
+
+  /* ---------- Form ---------- */
+  .verify-form {
+    @apply gap-0 p-0 sm:p-0;
+  }
+
+  .verify-form__title {
+    @apply border-b border-tf-surface px-5 py-4 text-base font-semibold tracking-[-0.01em] text-tf-ink sm:px-6;
+  }
+
+  .verify-form > .profile-hero__note {
+    @apply mx-5 mt-5 sm:mx-6;
+  }
+
+  .verify-form__narrow {
+    @apply sm:max-w-sm;
+  }
+
+  .verify-step {
+    @apply flex gap-3 border-b border-tf-surface px-5 py-5 sm:gap-4 sm:px-6;
+  }
+
+  .verify-step__check {
+    @apply mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border border-tf-outline bg-white text-transparent transition-[background-color,border-color,color] duration-300 ease-out-quint;
+  }
+
+  .verify-step__check svg {
+    @apply size-3.5 scale-50 stroke-[3] transition-transform duration-300 ease-out-quint;
+  }
+
+  .verify-step__check.is-done {
+    @apply border-tf-secondary bg-tf-secondary text-white;
+  }
+
+  .verify-step__check.is-done svg {
+    @apply scale-100;
+  }
+
+  .verify-step__body {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+
+  .verify-step__title {
+    @apply text-[15px] leading-6 font-semibold text-tf-ink;
+  }
+
+  .verify-step__desc {
+    @apply text-[13px] leading-5 text-tf-ink-muted;
+  }
+
+  .verify-step__content {
+    @apply mt-4 flex flex-col gap-4;
+  }
+
+  .verify-input-icon {
+    @apply relative;
+  }
+
+  .verify-input-icon > svg {
+    @apply pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-tf-ink-muted;
+  }
+
+  .verify-input-icon .tf-input {
+    @apply pl-10;
+  }
+
+  /* ---------- Ô ảnh ---------- */
+  .id-slot-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+  }
+
+  .id-slot__picked {
+    @apply flex items-center gap-1 text-xs font-medium text-tf-secondary;
+  }
+
+  .id-slot__picked svg {
+    @apply size-3.5;
+  }
+
+  .id-slot {
+    @apply relative flex aspect-[16/10] cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-tf-outline bg-tf-surface-low transition-[border-color,background-color] duration-300 ease-out-quint hover:border-tf-primary hover:bg-white;
+  }
+
+  .id-slot--portrait {
+    @apply aspect-[4/3];
+  }
+
+  /* Ảnh đã chọn nằm trên nền tối để thẻ sáng nổi rõ, như khung máy ảnh */
+  .id-slot--filled {
+    @apply cursor-default border-solid border-tf-surface bg-tf-primary hover:border-tf-surface hover:bg-tf-primary;
+  }
+
+  .peer:focus-visible + .id-slot {
+    @apply border-tf-primary shadow-[0_0_0_3px_rgb(20_40_75/0.12)];
+  }
+
+  .id-slot.is-invalid {
+    @apply border-tf-error;
+  }
+
+  .id-slot.is-disabled {
+    @apply pointer-events-none opacity-60;
+  }
+
+  .id-slot__empty {
+    @apply flex flex-col items-center gap-1 px-4 text-center;
+  }
+
+  .id-slot__empty svg {
+    @apply mb-1 size-6 stroke-[1.5] text-tf-primary transition-transform duration-300 ease-out-quint;
+  }
+
+  .id-slot:hover .id-slot__empty svg {
+    @apply -translate-y-0.5;
+  }
+
+  .id-slot__title {
+    @apply text-sm font-medium text-tf-ink;
+  }
+
+  .id-slot__hint {
+    @apply text-xs leading-4 text-tf-ink-muted;
+  }
+
+  .id-slot__image {
+    @apply size-full object-contain transition-transform duration-500 ease-out-quint;
+  }
+
+  .id-slot--filled:hover .id-slot__image {
+    @apply scale-[1.04];
+  }
+
+  .id-slot__tools {
+    @apply absolute right-2 bottom-2 flex items-center gap-1.5;
+  }
+
+  .id-slot__tool {
+    @apply flex h-7 cursor-pointer items-center gap-1 rounded-md bg-white/95 px-2 text-xs font-medium text-tf-ink transition-[background-color,color] duration-200 ease-out-quint hover:text-tf-primary focus-ring;
+  }
+
+  .id-slot__tool svg {
+    @apply size-3.5;
+  }
+
+  .id-slot__tool.is-disabled {
+    @apply pointer-events-none opacity-60;
+  }
+
+  .id-slot__tool--remove {
+    @apply w-7 justify-center px-0 text-tf-error hover:bg-tf-error hover:text-white disabled:opacity-60;
+  }
+
+  .verify-selfie-tips {
+    @apply flex flex-col justify-center gap-3 rounded-lg bg-tf-surface-low p-4 text-[13px] leading-5 text-tf-ink sm:mt-7;
+  }
+
+  .verify-selfie-tips li {
+    @apply flex items-start gap-2;
+  }
+
+  .verify-selfie-tips svg {
+    @apply mt-0.5 size-4 shrink-0 text-tf-secondary;
+  }
+
+  /* ---------- Xác nhận + chân form ---------- */
+  .verify-consent {
+    @apply flex flex-col gap-1.5 px-5 pt-5 sm:px-6;
+  }
+
+  .verify-consent__label {
+    @apply flex cursor-pointer items-start gap-3 text-sm leading-6 text-tf-ink;
+  }
+
+  .verify-consent__box {
+    @apply mt-1 size-4 shrink-0 cursor-pointer accent-tf-primary focus-ring;
+  }
+
+  .verify-form > .publish-error {
+    @apply mx-5 mt-4 sm:mx-6;
+  }
+
+  .verify-form__footer {
+    @apply flex flex-col-reverse items-stretch gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6;
+  }
+
+  .verify-form__progress {
+    @apply flex items-center justify-center gap-1.5 text-xs text-tf-ink-muted sm:justify-start;
+  }
+
+  .verify-form__progress svg {
+    @apply size-4 text-tf-secondary;
+  }
+
+  /* ---------- Cột hướng dẫn ---------- */
+  .verify-tips {
+    @apply flex flex-col gap-1;
+  }
+
+  .verify-tips__item {
+    @apply flex items-start gap-3 rounded-lg p-2 transition-colors duration-200 ease-out-quint hover:bg-tf-surface-low;
+  }
+
+  .verify-tips__icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-md bg-tf-primary-fixed text-tf-primary;
+  }
+
+  .verify-tips__icon svg {
+    @apply size-4 stroke-[1.75];
+  }
+
+  .verify-tips__title {
+    @apply block text-sm font-medium text-tf-ink;
+  }
+
+  .verify-tips__hint {
+    @apply block text-xs leading-4 text-tf-ink-muted;
+  }
+
+  .verify-examples {
+    @apply grid grid-cols-3 gap-2;
+  }
+
+  .verify-example {
+    @apply flex min-w-0 flex-col items-center gap-1.5;
+  }
+
+  .verify-example__frame {
+    @apply flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-md border bg-tf-surface-low p-1.5;
+  }
+
+  .verify-example.is-ok .verify-example__frame {
+    @apply border-tf-secondary;
+  }
+
+  .verify-example.is-bad .verify-example__frame {
+    @apply border-tf-surface;
+  }
+
+  .verify-example__card {
+    @apply relative block aspect-[16/10] w-full overflow-hidden rounded-sm border border-tf-outline bg-white;
+  }
+
+  .verify-example__frame--blurry .verify-example__card {
+    @apply blur-[1.5px];
+  }
+
+  .verify-example__frame--cropped .verify-example__card {
+    @apply translate-x-[38%] -rotate-6;
+  }
+
+  .verify-example__band {
+    @apply absolute inset-x-0 top-0 block h-1/5 bg-tf-primary;
+  }
+
+  .verify-example__photo {
+    @apply absolute top-[32%] left-[8%] block h-[50%] w-[24%] rounded-[2px] bg-tf-primary-fixed;
+  }
+
+  .verify-example__lines {
+    @apply absolute top-[36%] right-[8%] left-[40%] block h-[40%] bg-[repeating-linear-gradient(to_bottom,var(--color-tf-outline)_0_2px,transparent_2px_6px)];
+  }
+
+  .verify-example__label {
+    @apply text-[11px] font-medium;
+  }
+
+  .verify-example.is-ok .verify-example__label {
+    @apply text-tf-secondary;
+  }
+
+  .verify-example.is-bad .verify-example__label {
+    @apply text-tf-error;
+  }
+
+  .verify-privacy__title {
+    @apply flex items-center gap-2 text-sm font-semibold text-tf-ink;
+  }
+
+  .verify-privacy__title svg {
+    @apply size-4 text-tf-accent;
+  }
+
+  .verify-privacy__text {
+    @apply text-[13px] leading-5 text-tf-ink-muted;
+  }
+
+  /* ---------- Thanh tiến trình: biến thể nằm trong thẻ + bước bị từ chối ---------- */
+  .verify-stepper--embedded {
+    @apply border-0 bg-tf-surface-low/70;
+  }
+
+  .verify-stepper__item.is-failed .verify-stepper__dot {
+    @apply border-tf-error bg-tf-error text-white;
+  }
+
+  .verify-stepper__item.is-failed .verify-stepper__title,
+  .verify-stepper__item.is-failed .verify-stepper__hint {
+    @apply text-tf-error;
+  }
+
+  /* Đoạn nối dẫn tới bước bị từ chối chuyển đỏ */
+  .verify-stepper__item.is-done:not(:last-child):has(+ .is-failed)::after {
+    @apply bg-tf-error/50;
+  }
+
+  /* ---------- Thẻ kết quả lần nộp gần nhất ---------- */
+  .verify-status {
+    @apply gap-5;
+  }
+
+  .verify-status__head {
+    @apply flex items-start gap-4;
+  }
+
+  .verify-status__icon {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-lg;
+  }
+
+  .verify-status__icon svg {
+    @apply size-6 stroke-[1.75];
+  }
+
+  .verify-status--pending .verify-status__icon {
+    @apply bg-tf-tertiary-fixed text-tf-tertiary;
+  }
+
+  .verify-status--verified .verify-status__icon {
+    @apply bg-tf-secondary-container text-tf-secondary;
+  }
+
+  .verify-status--rejected .verify-status__icon {
+    @apply bg-tf-error-container text-tf-error;
+  }
+
+  .verify-status__title-row {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1;
+  }
+
+  .verify-status__title {
+    @apply text-lg leading-7 font-semibold tracking-[-0.01em] text-tf-ink;
+  }
+
+  .verify-status__summary {
+    @apply mt-1 text-sm leading-6 text-tf-ink-muted;
+  }
+
+  .verify-status__summary strong {
+    @apply font-semibold text-tf-ink tabular-nums;
+  }
+
+  .verify-status__actions {
+    @apply flex justify-end;
+  }
+
+  .verify-reason {
+    @apply flex flex-col gap-4 rounded-lg border border-tf-error/25 bg-tf-error-container/50 p-4 sm:p-5 md:flex-row md:items-start md:justify-between;
+  }
+
+  .verify-reason__body {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .verify-reason__title {
+    @apply flex items-center gap-2 text-[15px] font-semibold text-tf-ink;
+  }
+
+  .verify-reason__title svg {
+    @apply size-[18px] shrink-0 text-tf-error;
+  }
+
+  .verify-reason__text {
+    @apply text-sm leading-6 break-words text-tf-ink md:pl-[26px];
+  }
+
+  .verify-reason__hint {
+    @apply text-xs leading-5 text-tf-ink-muted md:pl-[26px];
+  }
+
+  .verify-reason__action {
+    @apply shrink-0 self-stretch md:self-start;
+  }
+
+  .verify-reason__action:hover:not(:disabled) svg {
+    @apply rotate-90 translate-y-0;
+  }
+}

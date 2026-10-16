@@ -40,6 +40,12 @@ interface SidebarItem {
 
 /** Menu chung của mọi trang tài khoản — thêm `to` khi trang tương ứng được xây */
 const SIDEBAR_ITEMS: SidebarItem[] = [
+  {
+    key: "profile",
+    label: "Hồ sơ của tôi",
+    icon: CircleUserRound,
+    to: PATHS.profile,
+  },
   { key: "profile", label: "Hồ sơ của tôi", icon: CircleUserRound },
   { key: "browse", label: "Tìm đồ chơi", icon: Search, to: PATHS.toys },
   // Chờ API quyên góp (server/src/features/donation_requests)
@@ -59,6 +65,9 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 
 export function SidebarBrand() {
   return (
+    <Link to={PATHS.home} className="app-sidebar-brand">
+      <span className="app-sidebar-brand__mark">T</span>
+      <span className="app-sidebar-brand__name">ToyFlow</span>
     <Link to={PATHS.home} className="app-sidebar-brand" aria-label="ToyFlow - Trang chủ">
       <img src={brandMark} alt="" className="app-sidebar-brand__mark" width={226} height={160} />
       <span className="app-sidebar-brand__text">
@@ -107,7 +116,7 @@ interface AppSidebarProps {
   activeKey: SidebarItemKey;
 }
 
-/** Sidebar "Cổng phụ huynh" cố định bên trái, chỉ hiện từ màn hình lg trở lên */
+/** Sidebar tài khoản cố định bên trái, chỉ hiện từ màn hình lg trở lên */
 export function AppSidebar({ activeKey }: AppSidebarProps) {
   return (
     <aside className="app-sidebar">

@@ -116,15 +116,13 @@
     @apply -rotate-6;
   }
 
+  .app-sidebar-brand__name {
+    @apply text-lg leading-none font-bold tracking-[-0.02em] text-tf-primary;
   .app-sidebar-brand__text {
     @apply flex flex-col;
   }
 
   .app-sidebar-brand__wordmark {
     @apply h-5 w-auto;
-  }
-
-  .app-sidebar-brand__tagline {
-    @apply mt-1 text-[11px] leading-4 font-medium tracking-[0.08em] text-tf-accent uppercase;
   }
 }

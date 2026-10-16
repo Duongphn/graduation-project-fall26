@@ -1,8 +1,10 @@
 import 'express';
 
+export type RequestActorType = 'USER' | 'ADMIN';
+
 export interface RequestActor {
   userId: string;
-  actorType: 'USER';
+  actorType: RequestActorType;
 }
 
 declare global {

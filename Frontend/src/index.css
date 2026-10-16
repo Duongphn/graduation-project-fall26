@@ -7,6 +7,8 @@
 @import './layouts/account/account-layout.css';
 @import './features/toy-listings/toy-listing.css';
 @import './features/toy-listings/my-listings.css';
+@import './features/profile/profile.css';
+@import './features/profile/identity-verification.css';
 @import './layouts/public/public-layout.css';
 @import './features/toy-catalog/toy-catalog.css';
 @import './features/toy-catalog/toy-search.css';
