@@ -8,6 +8,8 @@ export const PATHS = {
   myListings: '/listings',
   newListing: '/listings/new',
   editListing: '/listings/:toyId/edit',
+  toys: '/toys',
+  toyDetail: '/toys/:toyId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   toyDetail: '/toys/:toyId',

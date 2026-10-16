@@ -13,6 +13,7 @@ import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { PATHS } from '../routes/paths'
+import { saveSession } from '../services/token-storage'
 import { getApiErrorMessage } from '../services/http-client'
 import { saveAuthTokens } from '../services/token-storage'
 import { maskEmail } from '../utils/mask-contact'
@@ -102,6 +103,12 @@ export function LoginPage() {
         </p>
       </header>
 
+      <LoginForm
+        onSuccess={(session, rememberMe) => {
+          saveSession(session, rememberMe)
+          navigate(redirectTo, { replace: true })
+        }}
+      />
       {googleTempToken ? (
         <OtpVerificationForm
           destination={maskEmail(googleEmail)}

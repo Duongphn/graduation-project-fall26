@@ -1,0 +1,44 @@
+{
+  "name": "toys_search",
+  "searchAnalyzer": "lucene.standard",
+  "analyzer": "lucene.standard",
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "title": {
+        "type": "string",
+        "analyzer": "lucene.standard"
+      },
+      "description": {
+        "type": "string",
+        "analyzer": "lucene.standard"
+      },
+      "status": {
+        "type": "token"
+      },
+      "listingType": {
+        "type": "token"
+      },
+      "categoryId": {
+        "type": "objectId"
+      },
+      "ageRange": {
+        "type": "document",
+        "fields": {
+          "minAge": {
+            "type": "number"
+          },
+          "maxAge": {
+            "type": "number"
+          }
+        }
+      },
+      "priceOrRate": {
+        "type": "number"
+      },
+      "location": {
+        "type": "geo"
+      }
+    }
+  }
+}

@@ -12,6 +12,12 @@ import {
   type ToyListingDependencies,
 } from './toy-listing-dependencies.js';
 
+export interface ApiRouterDependencies {
+  toyListingDependencies?: ToyListingDependencies;
+  toyCatalogDependencies?: ToyCatalogDependencies;
+}
+
+export function createApiRouter(deps?: ApiRouterDependencies): Router {
 export function createApiRouter(deps?: {
   toyListingDependencies?: ToyListingDependencies;
   toyCatalogDependencies?: ToyCatalogDependencies;
@@ -28,7 +34,10 @@ export function createApiRouter(deps?: {
   router.use('/toys', toyCatalog.router);
 
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
+  const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
+
   router.use('/toys', toyListing.router);
+  router.use('/toys', toyCatalog.router);
 
   return router;
 }
