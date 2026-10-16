@@ -1,0 +1,95 @@
+/*
+ * Robot trợ lý Robo (components/robot-mascot.tsx): hiệu ứng thở / nhún nhảy / chớp mắt / đèn ăng-ten.
+ * Dùng trong thẻ "Hỏi AI tư vấn" trên trang chủ.
+ */
+@layer components {
+  /* ---------- Robot SVG (robot-mascot.tsx) ---------- */
+  .robot__body {
+    transform-box: fill-box;
+    transform-origin: 50% 90%;
+  }
+
+  .robot--sleeping .robot__body {
+    animation: robot-breathe 3.2s ease-in-out infinite;
+  }
+
+  .robot--happy .robot__body {
+    animation: robot-bounce 0.9s var(--ease-out-quint);
+  }
+
+  .robot--awake .robot__eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robot-blink 4s infinite;
+  }
+
+  .robot__antenna {
+    fill: #fbbf24;
+  }
+
+  .robot--sleeping .robot__antenna {
+    fill: #64748b;
+  }
+
+  .robot--happy .robot__antenna {
+    animation: robot-glow 0.6s ease-in-out 2;
+  }
+
+  .robot__cheek {
+    fill: #fda4af;
+    opacity: 0.75;
+  }
+
+  .robot--sleeping .robot__cheek {
+    opacity: 0;
+  }
+}
+
+@keyframes robot-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(1.5px) scale(0.96, 0.98);
+  }
+}
+
+@keyframes robot-bounce {
+  0% {
+    transform: translateY(0) rotate(0);
+  }
+  30% {
+    transform: translateY(-9px) rotate(-7deg);
+  }
+  55% {
+    transform: translateY(0) rotate(5deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(-2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+}
+
+@keyframes robot-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes robot-glow {
+  0%,
+  100% {
+    filter: none;
+  }
+  50% {
+    filter: drop-shadow(0 0 4px #fde68a) brightness(1.3);
+  }
+}

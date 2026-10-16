@@ -10,13 +10,11 @@ export function createToyListingRouter(
 ): Router {
   const router = Router();
 
-  router.use(requireActor);
-
-  router.post('/', toyImageUpload, controller.create);
-  router.get('/mine', controller.listMine);
-  router.patch('/:toyId', toyImageUpload, controller.update);
-  router.post('/:toyId/hide', controller.hide);
-  router.delete('/:toyId', controller.delete);
+  router.post('/', requireActor, toyImageUpload, controller.create);
+  router.get('/mine', requireActor, controller.listMine);
+  router.patch('/:toyId', requireActor, toyImageUpload, controller.update);
+  router.post('/:toyId/hide', requireActor, controller.hide);
+  router.delete('/:toyId', requireActor, controller.delete);
 
   return router;
 }

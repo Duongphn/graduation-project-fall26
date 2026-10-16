@@ -1,8 +1,10 @@
 import type { RequestAuth } from '../middleware/auth-placeholder.js';
 
+export type RequestActorType = 'USER' | 'ADMIN';
+
 export interface RequestActor {
   userId: string;
-  actorType: 'USER';
+  actorType: RequestActorType;
 }
 
 // `request.auth` is declared once, in shared/middleware/auth-placeholder.ts ({ userId, role }).

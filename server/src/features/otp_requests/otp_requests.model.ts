@@ -1,6 +1,30 @@
 import { Schema, model, type InferSchemaType } from 'mongoose';
 
 import { otpPurposes } from '../../shared/domain/enums.js';
+export interface IOtpRequest {
+  phone?: string;
+  identifier: string;
+  otp_code: string;
+  purpose: string;
+  is_used: boolean;
+  expires_at: Date;
+  purgeAt?: Date;
+  payload?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const otpRequestSchema = new Schema<IOtpRequest>({
+    phone: { type: String },
+    identifier: { type: String, required: true },
+    otp_code: { type: String, required: true },
+    purpose: { type: String, required: true },
+    is_used: { type: Boolean, required: true, default: false },
+    expires_at: { type: Date, required: true },
+    purgeAt: { type: Date }, // Dùng cho TTL index tự động xóa
+    // Dữ liệu chờ xác minh đi kèm OTP, vd: thông tin đăng ký (họ tên, SĐT, passwordHash) chỉ tạo User sau khi nhập đúng mã
+    payload: { type: Schema.Types.Mixed }
+}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 
 export const OTP_MAX_ATTEMPTS = 5;
 
@@ -36,3 +60,7 @@ otpRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 86_400, name: 'pu
 
 export type OtpRequest = InferSchemaType<typeof otpRequestSchema>;
 export const OtpRequestModel = model('OtpRequest', otpRequestSchema);
+export const OtpRequest: mongoose.Model<IOtpRequest> =
+  (mongoose.models.OtpRequest as mongoose.Model<IOtpRequest>) ||
+  mongoose.model<IOtpRequest>('OtpRequest', otpRequestSchema);
+export default OtpRequest;

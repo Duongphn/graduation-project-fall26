@@ -13,6 +13,8 @@ import { OtpVerificationForm } from '../features/auth/components/otp-verificatio
 import { RegisterForm } from '../features/auth/components/register-form'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { PATHS } from '../routes/paths'
+import { saveSession } from '../services/token-storage'
+import { maskPhone } from '../utils/mask-contact'
 import { maskEmail } from '../utils/mask-contact'
 import type { LoginPageState } from './login-page'
 
@@ -56,6 +58,11 @@ export function RegisterPage() {
         <OtpVerificationForm
           destination={maskEmail(challenge.email)}
           resendAfterSeconds={challenge.resendAfterSeconds}
+          verify={(otp) => verifyRegistrationOtp({ phone: challenge.phone, otp })}
+          resend={() => resendRegistrationOtp(challenge.phone)}
+          onVerified={(session) => {
+            saveSession(session, true)
+            navigate(PATHS.home, { replace: true })
           verify={(otp) => verifyRegistrationOtp({ email: challenge.email, otpCode: otp })}
           resend={() => resendRegistrationOtp(challenge.email)}
           onVerified={() => {
