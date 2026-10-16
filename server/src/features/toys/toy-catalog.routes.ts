@@ -12,6 +12,9 @@ export function createToyCatalogRouter(
 ): Router {
   const router = Router();
 
+  router.get('/', controller.search);
+  router.get('/:toyId/availability', controller.getAvailability);
+  router.get('/:toyId', controller.getDetail);
   router.get('/', controller.list);
 
   return router;

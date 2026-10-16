@@ -1,10 +1,13 @@
 import {
   CircleUserRound,
+  HandHeart,
   Heart,
   KeyRound,
+  LogIn,
   LogOut,
   Package,
   ReceiptText,
+  Search,
   Star,
   Wallet,
   type LucideIcon,
@@ -13,9 +16,12 @@ import { Link, useNavigate } from "react-router-dom";
 import brandMark from "../../assets/brand/toyflow-mark.png";
 import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
+import { clearAccessToken, getAccessToken } from "../../services/token-storage";
 import { clearAuthTokens } from "../../services/token-storage";
 
 export type SidebarItemKey =
+  | "browse"
+  | "donations"
   | "profile"
   | "listings"
   | "rentals"
@@ -40,6 +46,10 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: CircleUserRound,
     to: PATHS.profile,
   },
+  { key: "profile", label: "Hồ sơ của tôi", icon: CircleUserRound },
+  { key: "browse", label: "Tìm đồ chơi", icon: Search, to: PATHS.toys },
+  // Chờ API quyên góp (server/src/features/donation_requests)
+  { key: "donations", label: "Quyên góp", icon: HandHeart },
   {
     key: "listings",
     label: "Tin đăng của tôi",
@@ -87,6 +97,21 @@ export function LogoutButton() {
   );
 }
 
+/** Trang công khai (vd. Tìm đồ chơi) cũng dùng khung này: khách chưa đăng nhập thấy nút Đăng nhập */
+export function SessionButton() {
+  if (getAccessToken()) return <LogoutButton />;
+
+  return (
+    <Link
+      to={PATHS.login}
+      className="app-sidebar__item app-sidebar__item--login"
+    >
+      <LogIn aria-hidden />
+      <span>Đăng nhập</span>
+    </Link>
+  );
+}
+
 interface AppSidebarProps {
   activeKey: SidebarItemKey;
 }
@@ -126,7 +151,7 @@ export function AppSidebar({ activeKey }: AppSidebarProps) {
           })}
         </nav>
       </div>
-      <LogoutButton />
+      <SessionButton />
     </aside>
   );
 }

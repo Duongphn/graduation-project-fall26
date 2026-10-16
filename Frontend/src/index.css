@@ -9,6 +9,10 @@
 @import './features/toy-listings/my-listings.css';
 @import './features/profile/profile.css';
 @import './features/profile/identity-verification.css';
+@import './layouts/public/public-layout.css';
+@import './features/toy-catalog/toy-catalog.css';
+@import './features/toy-catalog/toy-search.css';
+@import './features/toy-catalog/toy-detail.css';
 @import './layouts/site/site-layout.css';
 @import './features/home/home.css';
 @import './features/ai-chat/ai-chat.css';
@@ -19,6 +23,8 @@
 @theme {
   /* Be Vietnam Pro: thiết kế riêng cho tiếng Việt — dấu thanh không chồng lên nhau, không lệch dòng */
   --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif;
+  /* Playfair Display: serif tương phản cao cho tiêu đề, có bộ glyph tiếng Việt đầy đủ */
+  --font-display: 'Playfair Display', ui-serif, Georgia, serif;
 
   --color-brand-navy: #152152;
   --color-brand-button: #24338a;

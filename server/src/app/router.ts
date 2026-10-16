@@ -22,6 +22,12 @@ export interface CreateApiRouterDependencies {
 }
 
 export function createApiRouter(deps?: CreateApiRouterDependencies): Router {
+export interface ApiRouterDependencies {
+  toyListingDependencies?: ToyListingDependencies;
+  toyCatalogDependencies?: ToyCatalogDependencies;
+}
+
+export function createApiRouter(deps?: ApiRouterDependencies): Router {
 export function createApiRouter(deps?: {
   toyListingDependencies?: ToyListingDependencies;
   toyCatalogDependencies?: ToyCatalogDependencies;
@@ -38,7 +44,10 @@ export function createApiRouter(deps?: {
   router.use('/toys', toyCatalog.router);
 
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
+  const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
+
   router.use('/toys', toyListing.router);
+  router.use('/toys', toyCatalog.router);
 
   const uc03 = deps?.uc03Dependencies ?? createUC03Dependencies();
   router.use('/users', authenticate, uc03.usersRouter);
