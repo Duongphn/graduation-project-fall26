@@ -1,7 +1,7 @@
-import { getApiErrorCode, getApiErrorMessage, httpClient } from '../../services/http-client'
+import { getApiErrorCode, getApiErrorMessage, httpClient, type ApiResponse } from '../../services/http-client'
 import type { ListingFormValues } from './toy-listing-schema'
 
-/** Các endpoint /toys và /categories trả JSON thô (chưa bọc envelope `{ success, data }`) */
+/** Các endpoint /toys trả JSON thô (chưa bọc envelope `{ success, data }`) */
 
 export type ListingType = 'rent' | 'sell'
 export type ListingStatus = 'pending' | 'active' | 'hidden' | 'sold'
@@ -33,7 +33,6 @@ export interface Category {
   id: string
   name: string
   slug: string
-  parentId: string | null
 }
 
 export interface MyListingsPage {
@@ -44,8 +43,9 @@ export interface MyListingsPage {
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const { data } = await httpClient.get<Category[]>('/categories')
-  return data
+  // GET /categories trả envelope { success, data } (server/docs/api-conventions.md)
+  const { data } = await httpClient.get<ApiResponse<Category[]>>('/categories')
+  return data.data
 }
 
 export async function fetchMyListings(params: { status?: ListingStatus; page: number; limit: number }): Promise<MyListingsPage> {

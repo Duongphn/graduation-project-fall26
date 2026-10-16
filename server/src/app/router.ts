@@ -1,4 +1,18 @@
 import { Router } from 'express';
+
+import { authRouter } from '../features/auth/index.js';
+import { adminCategoriesRouter, categoriesRouter } from '../features/categories/index.js';
+import {
+  adminDonationRequestsRouter,
+  donationRequestsRouter,
+  donorProfileRouter,
+} from '../features/donation_requests/index.js';
+import { healthRouter } from '../features/health/index.js';
+import { notificationsRouter } from '../features/notifications/index.js';
+import { adminIdentityReviewRouter } from '../features/identity_verifications/index.js';
+import { adminOrganizationsRouter, organizationsRouter } from '../features/organizations/index.js';
+import { adminToyModerationRouter } from '../features/toys/index.js';
+import { uploadsRouter } from '../features/uploads/index.js';
 import { authRouter } from '../features/auth/auth.routes.js';
 import { categoriesRouter } from '../features/categories/categories.routes.js';
 import { healthRouter } from '../features/health/health.routes.js';
@@ -35,8 +49,20 @@ export function createApiRouter(deps?: {
   const router = Router();
 
   router.use(healthRouter);
+  // One line per feature: the app mounts each feature router on its prefix.
+  router.use('/admin/categories', adminCategoriesRouter);
+  // The auth router declares its own /auth/* paths.
   router.use(authRouter);
   router.use('/categories', categoriesRouter);
+  router.use('/admin/organizations', adminOrganizationsRouter);
+  router.use('/organizations', organizationsRouter);
+  router.use('/admin/toys', adminToyModerationRouter);
+  router.use('/admin/identity-verifications', adminIdentityReviewRouter);
+  router.use('/notifications', notificationsRouter);
+  router.use('/admin/donation-requests', adminDonationRequestsRouter);
+  router.use('/donation-requests', donationRequestsRouter);
+  router.use('/users', donorProfileRouter);
+  router.use('/uploads', uploadsRouter);
 
   // Thứ tự quan trọng: router công khai (chỉ GET /toys) đứng trước router đăng tin (bắt đăng nhập),
   // để khách xem được danh sách mà /toys/mine, POST, PATCH… vẫn yêu cầu đăng nhập như cũ.

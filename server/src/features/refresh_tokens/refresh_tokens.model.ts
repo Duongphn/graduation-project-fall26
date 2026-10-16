@@ -1,5 +1,8 @@
-import mongoose, { Schema } from 'mongoose';
+import { Schema, model, type InferSchemaType } from 'mongoose';
 
+// One document per login session. Locking an account revokes all of its sessions.
+const refreshTokenSchema = new Schema(
+  {
 export interface IRefreshToken {
   userId: mongoose.Types.ObjectId;
   token: string;
@@ -10,15 +13,19 @@ export interface IRefreshToken {
 
 const refreshTokenSchema = new Schema<IRefreshToken>({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    token: { type: String, required: true, unique: true },
-    expiresAt: { type: Date, required: true }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+    tokenHash: { type: String, required: true, select: false },
+    expiresAt: { type: Date, required: true },
+    revokedAt: { type: Date },
+  },
+  { collection: 'refresh_tokens', timestamps: { createdAt: true, updatedAt: false } },
+);
 
-// Index duy nhất cho token và TTL index tự xóa khi hết hạn
-refreshTokenSchema.index({ token: 1 }, { unique: true, name: 'token_unique' });
-refreshTokenSchema.index({ userId: 1 }, { name: 'by_user' });
-refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, name: 'refresh_token_ttl' });
+refreshTokenSchema.index({ tokenHash: 1 }, { unique: true, name: 'token_hash_unique' });
+refreshTokenSchema.index({ userId: 1 }, { name: 'user_sessions' });
+refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, name: 'expiry_ttl' });
 
+export type RefreshToken = InferSchemaType<typeof refreshTokenSchema>;
+export const RefreshTokenModel = model('RefreshToken', refreshTokenSchema);
 export const RefreshToken: mongoose.Model<IRefreshToken> =
   (mongoose.models.RefreshToken as mongoose.Model<IRefreshToken>) ||
   mongoose.model<IRefreshToken>('RefreshToken', refreshTokenSchema);

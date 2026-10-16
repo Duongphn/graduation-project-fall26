@@ -24,6 +24,7 @@ import { ToySearchPage } from '../pages/toy-search-page'
 import { queryClient } from '../services/query-client'
 import { getAccessToken } from '../services/token-storage'
 import { PATHS } from './paths'
+import { adminRoute } from './router'
 import { RequireAuth } from './require-auth'
 
 // Lỗi vẫn được lưu trong cache query, trang tự đọc và hiển thị (vd. 401 kèm nút đăng nhập)
@@ -149,6 +150,7 @@ export const router = createBrowserRouter([
     element: <ToyDetailPage />,
     HydrateFallback: PageLoadingFallback,
   },
+  adminRoute,
   // Chưa có trang chủ: tạm đưa mọi đường dẫn về trang đăng nhập
   { path: '*', element: <Navigate to={PATHS.login} replace /> },
   // Trang chưa xây (danh sách đồ, chi tiết, quyên góp…) và đường dẫn sai: đưa về trang chủ

@@ -1,10 +1,11 @@
 import type { RequestHandler } from 'express';
 
-export const notFoundHandler: RequestHandler = (_request, response) => {
+export const notFoundHandler: RequestHandler = (request, response) => {
   response.status(404).json({
+    success: false,
     error: {
-      code: 'ROUTE_NOT_FOUND',
-      message: 'The requested route does not exist.',
+      code: 'NOT_FOUND',
+      message: `Không tìm thấy đường dẫn ${request.method} ${request.originalUrl}.`,
     },
   });
 };

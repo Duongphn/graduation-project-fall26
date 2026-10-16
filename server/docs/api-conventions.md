@@ -9,6 +9,7 @@ Tài liệu này quy định các chuẩn giao tiếp HTTP RESTful cho dự án 
 Mọi API trả về thành công đều tuân theo chuẩn envelope với `success: true`.
 
 ### 1.1 Interface TypeScript
+
 ```typescript
 export interface ApiResponse<T> {
   success: true;
@@ -20,6 +21,7 @@ export interface ApiResponse<T> {
 ### 1.2 Ví dụ thực tế
 
 #### Lấy chi tiết 1 tài nguyên (`GET /api/v1/toys/:id`) - `200 OK`:
+
 ```json
 {
   "success": true,
@@ -34,6 +36,7 @@ export interface ApiResponse<T> {
 ```
 
 #### Tạo mới tài nguyên (`POST /api/v1/toys`) - `201 Created`:
+
 ```json
 {
   "success": true,
@@ -45,6 +48,7 @@ export interface ApiResponse<T> {
 ```
 
 #### Hành động không cần trả về dữ liệu - `200 OK`:
+
 ```json
 {
   "success": true,
@@ -60,6 +64,7 @@ export interface ApiResponse<T> {
 Tất cả các lỗi trả về mã HTTP tương ứng (`400`, `401`, `403`, `404`, `409`, `422`, `500`) và tuân thủ envelope:
 
 ### 2.1 Interface TypeScript
+
 ```typescript
 export interface ApiErrorResponse {
   success: false;
@@ -79,6 +84,7 @@ export interface ValidationErrorDetail {
 ### 2.2 Ví dụ thực tế
 
 #### Lỗi xác thực dữ liệu đầu vào (`400 Bad Request` hoặc `422 Unprocessable Content`):
+
 ```json
 {
   "success": false,
@@ -100,6 +106,7 @@ export interface ValidationErrorDetail {
 ```
 
 #### Lỗi nghiệp vụ (`409 Conflict`):
+
 ```json
 {
   "success": false,
@@ -111,6 +118,7 @@ export interface ValidationErrorDetail {
 ```
 
 #### Lỗi không tìm thấy tài nguyên (`404 Not Found`):
+
 ```json
 {
   "success": false,
@@ -122,7 +130,9 @@ export interface ValidationErrorDetail {
 ```
 
 #### Lỗi hệ thống (`500 Internal Server Error`):
-*Tuyệt đối không hiển thị stack trace hay database internals ra ngoài client khi chạy production.*
+
+_Tuyệt đối không hiển thị stack trace hay database internals ra ngoài client khi chạy production._
+
 ```json
 {
   "success": false,
@@ -138,13 +148,16 @@ export interface ValidationErrorDetail {
 ## 3. Chuẩn Phân Trang (Pagination Convention)
 
 ### 3.1 Tham số truy vấn (Query Parameters)
+
 Các endpoint danh sách hỗ trợ phân trang nhận các tham số:
+
 - `page`: Số trang hiện tại (bắt đầu từ `1`, mặc định: `1`).
 - `limit`: Số lượng mục mỗi trang (mặc định: `10`, tối đa: `100`).
 - `sortBy`: Tên trường cần sắp xếp (ví dụ: `createdAt`).
 - `sortOrder`: Hướng sắp xếp (`asc` hoặc `desc`, mặc định: `desc`).
 
 ### 3.2 Cấu trúc phản hồi phân trang
+
 ```typescript
 export interface PaginationMeta {
   page: number;
@@ -163,6 +176,7 @@ export interface PaginatedApiResponse<T> {
 ```
 
 ### 3.3 Ví dụ thực tế (`GET /api/v1/toys?page=1&limit=2`):
+
 ```json
 {
   "success": true,
@@ -194,6 +208,7 @@ export interface PaginatedApiResponse<T> {
 ## 4. Xác Thực Dữ Liệu & Swagger / OpenAPI (Single Source of Truth)
 
 Nhằm tránh việc tài liệu Swagger bị lỗi thời so với mã nguồn thực tế:
+
 1. **Validation Engine:** Sử dụng thư viện `zod` để định nghĩa schema cho `body`, `query`, và `params`.
 2. **OpenAPI Generator:** Sử dụng `@asteasolutions/zod-to-openapi` để tự động suy xuất OpenAPI 3.0+ từ chính các Zod schema.
 3. **Swagger UI:** Tích hợp `swagger-ui-express` để cung cấp giao diện trực quan tại đường dẫn:
@@ -201,6 +216,7 @@ Nhằm tránh việc tài liệu Swagger bị lỗi thời so với mã nguồn 
    - Raw JSON Spec: `/api/docs/json`
 
 ### 4.1 Quy trình mẫu cho một Feature mới:
+
 ```typescript
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
@@ -264,3 +280,52 @@ server/src/
     └── toy-catalog/
         └── schemas/             # Zod validation schemas cho feature
 ```
+
+---
+
+## Phụ lục A. Bảng mã lỗi dùng chung (Shared Error Codes)
+
+Mã lỗi viết `UPPER_SNAKE_CASE`. Quy tắc đặt mã cho từng feature:
+
+| Mẫu mã                                                                                                    | HTTP | Khi nào dùng                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<ENTITY>_NOT_FOUND`                                                                                      | 404  | Không có tài nguyên (hoặc người gọi không được thấy nó, để id không lộ thông tin).                                                                               |
+| `<ENTITY>_NOT_AVAILABLE`                                                                                  | 409  | Tài nguyên được tham chiếu tồn tại nhưng trạng thái hiện tại không cho phép (ví dụ `TOY_NOT_AVAILABLE`, `ORGANIZATION_NOT_AVAILABLE`, `CATEGORY_NOT_AVAILABLE`). |
+| `<ENTITY>_STATUS_CHANGED`, `<ENTITY>_CHANGED`                                                             | 409  | Một Admin hoặc người dùng khác vừa đổi tài nguyên giữa lúc đọc và lúc ghi; tải lại rồi thử lại.                                                                  |
+| `<ENTITY>_ALREADY_<STATE>`                                                                                | 409  | Tài nguyên đã ở đúng trạng thái được yêu cầu (ví dụ `CATEGORY_ALREADY_HIDDEN`).                                                                                  |
+| `<ENTITY>_NAME_TAKEN`, `<ENTITY>_EXISTS`                                                                  | 409  | Trùng dữ liệu duy nhất theo quy tắc nghiệp vụ.                                                                                                                   |
+| Mã nghiệp vụ riêng (ví dụ `OWN_TOY`, `OWNER_NOT_ELIGIBLE`, `REASON_REQUIRED`, `HANDOVER_PHOTO_NOT_OWNED`) | 422  | Dữ liệu hợp lệ về cú pháp nhưng vi phạm quy tắc nghiệp vụ.                                                                                                       |
+
+Các mã chung do middleware trả về:
+
+| Mã                          | HTTP | Nguồn                                                                                                                                   |
+| --------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `VALIDATION_ERROR`          | 400  | Zod: body, query hoặc params sai (kể cả tham số lạ, `sortBy` ngoài danh sách cho phép). `details` là danh sách `{ field, message }`.    |
+| `VALIDATION_ERROR`          | 422  | Mongoose ValidationError: quy tắc của schema cơ sở dữ liệu.                                                                             |
+| `INVALID_JSON`              | 400  | Body không phải JSON hợp lệ.                                                                                                            |
+| `INVALID_ID`                | 400  | Giá trị không ép được sang kiểu của trường (CastError).                                                                                 |
+| `BAD_REQUEST`               | 4xx  | Lỗi phía client khác do Express phát hiện.                                                                                              |
+| `UNAUTHENTICATED`           | 401  | Chưa đăng nhập.                                                                                                                         |
+| `FORBIDDEN`                 | 403  | Đã đăng nhập nhưng không đủ quyền.                                                                                                      |
+| `ACCOUNT_LOCKED`            | 403  | Tài khoản đang bị khoá.                                                                                                                 |
+| `INVALID_STATUS_TRANSITION` | 409  | Bước chuyển trạng thái không có trong bảng `shared/domain/transitions.ts` (hoặc không dành cho người gọi). `details` là `{ from, to }`. |
+| `DUPLICATE`                 | 409  | Trùng unique index không được feature xử lý riêng. `details.fields` nếu có.                                                             |
+| `PAYLOAD_TOO_LARGE`         | 413  | Body vượt giới hạn (1 MB).                                                                                                              |
+| `BUSINESS_RULE_VIOLATION`   | 422  | Quy tắc phía MongoDB (document validation) bị vi phạm.                                                                                  |
+| `UPLOAD_NOT_CONFIGURED`     | 503  | Chưa cấu hình Cloudinary.                                                                                                               |
+| `INTERNAL_SERVER_ERROR`     | 500  | Lỗi không lường trước; chi tiết chỉ ghi log phía máy chủ.                                                                               |
+
+Mã riêng của luồng quyên góp và tin đăng đồ chơi:
+
+| Mã                         | HTTP | Khi nào                                                                                                                                                                                                                                                        |
+| -------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TOY_HAS_ACTIVE_DONATION`  | 409  | Chủ đồ chơi sửa, ẩn hoặc xoá tin đăng trong khi có yêu cầu nhận tặng ACCEPTED hoặc SHIPPING (GB-12).                                                                                                                                                           |
+| `ORDER_IN_PROGRESS`        | 409  | Chủ đồ chơi sửa, ẩn hoặc xoá tin đăng trong khi có đơn thuê hoặc mua chưa kết thúc (GB-12).                                                                                                                                                                    |
+| `TOY_STATUS_CHANGED`       | 409  | Tin đăng vừa đổi trạng thái (bị giữ chỗ) giữa lúc đọc và lúc ghi; tải lại rồi thử lại.                                                                                                                                                                         |
+| `DONOR_LOCKED`             | 409  | Gửi yêu cầu nhận tặng cho đồ chơi của tài khoản đang bị khoá (GB-05).                                                                                                                                                                                          |
+| `DONOR_DECISION_REQUIRED`  | 409  | Admin gọi `POST /admin/donation-requests/:id/accept` hoặc `/reject` với yêu cầu PENDING (kể cả yêu cầu Admin tạo cho tổ chức): chỉ người quyên góp được quyết định (D-04). Admin chỉ xử lý yêu cầu ACCEPTED/SHIPPING bị kẹt bằng cancel hoặc confirm-received. |
+| `HANDOVER_PHOTOS_REQUIRED` | 422  | Người nhận xác nhận đã nhận mà không có ảnh (GB-20). Route trả 400 `VALIDATION_ERROR` trước khi tới service nếu thiếu `photos`.                                                                                                                                |
+
+Liên hệ giữa hai bên của yêu cầu nhận tặng (D-03): khi yêu cầu ở ACCEPTED hoặc SHIPPING, DTO trên các route người dùng có `counterpartContact: { name, phone } | null` (họ tên và số điện thoại đầy đủ, không có email) của bên kia: người quyên góp thấy người nhận (hoặc tên và số điện thoại của tổ chức), người nhận (USER) thấy người quyên góp. Trước khi chấp nhận và sau COMPLETED/CANCELLED/REJECTED trường này là `null`; route Admin luôn `null` (Admin xem liên hệ đã che như trước).
+
+Tham số danh sách: tìm kiếm tự do luôn là `q`; `sortBy` của mỗi danh sách là một `enum` riêng (Swagger liệt kê các giá trị); mọi query schema dùng `.strict()`.

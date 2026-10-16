@@ -23,6 +23,28 @@ export const PATHS = {
 
 export const toyListingEditPath = (toyId: string) => PATHS.editListing.replace(':toyId', toyId)
 
+// Paths of the admin pages: admin-routes, admin-menu and every feature link use these, so a path
+// is written once.
+export const ADMIN_ROOT = '/admin'
+
+export const adminPaths = {
+  dashboard: ADMIN_ROOT,
+  toys: `${ADMIN_ROOT}/toys`,
+  toy: (id: string) => `${ADMIN_ROOT}/toys/${id}`,
+  identityVerifications: `${ADMIN_ROOT}/identity-verifications`,
+  identityVerification: (id: string) => `${ADMIN_ROOT}/identity-verifications/${id}`,
+  categories: `${ADMIN_ROOT}/categories`,
+  organizations: `${ADMIN_ROOT}/organizations`,
+  donationRequests: `${ADMIN_ROOT}/donation-requests`,
+  donationRequest: (id: string) => `${ADMIN_ROOT}/donation-requests/${id}`,
+} as const
+
+// Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.
+export const adminChildPath = (path: string, suffix = '') =>
+  `${path.slice(ADMIN_ROOT.length + 1)}${suffix}`
+
+// First breadcrumb item of every admin page.
+export const adminHomeCrumb = { title: 'Quản trị', to: ADMIN_ROOT }
 export const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId', toyId)
 
 export interface BrowseToysFilters {
