@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { donationReceiverTypes, donationStatuses } from '../../constants/domain'
 import { reasonSchema } from '../../schemas/common'
 import { enumParam, searchParam } from '../../schemas/list-params'
+import { handoverMethodLabels, handoverMethods } from './constants'
 
 // Admin confirmation that the receiver got the toy: a required reason, optional photos and note.
 export const confirmReceivedSchema = z.object({
@@ -20,3 +21,44 @@ export const donationFiltersSchema = z.object({
   receiverType: enumParam(donationReceiverTypes),
   q: searchParam,
 })
+
+// Donor marks a request as shipped: a carrier and a tracking code when sent by a carrier,
+// 1–10 own HANDOVER_PHOTO uploads (required by the backend) and an optional note.
+export const TRACKING_CODE_PATTERN = /^[A-Za-z0-9-]{6,30}$/
+
+export const shipDonationSchema = z
+  .object({
+    method: z.enum(handoverMethods),
+    carrier: z.string(),
+    trackingCode: z.string().trim(),
+    photos: z
+      .array(z.object({ publicId: z.string(), url: z.string(), format: z.string() }))
+      .min(1, 'Cần ít nhất 1 ảnh kiện hàng hoặc biên nhận gửi hàng.')
+      .max(10, 'Tối đa 10 ảnh.'),
+    note: z.string().trim().max(600, 'Tối đa 600 ký tự.'),
+  })
+  .superRefine((values, ctx) => {
+    if (values.method !== 'CARRIER') return
+    if (!values.carrier) {
+      ctx.addIssue({ code: 'custom', path: ['carrier'], message: 'Chọn đơn vị vận chuyển.' })
+    }
+    if (!TRACKING_CODE_PATTERN.test(values.trackingCode)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trackingCode'],
+        message: 'Mã vận đơn gồm 6–30 ký tự chữ, số hoặc dấu gạch ngang.',
+      })
+    }
+  })
+export type ShipDonationValues = z.infer<typeof shipDonationSchema>
+
+/** Đơn vị vận chuyển và mã vận đơn được ghi ở đầu ghi chú bàn giao (backend chưa có trường riêng) */
+export const composeHandoverNote = ({ method, carrier, trackingCode, note }: ShipDonationValues) =>
+  [
+    method === 'CARRIER'
+      ? `Đơn vị vận chuyển: ${carrier}\nMã vận đơn: ${trackingCode.toUpperCase()}`
+      : handoverMethodLabels.SELF,
+    note,
+  ]
+    .filter(Boolean)
+    .join('\n')
