@@ -29,6 +29,27 @@ export interface OrganizationListParams extends PaginationParams {
   q?: string
 }
 
+// Mirrors OrganizationPublic (GET /organizations, GET /organizations/:id): what Donors see.
+export interface PublicOrganization {
+  id: string
+  name: string
+  address: string
+  province: VietnamProvince | null
+  contactInfo: string
+  supportCriteria: string
+  description: string | null
+  ageGroups: AgeGroup[]
+  logoUrl: string | null
+  // Only for signed-in callers (optionalAuth on the backend).
+  phone?: string
+}
+
+export interface PublicOrganizationListParams extends PaginationParams {
+  province?: VietnamProvince
+  ageGroup?: AgeGroup
+  q?: string
+}
+
 export interface OrganizationInput {
   name: string
   address: string
