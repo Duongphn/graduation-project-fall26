@@ -41,6 +41,13 @@ export interface DonationOrganization {
   logoUrl?: string | null
 }
 
+// D-03: the other party's full name and phone, only while ACCEPTED or SHIPPING (user routes);
+// always null on admin routes.
+export interface DonationCounterpartContact {
+  name: string
+  phone: string | null
+}
+
 export interface DonationRequest {
   id: string
   code: string
@@ -51,6 +58,7 @@ export interface DonationRequest {
   donor: DonationPerson | null
   requester: DonationPerson | null
   organization: DonationOrganization | null
+  counterpartContact: DonationCounterpartContact | null
   decidedAt: string | null
   rejectReason: string | null
   completedAt: string | null
@@ -100,6 +108,18 @@ export interface ConfirmReceivedInput {
   reason: string
   photos?: PrivatePhoto[]
   note?: string
+}
+
+// The Donor hands the toy over: 1–10 own HANDOVER_PHOTO uploads and an optional note.
+export interface HandoverInput {
+  photos: PrivatePhoto[]
+  note?: string
+}
+
+// GET /donation-requests/incoming: requests on the caller's own donation toys.
+export interface IncomingDonationParams extends Omit<PaginationParams, 'sortBy'> {
+  sortBy?: DonationSortField
+  status?: DonationStatus
 }
 
 export interface DonationListParams extends Omit<PaginationParams, 'sortBy'> {
