@@ -10,11 +10,25 @@ import {
   myListingQuery,
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
+import {
+  myDonationQuery,
+  myDonationsQuery,
+  parseMyDonationsSearch,
+} from '../features/donations/donor-queries'
+import {
+  organizationDetailQuery,
+  organizationListQuery,
+  parseOrganizationSearch,
+} from '../features/organizations/public-queries'
+import { CharityOrganizationDetailPage } from '../pages/charity-organization-detail-page'
+import { CharityOrganizationsPage } from '../pages/charity-organizations-page'
 import { ForgotPasswordPage } from '../pages/forgot-password-page'
 import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
 import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
+import { MyDonationDetailPage } from '../pages/my-donation-detail-page'
+import { MyDonationsPage } from '../pages/my-donations-page'
 import { MyListingsPage } from '../pages/my-listings-page'
 import { ProfilePage } from '../pages/profile-page'
 import { RegisterPage } from '../pages/register-page'
@@ -91,6 +105,33 @@ async function toyDetailLoader({ params }: LoaderFunctionArgs) {
   return null
 }
 
+async function charityOrganizationsLoader({ request }: LoaderFunctionArgs) {
+  const filters = parseOrganizationSearch(new URL(request.url).searchParams)
+  await queryClient.query(organizationListQuery(filters)).catch(ignoreError) // GET /organizations?q=&province=&ageGroup=&page=
+  return null
+}
+
+async function charityOrganizationLoader({ params }: LoaderFunctionArgs) {
+  await queryClient.query(organizationDetailQuery(params.organizationId!)).catch(ignoreError) // GET /organizations/:id
+  return null
+}
+
+async function myDonationsLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const filters = parseMyDonationsSearch(new URL(request.url).searchParams)
+  await queryClient.query(myDonationsQuery(filters)).catch(ignoreError) // GET /donation-requests/incoming?status=&page=
+  return null
+}
+
+async function myDonationLoader({ params }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  await Promise.all([
+    queryClient.query(myDonationQuery(params.requestId!)).catch(ignoreError), // GET /donation-requests/:id
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (biết mình có phải người tặng)
+  ])
+  return null
+}
+
 export const router = createBrowserRouter([
   { path: PATHS.home, loader: homeLoader, element: <HomePage />, HydrateFallback: PageLoadingFallback },
   { path: PATHS.login, element: <LoginPage /> },
@@ -148,6 +189,38 @@ export const router = createBrowserRouter([
     path: PATHS.toyDetail,
     loader: toyDetailLoader,
     element: <ToyDetailPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.charityOrganizations,
+    loader: charityOrganizationsLoader,
+    element: <CharityOrganizationsPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.charityOrganization,
+    loader: charityOrganizationLoader,
+    element: <CharityOrganizationDetailPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonations,
+    loader: myDonationsLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationsPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonation,
+    loader: myDonationLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationDetailPage />
+      </RequireAuth>
+    ),
     HydrateFallback: PageLoadingFallback,
   },
   adminRoute,

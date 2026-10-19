@@ -12,6 +12,10 @@ export const PATHS = {
   editListing: '/listings/:toyId/edit',
   toys: '/toys',
   toyDetail: '/toys/:toyId',
+  charityOrganizations: '/organizations',
+  charityOrganization: '/organizations/:organizationId',
+  myDonations: '/donations',
+  myDonation: '/donations/:requestId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   toyDetail: '/toys/:toyId',
@@ -22,6 +26,11 @@ export const PATHS = {
 } as const
 
 export const toyListingEditPath = (toyId: string) => PATHS.editListing.replace(':toyId', toyId)
+
+export const charityOrganizationPath = (organizationId: string) =>
+  PATHS.charityOrganization.replace(':organizationId', organizationId)
+
+export const myDonationPath = (requestId: string) => PATHS.myDonation.replace(':requestId', requestId)
 
 // Paths of the admin pages: admin-routes, admin-menu and every feature link use these, so a path
 // is written once.
