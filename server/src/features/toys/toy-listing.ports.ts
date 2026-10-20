@@ -1,4 +1,5 @@
-export type ListingType = 'rent' | 'sell';
+// donate (FE-02): a free donation post, no price, requested through donation_requests.
+export type ListingType = 'rent' | 'sell' | 'donate';
 
 export type StoredListingStatus = 'pending' | 'active' | 'hidden';
 

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, CircleCheck, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { DonationSummaryCard } from '../features/donations/components/donation-summary-card'
 import { PersonalInfoForm } from '../features/profile/components/personal-info-form'
 import { ProfileHero } from '../features/profile/components/profile-hero'
 import { ShippingAddressCard } from '../features/profile/components/shipping-address-card'
@@ -66,6 +67,7 @@ export function ProfilePage() {
       ) : (
         <div className="profile-page">
           <ProfileHero profile={profile} latestVerification={verificationResult.data} onAvatarSaved={notify('Đã cập nhật ảnh đại diện.')} />
+          <DonationSummaryCard userId={profile.id} />
           <PersonalInfoForm profile={profile} onSaved={notify('Đã lưu thông tin cá nhân.')} />
           <ShippingAddressCard profile={profile} onSaved={notify('Đã lưu địa chỉ nhận hàng.')} />
         </div>

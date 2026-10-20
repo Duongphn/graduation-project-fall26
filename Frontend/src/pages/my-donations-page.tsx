@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Pagination } from 'antd'
-import { ChevronRight, Home, ImageOff } from 'lucide-react'
+import { ChevronRight, History, Home, ImageOff, Plus } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
@@ -74,11 +74,27 @@ export function MyDonationsPage() {
           </span>
         </nav>
 
-        <header className="mt-5 max-w-2xl">
-          <h1 className="text-3xl leading-tight font-bold tracking-[-0.02em] text-tf-ink">Quyên góp của tôi</h1>
-          <p className="mt-2 text-[15px] leading-7 text-tf-ink-muted">
-            Các yêu cầu nhận đồ chơi bạn tặng: đồng ý, gửi hàng kèm mã vận đơn hoặc huỷ trước khi gửi.
-          </p>
+        <header className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <h1 className="text-3xl leading-tight font-bold tracking-[-0.02em] text-tf-ink">Quyên góp của tôi</h1>
+            <p className="mt-2 text-[15px] leading-7 text-tf-ink-muted">
+              Các yêu cầu nhận đồ chơi bạn tặng: đồng ý, gửi hàng kèm mã vận đơn hoặc huỷ trước khi gửi.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link
+              to={PATHS.donationHistory}
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-tf-surface bg-white px-4 text-sm font-semibold text-tf-primary hover:border-tf-primary"
+            >
+              <History className="size-4" aria-hidden /> Lịch sử đã trao tặng
+            </Link>
+            <Link
+              to={PATHS.newDonation}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-tf-primary px-4 text-sm font-bold text-white hover:bg-tf-primary-container"
+            >
+              <Plus className="size-4" aria-hidden /> Tạo phiếu quyên góp
+            </Link>
+          </div>
         </header>
 
         <div className="mt-4">
@@ -104,10 +120,10 @@ export function MyDonationsPage() {
                 Khi có người hoặc tổ chức đăng ký nhận đồ chơi bạn tặng, phiếu sẽ hiện ở đây.
               </p>
               <Link
-                to={PATHS.charityOrganizations}
+                to={PATHS.newDonation}
                 className="mt-4 inline-flex h-10 items-center rounded-lg border border-tf-surface px-4 text-sm font-semibold text-tf-primary hover:border-tf-primary"
               >
-                Xem tổ chức từ thiện
+                Tạo phiếu quyên góp đầu tiên
               </Link>
             </div>
           )}

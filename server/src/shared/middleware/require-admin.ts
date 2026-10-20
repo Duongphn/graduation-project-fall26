@@ -14,7 +14,7 @@ export const requireAdmin: RequestHandler = (req, _res, next) => {
     return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required.'));
   }
 
-  if (req.auth.actorType !== 'ADMIN') {
+  if (req.auth.role !== 'ADMIN') {
     return next(new AppError(403, 'FORBIDDEN', 'Admin access required.'));
   }
 

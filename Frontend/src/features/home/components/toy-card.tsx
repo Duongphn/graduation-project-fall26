@@ -15,6 +15,7 @@ interface ToyCardProps {
 const LISTING_TYPE_LABELS: Record<PublicToy['listingType'], string> = {
   rent: 'Cho thuê',
   sell: 'Bán lại',
+  donate: 'Tặng',
 }
 
 /** Thẻ đồ chơi dùng chung cho mục thuê và bán lại — cả thẻ bấm được nhờ link phủ (stretched link) */

@@ -11,6 +11,7 @@ import {
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
 import {
+  completedDonationsQuery,
   myDonationQuery,
   myDonationsQuery,
   parseMyDonationsSearch,
@@ -29,6 +30,8 @@ import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
 import { MyDonationDetailPage } from '../pages/my-donation-detail-page'
 import { MyDonationsPage } from '../pages/my-donations-page'
+import { NewDonationPage } from '../pages/new-donation-page'
+import { DonationHistoryPage } from '../pages/donation-history-page'
 import { MyListingsPage } from '../pages/my-listings-page'
 import { ProfilePage } from '../pages/profile-page'
 import { RegisterPage } from '../pages/register-page'
@@ -123,6 +126,26 @@ async function myDonationsLoader({ request }: LoaderFunctionArgs) {
   return null
 }
 
+async function donationHistoryLoader() {
+  if (isGuest()) return null
+  await Promise.all([
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
+    queryClient.infiniteQuery(completedDonationsQuery).catch(ignoreError), // GET /donation-requests/incoming?status=COMPLETED
+  ])
+  return null
+}
+
+async function newDonationLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const organizationId = new URL(request.url).searchParams.get('organizationId')
+  await Promise.all([
+    queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(organizationListQuery({ page: 1 })).catch(ignoreError), // GET /organizations
+    organizationId && queryClient.query(organizationDetailQuery(organizationId)).catch(ignoreError),
+  ])
+  return null
+}
+
 async function myDonationLoader({ params }: LoaderFunctionArgs) {
   if (isGuest()) return null
   await Promise.all([
@@ -209,6 +232,26 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <MyDonationsPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.donationHistory,
+    loader: donationHistoryLoader,
+    element: (
+      <RequireAuth>
+        <DonationHistoryPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.newDonation,
+    loader: newDonationLoader,
+    element: (
+      <RequireAuth>
+        <NewDonationPage />
       </RequireAuth>
     ),
     HydrateFallback: PageLoadingFallback,

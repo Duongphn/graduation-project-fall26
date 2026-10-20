@@ -10,17 +10,17 @@ import type {
   ToyImage,
 } from './toy-listing.ports.js';
 
-// Translates between the toy listing API (UC04: rent/sell, priceOrRate, depositPrice, ageRange,
+// Translates between the toy listing API (UC04: rent/sell, FE-02: donate; priceOrRate, depositPrice, ageRange,
 // free-text condition labels, images with publicId) and the shared toys schema (RENT/SALE,
 // pricing, ageGroup, condition enum, images + imagePublicIds, upper-case statuses).
 
-const STORED_LISTING_TYPE = { rent: 'RENT', sell: 'SALE' } as const;
+const STORED_LISTING_TYPE = { rent: 'RENT', sell: 'SALE', donate: 'DONATION' } as const;
 
-export const toStoredListingType = (type: ListingType): 'RENT' | 'SALE' =>
+export const toStoredListingType = (type: ListingType): 'RENT' | 'SALE' | 'DONATION' =>
   STORED_LISTING_TYPE[type];
 
 export const fromStoredListingType = (type: string): ListingType =>
-  type === 'RENT' ? 'rent' : 'sell';
+  type === 'RENT' ? 'rent' : type === 'DONATION' ? 'donate' : 'sell';
 
 const STORED_STATUS: Record<StoredListingStatus, ToyStatus> = {
   pending: 'PENDING_REVIEW',
@@ -96,7 +96,9 @@ export const toStoredPricing = (
 ): NonNullable<IToy['pricing']> =>
   type === 'rent'
     ? { rentPerDay: priceOrRate, deposit: depositPrice ?? null }
-    : { salePrice: priceOrRate };
+    : type === 'sell'
+      ? { salePrice: priceOrRate }
+      : {}; // A donation post has no price (FE-02).
 
 type StoredToy = Pick<
   IToy,
@@ -109,8 +111,13 @@ type StoredToy = Pick<
   | 'condition'
 >;
 
+/** 0 for a donation post (no price). */
 export const storedPrice = (toy: Pick<IToy, 'listingType' | 'pricing'>): number =>
-  (toy.listingType === 'RENT' ? toy.pricing?.rentPerDay : toy.pricing?.salePrice) ?? 0;
+  (toy.listingType === 'RENT'
+    ? toy.pricing?.rentPerDay
+    : toy.listingType === 'SALE'
+      ? toy.pricing?.salePrice
+      : 0) ?? 0;
 
 export const storedDeposit = (toy: Pick<IToy, 'listingType' | 'pricing'>): number | undefined =>
   toy.listingType === 'RENT' ? (toy.pricing?.deposit ?? undefined) : undefined;

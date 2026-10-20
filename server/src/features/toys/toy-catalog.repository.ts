@@ -1,5 +1,5 @@
 import mongoose, { type FilterQuery, type Model } from 'mongoose';
-import { Toy, type IToy } from './toys.model.js';
+import { ToyModel as Toy, type IToy } from './toys.model.js';
 import type { CatalogToyRecord, ToyCatalogFilter, ToyCatalogRepository } from './toy-catalog.types.js';
 
 /** Chỉ lấy các trường cần cho danh sách công khai */

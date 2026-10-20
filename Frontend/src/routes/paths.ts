@@ -15,10 +15,11 @@ export const PATHS = {
   charityOrganizations: '/organizations',
   charityOrganization: '/organizations/:organizationId',
   myDonations: '/donations',
+  newDonation: '/donations/new',
+  donationHistory: '/profile/donations',
   myDonation: '/donations/:requestId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
-  toyDetail: '/toys/:toyId',
   donations: '/donations',
   favorites: '/favorites',
   aiAdvisor: '/ai-advisor',

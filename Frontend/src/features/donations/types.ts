@@ -116,6 +116,12 @@ export interface HandoverInput {
   note?: string
 }
 
+// GET /users/:userId/donation-summary: donations the receiver confirmed (COMPLETED).
+export interface DonorDonationSummary {
+  userId: string
+  completedDonations: number
+}
+
 // GET /donation-requests/incoming: requests on the caller's own donation toys.
 export interface IncomingDonationParams extends Omit<PaginationParams, 'sortBy'> {
   sortBy?: DonationSortField

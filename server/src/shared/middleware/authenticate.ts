@@ -57,9 +57,10 @@ export const authenticate: RequestHandler = (req, _res, next) => {
     return next(new AppError(401, 'UNAUTHORIZED', 'Invalid role in token.'));
   }
 
+  // Same shape as auth-placeholder (RequestAuth { userId, role }).
   req.auth = {
     userId,
-    actorType: role,
+    role,
   };
 
   next();

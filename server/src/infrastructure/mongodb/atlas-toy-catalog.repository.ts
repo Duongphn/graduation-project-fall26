@@ -1,14 +1,17 @@
 import mongoose, { type Model } from 'mongoose';
-import { Category, type ICategory } from '../../features/categories/categories.model.js';
 import {
-  PurchaseOrder,
-  type IPurchaseOrder,
+  CategoryModel as Category,
+  type Category as ICategory,
+} from '../../features/categories/categories.model.js';
+import {
+  PurchaseOrderModel as PurchaseOrder,
+  type PurchaseOrder as IPurchaseOrder,
 } from '../../features/purchase_orders/purchase_orders.model.js';
 import {
-  RentalOrder,
-  type IRentalOrder,
+  RentalOrderModel as RentalOrder,
+  type RentalOrder as IRentalOrder,
 } from '../../features/rental_orders/rental_orders.model.js';
-import { Toy, type IToy } from '../../features/toys/toys.model.js';
+import { ToyModel as Toy, type IToy } from '../../features/toys/toys.model.js';
 import { User, type IUser } from '../../features/users/users.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type {

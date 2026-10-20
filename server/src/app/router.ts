@@ -13,9 +13,6 @@ import { adminIdentityReviewRouter } from '../features/identity_verifications/in
 import { adminOrganizationsRouter, organizationsRouter } from '../features/organizations/index.js';
 import { adminToyModerationRouter } from '../features/toys/index.js';
 import { uploadsRouter } from '../features/uploads/index.js';
-import { authRouter } from '../features/auth/auth.routes.js';
-import { categoriesRouter } from '../features/categories/categories.routes.js';
-import { healthRouter } from '../features/health/health.routes.js';
 import { authenticate } from '../shared/middleware/authenticate.js';
 import {
   createToyCatalogDependencies,
@@ -30,22 +27,13 @@ import {
   type UC03Dependencies,
 } from './uc03-dependencies.js';
 
-export interface CreateApiRouterDependencies {
-  toyListingDependencies?: ToyListingDependencies;
-  uc03Dependencies?: UC03Dependencies;
-}
-
-export function createApiRouter(deps?: CreateApiRouterDependencies): Router {
 export interface ApiRouterDependencies {
   toyListingDependencies?: ToyListingDependencies;
   toyCatalogDependencies?: ToyCatalogDependencies;
+  uc03Dependencies?: UC03Dependencies;
 }
 
 export function createApiRouter(deps?: ApiRouterDependencies): Router {
-export function createApiRouter(deps?: {
-  toyListingDependencies?: ToyListingDependencies;
-  toyCatalogDependencies?: ToyCatalogDependencies;
-}): Router {
   const router = Router();
 
   router.use(healthRouter);
@@ -70,10 +58,7 @@ export function createApiRouter(deps?: {
   router.use('/toys', toyCatalog.router);
 
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
-  const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
-
   router.use('/toys', toyListing.router);
-  router.use('/toys', toyCatalog.router);
 
   const uc03 = deps?.uc03Dependencies ?? createUC03Dependencies();
   router.use('/users', authenticate, uc03.usersRouter);

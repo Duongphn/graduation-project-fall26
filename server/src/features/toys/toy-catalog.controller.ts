@@ -1,50 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
+import mongoose from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
+import type { ListingType } from './toy-listing.ports.js';
+import type { ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
 import {
   validateAvailabilityQuery,
   validateToyId,
   validateToySearchQuery,
 } from './toy-catalog.schemas.js';
 import type { ToyCatalogService } from './toy-catalog.service.js';
-
-export class ToyCatalogController {
-  public constructor(private readonly service: ToyCatalogService) {}
-
-  public search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const query = validateToySearchQuery(req.query);
-      const result = await this.service.search(query);
-      res.status(200).json(result);
-    } catch (err: unknown) {
-      next(err);
-    }
-  };
-
-  public getDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const toyId = validateToyId(req.params.toyId);
-      const detail = await this.service.getDetail(toyId);
-      res.status(200).json(detail);
-    } catch (err: unknown) {
-      next(err);
-    }
-  };
-
-  public getAvailability = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      const toyId = validateToyId(req.params.toyId);
-      const { from, toInclusive } = validateAvailabilityQuery(req.query);
-      const result = await this.service.getAvailability(toyId, from, toInclusive);
-      res.status(200).json(result);
-    } catch (err: unknown) {
-import mongoose from 'mongoose';
-import { AppError } from '../../shared/errors/app-error.js';
-import type { ListingType } from './toy-listing.ports.js';
-import type { ToyCatalogService } from './toy-catalog.service.js';
-import type { ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
 
 export const DEFAULT_CATALOG_LIMIT = 20;
 export const MAX_CATALOG_LIMIT = 100;
@@ -109,8 +73,54 @@ export function parseToyCatalogQuery(query: Request['query']): ToyCatalogQuery {
   };
 }
 
+/**
+ * GET /toys serves two callers: the homepage list (`listingType`, `sort=popular`) and the search
+ * page (`q`, `type`, price, area...). A request with `listingType` or `sort=popular` is a homepage
+ * list; every other request is a search.
+ */
+export const isHomepageListQuery = (query: Request['query']): boolean =>
+  query.listingType !== undefined || query.sort === 'popular';
+
 export class ToyCatalogController {
   public constructor(private readonly service: ToyCatalogService) {}
+
+  public browse = (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    isHomepageListQuery(req.query) ? this.list(req, res, next) : this.search(req, res, next);
+
+  public search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const query = validateToySearchQuery(req.query);
+      const result = await this.service.search(query);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      next(err);
+    }
+  };
+
+  public getDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const toyId = validateToyId(req.params.toyId);
+      const detail = await this.service.getDetail(toyId);
+      res.status(200).json(detail);
+    } catch (err: unknown) {
+      next(err);
+    }
+  };
+
+  public getAvailability = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const toyId = validateToyId(req.params.toyId);
+      const { from, toInclusive } = validateAvailabilityQuery(req.query);
+      const result = await this.service.getAvailability(toyId, from, toInclusive);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      next(err);
+    }
+  };
 
   public list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

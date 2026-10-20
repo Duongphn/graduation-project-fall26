@@ -26,6 +26,16 @@ export interface UpdateToyListingInput {
 
 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
+const isBlank = (value: unknown) => value === undefined || value === null || value === '';
+
+function assertQuantityIsOne(quantity: unknown): void {
+  if (isBlank(quantity)) return;
+  const parsedQty = typeof quantity === 'string' ? Number(quantity.trim()) : Number(quantity);
+  if (parsedQty !== 1) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Quantity must be 1.');
+  }
+}
+
 function parseNonEmptyString(val: unknown, fieldName: string): string {
   if (typeof val !== 'string' || val.trim().length === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', `${fieldName} must be a non-empty string.`);
@@ -122,12 +132,32 @@ export function validateCreateToyListingInput(raw: unknown): CreateToyListingInp
   const condition = parseNonEmptyString(data.condition, 'condition');
   const categoryId = parseCategoryId(data.categoryId);
 
-  if (data.listingType !== 'rent' && data.listingType !== 'sell') {
-    throw new AppError(400, 'VALIDATION_ERROR', 'listingType must be "rent" or "sell".');
+  if (data.listingType !== 'rent' && data.listingType !== 'sell' && data.listingType !== 'donate') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'listingType must be "rent", "sell" or "donate".');
   }
   const listingType: ListingType = data.listingType;
 
   const rawPrice = data.priceOrRate !== undefined ? data.priceOrRate : data.price;
+  const rawDeposit = data.depositPrice !== undefined ? data.depositPrice : data.deposit;
+  if (listingType === 'donate') {
+    // FE-02: a donation post is free. A price of 0 is accepted: the service validates the
+    // already validated input again (the controller validated it first, with priceOrRate 0).
+    if (!(isBlank(rawPrice) || Number(rawPrice) === 0) || !isBlank(rawDeposit)) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'A donation post has no price or deposit.');
+    }
+    assertQuantityIsOne(data.quantity);
+    return {
+      title,
+      description,
+      condition,
+      categoryId,
+      listingType,
+      priceOrRate: 0,
+      ageRange: parseAgeRange(data.ageRange),
+      quantity: 1,
+    };
+  }
+
   if (rawPrice === undefined || rawPrice === null || rawPrice === '') {
     throw new AppError(400, 'VALIDATION_ERROR', 'priceOrRate is required.');
   }
@@ -137,7 +167,6 @@ export function validateCreateToyListingInput(raw: unknown): CreateToyListingInp
   }
 
   let parsedDeposit: number | undefined;
-  const rawDeposit = data.depositPrice !== undefined ? data.depositPrice : data.deposit;
 
   if (listingType === 'rent') {
     if (rawDeposit === undefined || rawDeposit === null || rawDeposit === '') {
@@ -160,13 +189,7 @@ export function validateCreateToyListingInput(raw: unknown): CreateToyListingInp
     parsedDeposit = undefined;
   }
 
-  if (data.quantity !== undefined && data.quantity !== null && data.quantity !== '') {
-    const parsedQty =
-      typeof data.quantity === 'string' ? Number(data.quantity.trim()) : Number(data.quantity);
-    if (parsedQty !== 1) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'Quantity must be 1.');
-    }
-  }
+  assertQuantityIsOne(data.quantity);
 
   const ageRange = parseAgeRange(data.ageRange);
 
@@ -230,8 +253,8 @@ export function validateUpdateToyListingInput(raw: unknown): UpdateToyListingInp
   }
 
   if (data.listingType !== undefined) {
-    if (data.listingType !== 'rent' && data.listingType !== 'sell') {
-      throw new AppError(400, 'VALIDATION_ERROR', 'listingType must be "rent" or "sell".');
+    if (data.listingType !== 'rent' && data.listingType !== 'sell' && data.listingType !== 'donate') {
+      throw new AppError(400, 'VALIDATION_ERROR', 'listingType must be "rent", "sell" or "donate".');
     }
     result.listingType = data.listingType;
   }

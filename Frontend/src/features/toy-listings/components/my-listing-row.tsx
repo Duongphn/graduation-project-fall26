@@ -17,6 +17,7 @@ export function MyListingRow({ listing, categoryName }: MyListingRowProps) {
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isRent = listing.listingType === 'rent'
+  const isDonation = listing.listingType === 'donate'
 
   const refreshLists = () => {
     void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY })
@@ -38,7 +39,7 @@ export function MyListingRow({ listing, categoryName }: MyListingRowProps) {
             <ImageOff aria-hidden />
           </span>
         )}
-        <span className={`listing-row__type listing-row__type--${listing.listingType}`}>{isRent ? 'Cho thuê' : 'Bán lại'}</span>
+        <span className={`listing-row__type listing-row__type--${listing.listingType}`}>{isRent ? 'Cho thuê' : isDonation ? 'Tặng' : 'Bán lại'}</span>
       </div>
 
       <div className="listing-row__body">
@@ -51,14 +52,19 @@ export function MyListingRow({ listing, categoryName }: MyListingRowProps) {
         </div>
 
         <h3 className="listing-row__title">
-          <Link to={toyListingEditPath(listing.id)} className="listing-row__title-link">
-            {listing.title}
-          </Link>
+          {/* Tin tặng không sửa bằng form đăng tin (không có giá) */}
+          {isDonation ? (
+            listing.title
+          ) : (
+            <Link to={toyListingEditPath(listing.id)} className="listing-row__title-link">
+              {listing.title}
+            </Link>
+          )}
         </h3>
 
         <div className="listing-row__price-row">
           <span className={`listing-row__price listing-row__price--${listing.listingType}`}>
-            {formatVnd(listing.priceOrRate)}
+            {isDonation ? 'Miễn phí' : formatVnd(listing.priceOrRate)}
             {isRent && <span className="listing-row__unit">/ngày</span>}
           </span>
           {isRent && listing.depositPrice !== undefined && (
@@ -88,10 +94,12 @@ export function MyListingRow({ listing, categoryName }: MyListingRowProps) {
           </>
         ) : (
           <>
-            <Link to={toyListingEditPath(listing.id)} className="row-btn row-btn--primary">
-              <Pencil aria-hidden />
-              Sửa
-            </Link>
+            {!isDonation && (
+              <Link to={toyListingEditPath(listing.id)} className="row-btn row-btn--primary">
+                <Pencil aria-hidden />
+                Sửa
+              </Link>
+            )}
             {listing.status !== 'hidden' && listing.status !== 'sold' && (
               <button type="button" className="row-btn" onClick={() => hideMutation.mutate()} disabled={isBusy}>
                 {hideMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <EyeOff aria-hidden />}

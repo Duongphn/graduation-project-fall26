@@ -18,7 +18,8 @@ export interface ToyListing {
   title: string
   description: string
   condition: string
-  listingType: ListingType
+  // donate: tin tặng miễn phí (tạo ở trang Tạo phiếu quyên góp, không sửa bằng form đăng tin)
+  listingType: ListingType | 'donate'
   priceOrRate: number
   depositPrice?: number
   ageRange: { minAge: number; maxAge: number }

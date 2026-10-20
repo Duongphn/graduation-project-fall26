@@ -1,4 +1,4 @@
-import { BookOpen, HandHeart, MapPin, Phone, UserRound, Users, type LucideIcon } from 'lucide-react'
+import { BookOpen, Gift, HandHeart, MapPin, Phone, UserRound, Users, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useIsSignedIn } from '../../../hooks/use-is-signed-in'
@@ -80,6 +80,13 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
           {[organization.address, organization.province].filter(Boolean).join(', ')}
         </p>
       </ProfileSection>
+
+      <Link
+        to={`${PATHS.newDonation}?organizationId=${organization.id}`}
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-tf-primary px-5 text-sm font-bold text-white transition-colors hover:bg-tf-primary-container"
+      >
+        <Gift className="size-4" aria-hidden /> Quyên góp cho tổ chức này
+      </Link>
     </div>
   )
 }

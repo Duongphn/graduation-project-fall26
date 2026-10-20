@@ -30,7 +30,7 @@ export class DefaultIdentityVerificationEvents implements IdentityVerificationEv
         userId,
         title,
         body,
-        type: 'IDENTITY_VERIFICATION',
+        type: 'IDENTITY_REVIEWED',
         isRead: false,
       });
     } catch {

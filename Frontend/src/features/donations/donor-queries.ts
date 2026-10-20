@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 
 import { donationStatuses, type DonationStatus } from '../../constants/domain'
 import { useApiMutation } from '../../hooks/useApiMutation'
@@ -53,6 +53,31 @@ export const myDonationsQuery = (filters: MyDonationFilters) =>
     staleTime: 30_000,
     retry: false,
   })
+
+export const donationSummaryQuery = (userId: string) =>
+  queryOptions({
+    queryKey: [...myDonationKeys.all, 'summary', userId],
+    queryFn: () => donorDonationsApi.summary(userId),
+    staleTime: 60_000,
+    retry: false,
+  })
+
+/** Lịch sử đã trao tặng (COMPLETED), mới hoàn tất trước, tải thêm từng trang */
+export const completedDonationsQuery = infiniteQueryOptions({
+  queryKey: [...myDonationKeys.all, 'completed'],
+  queryFn: ({ pageParam }) =>
+    donorDonationsApi.incoming({
+      status: 'COMPLETED',
+      page: pageParam,
+      limit: MY_DONATIONS_PAGE_SIZE,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    }),
+  initialPageParam: 1,
+  getNextPageParam: (last) => (last.pagination.hasNextPage ? last.pagination.page + 1 : undefined),
+  staleTime: 30_000,
+  retry: false,
+})
 
 export const myDonationQuery = (id: string) =>
   queryOptions({

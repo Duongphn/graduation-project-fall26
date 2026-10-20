@@ -24,7 +24,8 @@ import { EMPTY_LISTING_VALUES, listingSchema, MIN_IMAGES, type ListingFormValues
 function toSavedValues(listing?: ToyListing): Partial<ListingFormValues> {
   if (!listing) return EMPTY_LISTING_VALUES
   return {
-    listingType: listing.listingType,
+    // Tin tặng không sửa bằng form này (backend từ chối đổi loại tin)
+    listingType: listing.listingType === 'donate' ? undefined : listing.listingType,
     title: listing.title,
     categoryId: listing.categoryId,
     minAge: listing.ageRange.minAge,

@@ -1,5 +1,11 @@
 import { apiGet, apiGetPage, apiPost } from '../../services/http'
-import type { DonationRequest, DonationRequestDetail, HandoverInput, IncomingDonationParams } from './types'
+import type {
+  DonationRequest,
+  DonationRequestDetail,
+  DonorDonationSummary,
+  HandoverInput,
+  IncomingDonationParams,
+} from './types'
 
 const BASE = '/donation-requests'
 
@@ -7,6 +13,9 @@ const BASE = '/donation-requests'
 export const donorDonationsApi = {
   // Requests on the caller's own donation toys.
   incoming: (params: IncomingDonationParams) => apiGetPage<DonationRequest>(`${BASE}/incoming`, params),
+
+  // Public figure shown on the Donor profile.
+  summary: (userId: string) => apiGet<DonorDonationSummary>(`/users/${userId}/donation-summary`),
 
   detail: (id: string) => apiGet<DonationRequestDetail>(`${BASE}/${id}`),
 

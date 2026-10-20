@@ -7,13 +7,12 @@ import {
   GOOGLE_OTP_RESEND_SECONDS,
   resendGoogleOtp,
   verifyGoogleOtp,
-  type AuthTokens,
+  type AuthSession,
 } from '../features/auth/auth-api'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { PATHS } from '../routes/paths'
-import { saveSession } from '../services/token-storage'
 import { getApiErrorMessage } from '../services/http-client'
 import { queryClient } from '../services/query-client'
 import { saveAuthTokens } from '../services/token-storage'
@@ -65,8 +64,8 @@ export function LoginPage() {
   })
 
   const completeLogin = useCallback(
-    (tokens: AuthTokens, rememberMe: boolean) => {
-      saveAuthTokens(tokens, rememberMe)
+    ({ tokens, user }: AuthSession, rememberMe: boolean) => {
+      saveAuthTokens(tokens, rememberMe, user)
       // Bỏ dữ liệu/lỗi 401 đã cache trước khi đăng nhập để trang đích tải lại bằng token mới
       queryClient.clear()
       navigate(redirectTo, { replace: true })
@@ -75,7 +74,7 @@ export function LoginPage() {
   )
 
   useEffect(() => {
-    if (googleExchange.data) completeLogin(googleExchange.data.tokens, true)
+    if (googleExchange.data) completeLogin(googleExchange.data, true)
   }, [googleExchange.data, completeLogin])
 
   if (googleCode && !googleExchange.isError) {
@@ -107,12 +106,6 @@ export function LoginPage() {
         </p>
       </header>
 
-      <LoginForm
-        onSuccess={(session, rememberMe) => {
-          saveSession(session, rememberMe)
-          navigate(redirectTo, { replace: true })
-        }}
-      />
       {googleTempToken ? (
         <OtpVerificationForm
           destination={maskEmail(googleEmail)}
@@ -120,7 +113,7 @@ export function LoginPage() {
           resendAfterSeconds={GOOGLE_OTP_RESEND_SECONDS}
           verify={(otpCode) => verifyGoogleOtp({ tempToken: googleTempToken, otpCode })}
           resend={() => resendGoogleOtp(googleTempToken)}
-          onVerified={({ tokens }) => completeLogin(tokens, true)}
+          onVerified={(session) => completeLogin(session, true)}
           submitLabel="Xác minh và tạo tài khoản"
           backLabel="Đăng nhập cách khác"
           onBack={() => setSearchParams({}, { replace: true })}
@@ -143,7 +136,7 @@ export function LoginPage() {
             <Alert type="error" showIcon title={getApiErrorMessage(googleExchange.error)} className="auth-form__alert" />
           )}
 
-          <LoginForm defaultIdentifier={registeredIdentifier} onSuccess={({ tokens }, rememberMe) => completeLogin(tokens, rememberMe)} />
+          <LoginForm defaultIdentifier={registeredIdentifier} onSuccess={(session, rememberMe) => completeLogin(session, rememberMe)} />
         </>
       )}
     </AuthLayout>
