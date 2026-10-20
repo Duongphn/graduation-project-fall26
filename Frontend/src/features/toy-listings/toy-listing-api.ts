@@ -33,6 +33,8 @@ export interface Category {
   id: string
   name: string
   slug: string
+  // Danh mục gốc: null hoặc không có (GET /categories công khai không trả trường này)
+  parentId?: string | null
 }
 
 export interface MyListingsPage {

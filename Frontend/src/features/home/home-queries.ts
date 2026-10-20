@@ -16,7 +16,7 @@ const HOME_RETRY = 1
 
 /** Trang chủ chỉ hiện danh mục gốc; danh mục con xem ở trang duyệt đồ chơi */
 export const selectRootCategories = (categories: HomeCategory[]) =>
-  categories.filter((category) => category.parentId === null)
+  categories.filter((category) => !category.parentId)
 
 export const homeCategoriesQuery = queryOptions({
   queryKey: ['categories', 'with-counts'],

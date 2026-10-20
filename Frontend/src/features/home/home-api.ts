@@ -1,5 +1,6 @@
 import { httpClient } from '../../services/http-client'
 import type { Category, ListingType, ToyListing } from '../toy-listings/toy-listing-api'
+import type { ApiResponse } from '../../types/api'
 
 /**
  * Dữ liệu công khai cho trang chủ. Các endpoint trả JSON thô như /toys/mine (chưa bọc envelope).
@@ -47,6 +48,7 @@ export async function fetchPublicToys(params: PublicToysParams): Promise<PublicT
 }
 
 export async function fetchHomeCategories(): Promise<HomeCategory[]> {
-  const { data } = await httpClient.get<HomeCategory[]>('/categories')
-  return data
+  // GET /categories trả envelope { success, data } (server/docs/api-conventions.md)
+  const { data } = await httpClient.get<ApiResponse<HomeCategory[]>>('/categories')
+  return data.data
 }
