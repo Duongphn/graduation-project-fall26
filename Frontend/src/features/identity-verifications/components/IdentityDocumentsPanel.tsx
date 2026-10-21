@@ -18,7 +18,7 @@ export function IdentityDocumentsPanel({
   refreshing,
   onRefresh,
 }: IdentityDocumentsPanelProps) {
-  const isPending = verification.status === 'PENDING'
+  const isPending = verification.status === 'pending'
 
   return (
     <Card

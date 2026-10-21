@@ -7,7 +7,7 @@ import { donationSummaryQuery } from '../donor-queries'
 
 const countFormatter = new Intl.NumberFormat('vi-VN')
 
-/** Thẻ trên Hồ sơ của tôi: số lượt quyên góp đã được bên nhận xác nhận (GET /users/:id/donation-summary) */
+/** Thẻ trên Hồ sơ của tôi: số lượt quyên góp đã được bên nhận xác nhận (GET /donors/:id/donation-summary) */
 export function DonationSummaryCard({ userId }: { userId: string }) {
   const summary = useQuery(donationSummaryQuery(userId))
   const count = summary.data?.completedDonations

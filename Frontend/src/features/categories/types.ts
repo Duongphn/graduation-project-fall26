@@ -18,11 +18,12 @@ export interface AdminCategory {
   updatedAt: string
 }
 
+// develop's GET /categories item.
 export interface PublicCategory {
   id: string
   name: string
   slug: string
-  description?: string
+  parentId?: string | null
 }
 
 export interface CategoryListParams extends PaginationParams {

@@ -7,7 +7,6 @@ import {
   DataTable,
   FilterBar,
   PageHeader,
-  ProvinceSelect,
   StatusTabs,
   StatusTag,
   Thumbnail,
@@ -16,7 +15,6 @@ import type { VisibilityStatus } from '../../../constants/domain'
 import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb } from '../../../routes/paths'
 import { palette } from '../../../styles/palette'
-import { formatAgeGroups } from '../../../utils/format'
 import { OrganizationFormModal } from '../components/OrganizationFormModal'
 import { OrganizationRowActions } from '../components/OrganizationRowActions'
 import { useOrganizations } from '../hooks'
@@ -41,7 +39,7 @@ export function OrganizationsPage() {
       width: 320,
       render: (_, organization) => (
         <Thumbnail
-          src={organization.logoUrl}
+          src={null}
           alt={organization.name}
           placeholder={<TeamOutlined />}
           caption={organization.name}
@@ -50,26 +48,11 @@ export function OrganizationsPage() {
       ),
     },
     {
-      title: 'Tỉnh/thành',
-      dataIndex: 'province',
-      render: (value: string | null) => value ?? '—',
-    },
-    {
       title: 'Liên hệ',
       key: 'contact',
       render: (_, organization) => (
-        <div className="flex flex-col">
-          <Typography.Text>{organization.contactInfo}</Typography.Text>
-          <Typography.Text type="secondary" className="text-xs">
-            {organization.phoneMasked}
-          </Typography.Text>
-        </div>
+        <Typography.Text>{organization.contactInfo}</Typography.Text>
       ),
-    },
-    {
-      title: 'Độ tuổi hỗ trợ',
-      key: 'ageGroups',
-      render: (_, organization) => formatAgeGroups(organization.ageGroups),
     },
     {
       title: 'Yêu cầu đang chạy',
@@ -129,12 +112,6 @@ export function OrganizationsPage() {
           placeholder="Tìm theo tên, địa chỉ hoặc liên hệ"
           className="w-72"
           onSearch={(value) => setFilter('q', value.trim() || undefined)}
-        />
-        <ProvinceSelect
-          allowClear
-          className="w-56"
-          value={filters.province}
-          onChange={(value) => setFilter('province', value)}
         />
       </FilterBar>
 

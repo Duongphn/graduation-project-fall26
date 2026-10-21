@@ -1,4 +1,5 @@
-import { apiGet, apiGetPage, apiSendWithMessage } from '../../services/http'
+import { apiGetPage, apiSendWithMessage } from '../../services/http'
+import { httpClient } from '../../services/http-client'
 import type {
   AdminCategory,
   CategoryCreateInput,
@@ -14,8 +15,8 @@ const ALL_CATEGORIES_LIMIT = 100
 
 // Mutations keep the backend message for the success toast (apiSendWithMessage).
 export const categoriesApi = {
-  // Public: ACTIVE categories in menu order (post forms, search filters).
-  listPublic: () => apiGet<PublicCategory[]>('/categories'),
+  // Public: active categories (develop's GET /categories answers a raw array).
+  listPublic: async () => (await httpClient.get<PublicCategory[]>('/categories')).data,
 
   listAdmin: (params: CategoryListParams) => apiGetPage<AdminCategory>(ADMIN_URL, params),
 

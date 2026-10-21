@@ -1,12 +1,9 @@
 import type {
   ActorType,
-  AgeGroup,
   DonationReceiverType,
   DonationStatus,
   HandoverStep,
-  ToyCondition,
   ToyStatus,
-  VisibilityStatus,
 } from '../../constants/domain'
 import type { PaginationParams } from '../../types/api'
 import type { DonationSortField } from './constants'
@@ -26,19 +23,20 @@ export interface DonationToy {
   id: string
   title: string
   imageUrl: string | null
-  condition: ToyCondition
-  ageGroup: AgeGroup
+  // Free text in develop's toys model.
+  condition: string
+  ageRange: { minAge: number; maxAge: number } | null
   status: ToyStatus
 }
 
 export interface DonationOrganization {
   id: string
   name: string
-  status: VisibilityStatus
+  status: string
+  // Admin detail only.
   address?: string
   contactInfo?: string
-  phone?: string | null
-  logoUrl?: string | null
+  supportCriteria?: string
 }
 
 // D-03: the other party's full name and phone, only while ACCEPTED or SHIPPING (user routes);
@@ -53,7 +51,11 @@ export interface DonationRequest {
   code: string
   status: DonationStatus
   receiverType: DonationReceiverType
+  // The requester's message (develop's itemDetails; the toy title when none was given).
   message: string | null
+  deliveryMethod: string
+  // Expiry deadline of the current step (develop's timer.dueAt).
+  dueAt: string | null
   toy: DonationToy | null
   donor: DonationPerson | null
   requester: DonationPerson | null
@@ -116,7 +118,7 @@ export interface HandoverInput {
   note?: string
 }
 
-// GET /users/:userId/donation-summary: donations the receiver confirmed (COMPLETED).
+// GET /donors/:userId/donation-summary: donations the receiver confirmed (COMPLETED).
 export interface DonorDonationSummary {
   userId: string
   completedDonations: number

@@ -2,7 +2,6 @@ import { BadgeCheck, Eye, MapPin } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { charityOrganizationPath } from '../../../routes/paths'
 import type { PublicOrganization } from '../types'
-import { AgeGroupChips } from './age-group-chips'
 import { OrganizationLogo } from './organization-logo'
 
 interface OrganizationCardProps {
@@ -12,9 +11,8 @@ interface OrganizationCardProps {
   selectHref: string
 }
 
-/** Thẻ tổ chức trong danh sách: địa điểm, độ tuổi tiếp nhận, nhu cầu */
+/** Thẻ tổ chức trong danh sách: địa chỉ, nhu cầu */
 export function OrganizationCard({ organization, isSelected, selectHref }: OrganizationCardProps) {
-  const location = [organization.address, organization.province].filter(Boolean).join(', ')
 
   return (
     <article
@@ -23,7 +21,7 @@ export function OrganizationCard({ organization, isSelected, selectHref }: Organ
       }`}
     >
       <div className="flex gap-4">
-        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
+        <OrganizationLogo name={organization.name} />
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <p className="inline-flex items-center gap-1 self-start rounded-md bg-tf-secondary-container px-2 py-0.5 text-[11px] font-semibold text-tf-secondary">
@@ -32,12 +30,8 @@ export function OrganizationCard({ organization, isSelected, selectHref }: Organ
           <h3 className="text-base leading-6 font-bold tracking-[-0.01em] text-tf-ink">{organization.name}</h3>
           <p className="flex items-start gap-1.5 text-sm leading-5 text-tf-ink-muted">
             <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span className="min-w-0">{location}</span>
+            <span className="min-w-0">{organization.address}</span>
           </p>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-tf-ink-muted">
-            <span>Độ tuổi:</span>
-            <AgeGroupChips ageGroups={organization.ageGroups} />
-          </div>
           <p className="line-clamp-2 text-sm leading-6 text-tf-ink">
             <span className="font-semibold">Nhu cầu: </span>
             {organization.supportCriteria}

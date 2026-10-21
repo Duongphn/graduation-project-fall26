@@ -36,7 +36,7 @@ export function MyDonationDetailPage() {
 
   // Thao tác chỉ dành cho người tặng; người đăng ký nhận mở cùng phiếu sẽ chỉ xem
   const isDonor = Boolean(request && profile.data && request.donor?.id === profile.data.id)
-  const canCancel = isDonor && (request?.status === 'PENDING' || request?.status === 'ACCEPTED')
+  const canCancel = isDonor && (request?.status === 'pending' || request?.status === 'accepted')
 
   return (
     <SiteLayout>
@@ -97,7 +97,7 @@ export function MyDonationDetailPage() {
 
             <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <div className="flex min-w-0 flex-col gap-6">
-                {isDonor && request.status === 'PENDING' && (
+                {isDonor && request.status === 'pending' && (
                   <DonationDecisionCard
                     requesterName={receiverNameOf(request)}
                     message={request.message}
@@ -108,7 +108,7 @@ export function MyDonationDetailPage() {
                   />
                 )}
 
-                {isDonor && request.status === 'ACCEPTED' && (
+                {isDonor && request.status === 'accepted' && (
                   <ShipDonationForm
                     receiverName={receiverNameOf(request)}
                     loading={actions.handOver.isPending}
@@ -116,7 +116,7 @@ export function MyDonationDetailPage() {
                   />
                 )}
 
-                {request.status === 'SHIPPING' && (
+                {request.status === 'shipping' && (
                   <p className="flex items-start gap-3 rounded-xl border border-tf-surface bg-white p-4 text-sm leading-6 text-tf-ink">
                     <Truck className="mt-0.5 size-5 shrink-0 text-tf-primary" aria-hidden />
                     Đồ chơi đang trên đường tới {receiverNameOf(request)}. Phiếu hoàn tất khi bên nhận xác nhận đã nhận

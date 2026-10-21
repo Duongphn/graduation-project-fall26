@@ -33,7 +33,7 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
 
       <div className="mt-3 flex items-center gap-3">
         {request.receiverType === 'ORGANIZATION' ? (
-          <OrganizationLogo name={name} logoUrl={profile?.logoUrl ?? null} />
+          <OrganizationLogo name={name} />
         ) : request.requester?.avatarUrl ? (
           <img src={request.requester.avatarUrl} alt="" className="size-14 shrink-0 rounded-full object-cover" />
         ) : (
@@ -50,7 +50,7 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
             <MapPin className="mt-1 size-4 shrink-0 text-tf-ink-muted" aria-hidden />
             <div>
               <dt className="font-semibold text-tf-ink">Địa chỉ nhận hàng</dt>
-              <dd className="text-tf-ink-muted">{[profile.address, profile.province].filter(Boolean).join(', ')}</dd>
+              <dd className="text-tf-ink-muted">{profile.address}</dd>
             </div>
           </div>
         )}
@@ -72,7 +72,7 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
                 <a href={`tel:${contact.phone}`} className="font-semibold text-tf-primary hover:underline">
                   {contact.phone}
                 </a>
-              ) : request.status === 'PENDING' ? (
+              ) : request.status === 'pending' ? (
                 'Hiển thị sau khi bạn đồng ý tặng'
               ) : (
                 'Không hiển thị'

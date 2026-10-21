@@ -2,13 +2,9 @@ import type { ToyStatus } from '../../constants/domain'
 
 // Tabs of the queue, in the order the Admin works through them.
 export const queueStatusTabs: readonly ToyStatus[] = [
-  'PENDING_REVIEW',
-  'ACTIVE',
-  'REJECTED',
-  'HIDDEN',
-  'RESERVED',
-  'SOLD',
-  'DONATED',
+  'pending',
+  'active',
+  'hidden',
 ]
 
 // Quick reasons for rejecting a post; the Admin can still edit the text.

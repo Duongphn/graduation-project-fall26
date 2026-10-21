@@ -3,7 +3,7 @@ import type { PublicOrganization, PublicOrganizationListParams } from './types'
 
 const BASE = '/organizations'
 
-// Public charity organizations (Donor side). Signed-in callers also get the phone number.
+// Public charity organizations (Donor side).
 export const publicOrganizationsApi = {
   list: (params: PublicOrganizationListParams) => apiGetPage<PublicOrganization>(BASE, params),
 

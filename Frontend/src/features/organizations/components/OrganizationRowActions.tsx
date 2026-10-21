@@ -37,7 +37,7 @@ export function OrganizationRowActions({ organization, onEdit }: OrganizationRow
       >
         Sửa
       </Button>
-      {organization.status === 'HIDDEN' ? (
+      {organization.status === 'hidden' ? (
         <Popconfirm
           title="Hiện lại tổ chức?"
           description="Người tặng sẽ thấy và chọn được tổ chức này."

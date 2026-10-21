@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link, useSearchParams } from 'react-router-dom'
 
-import type { AgeGroup } from '../constants/domain'
 import { DonationReceiverSection } from '../features/donations/components/donation-receiver-section'
 import { DonationPostSummary } from '../features/donations/components/donation-post-summary'
 import { DonationSafetySection } from '../features/donations/components/donation-safety-section'
@@ -33,10 +32,6 @@ import { SiteLayout } from '../layouts/site/site-layout'
 import { PATHS } from '../routes/paths'
 import { getApiErrorCode } from '../services/http-client'
 
-/** Cùng quy tắc với toAgeGroup ở backend (toy-listing.storage.ts) */
-const ageGroupOf = (minAge: number): AgeGroup =>
-  minAge <= 2 ? 'AGE_0_2' : minAge <= 5 ? 'AGE_3_5' : minAge <= 8 ? 'AGE_6_8' : minAge <= 12 ? 'AGE_9_12' : 'AGE_13_PLUS'
-
 const NO_IMAGES: never[] = []
 
 /** Donor tạo phiếu quyên góp: đồ chơi, ảnh, kiểm duyệt an toàn, tổ chức mong muốn, cách bàn giao (UC27) */
@@ -59,9 +54,9 @@ export function NewDonationPage() {
 
   const categories = useQuery(categoriesQuery)
   const organizations = useQuery(
-    organizationListQuery({ page: 1, ...(minAge !== undefined ? { ageGroup: ageGroupOf(minAge) } : {}) }),
+    organizationListQuery({ page: 1 }),
   )
-  // Tổ chức được chọn sẵn có thể không nằm trong danh sách theo độ tuổi: tải riêng để vẫn hiện
+  // Tổ chức được chọn sẵn có thể không nằm ở trang đầu danh sách: tải riêng để vẫn hiện
   const presetOrganization = useQuery({
     ...organizationDetailQuery(presetOrganizationId ?? ''),
     enabled: Boolean(presetOrganizationId),

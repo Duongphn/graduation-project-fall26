@@ -1,18 +1,16 @@
 import { Card, Descriptions } from 'antd'
 import type { DescriptionsProps } from 'antd'
 
-import { AgeTag, StatusTag, UserSummary } from '../../../components/common'
+import { StatusTag, UserSummary } from '../../../components/common'
 import { formatDate, formatDateTime } from '../../../utils/format'
 import type { ToyModerationDetail } from '../types'
 
 interface OwnerCardProps {
   owner: ToyModerationDetail['owner']
-  // GB-07 minimum age sent by the backend.
-  minAgeYears: number
 }
 
-// Who posted the toy: identity check, age (GB-07), account status and trust score.
-export function OwnerCard({ owner, minAgeYears }: OwnerCardProps) {
+// Who posted the toy: identity check, account status and trust score.
+export function OwnerCard({ owner }: OwnerCardProps) {
   if (!owner) {
     return (
       <Card title="Người đăng">
@@ -25,7 +23,7 @@ export function OwnerCard({ owner, minAgeYears }: OwnerCardProps) {
     {
       key: 'identity',
       label: 'Xác minh danh tính',
-      children: <StatusTag domain="identity" status={owner.identityStatus} />,
+      children: <StatusTag domain="identity" status={owner.verificationStatus} />,
     },
     {
       key: 'account',
@@ -37,14 +35,11 @@ export function OwnerCard({ owner, minAgeYears }: OwnerCardProps) {
         </span>
       ),
     },
-    { key: 'age', label: 'Tuổi', children: <AgeTag age={owner.age} minAgeYears={minAgeYears} /> },
     {
       key: 'trust',
       label: 'Điểm uy tín',
       children:
-        owner.trustScore === null
-          ? 'Chưa có đánh giá'
-          : `${owner.trustScore.toFixed(1)} (${owner.ratingCount} đánh giá)`,
+        owner.trustScore === null ? 'Chưa có điểm' : owner.trustScore.toFixed(1),
     },
     { key: 'joined', label: 'Ngày tham gia', children: formatDate(owner.memberSince) },
   ]

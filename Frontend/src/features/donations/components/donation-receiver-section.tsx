@@ -41,7 +41,7 @@ export function DonationReceiverSection({ control, organizations, organizationsL
                       <span className="block text-sm font-semibold text-tf-ink">{organization.name}</span>
                       <span className="flex items-center gap-1 text-xs text-tf-ink-muted">
                         <MapPin className="size-3.5" aria-hidden />
-                        {[organization.address, organization.province].filter(Boolean).join(', ')}
+                        {organization.address}
                       </span>
                       <span className="line-clamp-1 block text-xs text-tf-ink-muted">
                         Cần: {organization.supportCriteria}

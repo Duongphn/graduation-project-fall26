@@ -40,17 +40,17 @@ export function IdentityReviewPanel({ verification }: IdentityReviewPanelProps) 
   const busy = approve.isPending || reject.isPending
   const allChecked = checked.length === identityChecklist.length
 
-  if (verification.status !== 'PENDING') {
+  if (verification.status !== 'pending') {
     return (
       <Card title="Kết quả xử lý">
-        {verification.status === 'VERIFIED' ? (
+        {verification.status === 'verified' ? (
           <Alert type="success" showIcon title={`Đã xác minh lúc ${formatDateTime(verification.reviewedAt)}`} />
         ) : (
           <Alert
             type="error"
             showIcon
             title={`Đã từ chối lúc ${formatDateTime(verification.reviewedAt)}`}
-            description={verification.rejectReason ? `Lý do: ${verification.rejectReason}` : undefined}
+            description={verification.rejectionReason ? `Lý do: ${verification.rejectionReason}` : undefined}
           />
         )}
       </Card>

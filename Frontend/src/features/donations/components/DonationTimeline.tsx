@@ -12,7 +12,7 @@ export function DonationTimeline({ request }: { request: DonationRequestDetail }
         <Timeline
           items={request.history.map((entry, index) => ({
             key: `${entry.at}-${index}`,
-            children: (
+            content: (
               <div className="flex flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusTag domain="donation" status={entry.toStatus} />

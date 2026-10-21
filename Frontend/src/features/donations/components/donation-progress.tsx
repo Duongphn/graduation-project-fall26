@@ -11,18 +11,18 @@ interface Step {
   hint: string
 }
 
-const STEP_OF_STATUS = { PENDING: 0, ACCEPTED: 1, SHIPPING: 2, COMPLETED: 3 } as const
+const STEP_OF_STATUS = { pending: 0, accepted: 1, shipping: 2, received: 2, completed: 3 } as const
 
 /** Tiến trình 4 bước của một phiếu, mốc thời gian lấy từ phiếu và lần bàn giao (DONOR_SENT) */
 export function DonationProgress({ request }: { request: DonationRequestDetail }) {
-  if (request.status === 'REJECTED' || request.status === 'CANCELLED') {
-    const reason = request.status === 'REJECTED' ? request.rejectReason : request.cancellation?.note
+  if (request.status === 'rejected' || request.status === 'cancelled') {
+    const reason = request.status === 'rejected' ? request.rejectReason : request.cancellation?.note
     return (
       <div className="flex items-start gap-3 rounded-xl border border-tf-surface bg-white p-4">
         <CircleX className="mt-0.5 size-5 shrink-0 text-tf-ink-muted" aria-hidden />
         <div className="text-sm leading-6">
           <p className="font-semibold text-tf-ink">
-            {request.status === 'REJECTED' ? 'Yêu cầu nhận đã bị từ chối' : 'Phiếu quyên góp đã huỷ'}
+            {request.status === 'rejected' ? 'Yêu cầu nhận đã bị từ chối' : 'Phiếu quyên góp đã huỷ'}
             {request.cancellation && ` · ${formatDateTime(request.cancellation.at)}`}
           </p>
           {reason && <p className="text-tf-ink-muted">{reason}</p>}
@@ -43,7 +43,7 @@ export function DonationProgress({ request }: { request: DonationRequestDetail }
   return (
     <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {steps.map((step, index) => {
-        const done = index < current || request.status === 'COMPLETED'
+        const done = index < current || request.status === 'completed'
         const active = index === current && !done
         const Icon = done ? Check : step.icon
         return (

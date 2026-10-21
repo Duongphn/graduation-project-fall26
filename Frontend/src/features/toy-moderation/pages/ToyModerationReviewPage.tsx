@@ -59,7 +59,7 @@ export function ToyModerationReviewPage() {
         <Col xs={24} xl={8}>
           <div className="flex flex-col gap-4">
             <ModerationStatusCard toy={toy} />
-            <OwnerCard owner={toy.owner} minAgeYears={toy.minAgeYears} />
+            <OwnerCard owner={toy.owner} />
           </div>
         </Col>
       </Row>

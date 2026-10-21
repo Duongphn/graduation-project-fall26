@@ -3,9 +3,7 @@ import { Input, Pagination } from 'antd'
 import { Building2, ChevronRight, Home, Search } from 'lucide-react'
 import { useEffect, useMemo, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ProvinceSelect, QueryErrorAlert } from '../components/common'
-import { ageGroups } from '../constants/domain'
-import { ageGroupLabels } from '../constants/labels'
+import { QueryErrorAlert } from '../components/common'
 import { OrganizationCard, OrganizationCardSkeleton } from '../features/organizations/components/organization-card'
 import { OrganizationProfile } from '../features/organizations/components/organization-profile'
 import {
@@ -20,14 +18,7 @@ import { PATHS } from '../routes/paths'
 
 const countFormatter = new Intl.NumberFormat('vi-VN')
 
-const chipClass = (active: boolean) =>
-  `inline-flex h-8 items-center rounded-lg border px-3 text-sm font-medium transition-colors ${
-    active
-      ? 'border-tf-primary bg-tf-primary text-white'
-      : 'border-tf-surface bg-white text-tf-ink-muted hover:border-tf-primary hover:text-tf-primary'
-  }`
-
-/** Donor xem tổ chức từ thiện đã được Admin xác minh: địa điểm, nhu cầu, độ tuổi tiếp nhận (UC27) */
+/** Donor xem tổ chức từ thiện đã được Admin xác minh: địa chỉ, nhu cầu (UC27) */
 export function CharityOrganizationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseOrganizationSearch(searchParams), [searchParams])
@@ -79,8 +70,8 @@ export function CharityOrganizationsPage() {
               Tổ chức từ thiện & mái ấm tiếp nhận đồ chơi
             </h1>
             <p className="mt-3 text-[15px] leading-7 text-tf-ink-muted">
-              Mái ấm, trường tình thương và tổ chức đã được ToyFlow xác minh. Xem họ ở đâu, đang cần đồ chơi gì
-              và tiếp nhận cho trẻ ở độ tuổi nào trước khi quyên góp.
+              Mái ấm, trường tình thương và tổ chức đã được ToyFlow xác minh. Xem họ ở đâu và đang cần đồ chơi gì
+              trước khi quyên góp.
             </p>
           </div>
           <p className="flex items-center gap-3 self-start rounded-xl border border-tf-surface bg-white px-4 py-3 lg:self-auto">
@@ -96,7 +87,7 @@ export function CharityOrganizationsPage() {
           </p>
         </header>
 
-        {/* Bộ lọc: từ khoá, tỉnh/thành, độ tuổi tiếp nhận — đều là tham số của GET /organizations */}
+        {/* Bộ lọc: từ khoá — tham số của GET /organizations */}
         <section aria-label="Lọc tổ chức" className="mt-6 flex flex-col gap-3 rounded-xl border border-tf-surface bg-white p-4">
           <div className="flex flex-col gap-3 md:flex-row">
             <form role="search" onSubmit={submitKeyword} className="min-w-0 flex-1" key={filters.q ?? ''}>
@@ -111,32 +102,6 @@ export function CharityOrganizationsPage() {
                 aria-label="Tìm tổ chức theo tên"
               />
             </form>
-            <ProvinceSelect
-              size="large"
-              allowClear
-              value={filters.province}
-              onChange={(province) => updateFilters({ province: province ?? undefined })}
-              placeholder="Tất cả tỉnh/thành"
-              className="w-full md:w-64"
-              aria-label="Lọc theo tỉnh/thành"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-tf-ink-muted">Độ tuổi:</span>
-            <button type="button" className={chipClass(!filters.ageGroup)} onClick={() => updateFilters({ ageGroup: undefined })} aria-pressed={!filters.ageGroup}>
-              Tất cả
-            </button>
-            {ageGroups.map((group) => (
-              <button
-                key={group}
-                type="button"
-                className={chipClass(filters.ageGroup === group)}
-                onClick={() => updateFilters({ ageGroup: group })}
-                aria-pressed={filters.ageGroup === group}
-              >
-                {ageGroupLabels[group]}
-              </button>
-            ))}
           </div>
         </section>
 

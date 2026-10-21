@@ -1,7 +1,7 @@
 import { ImageOff, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { ageGroupLabels, toyConditionLabels } from '../../../constants/labels'
+import { formatAgeRange } from '../../../utils/format'
 import { toyDetailPath } from '../../../routes/paths'
 import type { DonationToy } from '../types'
 
@@ -33,11 +33,11 @@ export function DonationToyCard({ toy }: { toy: DonationToy | null }) {
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-lg bg-tf-page px-3 py-2">
                 <dt className="text-xs text-tf-ink-muted">Tình trạng</dt>
-                <dd className="font-semibold text-tf-ink">{toyConditionLabels[toy.condition]}</dd>
+                <dd className="font-semibold text-tf-ink">{toy.condition}</dd>
               </div>
               <div className="rounded-lg bg-tf-page px-3 py-2">
                 <dt className="text-xs text-tf-ink-muted">Độ tuổi</dt>
-                <dd className="font-semibold text-tf-ink">{ageGroupLabels[toy.ageGroup]}</dd>
+                <dd className="font-semibold text-tf-ink">{formatAgeRange(toy.ageRange)}</dd>
               </div>
             </dl>
           </div>

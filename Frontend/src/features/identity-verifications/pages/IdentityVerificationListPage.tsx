@@ -3,7 +3,6 @@ import type { TableProps } from 'antd'
 import { useNavigate } from 'react-router-dom'
 
 import {
-  AgeTag,
   DataTable,
   FilterBar,
   PageHeader,
@@ -50,11 +49,6 @@ export function IdentityVerificationListPage() {
       ),
     },
     {
-      title: 'Tuổi',
-      key: 'age',
-      render: (_, item) => (item.user ? <AgeTag age={item.user.age} /> : '—'),
-    },
-    {
       title: 'Gửi lúc',
       dataIndex: 'submittedAt',
       render: (value: string) => <RelativeTime value={value} />,
@@ -69,7 +63,7 @@ export function IdentityVerificationListPage() {
           <Tag color="warning">{value} lần</Tag>
         ),
     },
-    ...(status === 'PENDING'
+    ...(status === 'pending'
       ? []
       : [
           {
@@ -78,7 +72,7 @@ export function IdentityVerificationListPage() {
             render: (value: string | null) => formatDateTime(value),
           },
         ]),
-    ...(status === 'REJECTED'
+    ...(status === 'rejected'
       ? [
           {
             title: 'Lý do từ chối',
@@ -100,7 +94,7 @@ export function IdentityVerificationListPage() {
       fixed: 'right',
       render: (_, item) => (
         <Button type="link" onClick={() => openVerification(item.id)}>
-          {item.status === 'PENDING' ? 'Xem xét' : 'Xem'}
+          {item.status === 'pending' ? 'Xem xét' : 'Xem'}
         </Button>
       ),
     },
@@ -119,7 +113,7 @@ export function IdentityVerificationListPage() {
         showAll={false}
         value={status}
         counts={counts.data}
-        onChange={(next) => setFilter('status', next === 'PENDING' ? undefined : next)}
+        onChange={(next) => setFilter('status', next === 'pending' ? undefined : next)}
       />
       <FilterBar>
         <Input.Search
@@ -143,7 +137,7 @@ export function IdentityVerificationListPage() {
         onPageChange={setPage}
         onRowOpen={(item) => openVerification(item.id)}
         locale={{
-          emptyText: status === 'PENDING' ? 'Không còn yêu cầu nào chờ duyệt' : 'Không có yêu cầu nào',
+          emptyText: status === 'pending' ? 'Không còn yêu cầu nào chờ duyệt' : 'Không có yêu cầu nào',
         }}
       />
     </>

@@ -1,26 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Input, Select, Skeleton } from 'antd'
-import { useState } from 'react'
+import { Input, Skeleton } from 'antd'
 import { useForm } from 'react-hook-form'
 
-import {
-  FormField,
-  FormModal,
-  ImageUploader,
-  ProvinceSelect,
-  QueryErrorAlert,
-} from '../../../components/common'
-import { ageGroups } from '../../../constants/domain'
-import { ageGroupLabels } from '../../../constants/labels'
+import { FormField, FormModal, QueryErrorAlert } from '../../../components/common'
 import { useServerFieldErrors } from '../../../hooks/useServerFieldErrors'
 import { useCreateOrganization, useOrganization, useUpdateOrganization } from '../hooks'
 import { emptyOrganizationForm, organizationFormSchema, toFormValues, toInput } from '../schemas'
 import type { OrganizationFormInput, OrganizationFormValues } from '../schemas'
-
-const ageGroupOptions = ageGroups.map((value) => ({
-  value,
-  label: ageGroupLabels[value],
-}))
 
 interface OrganizationFormModalProps {
   open: boolean
@@ -29,7 +15,7 @@ interface OrganizationFormModalProps {
   onClose: () => void
 }
 
-// Add or edit one organization. Editing loads the detail first (it carries the full phone).
+// Add or edit one organization. Editing loads the detail first.
 export function OrganizationFormModal({
   open,
   organizationId,
@@ -53,7 +39,7 @@ export function OrganizationFormModal({
 
   return (
     <OrganizationForm
-      // Remount for each organization so the form and the uploader start fresh.
+      // Remount for each organization so the form starts fresh.
       key={organizationId ?? 'new'}
       open={open}
       title={title}
@@ -87,14 +73,13 @@ function OrganizationForm({
     resolver: zodResolver(organizationFormSchema),
     defaultValues: initialValues,
   })
-  const [uploading, setUploading] = useState(false)
   const onError = useServerFieldErrors(setError)
   const create = useCreateOrganization(onError)
   const update = useUpdateOrganization(onError)
-  const saving = create.isPending || update.isPending || uploading
+  const saving = create.isPending || update.isPending
 
   const submit = handleSubmit((values) => {
-    const input = toInput(values, Boolean(organizationId))
+    const input = toInput(values)
     if (organizationId) update.mutate({ id: organizationId, input }, { onSuccess: onClose })
     else create.mutate(input, { onSuccess: onClose })
   })
@@ -113,14 +98,8 @@ function OrganizationForm({
         <FormField control={control} name="name" label="Tên tổ chức" required>
           {(field) => <Input {...field} maxLength={150} placeholder="Mái ấm Hoa Hồng" />}
         </FormField>
-        <FormField control={control} name="province" label="Tỉnh/thành phố" required>
-          {(field) => <ProvinceSelect {...field} />}
-        </FormField>
         <FormField control={control} name="address" label="Địa chỉ" required>
           {(field) => <Input {...field} maxLength={300} />}
-        </FormField>
-        <FormField control={control} name="phone" label="Số điện thoại" required>
-          {(field) => <Input {...field} placeholder="0912 345 678" />}
         </FormField>
       </div>
       <FormField
@@ -132,16 +111,6 @@ function OrganizationForm({
       >
         {(field) => <Input {...field} maxLength={300} />}
       </FormField>
-      <FormField control={control} name="ageGroups" label="Độ tuổi hỗ trợ" required>
-        {(field) => (
-          <Select
-            {...field}
-            mode="multiple"
-            options={ageGroupOptions}
-            placeholder="Chọn nhóm tuổi"
-          />
-        )}
-      </FormField>
       <FormField control={control} name="supportCriteria" label="Tiêu chí hỗ trợ" required>
         {(field) => (
           <Input.TextArea
@@ -150,21 +119,6 @@ function OrganizationForm({
             maxLength={1000}
             showCount
             placeholder="Loại đồ chơi tổ chức đang cần, tình trạng chấp nhận…"
-          />
-        )}
-      </FormField>
-      <FormField control={control} name="description" label="Mô tả">
-        {(field) => <Input.TextArea {...field} rows={2} maxLength={2000} />}
-      </FormField>
-      <FormField control={control} name="logoUrl" label="Logo">
-        {(field) => (
-          <ImageUploader
-            purpose="ORGANIZATION_LOGO"
-            maxCount={1}
-            maxSizeMb={2}
-            value={field.value ? [{ publicId: field.value, url: field.value, format: '' }] : []}
-            onChange={(images) => field.onChange(images[0]?.url ?? null)}
-            onUploadingChange={setUploading}
           />
         )}
       </FormField>

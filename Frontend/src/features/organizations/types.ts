@@ -1,21 +1,14 @@
-import type { AgeGroup, VisibilityStatus } from '../../constants/domain'
-import type { VietnamProvince } from '../../constants/provinces'
+import type { VisibilityStatus } from '../../constants/domain'
 import type { PaginationParams } from '../../types/api'
 
-// Mirrors OrganizationAdmin in server/src/features/organizations/organizations.schemas.ts.
+// Mirrors the admin DTO of server/src/features/organizations/organizations.mapper.ts
+// (develop's organizations model: name, address, contact_info, support_criteria, status).
 export interface Organization {
   id: string
   name: string
   address: string
-  province: VietnamProvince | null
   contactInfo: string
   supportCriteria: string
-  description: string | null
-  ageGroups: AgeGroup[]
-  logoUrl: string | null
-  phoneMasked: string
-  // Full number: only from the detail endpoint and the create/update answers.
-  phone?: string
   status: VisibilityStatus
   openRequestCount: number
   requestCount: number
@@ -25,39 +18,25 @@ export interface Organization {
 
 export interface OrganizationListParams extends PaginationParams {
   status?: VisibilityStatus
-  province?: VietnamProvince
   q?: string
 }
 
-// Mirrors OrganizationPublic (GET /organizations, GET /organizations/:id): what Donors see.
+// GET /organizations, GET /organizations/:id: what Donors see.
 export interface PublicOrganization {
   id: string
   name: string
   address: string
-  province: VietnamProvince | null
   contactInfo: string
   supportCriteria: string
-  description: string | null
-  ageGroups: AgeGroup[]
-  logoUrl: string | null
-  // Only for signed-in callers (optionalAuth on the backend).
-  phone?: string
 }
 
 export interface PublicOrganizationListParams extends PaginationParams {
-  province?: VietnamProvince
-  ageGroup?: AgeGroup
   q?: string
 }
 
 export interface OrganizationInput {
   name: string
   address: string
-  province: VietnamProvince
-  phone: string
   contactInfo: string
   supportCriteria: string
-  ageGroups: AgeGroup[]
-  description?: string | null
-  logoUrl?: string | null
 }

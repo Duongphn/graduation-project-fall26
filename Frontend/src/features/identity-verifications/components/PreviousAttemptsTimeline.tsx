@@ -25,8 +25,8 @@ export function PreviousAttemptsTimeline({ verification }: PreviousAttemptsTimel
             content: (
               <div className="flex flex-col items-start gap-1">
                 <StatusTag domain="identity" status={attempt.status} />
-                {attempt.rejectReason && (
-                  <Typography.Text type="secondary">Lý do: {attempt.rejectReason}</Typography.Text>
+                {attempt.rejectionReason && (
+                  <Typography.Text type="secondary">Lý do: {attempt.rejectionReason}</Typography.Text>
                 )}
               </div>
             ),

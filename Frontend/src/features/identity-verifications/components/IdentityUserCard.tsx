@@ -1,6 +1,6 @@
 import { Card, Descriptions } from 'antd'
 
-import { AgeTag, StatusTag, UserSummary } from '../../../components/common'
+import { StatusTag, UserSummary } from '../../../components/common'
 import { formatDate, formatDateTime } from '../../../utils/format'
 import type { IdentityVerificationDetail } from '../types'
 
@@ -31,20 +31,12 @@ export function IdentityUserCard({ verification }: IdentityUserCardProps) {
         column={1}
         size="small"
         items={[
-          {
-            key: 'dob',
-            label: 'Ngày sinh',
-            children: (
-              <span className="flex flex-wrap items-center gap-2">
-                {user.dateOfBirth && formatDate(user.dateOfBirth)}
-                <AgeTag age={user.age} minAgeYears={verification.minAgeYears} />
-              </span>
-            ),
-          },
+          { key: 'phone', label: 'Số điện thoại', children: verification.phone },
+          { key: 'idCard', label: 'Số CCCD', children: verification.idCardNumber },
           {
             key: 'identity',
             label: 'Xác minh danh tính',
-            children: <StatusTag domain="identity" status={user.identityStatus} />,
+            children: <StatusTag domain="identity" status={user.verificationStatus} />,
           },
           {
             key: 'account',

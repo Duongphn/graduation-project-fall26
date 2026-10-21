@@ -2,7 +2,7 @@ import { ArrowRight, Building2, CalendarCheck, ImageOff, UserRound } from 'lucid
 import { Link } from 'react-router-dom'
 
 import { StatusTag } from '../../../components/common'
-import { ageGroupLabels, toyConditionLabels } from '../../../constants/labels'
+import { formatAgeRange } from '../../../utils/format'
 import { myDonationPath } from '../../../routes/paths'
 import { formatDateTime } from '../format'
 import type { DonationRequest } from '../types'
@@ -44,8 +44,8 @@ export function CompletedDonationCard({ request }: { request: DonationRequest })
           <p className="text-base leading-6 font-semibold text-tf-ink">{toy?.title ?? 'Đồ chơi không còn tồn tại'}</p>
           {toy && (
             <ul className="flex flex-wrap gap-1.5 text-xs">
-              <li className="rounded-md bg-tf-page px-2 py-0.5 text-tf-ink-muted">{toyConditionLabels[toy.condition]}</li>
-              <li className="rounded-md bg-tf-page px-2 py-0.5 text-tf-ink-muted">{ageGroupLabels[toy.ageGroup]}</li>
+              <li className="rounded-md bg-tf-page px-2 py-0.5 text-tf-ink-muted">{toy.condition}</li>
+              <li className="rounded-md bg-tf-page px-2 py-0.5 text-tf-ink-muted">{formatAgeRange(toy.ageRange)}</li>
             </ul>
           )}
           <Link

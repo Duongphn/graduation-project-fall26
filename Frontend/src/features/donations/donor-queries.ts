@@ -15,7 +15,7 @@ export interface MyDonationFilters {
 const isDonationStatus = (value: string | null): value is DonationStatus =>
   donationStatuses.includes(value as DonationStatus)
 
-/** Bộ lọc trên URL: ?status=SHIPPING&page=2 — giá trị lạ bị bỏ qua */
+/** Bộ lọc trên URL: ?status=shipping&page=2 — giá trị lạ bị bỏ qua */
 export function parseMyDonationsSearch(searchParams: URLSearchParams): MyDonationFilters {
   const status = searchParams.get('status')
   const page = Number(searchParams.get('page'))
@@ -67,7 +67,7 @@ export const completedDonationsQuery = infiniteQueryOptions({
   queryKey: [...myDonationKeys.all, 'completed'],
   queryFn: ({ pageParam }) =>
     donorDonationsApi.incoming({
-      status: 'COMPLETED',
+      status: 'completed',
       page: pageParam,
       limit: MY_DONATIONS_PAGE_SIZE,
       sortBy: 'updatedAt',

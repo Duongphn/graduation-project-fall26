@@ -16,7 +16,7 @@ const HOME_RETRY = 1
 
 /** Trang chủ chỉ hiện danh mục gốc; danh mục con xem ở trang duyệt đồ chơi */
 export const selectRootCategories = (categories: HomeCategory[]) =>
-  categories.filter((category) => !category.parentId)
+  categories.filter((category) => category.parentId === null)
 
 export const homeCategoriesQuery = queryOptions({
   queryKey: ['categories', 'with-counts'],
@@ -36,7 +36,7 @@ const publicToysInfiniteQuery = (listingType: ListingType, sort: PublicToySort) 
     retry: HOME_RETRY,
   })
 
-/** Đồ cho thuê nổi bật: được thuê nhiều trong tuần trước (backend chưa hỗ trợ — tạm theo tin mới nhất) */
+/** Đồ cho thuê nổi bật: được thuê nhiều trong tuần trước */
 export const featuredRentalsQuery = publicToysInfiniteQuery('rent', 'popular')
 
 /** Đồ cũ bán lại: tin mới nhất trước */

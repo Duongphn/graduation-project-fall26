@@ -1,5 +1,8 @@
-import { httpClient } from '../../services/http-client'
+import { httpClient, type ApiResponse } from '../../services/http-client'
 import type { ToyListing } from '../toy-listings/toy-listing-api'
+
+/** Tin tặng vừa tạo: như ToyListing nhưng listingType là 'donate' */
+export type DonationPost = Omit<ToyListing, 'listingType'> & { listingType: 'donate' }
 
 export interface DonationPostInput {
   title: string
@@ -11,10 +14,9 @@ export interface DonationPostInput {
   images: File[]
 }
 
-/** POST /toys với listingType "donate": tin tặng miễn phí, chờ Admin duyệt như tin thường */
-export async function createDonationPost(input: DonationPostInput): Promise<ToyListing> {
+/** POST /donation-posts: tin tặng miễn phí (listingType "donate"), chờ Admin duyệt như tin thường */
+export async function createDonationPost(input: DonationPostInput): Promise<DonationPost> {
   const form = new FormData()
-  form.append('listingType', 'donate')
   form.append('title', input.title)
   form.append('categoryId', input.categoryId)
   form.append('condition', input.condition)
@@ -22,6 +24,8 @@ export async function createDonationPost(input: DonationPostInput): Promise<ToyL
   form.append('ageRange', JSON.stringify({ minAge: input.minAge, maxAge: input.maxAge }))
   input.images.forEach((file) => form.append('images', file))
 
-  const { data } = await httpClient.post<ToyListing>('/toys', form, { timeout: 60_000 })
-  return data
+  const { data } = await httpClient.post<ApiResponse<DonationPost>>('/donation-posts', form, {
+    timeout: 60_000,
+  })
+  return data.data
 }

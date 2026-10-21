@@ -1,10 +1,12 @@
-import { USER_MIN_AGE_YEARS } from '../../constants/domain'
 import type { IdentityDocumentKey } from './types'
+
+// GB-07 minimum user age (label only: develop's users have no date of birth).
+const USER_MIN_AGE_YEARS = 18
 
 export const identityDocuments: ReadonlyArray<{ key: IdentityDocumentKey; label: string }> = [
   { key: 'frontImage', label: 'Mặt trước CCCD' },
   { key: 'backImage', label: 'Mặt sau CCCD' },
-  { key: 'selfieImage', label: 'Ảnh chân dung' },
+  { key: 'selfie', label: 'Ảnh chân dung' },
 ]
 
 // Visual aid only: the Admin checks the documents by hand (FE-01, LI-04); nothing is stored.

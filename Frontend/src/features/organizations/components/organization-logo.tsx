@@ -1,6 +1,5 @@
 interface OrganizationLogoProps {
   name: string
-  logoUrl: string | null
   size?: 'md' | 'lg'
 }
 
@@ -18,19 +17,8 @@ const initialsOf = (name: string) =>
     .map((word) => word.charAt(0).toUpperCase())
     .join('')
 
-/** Logo tổ chức (ảnh Admin tải lên); chưa có logo thì hiện chữ cái đầu trên nền navy nhạt */
-export function OrganizationLogo({ name, logoUrl, size = 'md' }: OrganizationLogoProps) {
-  if (logoUrl) {
-    return (
-      <img
-        src={logoUrl}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        className={`${SIZES[size]} shrink-0 border border-tf-surface bg-white object-cover`}
-      />
-    )
-  }
+/** Biểu tượng tổ chức: chữ cái đầu trên nền navy nhạt (tổ chức không có logo) */
+export function OrganizationLogo({ name, size = 'md' }: OrganizationLogoProps) {
   return (
     <span
       aria-hidden

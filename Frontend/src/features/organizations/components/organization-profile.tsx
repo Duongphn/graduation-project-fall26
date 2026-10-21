@@ -1,10 +1,8 @@
-import { BookOpen, Gift, HandHeart, MapPin, Phone, UserRound, Users, type LucideIcon } from 'lucide-react'
+import { Gift, HandHeart, MapPin, UserRound, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useIsSignedIn } from '../../../hooks/use-is-signed-in'
+import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
 import type { PublicOrganization } from '../types'
-import { AgeGroupChips } from './age-group-chips'
 import { OrganizationLogo } from './organization-logo'
 
 function ProfileSection({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
@@ -20,55 +18,19 @@ function ProfileSection({ icon: Icon, title, children }: { icon: LucideIcon; tit
 
 /**
  * Hồ sơ đầy đủ của một tổ chức — dùng ở khung bên phải trang danh sách và ở trang chi tiết.
- * Số điện thoại chỉ có khi đã đăng nhập (backend không trả cho khách).
  */
 export function OrganizationProfile({ organization }: { organization: PublicOrganization }) {
-  const isSignedIn = useIsSignedIn()
-  const location = useLocation()
-
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-center gap-4">
-        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
+        <OrganizationLogo name={organization.name} />
         <div className="min-w-0">
           <h2 className="text-lg leading-7 font-bold tracking-[-0.01em] text-tf-ink">{organization.name}</h2>
-          {organization.province && <p className="text-sm text-tf-ink-muted">{organization.province}</p>}
         </div>
       </header>
 
       <ProfileSection icon={UserRound} title="Người phụ trách & liên hệ">
         <p className="text-sm leading-6 text-tf-ink">{organization.contactInfo}</p>
-        {organization.phone ? (
-          <a
-            href={`tel:${organization.phone}`}
-            className="inline-flex items-center gap-2 self-start rounded text-sm font-semibold text-tf-primary hover:underline"
-          >
-            <Phone className="size-4" aria-hidden /> {organization.phone}
-          </a>
-        ) : (
-          !isSignedIn && (
-            <p className="text-sm text-tf-ink-muted">
-              <Link
-                to={PATHS.login}
-                state={{ from: location.pathname + location.search }}
-                className="font-semibold text-tf-primary hover:underline"
-              >
-                Đăng nhập
-              </Link>{' '}
-              để xem số điện thoại liên hệ.
-            </p>
-          )
-        )}
-      </ProfileSection>
-
-      {organization.description && (
-        <ProfileSection icon={BookOpen} title="Câu chuyện & sứ mệnh">
-          <p className="text-sm leading-6 whitespace-pre-line text-tf-ink-muted">{organization.description}</p>
-        </ProfileSection>
-      )}
-
-      <ProfileSection icon={Users} title="Độ tuổi tiếp nhận">
-        <AgeGroupChips ageGroups={organization.ageGroups} />
       </ProfileSection>
 
       <ProfileSection icon={HandHeart} title="Nhu cầu hiện tại">
@@ -77,7 +39,7 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
 
       <ProfileSection icon={MapPin} title="Địa chỉ">
         <p className="text-sm leading-6 text-tf-ink">
-          {[organization.address, organization.province].filter(Boolean).join(', ')}
+          {organization.address}
         </p>
       </ProfileSection>
 

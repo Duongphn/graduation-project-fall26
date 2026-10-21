@@ -28,7 +28,7 @@ const LINK_REFRESH_MARGIN_MS = 60_000
 const MIN_REFRESH_MS = 30_000
 
 const msUntilLinkRefresh = (detail: IdentityVerificationDetail | undefined): number | null => {
-  if (detail?.status !== 'PENDING' || !detail.previewExpiresAt) return null
+  if (detail?.status !== 'pending' || !detail.previewExpiresAt) return null
   return new Date(detail.previewExpiresAt).getTime() - LINK_REFRESH_MARGIN_MS - Date.now()
 }
 

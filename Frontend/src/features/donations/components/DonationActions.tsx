@@ -18,9 +18,9 @@ export function DonationActions({ request }: { request: DonationRequestDetail })
   const actions = useDonationActions(request.id)
   const close = () => setModal(undefined)
 
-  const isPending = request.status === 'PENDING'
-  const isShipping = request.status === 'SHIPPING'
-  const canCancel = isPending || request.status === 'ACCEPTED' || isShipping
+  const isPending = request.status === 'pending'
+  const isShipping = request.status === 'shipping'
+  const canCancel = isPending || request.status === 'accepted' || isShipping
 
   return (
     <div className="flex flex-wrap gap-2">

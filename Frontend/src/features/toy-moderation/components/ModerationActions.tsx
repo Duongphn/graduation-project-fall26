@@ -27,12 +27,12 @@ export function ModerationActions({ toy, backTo }: ModerationActionsProps) {
     },
   })
 
-  if (toy.status !== 'PENDING_REVIEW') {
+  if (toy.status !== 'pending') {
     return <Button onClick={() => navigate(backTo)}>Quay lại danh sách</Button>
   }
 
   // The backend refuses too (409 CATEGORY_NOT_AVAILABLE); the button explains it up front.
-  const categoryBlocked = toy.category?.status !== 'ACTIVE'
+  const categoryBlocked = toy.category?.status !== 'active'
   const busy = approve.isPending || reject.isPending
 
   return (

@@ -15,7 +15,7 @@ export const donorDonationsApi = {
   incoming: (params: IncomingDonationParams) => apiGetPage<DonationRequest>(`${BASE}/incoming`, params),
 
   // Public figure shown on the Donor profile.
-  summary: (userId: string) => apiGet<DonorDonationSummary>(`/users/${userId}/donation-summary`),
+  summary: (userId: string) => apiGet<DonorDonationSummary>(`/donors/${userId}/donation-summary`),
 
   detail: (id: string) => apiGet<DonationRequestDetail>(`${BASE}/${id}`),
 

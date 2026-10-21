@@ -17,7 +17,7 @@ export function CategoryRowActions({ category, onEdit }: CategoryRowActionsProps
   const hideMutation = useHideCategory()
   const showMutation = useShowCategory()
   const deleteMutation = useDeleteCategory()
-  const hidden = category.status === 'HIDDEN'
+  const hidden = category.status === 'hidden'
   const visibility = hidden
     ? {
         title: 'Hiện lại danh mục?',

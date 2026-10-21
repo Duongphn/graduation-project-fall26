@@ -14,13 +14,13 @@ import {
   Thumbnail,
 } from '../../../components/common'
 import type { ListingType } from '../../../constants/domain'
-import { listingTypeLabels, toOptions, toyConditionLabels } from '../../../constants/labels'
+import { listingTypeLabels, toOptions } from '../../../constants/labels'
 import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb, adminPaths } from '../../../routes/paths'
-import { formatAgeGroup } from '../../../utils/format'
 import { useAdminCategoryOptions } from '../../categories/hooks'
 import { OwnerCell } from '../components/OwnerCell'
 import { queueStatusTabs } from '../constants'
+import { formatAgeRange } from '../../../utils/format'
 import { formatToyPrice, toQueueLinkState } from '../format'
 import { useToyModerationQueue, useToyStatusCounts } from '../hooks'
 import { queueFiltersSchema } from '../schemas'
@@ -32,7 +32,7 @@ export function ToyModerationQueuePage() {
   const location = useLocation()
   const { params, filters, setPage, setFilter } = useListParams({ schema: queueFiltersSchema })
   const { status, listingType, categoryId, q } = filters
-  const isPendingTab = status === 'PENDING_REVIEW'
+  const isPendingTab = status === 'pending'
 
   const queue = useToyModerationQueue(params)
   const counts = useToyStatusCounts({
@@ -69,10 +69,10 @@ export function ToyModerationQueuePage() {
             {item.title}
           </Link>
           <Typography.Text type="secondary" className="text-xs">
-            {toyConditionLabels[item.condition]} · {formatAgeGroup(item.ageGroup)}{item.area ? ` · ${item.area}` : ''}
+            {item.condition} · {formatAgeRange(item.ageRange)}
           </Typography.Text>
           <Typography.Text className="text-xs">
-            {formatToyPrice(item.listingType, item.pricing)}
+            {formatToyPrice(item.listingType, item)}
           </Typography.Text>
         </div>
       ),
@@ -89,8 +89,8 @@ export function ToyModerationQueuePage() {
         item.category ? (
           <div className="flex flex-col items-start gap-1">
             <span>{item.category.name}</span>
-            {item.category.status === 'HIDDEN' && (
-              <StatusTag domain="visibility" status="HIDDEN" />
+            {item.category.status === 'hidden' && (
+              <StatusTag domain="visibility" status="hidden" />
             )}
           </div>
         ) : (
@@ -107,7 +107,8 @@ export function ToyModerationQueuePage() {
       key: 'submittedAt',
       render: (_, item) => <RelativeTime value={item.moderation.submittedAt} />,
     },
-    ...(status === 'REJECTED'
+    // Rejected posts are hidden with a reason.
+    ...(status === 'hidden'
       ? [
           {
             title: 'Lý do từ chối',
@@ -151,7 +152,7 @@ export function ToyModerationQueuePage() {
         statuses={queueStatusTabs}
         value={status}
         counts={counts.data}
-        onChange={(next) => setFilter('status', next === 'PENDING_REVIEW' ? undefined : next)}
+        onChange={(next) => setFilter('status', next === 'pending' ? undefined : next)}
       />
 
       <FilterBar>
@@ -181,7 +182,7 @@ export function ToyModerationQueuePage() {
           value={categoryId}
           options={(categories.data ?? []).map((category) => ({
             value: category.id,
-            label: category.status === 'HIDDEN' ? `${category.name} (đã ẩn)` : category.name,
+            label: category.status === 'hidden' ? `${category.name} (đã ẩn)` : category.name,
           }))}
           onChange={(value) => setFilter('categoryId', value)}
         />

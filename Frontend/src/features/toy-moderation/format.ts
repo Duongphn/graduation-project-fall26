@@ -4,10 +4,10 @@ import type { ToyPricing } from './types'
 
 // One-line price of a post: rent per day and deposit, sale price, or free for a donation.
 export const formatToyPrice = (listingType: ListingType, pricing: ToyPricing): string => {
-  if (listingType === 'RENT') {
-    return `${formatMoney(pricing.rentPerDay)}/ngày · cọc ${formatMoney(pricing.deposit)}`
+  if (listingType === 'rent') {
+    return `${formatMoney(pricing.priceOrRate)}/ngày · cọc ${formatMoney(pricing.depositPrice)}`
   }
-  if (listingType === 'SALE') return formatMoney(pricing.salePrice)
+  if (listingType === 'sell') return formatMoney(pricing.priceOrRate)
   return 'Tặng miễn phí'
 }
 

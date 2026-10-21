@@ -9,7 +9,7 @@ export function OwnerCell({ owner }: { owner: ModerationOwner | null }) {
         owner && {
           fullName: owner.fullName,
           phone: owner.maskedPhone,
-          identityStatus: owner.identityStatus,
+          identityStatus: owner.verificationStatus,
         }
       }
     />

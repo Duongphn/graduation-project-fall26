@@ -1,8 +1,6 @@
 import type {
-  AgeGroup,
   IdentityStatus,
   ListingType,
-  ToyCondition,
   ToyStatus,
   UserStatus,
   VisibilityStatus,
@@ -21,13 +19,18 @@ export interface ModerationOwner {
   id: string
   fullName: string
   maskedPhone: string
-  identityStatus: IdentityStatus
+  verificationStatus: IdentityStatus
 }
 
+// Price fields of develop's toys model.
 export interface ToyPricing {
-  rentPerDay: number | null
-  deposit: number | null
-  salePrice: number | null
+  priceOrRate: number
+  depositPrice: number | null
+}
+
+export interface ToyAgeRange {
+  minAge: number
+  maxAge: number
 }
 
 export interface ToyModerationListItem {
@@ -35,10 +38,10 @@ export interface ToyModerationListItem {
   title: string
   listingType: ListingType
   status: ToyStatus
-  condition: ToyCondition
-  ageGroup: AgeGroup
-  pricing: ToyPricing
-  area: string | null
+  condition: string
+  ageRange: ToyAgeRange
+  priceOrRate: number
+  depositPrice: number | null
   coverImage: string | null
   imageCount: number
   category: ModerationCategory | null
@@ -57,17 +60,14 @@ export interface ModerationWarning {
 export interface ModerationOwnerDetail extends ModerationOwner {
   accountStatus: UserStatus
   lockedUntil: string | null
-  age: number | null
   trustScore: number | null
-  ratingCount: number
   memberSince: string
 }
 
 export interface ToyModerationDetail extends Omit<ToyModerationListItem, 'owner' | 'moderation'> {
   description: string
-  images: string[]
+  images: Array<{ url: string; publicId: string }>
   minPhotos: number
-  minAgeYears: number
   owner: ModerationOwnerDetail | null
   moderation: {
     submittedAt: string
@@ -82,7 +82,8 @@ export type ToyStatusCounts = Record<ToyStatus, number>
 
 export interface ToyModerationDecision {
   id: string
-  status: 'ACTIVE' | 'REJECTED'
+  // 'hidden' = rejected (moderation.rejectReason is set).
+  status: 'active' | 'hidden'
   updatedAt: string
   moderation: { reviewedBy: string; reviewedAt: string; rejectReason: string | null }
 }

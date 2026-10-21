@@ -9,7 +9,6 @@ export interface IdentityQueueUser {
   // Masked by the backend (GB-35).
   maskedPhone: string
   maskedEmail: string
-  age: number | null
 }
 
 export interface IdentityVerificationSummary {
@@ -17,7 +16,7 @@ export interface IdentityVerificationSummary {
   status: VerificationStatus
   submittedAt: string
   reviewedAt: string | null
-  rejectReason: string | null
+  rejectionReason: string | null
 }
 
 export interface IdentityQueueItem extends IdentityVerificationSummary {
@@ -30,11 +29,12 @@ export type IdentityCounts = Record<VerificationStatus, number>
 export interface IdentityQueueParams extends PaginationParams {
   status: VerificationStatus
   q?: string
+  sortBy?: 'submittedAt' | 'reviewedAt'
 }
 
-export type IdentityDocumentKey = 'frontImage' | 'backImage' | 'selfieImage'
+export type IdentityDocumentKey = 'frontImage' | 'backImage' | 'selfie'
 
-// Signed link valid for 5 minutes; the backend sends null once the request is decided.
+// Authorized link (expiresAt); the backend sends null once the request is decided.
 export interface IdentityDocumentLink {
   url: string
   expiresAt: string
@@ -42,11 +42,12 @@ export interface IdentityDocumentLink {
 
 export interface IdentityVerificationDetail extends IdentityVerificationSummary {
   reviewedBy: string | null
+  phone: string
+  idCardNumber: string
   user:
     // Contacts stay masked (maskedPhone, maskedEmail): the full email is not sent.
     | (IdentityQueueUser & {
-        dateOfBirth: string | null
-        identityStatus: IdentityStatus
+        verificationStatus: IdentityStatus
         accountStatus: UserStatus
         locked: boolean
         joinedAt: string
@@ -56,14 +57,12 @@ export interface IdentityVerificationDetail extends IdentityVerificationSummary 
   previewAvailable: boolean
   previewExpiresAt: string | null
   previousRequests: IdentityVerificationSummary[]
-  // GB-07 minimum age, when the backend sends it (USER_MIN_AGE_YEARS otherwise).
-  minAgeYears?: number
 }
 
 export interface IdentityReviewResult {
   id: string
   status: VerificationStatus
   reviewedAt: string
-  rejectReason: string | null
-  user: { id: string; identityStatus: IdentityStatus }
+  rejectionReason: string | null
+  user: { id: string; verificationStatus: IdentityStatus }
 }

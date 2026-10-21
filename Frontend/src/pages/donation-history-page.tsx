@@ -34,9 +34,9 @@ export function DonationHistoryPage() {
   const userId = profile.data?.id ?? ''
   const summary = useQuery({ ...donationSummaryQuery(userId), enabled: Boolean(userId) })
   // Chỉ cần tổng số (pagination.totalItems) của từng trạng thái
-  const shipping = useQuery(myDonationsQuery({ status: 'SHIPPING', page: 1 }))
-  const pending = useQuery(myDonationsQuery({ status: 'PENDING', page: 1 }))
-  const accepted = useQuery(myDonationsQuery({ status: 'ACCEPTED', page: 1 }))
+  const shipping = useQuery(myDonationsQuery({ status: 'shipping', page: 1 }))
+  const pending = useQuery(myDonationsQuery({ status: 'pending', page: 1 }))
+  const accepted = useQuery(myDonationsQuery({ status: 'accepted', page: 1 }))
   const completed = useInfiniteQuery(completedDonationsQuery)
 
   useEffect(() => {
