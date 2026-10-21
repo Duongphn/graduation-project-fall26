@@ -1,8 +1,7 @@
 import type { Request, Response } from 'express';
 
-import { getAdminContext } from '../../shared/http/admin-context.js';
+import { getAdminContext, getRequestUserId } from '../../shared/http/admin-context.js';
 import type { IdParams } from '../../shared/http/schemas.js';
-import { getRequestUserId } from '../../shared/middleware/auth-placeholder.js';
 import {
   getValidatedBody,
   getValidatedParams,

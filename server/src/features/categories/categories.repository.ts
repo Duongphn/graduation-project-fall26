@@ -1,9 +1,8 @@
 import { Types, type ClientSession } from 'mongoose';
 
-import { vietnameseNameCollation } from '../../infrastructure/database/schema-types.js';
-import { toyStatuses, type VisibilityStatus } from '../../shared/domain/statuses.js';
-import { ToyModel } from '../toys/toys.model.js';
-import { CategoryModel } from './categories.model.js';
+import { Toy } from '../toys/toys.model.js';
+import { Category } from './categories.model.js';
+import type { CategoryStatus } from './categories.schemas.js';
 
 // The only file of the feature that touches the database.
 
@@ -13,13 +12,13 @@ export interface CategoryRecord {
   slug: string;
   description?: string | null;
   displayOrder: number;
-  status: VisibilityStatus;
+  status: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface CategoryListFilter {
-  status?: VisibilityStatus;
+  status?: CategoryStatus;
   // RegExp source (already safe) matched case-insensitively on name and description.
   textPattern?: string;
 }
@@ -28,8 +27,13 @@ export interface CategoryListFilter {
 const VIETNAMESE_ORDER = { locale: 'vi' } as const;
 const MENU_SORT = { displayOrder: 1, name: 1, _id: 1 } as const;
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Develop's data may store the status in another case ('ACTIVE'). */
+const statusFilter = (status: string) => ({ $regex: `^${status}$`, $options: 'i' });
+
 const listFilter = ({ status, textPattern }: CategoryListFilter) => ({
-  ...(status ? { status } : {}),
+  ...(status ? { status: statusFilter(status) } : {}),
   ...(textPattern
     ? {
         $or: [
@@ -42,21 +46,19 @@ const listFilter = ({ status, textPattern }: CategoryListFilter) => ({
 
 export const categoriesRepository = {
   findById(id: string, session?: ClientSession): Promise<CategoryRecord | null> {
-    return CategoryModel.findById(id)
+    return Category.findById(id)
       .session(session ?? null)
       .lean<CategoryRecord>()
       .exec();
   },
 
-  // True when another category has the same name under the name_unique collation, so the check
-  // uses that index and agrees with it ("Lắp ráp" = "LẮP RÁP"; "Lap rap" is a different name).
+  // True when another category has the same name, compared case-insensitively
+  // ("Lắp ráp" = "LẮP RÁP"; "Lap rap" is a different name).
   async existsByName(name: string, excludeId?: string, session?: ClientSession): Promise<boolean> {
-    const found = await CategoryModel.exists({
-      name,
+    const found = await Category.exists({
+      name: { $regex: `^${escapeRegExp(name)}$`, $options: 'i' },
       ...(excludeId ? { _id: { $ne: new Types.ObjectId(excludeId) } } : {}),
-    })
-      .collation(vietnameseNameCollation)
-      .session(session ?? null);
+    }).session(session ?? null);
     return found !== null;
   },
 
@@ -66,21 +68,21 @@ export const categoriesRepository = {
   ): Promise<{ items: CategoryRecord[]; total: number }> {
     const query = listFilter(filter);
     const [items, total] = await Promise.all([
-      CategoryModel.find(query)
+      Category.find(query)
         .sort(MENU_SORT)
         .collation(VIETNAMESE_ORDER)
         .skip(paging.skip)
         .limit(paging.limit)
         .lean<CategoryRecord[]>()
         .exec(),
-      CategoryModel.countDocuments(query),
+      Category.countDocuments(query),
     ]);
     return { items, total };
   },
 
   // Every category in menu order (for reordering).
   listAll(session: ClientSession): Promise<CategoryRecord[]> {
-    return CategoryModel.find({})
+    return Category.find({})
       .sort(MENU_SORT)
       .collation(VIETNAMESE_ORDER)
       .session(session)
@@ -88,21 +90,12 @@ export const categoriesRepository = {
       .exec();
   },
 
-  listActive(): Promise<CategoryRecord[]> {
-    return CategoryModel.find({ status: 'ACTIVE' })
-      .sort(MENU_SORT)
-      .collation(VIETNAMESE_ORDER)
-      .lean<CategoryRecord[]>()
-      .exec();
-  },
-
-  // Toys per category with ONE aggregation. The status $in lists every toy status: it keeps
-  // all toys but lets MongoDB use the { status, categoryId } index (browse_by_category).
+  // Toys per category (every status) with ONE aggregation.
   async countToys(ids: Types.ObjectId[], session?: ClientSession): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
     if (ids.length === 0) return counts;
-    const rows = await ToyModel.aggregate<{ _id: Types.ObjectId; count: number }>([
-      { $match: { status: { $in: [...toyStatuses] }, categoryId: { $in: ids } } },
+    const rows = await Toy.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { categoryId: { $in: ids } } },
       { $group: { _id: '$categoryId', count: { $sum: 1 } } },
     ]).session(session ?? null);
     for (const row of rows) counts.set(String(row._id), row.count);
@@ -110,11 +103,11 @@ export const categoriesRepository = {
   },
 
   async isSlugTaken(slug: string, session: ClientSession): Promise<boolean> {
-    return (await CategoryModel.exists({ slug }).session(session)) !== null;
+    return (await Category.exists({ slug }).session(session)) !== null;
   },
 
   async maxDisplayOrder(session: ClientSession): Promise<number> {
-    const last = await CategoryModel.findOne({}, { displayOrder: 1 })
+    const last = await Category.findOne({}, { displayOrder: 1 })
       .sort({ displayOrder: -1 })
       .session(session)
       .lean<{ displayOrder: number }>()
@@ -126,7 +119,7 @@ export const categoriesRepository = {
     data: { name: string; slug: string; displayOrder: number; description?: string },
     session: ClientSession,
   ): Promise<CategoryRecord> {
-    const [created] = await CategoryModel.create([{ ...data, status: 'ACTIVE' }], { session });
+    const [created] = await Category.create([{ ...data, status: 'active' }], { session });
     if (!created) throw new Error('Category was not created.');
     return created.toObject() as unknown as CategoryRecord;
   },
@@ -136,7 +129,7 @@ export const categoriesRepository = {
     changes: { set: Record<string, unknown>; unset: string[] },
     session: ClientSession,
   ): Promise<CategoryRecord | null> {
-    return CategoryModel.findByIdAndUpdate(
+    return Category.findByIdAndUpdate(
       id,
       {
         ...(Object.keys(changes.set).length > 0 ? { $set: changes.set } : {}),
@@ -153,11 +146,11 @@ export const categoriesRepository = {
   // Conditional status change: matches only while the category still has the expected status.
   changeStatus(
     id: string,
-    from: VisibilityStatus,
-    to: VisibilityStatus,
+    from: string,
+    to: CategoryStatus,
     session: ClientSession,
   ): Promise<CategoryRecord | null> {
-    return CategoryModel.findOneAndUpdate(
+    return Category.findOneAndUpdate(
       { _id: id, status: from },
       { $set: { status: to } },
       { new: true, session },
@@ -172,13 +165,13 @@ export const categoriesRepository = {
    * write-conflicts with this one, so a toy can never be saved on a deleted category.
    */
   lockForDelete(id: string, session: ClientSession): Promise<CategoryRecord | null> {
-    return CategoryModel.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, session })
+    return Category.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, session })
       .lean<CategoryRecord>()
       .exec();
   },
 
   async deleteById(id: string, session: ClientSession): Promise<boolean> {
-    const result = await CategoryModel.deleteOne({ _id: id }, { session });
+    const result = await Category.deleteOne({ _id: id }, { session });
     return result.deletedCount === 1;
   },
 
@@ -187,7 +180,7 @@ export const categoriesRepository = {
     session: ClientSession,
   ): Promise<void> {
     if (orders.length === 0) return;
-    await CategoryModel.bulkWrite(
+    await Category.bulkWrite(
       orders.map(({ id, displayOrder }) => ({
         updateOne: { filter: { _id: id }, update: { $set: { displayOrder } } },
       })),

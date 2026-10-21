@@ -1,18 +1,23 @@
-import type { NotificationType, ReferenceKind } from '../../shared/domain/enums.js';
-import type { DonationStatus } from '../../shared/domain/statuses.js';
+import type { StoredDonationStatus } from '../donation_requests/donation_requests.model.js';
 import type {
   DonationStatusChangedEvent,
   IdentityReviewedEvent,
   ToyReviewedEvent,
 } from '../../shared/events/domain-events.js';
 import { renderEmail, type EmailContent, type EmailSpec } from './notification-email.js';
+import type { NotificationType } from './notification-types.js';
+
+type DonationStatus = StoredDonationStatus;
+
+/** What a notification is about; only used for the link in the email (not stored). */
+export type NotificationTargetKind = 'TOY' | 'IDENTITY_VERIFICATION' | 'DONATION_REQUEST';
 
 // Vietnamese texts of every notification (in-app title/body + email). Pure functions, so the
 // content is unit-tested without a database. The notification `type` is the shared event name;
 // the decision lives in the title and body.
 
 export interface NotificationTarget {
-  kind: ReferenceKind;
+  kind: NotificationTargetKind;
   id: string;
 }
 
@@ -30,7 +35,7 @@ export interface TemplateContext {
 }
 
 // Pages of the user web app a notification opens (the email needs a full URL).
-const targetPaths: Partial<Record<ReferenceKind, (id: string) => string>> = {
+const targetPaths: Partial<Record<NotificationTargetKind, (id: string) => string>> = {
   TOY: (id) => `/my/listings/${id}`,
   IDENTITY_VERIFICATION: () => '/account/identity',
   DONATION_REQUEST: (id) => `/my/donations/${id}`,
@@ -80,7 +85,7 @@ export const renderToyReviewed = (
   const name = shorten(event.toyTitle, MAX_NAME);
   const base = { type: 'TOY_REVIEWED', target: { kind: 'TOY', id: event.toyId } } as const;
   return buildMessage(
-    event.decision === 'ACTIVE'
+    event.decision === 'approved'
       ? {
           ...base,
           title: `Tin đăng "${name}" đã được duyệt`,
@@ -109,7 +114,7 @@ export const renderIdentityReviewed = (
     target: { kind: 'IDENTITY_VERIFICATION', id: event.verificationId },
   } as const;
   return buildMessage(
-    event.decision === 'VERIFIED'
+    event.decision === 'verified'
       ? {
           ...base,
           title: 'Danh tính của bạn đã được xác minh',
@@ -134,12 +139,14 @@ export type DonationParty = 'DONOR' | 'REQUESTER';
 
 // Who hears about each new status. The user who made the change is not notified.
 export const donationAudience: Record<DonationStatus, readonly DonationParty[]> = {
-  PENDING: ['DONOR'],
-  ACCEPTED: ['REQUESTER', 'DONOR'],
-  REJECTED: ['REQUESTER', 'DONOR'],
-  SHIPPING: ['REQUESTER'],
-  COMPLETED: ['DONOR', 'REQUESTER'],
-  CANCELLED: ['DONOR', 'REQUESTER'],
+  pending: ['DONOR'],
+  accepted: ['REQUESTER', 'DONOR'],
+  rejected: ['REQUESTER', 'DONOR'],
+  shipping: ['REQUESTER'],
+  // Not used by the donor flow (confirming receipt completes the request).
+  received: [],
+  completed: ['DONOR', 'REQUESTER'],
+  cancelled: ['DONOR', 'REQUESTER'],
 };
 
 // For an ORGANIZATION request, requestedBy is only the Admin who filed it on the
@@ -175,14 +182,14 @@ const donationTexts = (
 ): DonationText => {
   const forDonor = party === 'DONOR';
   switch (status) {
-    case 'PENDING':
+    case 'pending':
       return {
         title: `Có yêu cầu nhận đồ chơi "${name}"`,
         summary: `Bạn nhận được một yêu cầu nhận đồ chơi quyên góp "${toy}"${receiver}.`,
         nextStep: 'Vui lòng xem yêu cầu và chấp nhận hoặc từ chối trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
-    case 'ACCEPTED':
+    case 'accepted':
       return forDonor
         ? {
             title: `Yêu cầu nhận "${name}" đã được chấp nhận`,
@@ -197,7 +204,7 @@ const donationTexts = (
               'Người quyên góp sẽ chuẩn bị và gửi đồ chơi; bạn sẽ được báo khi đồ chơi được gửi.',
             actionLabel: VIEW_REQUEST,
           };
-    case 'REJECTED':
+    case 'rejected':
       return {
         title: `Yêu cầu nhận "${name}" không được chấp nhận`,
         summary: forDonor
@@ -206,14 +213,15 @@ const donationTexts = (
         nextStep: 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
-    case 'SHIPPING':
+    case 'shipping':
       return {
         title: `Đồ chơi "${name}" đã được gửi đi`,
         summary: `Người quyên góp đã gửi đồ chơi "${toy}"${receiver}.`,
         nextStep: 'Khi nhận được đồ chơi, vui lòng xác nhận đã nhận trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
-    case 'COMPLETED':
+    case 'received':
+    case 'completed':
       return forDonor
         ? {
             title: `Cảm ơn bạn đã quyên góp "${name}"`,
@@ -228,7 +236,7 @@ const donationTexts = (
             nextStep: 'Cảm ơn bạn đã sử dụng ToyFlow.',
             actionLabel: VIEW_REQUEST,
           };
-    case 'CANCELLED':
+    case 'cancelled':
       return {
         title: `Yêu cầu nhận "${name}" đã bị hủy`,
         summary: `Yêu cầu nhận đồ chơi quyên góp "${toy}"${receiver} đã bị hủy.`,
@@ -249,7 +257,7 @@ export const renderDonationStatusChanged = (
     {
       type: 'DONATION_STATUS_CHANGED',
       target: { kind: 'DONATION_REQUEST', id: event.donationRequestId },
-      reason: event.to === 'REJECTED' || event.to === 'CANCELLED' ? event.reason : undefined,
+      reason: event.to === 'rejected' || event.to === 'cancelled' ? event.reason : undefined,
       ...donationTexts(
         event.to,
         party,

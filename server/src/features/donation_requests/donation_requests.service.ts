@@ -1,11 +1,11 @@
 import { Types } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../../infrastructure/database/audit.js';
-import { withTransaction } from '../../infrastructure/database/schema-types.js';
-import { conflict, notFound, unprocessable } from '../../shared/errors/app-error.js';
+import { conflict, notFound, unprocessable } from '../../shared/errors/http-errors.js';
 import { domainEvents } from '../../shared/events/domain-events.js';
 import { toMongoPaging } from '../../shared/utils/response.js';
 import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
+import { HANDOVER_EXPIRY_DAYS, PENDING_EXPIRY_DAYS } from './donation_requests.statuses.js';
 import {
   type DonationView,
   encodePhoto,
@@ -19,6 +19,7 @@ import {
   canDecide,
   canHandOver,
   canView,
+  receiverTypeOf,
   type DonationActor,
 } from './donation_requests.policy.js';
 import * as repository from './donation_requests.repository.js';
@@ -32,11 +33,11 @@ import {
   type MyRequestsQuery,
 } from './donation_requests.schemas.js';
 import {
-  actorReference,
   adminContextOf,
   organizationNotAvailable,
   requestNotFound,
   toyNotAvailable,
+  buildEvent,
   transition,
 } from './donation_requests.transition.js';
 
@@ -53,13 +54,8 @@ export const toDtos = async (records: DonationRecord[], view: DonationView) => {
   return records.map((record) => toDonationRequestDto(record, relations, view));
 };
 
-export const toDetail = async (record: DonationRecord, view: DonationView) => {
-  const [relations, history] = await Promise.all([
-    repository.loadRelations([record], view.admin),
-    repository.findHistory(record._id),
-  ]);
-  return toDonationRequestDetailDto(record, relations, history, view);
-};
+export const toDetail = async (record: DonationRecord, view: DonationView) =>
+  toDonationRequestDetailDto(record, await repository.loadRelations([record], view.admin), view);
 
 export const listPage = async (
   filter: RequestFilter,
@@ -79,85 +75,70 @@ export const createRequest = async (
   actor: DonationActor,
   input: CreateRequestBody & { organizationId?: string },
 ) => {
-  const created = await withTransaction(async (session) => {
-    // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a
-    // concurrent hide or delete of the organization (see the repository).
-    const toy = await repository.touchActiveDonationToy(input.toyId, session);
-    if (!toy) {
-      if (!(await repository.findToy(input.toyId, session))) {
-        throw notFound('TOY_NOT_FOUND', 'Không tìm thấy đồ chơi.');
-      }
-      throw toyNotAvailable();
-    }
-    if (String(toy.ownerId) === actor.userId) {
-      throw unprocessable('OWN_TOY', 'Bạn không thể xin đồ chơi do chính mình tặng.');
-    }
-    // GB-05: the toys of a locked account are hidden, so they cannot be requested.
-    if ((await repository.findUserStatus(toy.ownerId, session)) === 'LOCKED') {
-      throw conflict('DONOR_LOCKED', 'Người quyên góp đang bị khóa, không thể gửi yêu cầu.');
-    }
-    if (input.organizationId) {
-      if (!(await repository.touchActiveOrganization(input.organizationId, session))) {
-        if (!(await repository.findOrganization(input.organizationId, session))) {
-          throw notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
+  const created = await repository
+    .withTransaction(async (session) => {
+      // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a
+      // concurrent hide or delete of the organization (see the repository).
+      const toy = await repository.touchActiveDonationToy(input.toyId, session);
+      if (!toy) {
+        if (!(await repository.findToy(input.toyId, session))) {
+          throw notFound('TOY_NOT_FOUND', 'Không tìm thấy đồ chơi.');
         }
-        throw organizationNotAvailable();
+        throw toyNotAvailable();
       }
-    }
+      if (String(toy.ownerId) === actor.userId) {
+        throw unprocessable('OWN_TOY', 'Bạn không thể xin đồ chơi do chính mình tặng.');
+      }
+      // GB-05: the toys of a locked account are hidden, so they cannot be requested.
+      if ((await repository.findUserStatus(toy.ownerId, session))?.toUpperCase() === 'LOCKED') {
+        throw conflict('DONOR_LOCKED', 'Người quyên góp đang bị khóa, không thể gửi yêu cầu.');
+      }
+      if (input.organizationId) {
+        if (!(await repository.touchActiveOrganization(input.organizationId, session))) {
+          if (!(await repository.findOrganization(input.organizationId, session))) {
+            throw notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
+          }
+          throw organizationNotAvailable();
+        }
+      }
 
-    const record = await repository.insertRequest(
-      {
-        toyId: toy._id,
-        donorId: toy.ownerId,
-        requestedBy: actor.userId,
-        receiverType: input.organizationId ? 'ORGANIZATION' : 'USER',
-        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
-        ...(input.message ? { message: input.message } : {}),
-      },
-      session,
-    );
-    const actorRef = actorReference(actor);
-    await repository.insertHistory(
-      [{ orderId: record._id, toStatus: 'PENDING', actor: actorRef }],
-      session,
-    );
-    if (actor.isAdmin) {
-      await writeAuditLog(
-        adminAuditEntry(
-          adminContextOf(actor),
-          'donation.create',
-          { kind: 'DONATION_REQUEST', id: String(record._id) },
-          { toyId: input.toyId, organizationId: input.organizationId },
-        ),
+      const record = await repository.insertRequest(
+        {
+          toyId: toy._id,
+          donorId: toy.ownerId,
+          requestedBy: actor.userId,
+          ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+          // develop's itemDetails (required): the requester's message, else the toy title.
+          itemDetails: input.message || toy.title,
+          dueAt: daysFromNow(PENDING_EXPIRY_DAYS),
+        },
         session,
       );
-    }
-    return { record, toyTitle: toy.title };
-  }).catch((error: unknown) => {
-    if (isDuplicateKeyError(error, 'one_pending_per_requester')) {
-      throw conflict('DONATION_REQUEST_EXISTS', 'Bạn đã gửi yêu cầu cho đồ chơi này.');
-    }
-    if (isDuplicateKeyError(error, 'one_pending_per_organization')) {
-      throw conflict(
-        'DONATION_REQUEST_EXISTS',
-        'Tổ chức này đã có một yêu cầu đang chờ cho đồ chơi này.',
-      );
-    }
-    throw error;
-  });
+      if (actor.isAdmin) {
+        await writeAuditLog(
+          adminAuditEntry(adminContextOf(actor), 'donation.create', {
+            kind: 'DONATION_REQUEST',
+            id: String(record._id),
+          }),
+          session,
+        );
+      }
+      return { record, toyTitle: toy.title };
+    })
+    .catch((error: unknown) => {
+      // develop's one_pending_per_receiver: one pending request per toy and receiver.
+      if (isDuplicateKeyError(error, 'one_pending_per_receiver')) {
+        throw conflict(
+          'DONATION_REQUEST_EXISTS',
+          input.organizationId
+            ? 'Tổ chức này đã có một yêu cầu đang chờ cho đồ chơi này.'
+            : 'Bạn đã gửi yêu cầu cho đồ chơi này.',
+        );
+      }
+      throw error;
+    });
   const { record } = created;
-  domainEvents.publish({
-    type: 'DONATION_STATUS_CHANGED',
-    donationRequestId: String(record._id),
-    toyId: String(record.toyId),
-    toyTitle: created.toyTitle,
-    donorId: String(record.donorId),
-    requestedBy: String(record.requestedBy),
-    receiverType: record.receiverType,
-    ...(record.organizationId ? { organizationId: String(record.organizationId) } : {}),
-    to: 'PENDING',
-    changedBy: actor.userId,
-  });
+  domainEvents.publish(buildEvent(record, created.toyTitle, undefined, 'pending', actor.userId));
   return toDetail(record, viewOf(actor));
 };
 
@@ -170,7 +151,7 @@ export const listMine = (actor: DonationActor, query: MyRequestsQuery) =>
   listPage(
     {
       requestedBy: new Types.ObjectId(actor.userId),
-      receiverType: 'USER',
+      'receiver.organizationId': { $exists: false },
       ...statusFilter(query),
     },
     query,
@@ -200,6 +181,9 @@ export const getDonorSummary = async (userId: string) => {
 
 // ---- Moves -----------------------------------------------------------------------------------
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const daysFromNow = (days: number) => new Date(Date.now() + days * DAY_MS);
+
 const decided = (actor: DonationActor) => ({
   decidedBy: new Types.ObjectId(actor.userId),
   decidedAt: new Date(),
@@ -226,11 +210,12 @@ export const accept = async (actor: DonationActor, id: string) =>
   detailOf(
     await transition({
       id,
-      to: 'ACCEPTED',
+      to: 'accepted',
       actor,
       allowed: canDecide,
       check: assertNotAdminDecision(actor),
-      set: decided(actor),
+      // The donor now has HANDOVER_EXPIRY_DAYS to hand the toy over.
+      set: { ...decided(actor), 'timer.dueAt': daysFromNow(HANDOVER_EXPIRY_DAYS) },
     }),
     actor,
   );
@@ -239,11 +224,12 @@ export const reject = async (actor: DonationActor, id: string, reason: string) =
   detailOf(
     await transition({
       id,
-      to: 'REJECTED',
+      to: 'rejected',
       actor,
       allowed: canDecide,
       check: assertNotAdminDecision(actor),
       set: { ...decided(actor), rejectReason: reason },
+      unset: ['timer'],
       reason,
     }),
     actor,
@@ -258,7 +244,7 @@ export const cancel = async (
   detailOf(
     await transition({
       id,
-      to: 'CANCELLED',
+      to: 'cancelled',
       actor,
       allowed: canCancel,
       allowedFrom: cancellableFrom(actor),
@@ -271,6 +257,7 @@ export const cancel = async (
           at: new Date(),
         },
       },
+      unset: ['timer'],
       ...(body.note ? { reason: body.note } : {}),
     }),
     actor,
@@ -307,7 +294,8 @@ export const handOver = async (actor: DonationActor, id: string, body: HandoverB
   return detailOf(
     await transition({
       id,
-      to: 'SHIPPING',
+      to: 'shipping',
+      unset: ['timer'],
       actor,
       allowed: canHandOver,
       pushHandover: handover('DONOR_SENT', actor, body),
@@ -335,19 +323,18 @@ export const confirmReceived = async (
   return detailOf(
     await transition({
       id,
-      to: 'COMPLETED',
+      to: 'completed',
       actor,
       allowed: canConfirmReceipt,
       // An Admin confirming for a USER receiver (who never confirmed) must give a reason.
       check: (record) => {
-        if (actor.isAdmin && record.receiverType === 'USER' && !options.reason) {
+        if (actor.isAdmin && receiverTypeOf(record) === 'USER' && !options.reason) {
           throw unprocessable(
             'REASON_REQUIRED',
             'Cần nhập lý do khi Admin xác nhận đã nhận thay người nhận.',
           );
         }
       },
-      ...(options.reason ? { auditMeta: { adminReason: options.reason } } : {}),
       set: { completedAt: new Date() },
       ...(body.photos
         ? {

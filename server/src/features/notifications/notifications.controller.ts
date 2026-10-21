@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 
 import type { IdParams } from '../../shared/http/schemas.js';
-import { getRequestUserId } from '../../shared/middleware/auth-placeholder.js';
+import { getRequestUserId } from '../../shared/http/admin-context.js';
 import { getValidatedParams, getValidatedQuery } from '../../shared/middleware/validate.js';
 import { sendPaginated, sendSuccess } from '../../shared/utils/response.js';
 import type { ListNotificationsQuery } from './notifications.schemas.js';

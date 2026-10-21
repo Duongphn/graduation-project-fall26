@@ -2,7 +2,8 @@ import { Router } from 'express';
 import type { ZodType } from 'zod';
 
 import { emptyObjectSchema, idParamsSchema } from '../../shared/http/schemas.js';
-import { requireAdmin, requireUser } from '../../shared/middleware/auth-placeholder.js';
+import { requireActor } from '../../shared/middleware/require-actor.js';
+import { requireAdmin } from '../../shared/middleware/require-admin.js';
 import { validateRequest } from '../../shared/middleware/validate.js';
 import * as controller from './donation_requests.controller.js';
 import {
@@ -23,9 +24,9 @@ import {
 const byId = (body: ZodType = emptyObjectSchema) =>
   validateRequest({ params: idParamsSchema, body });
 
-// Mounted at /api/v1/donation-requests: receivers and donors.
+// Mounted at /api/v1/donation-requests (after develop's authenticate): receivers and donors.
 export const donationRequestsRouter = Router();
-donationRequestsRouter.use(requireUser);
+donationRequestsRouter.use(requireActor);
 
 donationRequestsRouter.post(
   '/',
@@ -53,7 +54,7 @@ donationRequestsRouter.post(
   controller.confirmReceived,
 );
 
-// Mounted at /api/v1/admin/donation-requests.
+// Mounted at /api/v1/admin/donation-requests (after develop's authenticate).
 export const adminDonationRequestsRouter = Router();
 adminDonationRequestsRouter.use(requireAdmin);
 
@@ -90,7 +91,8 @@ adminDonationRequestsRouter.post(
   controller.adminConfirmReceived,
 );
 
-// Mounted at /api/v1/users: public donor profile figure.
+// Mounted at /api/v1/donors (public, no authenticate): donor profile figure.
+// Not under /users: develop mounts authenticate + its users router there.
 export const donorProfileRouter = Router();
 
 donorProfileRouter.get(

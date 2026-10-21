@@ -1,10 +1,10 @@
-import { notificationTypes, referenceKinds } from '../../shared/domain/enums.js';
 import {
   isoDateTimeSchema,
   objectIdSchema,
   paginationQueryWithSort,
 } from '../../shared/http/schemas.js';
 import { z } from '../../shared/validation/zod.js';
+import { notificationTypes } from './notification-types.js';
 
 export const notificationSortFields = ['createdAt'] as const;
 
@@ -25,10 +25,6 @@ export const notificationSchema = z
     type: z.enum(notificationTypes).openapi({ example: 'TOY_REVIEWED' }),
     title: z.string().openapi({ example: 'Tin đăng "Xe điều khiển" chưa được duyệt' }),
     body: z.string(),
-    target: z
-      .object({ kind: z.enum(referenceKinds), id: objectIdSchema })
-      .nullable()
-      .openapi({ description: 'What the notification opens (TOY, DONATION_REQUEST, ...).' }),
     isRead: z.boolean(),
     createdAt: isoDateTimeSchema,
   })

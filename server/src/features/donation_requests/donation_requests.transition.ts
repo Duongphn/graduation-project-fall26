@@ -1,33 +1,28 @@
 import { Types } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../../infrastructure/database/audit.js';
-import { withTransaction } from '../../infrastructure/database/schema-types.js';
-import type { ActorReference } from '../../shared/contracts/actor.js';
-import {
-  assertTransition,
-  donationTransitions,
-  toyTransitions,
-} from '../../shared/domain/transitions.js';
-import type { DonationStatus } from '../../shared/domain/statuses.js';
-import { conflict, forbidden, notFound } from '../../shared/errors/app-error.js';
+import { conflict, forbidden, notFound } from '../../shared/errors/http-errors.js';
 import {
   domainEvents,
   type DonationStatusChangedEvent,
 } from '../../shared/events/domain-events.js';
-import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
+import { assertTransition } from '../../shared/utils/transitions.js';
+import type { StoredDonationStatus } from './donation_requests.model.js';
 import {
   auditActionFor,
   canView,
+  receiverTypeOf,
   SIBLING_REJECT_REASON,
   toyMoveFor,
   type DonationActor,
 } from './donation_requests.policy.js';
 import * as repository from './donation_requests.repository.js';
 import type { DonationRecord } from './donation_requests.repository.js';
+import { donationTransitions } from './donation_requests.statuses.js';
 
 // The ONE path for every status move of a donation request:
 // read -> permission -> assertTransition -> conditional update -> toy move -> sibling rejects
-// -> status history -> audit (Admin) -> commit -> DONATION_STATUS_CHANGED events.
+// -> audit (Admin) -> commit -> DONATION_STATUS_CHANGED events.
 
 export const requestNotFound = () =>
   notFound('DONATION_REQUEST_NOT_FOUND', 'Không tìm thấy yêu cầu nhận tặng.');
@@ -44,34 +39,27 @@ export const adminContextOf = (actor: DonationActor) => ({
   ...(actor.ipAddress ? { ipAddress: actor.ipAddress } : {}),
 });
 
-export const actorReference = (actor: DonationActor): ActorReference & { actorId: string } => ({
-  actorType: actor.isAdmin ? 'ADMIN' : 'USER',
-  actorId: actor.userId,
-});
-
 export interface TransitionCommand {
   id: string;
-  to: DonationStatus;
+  to: StoredDonationStatus;
   actor: DonationActor;
   allowed: (record: DonationRecord, actor: DonationActor) => boolean;
-  // Statuses this actor may move from (narrower than donationTransitions), e.g. users cannot
-  // cancel a SHIPPING request.
-  allowedFrom?: readonly DonationStatus[];
+  // Statuses this actor may move from (narrower than donationTransitions).
+  allowedFrom?: readonly StoredDonationStatus[];
   // Extra check on the current request, inside the transaction (e.g. a required reason).
   check?: (record: DonationRecord) => void;
-  // Extra audit meta (Admin moves).
-  auditMeta?: Record<string, unknown>;
   set?: Record<string, unknown>;
+  unset?: string[];
   pushHandover?: Record<string, unknown>;
-  // Saved in the status history (reject reason, cancel note).
+  // Carried by the event (reject reason, cancel note).
   reason?: string;
 }
 
 export const buildEvent = (
   record: DonationRecord,
   toyTitle: string,
-  from: DonationStatus,
-  to: DonationStatus,
+  from: StoredDonationStatus | undefined,
+  to: StoredDonationStatus,
   changedBy: string | undefined,
   reason?: string,
 ): DonationStatusChangedEvent => ({
@@ -81,9 +69,11 @@ export const buildEvent = (
   toyTitle,
   donorId: String(record.donorId),
   requestedBy: String(record.requestedBy),
-  receiverType: record.receiverType,
-  ...(record.organizationId ? { organizationId: String(record.organizationId) } : {}),
-  from,
+  receiverType: receiverTypeOf(record),
+  ...(record.receiver?.organizationId
+    ? { organizationId: String(record.receiver.organizationId) }
+    : {}),
+  ...(from ? { from } : {}),
   to,
   ...(reason ? { reason } : {}),
   ...(changedBy ? { changedBy } : {}),
@@ -91,9 +81,8 @@ export const buildEvent = (
 
 export const transition = async (command: TransitionCommand): Promise<DonationRecord> => {
   const { actor, to } = command;
-  const actorRef = actorReference(actor);
 
-  const { updated, events } = await withTransaction(async (session) => {
+  const { updated, events } = await repository.withTransaction(async (session) => {
     const current = await repository.findRequestById(command.id, session);
     if (!current || !canView(current, actor)) throw requestNotFound();
     if (!command.allowed(current, actor)) throw forbidden();
@@ -110,32 +99,38 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
     const toy = await repository.findToy(current.toyId, session);
     if (!toy) throw toyNotAvailable();
 
-    if (to === 'ACCEPTED' && current.organizationId) {
+    if (to === 'accepted' && current.receiver?.organizationId) {
       // A write, so a concurrent hide of the organization write-conflicts with the accept.
-      if (!(await repository.touchActiveOrganization(current.organizationId, session))) {
+      if (!(await repository.touchActiveOrganization(current.receiver.organizationId, session))) {
         throw organizationNotAvailable();
       }
     }
 
+    // The conditional toy move also guarantees one accepted request per toy.
     const toyMove = toyMoveFor(from, to);
     if (toyMove) {
-      assertTransition(toyTransitions, toyMove.from, toyMove.to);
       if (!(await repository.moveToy(current.toyId, toyMove.from, toyMove.to, session))) {
         throw toyNotAvailable();
       }
     }
 
-    const changes = {
-      ...(command.set ? { set: command.set } : {}),
-      ...(command.pushHandover ? { pushHandover: command.pushHandover } : {}),
-    };
-    const next = await repository.updateRequestStatus(current._id, from, to, changes, session);
+    const next = await repository.updateRequestStatus(
+      current._id,
+      from,
+      to,
+      {
+        ...(command.set ? { set: command.set } : {}),
+        ...(command.unset ? { unset: command.unset } : {}),
+        ...(command.pushHandover ? { pushHandover: command.pushHandover } : {}),
+      },
+      session,
+    );
     if (!next) {
       throw conflict('DONATION_REQUEST_CHANGED', 'Yêu cầu vừa được cập nhật, vui lòng tải lại.');
     }
 
     const siblings =
-      to === 'ACCEPTED'
+      to === 'accepted'
         ? await repository.rejectPendingSiblings(
             current.toyId,
             current._id,
@@ -148,42 +143,12 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
           )
         : [];
 
-    await repository.insertHistory(
-      [
-        {
-          orderId: current._id,
-          fromStatus: from,
-          toStatus: to,
-          actor: actorRef,
-          ...(command.reason ? { reason: command.reason } : {}),
-        },
-        ...siblings.map((sibling) => ({
-          orderId: sibling._id,
-          fromStatus: 'PENDING' as const,
-          toStatus: 'REJECTED' as const,
-          actor: actorRef,
-          reason: SIBLING_REJECT_REASON,
-        })),
-      ],
-      session,
-    );
-
     if (actor.isAdmin) {
       await writeAuditLog(
-        adminAuditEntry(
-          adminContextOf(actor),
-          auditActionFor(to),
-          { kind: 'DONATION_REQUEST', id: String(current._id) },
-          {
-            before: { status: from },
-            after: { status: to },
-            ...(command.reason ? { reason: command.reason } : {}),
-            ...(siblings.length > 0
-              ? { rejectedSiblings: siblings.map((sibling) => String(sibling._id)) }
-              : {}),
-            ...command.auditMeta,
-          },
-        ),
+        adminAuditEntry(adminContextOf(actor), auditActionFor(to), {
+          kind: 'DONATION_REQUEST',
+          id: String(current._id),
+        }),
         session,
       );
     }
@@ -196,18 +161,14 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
           buildEvent(
             sibling,
             toy.title,
-            'PENDING',
-            'REJECTED',
+            'pending',
+            'rejected',
             actor.userId,
             SIBLING_REJECT_REASON,
           ),
         ),
       ],
     };
-  }).catch((error: unknown) => {
-    // Another request of the toy was accepted at the same time (one_accepted_per_toy).
-    if (isDuplicateKeyError(error, 'one_accepted_per_toy')) throw toyNotAvailable();
-    throw error;
   });
 
   for (const event of events) domainEvents.publish(event);

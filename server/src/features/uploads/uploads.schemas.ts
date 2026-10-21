@@ -5,12 +5,11 @@ import { z } from '../../shared/validation/zod.js';
  * client can never pick a folder or make a private document public.
  */
 export const uploadPurposes = {
-  TOY_PHOTO: { folder: 'toyflow/toys', type: 'upload', adminOnly: false },
-  AVATAR: { folder: 'toyflow/avatars', type: 'upload', adminOnly: false },
-  ORGANIZATION_LOGO: { folder: 'toyflow/organizations', type: 'upload', adminOnly: true },
-  IDENTITY_DOCUMENT: { folder: 'toyflow/identity', type: 'authenticated', adminOnly: false },
-  HANDOVER_PHOTO: { folder: 'toyflow/handovers', type: 'authenticated', adminOnly: false },
-  DISPUTE_EVIDENCE: { folder: 'toyflow/disputes', type: 'authenticated', adminOnly: false },
+  TOY_PHOTO: { folder: 'toyflow/toys', type: 'upload' },
+  AVATAR: { folder: 'toyflow/avatars', type: 'upload' },
+  IDENTITY_DOCUMENT: { folder: 'toyflow/identity', type: 'authenticated' },
+  HANDOVER_PHOTO: { folder: 'toyflow/handovers', type: 'authenticated' },
+  DISPUTE_EVIDENCE: { folder: 'toyflow/disputes', type: 'authenticated' },
 } as const;
 
 export type UploadPurpose = keyof typeof uploadPurposes;

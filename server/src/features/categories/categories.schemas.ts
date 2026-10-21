@@ -1,4 +1,7 @@
-import { visibilityStatuses } from '../../shared/domain/statuses.js';
+/** Stored values of categories.status (develop's model: 'active' by default). */
+export const categoryStatuses = ['active', 'hidden'] as const;
+export type CategoryStatus = (typeof categoryStatuses)[number];
+
 import {
   MAX_PAGE_LIMIT,
   isoDateTimeSchema,
@@ -16,7 +19,7 @@ export const CATEGORY_DESCRIPTION_MAX = 500;
 export const CATEGORY_DISPLAY_ORDER_MAX = 1_000_000;
 export const MAX_REORDER_IDS = 500;
 
-// NFC and single spaces; case is compared by the name_unique collation ({ vi, strength 2 }).
+// NFC and single spaces; duplicates are compared case-insensitively by the service.
 const categoryNameSchema = z
   .string({ error: 'Tên danh mục là bắt buộc.' })
   .overwrite(normalizeText)
@@ -88,7 +91,7 @@ export const adminCategoryListQuerySchema = z
       .max(MAX_PAGE_LIMIT)
       .default(MAX_PAGE_LIMIT)
       .openapi({ example: MAX_PAGE_LIMIT }),
-    status: z.enum(visibilityStatuses).optional().openapi({ example: 'ACTIVE' }),
+    status: z.enum(categoryStatuses).optional().openapi({ example: 'active' }),
     // Name or description, with or without accents ("dieu khien" matches "Điều khiển").
     q: searchQuerySchema,
   })
@@ -102,7 +105,7 @@ export const adminCategorySchema = z
     slug: z.string().openapi({ example: 'do-choi-go' }),
     description: z.string().optional(),
     displayOrder: z.number().int().openapi({ example: 11 }),
-    status: z.enum(visibilityStatuses),
+    status: z.enum(categoryStatuses),
     // Every toy that points to the category, in any status.
     toyCount: z.number().int().openapi({ example: 3 }),
     // True only when no toy points to the category; otherwise it can only be hidden.
@@ -118,7 +121,7 @@ export const publicCategorySchema = z
     id: objectIdSchema,
     name: z.string().openapi({ example: 'Lắp ráp & xếp hình' }),
     slug: z.string().openapi({ example: 'lap-rap-xep-hinh' }),
-    description: z.string().optional(),
+    parentId: objectIdSchema.nullable(),
   })
   .openapi('PublicCategory');
 export type PublicCategoryView = z.infer<typeof publicCategorySchema>;

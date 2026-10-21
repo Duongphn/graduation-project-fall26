@@ -1,7 +1,7 @@
 import { Router } from 'express';
 
 import { idParamsSchema } from '../../shared/http/schemas.js';
-import { requireAdmin } from '../../shared/middleware/auth-placeholder.js';
+import { requireAdmin } from '../../shared/middleware/require-admin.js';
 import { validateRequest } from '../../shared/middleware/validate.js';
 import * as controller from './toy-moderation.controller.js';
 import './toy-moderation.openapi.js';
@@ -12,7 +12,8 @@ import {
   toyModerationQueueQuerySchema,
 } from './toy-moderation.schemas.js';
 
-// Admin moderation of toy posts (UC27). Mounted at /api/v1/admin/toys; Admin only.
+// Admin moderation of toy posts (UC27). Mounted at /api/v1/admin/toys after develop's
+// `authenticate`; Admin only.
 export const adminToyModerationRouter = Router();
 
 adminToyModerationRouter.use(requireAdmin);

@@ -1,8 +1,7 @@
 import { Router } from 'express';
 
 import { emptyObjectSchema, idParamsSchema } from '../../shared/http/schemas.js';
-import { requireAdmin } from '../../shared/middleware/auth-placeholder.js';
-import { optionalAuth } from '../../shared/middleware/optional-auth.js';
+import { requireAdmin } from '../../shared/middleware/require-admin.js';
 import { validateRequest } from '../../shared/middleware/validate.js';
 import {
   adminOrganizationsController as admin,
@@ -19,7 +18,7 @@ import {
 
 const byId = validateRequest({ params: idParamsSchema, query: emptyObjectSchema });
 
-/** Mounted at /api/v1/admin/organizations. */
+/** Mounted at /api/v1/admin/organizations behind develop's `authenticate`. */
 export const adminOrganizationsRouter = Router();
 adminOrganizationsRouter.use(requireAdmin);
 
@@ -43,9 +42,8 @@ adminOrganizationsRouter.post('/:id/hide', byId, admin.hide);
 adminOrganizationsRouter.post('/:id/show', byId, admin.show);
 adminOrganizationsRouter.delete('/:id', byId, admin.remove);
 
-/** Mounted at /api/v1/organizations. Public; a signed-in caller also gets the phone. */
+/** Mounted at /api/v1/organizations. Public. */
 export const organizationsRouter = Router();
-organizationsRouter.use(optionalAuth);
 
 organizationsRouter.get(
   '/',

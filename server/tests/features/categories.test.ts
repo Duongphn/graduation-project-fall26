@@ -3,27 +3,40 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { AuditLogModel } from '../../src/features/audit_logs/audit_logs.model.js';
-import { CategoryModel } from '../../src/features/categories/categories.model.js';
+import { AuditLog as AuditLogModel } from '../../src/features/audit_logs/audit_logs.model.js';
+import { Category as CategoryModel } from '../../src/features/categories/categories.model.js';
 import { adminCategoriesRouter, categoriesRouter } from '../../src/features/categories/index.js';
-import { ToyModel } from '../../src/features/toys/toys.model.js';
+import { Toy as ToyModel } from '../../src/features/toys/toys.model.js';
 import { errorHandler } from '../../src/shared/middleware/error-handler.js';
-import { createToy, newId, useTestDatabase } from '../database/helpers.js';
+import { testAuth } from '../support/test-auth.js';
+import { newId, useTestDatabase } from '../support/test-database.js';
 
 useTestDatabase();
 
 const ADMIN_ID = newId().toString();
 const BASE = '/api/v1/admin/categories';
 
-// Stand-in for the JWT middleware: x-test-user / x-test-role set request.auth.
+// testAuth stands in for develop's JWT `authenticate`: x-test-user / x-test-role set req.auth.
 const app = express();
 app.use(express.json());
-app.use((req, _res, next) => {
-  const userId = req.header('x-test-user');
-  const role = req.header('x-test-role');
-  if (userId) req.auth = { userId, role: role === 'ADMIN' ? 'ADMIN' : 'USER' };
-  next();
-});
+app.use(testAuth);
+
+/** A toy with develop's toys schema. */
+const createToy = (overrides: Record<string, unknown> = {}) =>
+  ToyModel.create({
+    ownerId: newId(),
+    categoryId: newId(),
+    title: 'Wooden train set',
+    description: 'Complete set with 20 pieces.',
+    condition: 'good',
+    listingType: 'rent',
+    priceOrRate: 20_000,
+    depositPrice: 300_000,
+    status: 'active',
+    ageRange: { minAge: 3, maxAge: 5 },
+    images: [{ url: 'https://example.com/1.jpg', publicId: 'toyflow/toys/1' }],
+    ...overrides,
+  });
 app.use('/api/v1/categories', categoriesRouter);
 app.use(BASE, adminCategoriesRouter);
 app.use(errorHandler);
@@ -91,8 +104,8 @@ describe('create and edit', () => {
     expect(second).toMatchObject({ name: 'Xe điều khiển', displayOrder: 2 });
 
     const audit = await AuditLogModel.findOne({ action: 'category.create' }).lean();
-    expect(audit).toMatchObject({ actorType: 'ADMIN', target: { kind: 'CATEGORY' } });
-    expect(String(audit?.actorId)).toBe(ADMIN_ID);
+    expect(audit).toMatchObject({ target_type: 'CATEGORY' });
+    expect(String(audit?.actor_id)).toBe(ADMIN_ID);
   });
 
   it('rejects a duplicate name ignoring case, but not accents', async () => {
@@ -126,18 +139,21 @@ describe('create and edit', () => {
 });
 
 describe('hide, show and the public list', () => {
-  it('hides and shows with conflicts on repeat, and lists only ACTIVE ones publicly', async () => {
+  it('hides and shows with conflicts on repeat, and lists only active ones publicly', async () => {
     const wood = await createCategory('Gỗ');
     await createCategory('Nhựa');
     const hidden = await post(`/${wood.id}/hide`);
-    expect(hidden.body).toMatchObject({ data: { status: 'HIDDEN' }, message: 'Đã ẩn danh mục.' });
+    expect(hidden.body).toMatchObject({ data: { status: 'hidden' }, message: 'Đã ẩn danh mục.' });
     expect((await post(`/${wood.id}/hide`)).body.error.code).toBe('CATEGORY_ALREADY_HIDDEN');
 
     const publicList = await request(app).get('/api/v1/categories');
     expect(publicList.status).toBe(200);
-    expect(publicList.body.data).toEqual([{ id: expect.any(String), name: 'Nhựa', slug: 'nhua' }]);
+    // Develop's public route: a raw JSON array.
+    expect(publicList.body).toEqual([
+      { id: expect.any(String), name: 'Nhựa', slug: 'nhua', parentId: null },
+    ]);
 
-    expect((await post(`/${wood.id}/show`)).body.data.status).toBe('ACTIVE');
+    expect((await post(`/${wood.id}/show`)).body.data.status).toBe('active');
     expect((await post(`/${wood.id}/show`)).body.error.code).toBe('CATEGORY_ALREADY_VISIBLE');
     expect(
       await AuditLogModel.countDocuments({ action: { $in: ['category.hide', 'category.show'] } }),
@@ -152,8 +168,8 @@ describe('hide, show and the public list', () => {
 
   it('does not expose admin fields publicly', async () => {
     await createCategory('Gỗ');
-    const [item] = (await request(app).get('/api/v1/categories')).body.data;
-    expect(Object.keys(item).sort()).toEqual(['id', 'name', 'slug']);
+    const [item] = (await request(app).get('/api/v1/categories')).body;
+    expect(Object.keys(item).sort()).toEqual(['id', 'name', 'parentId', 'slug']);
   });
 });
 
@@ -162,7 +178,7 @@ describe('admin list', () => {
     const remote = await createCategory('Xe điều khiển');
     const wood = await createCategory('Đồ gỗ');
     await post(`/${wood.id}/hide`);
-    await createToy({ categoryId: remote.id, status: 'SOLD' });
+    await createToy({ categoryId: remote.id, status: 'hidden' });
     await createToy({ categoryId: remote.id });
 
     const all = await get();
@@ -170,7 +186,7 @@ describe('admin list', () => {
     expect(all.body.data[0]).toMatchObject({ id: remote.id, toyCount: 2, canDelete: false });
 
     expect((await get('?q=dieu khien')).body.data).toHaveLength(1);
-    expect((await get('?status=HIDDEN')).body.data[0].id).toBe(wood.id);
+    expect((await get('?status=hidden')).body.data[0].id).toBe(wood.id);
     const paged = await get('?limit=1&page=2');
     expect(paged.body.data[0].id).toBe(wood.id);
   });
@@ -180,7 +196,7 @@ describe('delete', () => {
   it('deletes an unused category and refuses one used by any toy', async () => {
     const unused = await createCategory('Trống');
     const used = await createCategory('Đang dùng');
-    await createToy({ categoryId: used.id, status: 'HIDDEN' });
+    await createToy({ categoryId: used.id, status: 'hidden' });
 
     const deleted = await del(`/${unused.id}`);
     expect(deleted.body).toEqual({ success: true, data: null, message: 'Đã xoá danh mục.' });
@@ -196,7 +212,7 @@ describe('delete', () => {
     session.startTransaction();
     // What the toys feature does when it saves a toy (see the feature README).
     await CategoryModel.findOneAndUpdate(
-      { _id: category.id, status: 'ACTIVE' },
+      { _id: category.id, status: 'active' },
       { $inc: { __v: 1 } },
       { session },
     );
@@ -233,8 +249,8 @@ describe('reorder', () => {
       [b.id, 3],
     ]);
     const audit = await AuditLogModel.findOne({ action: 'category.reorder' }).lean();
-    expect(audit?.target).toEqual({ kind: 'CATEGORY' });
-    expect(audit?.meta).toMatchObject({ after: [c.id, a.id, b.id] });
+    expect(audit?.target_type).toBe('CATEGORY');
+    expect(audit?.target_id).toBeUndefined();
   });
 
   it('rejects duplicate ids', async () => {

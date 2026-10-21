@@ -1,39 +1,50 @@
 import express from 'express';
 import request from 'supertest';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuditLogModel } from '../../src/features/audit_logs/audit_logs.model.js';
+import { AuditLog } from '../../src/features/audit_logs/audit_logs.model.js';
 import { adminIdentityReviewRouter } from '../../src/features/identity_verifications/index.js';
-import { signDocuments } from '../../src/features/identity_verifications/admin/identity-review.documents.js';
-import { IdentityVerificationModel } from '../../src/features/identity_verifications/identity_verifications.model.js';
-import { UserModel } from '../../src/features/users/users.model.js';
+import {
+  setReviewStorage,
+  signDocuments,
+} from '../../src/features/identity_verifications/admin/identity-review.documents.js';
+import { identityDetailSchema } from '../../src/features/identity_verifications/admin/identity-review.schemas.js';
+import { IdentityVerification } from '../../src/features/identity_verifications/identity_verifications.model.js';
+import type { IdentityImageStorage } from '../../src/features/identity_verifications/identity-verification.ports.js';
+import { Notification } from '../../src/features/notifications/notifications.model.js';
+import { User } from '../../src/features/users/users.model.js';
 import { domainEvents } from '../../src/shared/events/domain-events.js';
 import type { IdentityReviewedEvent } from '../../src/shared/events/domain-events.js';
-import { identityDetailSchema } from '../../src/features/identity_verifications/admin/identity-review.schemas.js';
 import { errorHandler } from '../../src/shared/middleware/error-handler.js';
-import { newId, useTestDatabase } from '../database/helpers.js';
-
-// env is read when config/env.ts is first imported: configure Cloudinary before the imports.
-vi.hoisted(() => {
-  process.env.CLOUDINARY_CLOUD_NAME = 'demo';
-  process.env.CLOUDINARY_API_KEY = 'key';
-  process.env.CLOUDINARY_API_SECRET = 'secret';
-});
+import { testAuth } from '../support/test-auth.js';
+import { newId, useTestDatabase } from '../support/test-database.js';
 
 useTestDatabase();
 
 const ADMIN_ID = newId().toString();
 const BASE = '/api/v1/admin/identity-verifications';
 
-// Stand-in for the JWT middleware: x-test-user / x-test-role set request.auth.
+// Fake of develop's IdentityImageStorage: authorized links valid for 5 minutes.
+const fakeStorage: IdentityImageStorage = {
+  async upload() {
+    return { publicId: 'x', deliveryType: 'authenticated' };
+  },
+  async delete() {},
+  async getAuthorizedDelivery(publicId: string) {
+    return {
+      url: `https://res.cloudinary.com/demo/image/authenticated/s--sig--/${publicId}`,
+      expiresAt: new Date(Date.now() + 5 * 60_000),
+    };
+  },
+};
+
+beforeAll(() => setReviewStorage(fakeStorage));
+afterAll(() => setReviewStorage(undefined));
+
+// testAuth stands in for develop's authenticate (x-test-user / x-test-role set req.auth).
 const app = express();
 app.use(express.json());
-app.use((req, _res, next) => {
-  const userId = req.header('x-test-user');
-  const role = req.header('x-test-role');
-  if (userId) req.auth = { userId, role: role === 'ADMIN' ? 'ADMIN' : 'USER' };
-  next();
-});
+app.use(testAuth);
 app.use(BASE, adminIdentityReviewRouter);
 app.use(errorHandler);
 
@@ -43,36 +54,45 @@ const get = (path: string) => asAdmin(request(app).get(`${BASE}${path}`));
 const post = (path: string, body: object = {}) =>
   asAdmin(request(app).post(`${BASE}${path}`)).send(body);
 
-const image = (name: string) => ({ publicId: `toyflow/identity/${name}`, format: 'jpg' });
+const image = (name: string) => ({
+  publicId: `toyflow/identity/${name}`,
+  deliveryType: 'authenticated' as const,
+});
 let phoneCounter = 100_000;
 
 const createUser = (overrides: Record<string, unknown> = {}) => {
   phoneCounter += 1;
-  return UserModel.create({
+  return User.create({
     phone: `+84912${phoneCounter}`,
     email: `user${phoneCounter}@example.com`,
     passwordHash: 'hash',
     fullName: 'Nguyễn Văn An',
-    identityStatus: 'PENDING',
-    dateOfBirth: new Date('2000-05-01T00:00:00Z'),
+    verificationStatus: 'pending',
     ...overrides,
   });
 };
 
-const createVerification = (userId: unknown, overrides: Record<string, unknown> = {}) =>
-  IdentityVerificationModel.create({
+let cardCounter = 100_000_000;
+
+const createVerification = (userId: unknown, overrides: Record<string, unknown> = {}) => {
+  cardCounter += 1;
+  return IdentityVerification.create({
     userId,
+    phone: '+84912000000',
+    idCardNumber: `001${cardCounter}`,
     frontImage: image('front'),
     backImage: image('back'),
-    selfieImage: image('selfie'),
+    selfie: image('selfie'),
     ...overrides,
   });
+};
 
 beforeEach(async () => {
   await Promise.all([
-    UserModel.deleteMany({}),
-    IdentityVerificationModel.deleteMany({}),
-    AuditLogModel.collection.deleteMany({}),
+    User.deleteMany({}),
+    IdentityVerification.deleteMany({}),
+    AuditLog.deleteMany({}),
+    Notification.deleteMany({}),
   ]);
 });
 
@@ -96,12 +116,12 @@ describe('queue and counts', () => {
     const an = await createUser();
     const binh = await createUser({ fullName: 'Trần Bình', email: 'binh@example.com' });
     await createVerification(an._id, {
-      status: 'REJECTED',
-      rejectReason: 'Ảnh mờ quá',
-      createdAt: new Date('2026-01-01T00:00:00Z'),
+      status: 'rejected',
+      rejectionReason: 'Ảnh mờ quá',
+      submittedAt: new Date('2026-01-01T00:00:00Z'),
     });
-    await createVerification(an._id, { createdAt: new Date('2026-02-01T00:00:00Z') });
-    await createVerification(binh._id, { createdAt: new Date('2026-01-15T00:00:00Z') });
+    await createVerification(an._id, { submittedAt: new Date('2026-02-01T00:00:00Z') });
+    await createVerification(binh._id, { submittedAt: new Date('2026-01-15T00:00:00Z') });
 
     const response = await get('');
     expect(response.status).toBe(200);
@@ -137,14 +157,14 @@ describe('queue and counts', () => {
     expect((await get('/counts?x=1')).status).toBe(400);
     const user = await createUser();
     await createVerification(user._id);
-    await createVerification(user._id, { status: 'REJECTED', rejectReason: 'Ảnh mờ quá' });
+    await createVerification(user._id, { status: 'rejected', rejectionReason: 'Ảnh mờ quá' });
     const counts = await get('/counts');
-    expect(counts.body.data).toEqual({ PENDING: 1, VERIFIED: 0, REJECTED: 1 });
+    expect(counts.body.data).toEqual({ pending: 1, verified: 0, rejected: 1 });
   });
 });
 
 describe('detail', () => {
-  it('signs the three documents for 5 minutes while PENDING and audits the access', async () => {
+  it('links the three documents while pending and audits the access', async () => {
     const user = await createUser();
     const verification = await createVerification(user._id);
 
@@ -153,45 +173,46 @@ describe('detail', () => {
     expect(identityDetailSchema.safeParse(response.body.data).success).toBe(true);
     const { documents, previewAvailable, previewExpiresAt } = response.body.data;
     expect(previewAvailable).toBe(true);
-    for (const key of ['frontImage', 'backImage', 'selfieImage']) {
-      expect(documents[key].url).toMatch(
-        /^https:\/\/api\.cloudinary\.com\/v1_1\/demo\/image\/download\?/,
-      );
-      expect(documents[key].url).toContain('type=authenticated');
+    for (const key of ['frontImage', 'backImage', 'selfie']) {
+      expect(documents[key].url).toContain('/image/authenticated/');
     }
     const ttl = new Date(previewExpiresAt).getTime() - Date.now();
     expect(ttl).toBeGreaterThan(4 * 60_000);
     expect(ttl).toBeLessThanOrEqual(5 * 60_000);
 
-    const audits = await AuditLogModel.find({ action: 'identity.view_documents' }).lean();
+    const audits = await AuditLog.find({ action: 'identity.view_documents' }).lean();
     expect(audits).toHaveLength(1);
-    expect(String(audits[0]?.actorId)).toBe(ADMIN_ID);
-    expect(audits[0]?.target).toMatchObject({ kind: 'IDENTITY_VERIFICATION' });
+    expect(String(audits[0]?.actor_id)).toBe(ADMIN_ID);
+    expect(audits[0]?.target_type).toBe('IDENTITY_VERIFICATION');
   });
 
   it('returns no links and writes no audit once decided', async () => {
     const user = await createUser();
     const verification = await createVerification(user._id, {
-      status: 'VERIFIED',
+      status: 'verified',
       reviewedAt: new Date(),
     });
     const response = await get(`/${verification._id}`);
     expect(response.body.data.documents).toEqual({
       frontImage: null,
       backImage: null,
-      selfieImage: null,
+      selfie: null,
     });
     expect(response.body.data.previewAvailable).toBe(false);
-    expect(await AuditLogModel.countDocuments({ action: 'identity.view_documents' })).toBe(0);
+    expect(await AuditLog.countDocuments({ action: 'identity.view_documents' })).toBe(0);
   });
 
-  it('builds no link without Cloudinary credentials (no raw URL fallback)', () => {
-    const signed = signDocuments(
-      { status: 'PENDING', frontImage: image('f'), backImage: image('b'), selfieImage: image('s') },
-      { credentials: {} },
-    );
+  it('builds no link without a configured storage (no raw URL fallback)', async () => {
+    setReviewStorage(null);
+    const signed = await signDocuments({
+      status: 'pending',
+      frontImage: image('f'),
+      backImage: image('b'),
+      selfie: image('s'),
+    });
+    setReviewStorage(fakeStorage);
     expect(signed).toEqual({
-      documents: { frontImage: null, backImage: null, selfieImage: null },
+      documents: { frontImage: null, backImage: null, selfie: null },
       previewAvailable: false,
       previewExpiresAt: null,
     });
@@ -204,7 +225,7 @@ describe('detail', () => {
 });
 
 describe('decisions', () => {
-  it('approves in one transaction and publishes IDENTITY_REVIEWED after commit', async () => {
+  it('approves through develop review and publishes IDENTITY_REVIEWED', async () => {
     const events: IdentityReviewedEvent[] = [];
     domainEvents.subscribe('IDENTITY_REVIEWED', (event) => {
       events.push(event);
@@ -214,17 +235,19 @@ describe('decisions', () => {
 
     const response = await post(`/${verification._id}/approve`);
     expect(response.status).toBe(200);
-    expect(response.body.data).toMatchObject({ status: 'VERIFIED', rejectReason: null });
-    expect((await UserModel.findById(user._id).lean())?.identityStatus).toBe('VERIFIED');
-    const stored = await IdentityVerificationModel.findById(verification._id).lean();
+    expect(response.body.data).toMatchObject({ status: 'verified', rejectionReason: null });
+    expect((await User.findById(user._id).lean())?.verificationStatus).toBe('verified');
+    const stored = await IdentityVerification.findById(verification._id).lean();
     expect(String(stored?.reviewedBy)).toBe(ADMIN_ID);
-    const audit = await AuditLogModel.findOne({ action: 'identity.verify' }).lean();
-    expect(audit?.meta).toMatchObject({ before: { identityStatus: 'PENDING' } });
+    expect((await User.findById(user._id).lean())?.idCardNumber).toBe(verification.idCardNumber);
+    expect(await AuditLog.countDocuments({ action: 'identity.verify' })).toBe(1);
+    // Develop's DefaultIdentityVerificationEvents writes the in-app notification.
+    expect(await Notification.countDocuments({ userId: user._id })).toBe(1);
     await vi.waitFor(() => expect(events).toHaveLength(1));
     expect(events[0]).toMatchObject({
       verificationId: String(verification._id),
       userId: String(user._id),
-      decision: 'VERIFIED',
+      decision: 'verified',
       reviewedBy: ADMIN_ID,
     });
   });
@@ -238,9 +261,9 @@ describe('decisions', () => {
 
     const response = await post(`/${verification._id}/reject`, { reason: 'Ảnh mờ, chụp lại' });
     expect(response.status).toBe(200);
-    expect(response.body.data.rejectReason).toBe('Ảnh mờ, chụp lại');
-    expect((await UserModel.findById(user._id).lean())?.identityStatus).toBe('REJECTED');
-    expect(await AuditLogModel.countDocuments({ action: 'identity.reject' })).toBe(1);
+    expect(response.body.data.rejectionReason).toBe('Ảnh mờ, chụp lại');
+    expect((await User.findById(user._id).lean())?.verificationStatus).toBe('rejected');
+    expect(await AuditLog.countDocuments({ action: 'identity.reject' })).toBe(1);
   });
 
   it('answers 404 for an unknown request and 409 for a decided one', async () => {
@@ -250,7 +273,7 @@ describe('decisions', () => {
     await post(`/${verification._id}/approve`);
     const again = await post(`/${verification._id}/reject`, { reason: 'Đổi ý rồi nhé' });
     expect(again.status).toBe(409);
-    expect(again.body.error.code).toBe('IDENTITY_VERIFICATION_ALREADY_DECIDED');
+    expect(again.body.error.code).toBe('SUBMISSION_NOT_PENDING');
   });
 
   it('lets only one of two concurrent decisions win', async () => {
@@ -262,11 +285,11 @@ describe('decisions', () => {
     ]);
     const statuses = results.map((result) => result.status).sort();
     expect(statuses).toEqual([200, 409]);
-    const audits = await AuditLogModel.countDocuments({
+    const audits = await AuditLog.countDocuments({
       action: { $in: ['identity.verify', 'identity.reject'] },
     });
     expect(audits).toBe(1);
-    const stored = await IdentityVerificationModel.findById(verification._id).lean();
-    expect((await UserModel.findById(user._id).lean())?.identityStatus).toBe(stored?.status);
+    const stored = await IdentityVerification.findById(verification._id).lean();
+    expect((await User.findById(user._id).lean())?.verificationStatus).toBe(stored?.status);
   });
 });

@@ -1,7 +1,13 @@
-import type { DonationStatus, ToyStatus } from '../../shared/domain/statuses.js';
+import type { StoredDonationStatus } from './donation_requests.model.js';
 import type { DonationRecord } from './donation_requests.repository.js';
 
 // Pure rules of the donation flow (FE-02, BF-04): who may do what, and what happens to the toy.
+// Status values are the ones develop's donation_requests model stores (lowercase).
+
+export type DonationReceiverType = 'USER' | 'ORGANIZATION';
+
+/** Stored toy statuses of develop's toys model. A donated / reserved toy is 'hidden'. */
+export type ToyStatus = 'pending' | 'active' | 'hidden';
 
 /** The caller of a use case. Admins act through the /admin routes only. */
 export interface DonationActor {
@@ -12,6 +18,10 @@ export interface DonationActor {
 
 const same = (id: unknown, userId: string) =>
   id !== undefined && id !== null && String(id) === userId;
+
+/** USER when the request names a receiving user, ORGANIZATION when it names an organization. */
+export const receiverTypeOf = (record: Pick<DonationRecord, 'receiver'>): DonationReceiverType =>
+  record.receiver?.organizationId ? 'ORGANIZATION' : 'USER';
 
 export const isDonor = (record: DonationRecord, actor: DonationActor) =>
   same(record.donorId, actor.userId);
@@ -25,81 +35,79 @@ export const canView = (record: DonationRecord, actor: DonationActor) =>
 
 /**
  * D-04: only the Donor accepts or rejects (user routes). An Admin passes this check on the admin
- * routes, but `assertNotAdminDecision` then refuses a PENDING decision (409
- * DONOR_DECISION_REQUIRED): Admins only resolve stuck ACCEPTED/SHIPPING requests.
+ * routes, but `assertNotAdminDecision` then refuses a pending decision (409
+ * DONOR_DECISION_REQUIRED): Admins only resolve stuck accepted/shipping requests.
  */
 export const canDecide = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor);
 
 /** D-03: the two parties see each other's contact only while the toy is being handed over. */
-export const CONTACT_SHARING_STATUSES: readonly DonationStatus[] = ['ACCEPTED', 'SHIPPING'];
+export const CONTACT_SHARING_STATUSES: readonly StoredDonationStatus[] = ['accepted', 'shipping'];
 
 /**
  * Whose contact the viewer may see on this request: the Donor sees the receiver (the requesting
- * user, or the organization), the requesting USER sees the Donor. Admin views keep their own
- * (masked) contacts, so this is for user views only.
+ * user, or the organization), the requesting USER sees the Donor.
  */
 export const counterpartOf = (
   record: DonationRecord,
   viewerId: string | undefined,
 ): 'DONOR' | 'REQUESTER' | 'ORGANIZATION' | null => {
   if (!viewerId || !CONTACT_SHARING_STATUSES.includes(record.status)) return null;
+  const receiverType = receiverTypeOf(record);
   if (same(record.donorId, viewerId)) {
-    return record.receiverType === 'ORGANIZATION' ? 'ORGANIZATION' : 'REQUESTER';
+    return receiverType === 'ORGANIZATION' ? 'ORGANIZATION' : 'REQUESTER';
   }
-  if (record.receiverType === 'USER' && same(record.requestedBy, viewerId)) return 'DONOR';
+  if (receiverType === 'USER' && same(record.requestedBy, viewerId)) return 'DONOR';
   return null;
 };
 
-/**
- * The requester side of a request. For an ORGANIZATION request that is the Admin team (the
- * Admin in requestedBy only filed it), so it acts through the /admin routes, always audited.
- */
+/** The requester side: for an ORGANIZATION request that is the Admin team (/admin routes). */
 const isRequesterSide = (record: DonationRecord, actor: DonationActor) =>
-  record.receiverType === 'ORGANIZATION' ? actor.isAdmin : isRequester(record, actor);
+  receiverTypeOf(record) === 'ORGANIZATION' ? actor.isAdmin : isRequester(record, actor);
 
 /** Before handover: the requester side, the Donor or an Admin. */
 export const canCancel = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor) || isRequesterSide(record, actor);
 
-/** Users cancel before handover only; an Admin may also cancel a stuck SHIPPING request. */
-export const cancellableFrom = (actor: DonationActor): readonly DonationStatus[] =>
-  actor.isAdmin ? ['PENDING', 'ACCEPTED', 'SHIPPING'] : ['PENDING', 'ACCEPTED'];
+/** Users cancel before handover only; an Admin may also cancel a stuck shipping request. */
+export const cancellableFrom = (actor: DonationActor): readonly StoredDonationStatus[] =>
+  actor.isAdmin ? ['pending', 'accepted', 'shipping'] : ['pending', 'accepted'];
 
 /** Only the Donor hands the toy over. */
 export const canHandOver = (record: DonationRecord, actor: DonationActor) =>
   !actor.isAdmin && isDonor(record, actor);
 
-/**
- * The receiving user, or an Admin: for an organization, or for a USER receiver who never
- * confirms (then with a reason, checked by the admin service).
- */
+/** The receiving user, or an Admin (for an organization, or a USER receiver who never confirms). */
 export const canConfirmReceipt = (record: DonationRecord, actor: DonationActor) =>
-  actor.isAdmin || (record.receiverType === 'USER' && isRequester(record, actor));
+  actor.isAdmin || (receiverTypeOf(record) === 'USER' && isRequester(record, actor));
 
-/** The move of the toy that goes with a request move (toyTransitions), if any. */
+/**
+ * The move of the toy that goes with a request move, if any. Develop's toys have no
+ * reserved/donated statuses: an accepted toy is 'hidden' (off the catalog) and stays hidden once
+ * donated; a cancelled accepted/shipping request puts it back to 'active'.
+ */
 export const toyMoveFor = (
-  from: DonationStatus,
-  to: DonationStatus,
+  from: StoredDonationStatus,
+  to: StoredDonationStatus,
 ): { from: ToyStatus; to: ToyStatus } | undefined => {
-  if (to === 'ACCEPTED') return { from: 'ACTIVE', to: 'RESERVED' };
-  if (to === 'CANCELLED' && (from === 'ACCEPTED' || from === 'SHIPPING')) {
-    return { from: 'RESERVED', to: 'ACTIVE' };
+  if (to === 'accepted') return { from: 'active', to: 'hidden' };
+  if (to === 'cancelled' && (from === 'accepted' || from === 'shipping')) {
+    return { from: 'hidden', to: 'active' };
   }
-  if (to === 'COMPLETED') return { from: 'RESERVED', to: 'DONATED' };
   return undefined;
 };
 
 /** Audit action of an Admin move ("area.verb"). */
-export const auditActionFor = (to: DonationStatus) =>
+export const auditActionFor = (to: StoredDonationStatus) =>
   (
     ({
-      PENDING: 'donation.create',
-      ACCEPTED: 'donation.accept',
-      REJECTED: 'donation.reject',
-      CANCELLED: 'donation.cancel',
-      SHIPPING: 'donation.hand_over',
-      COMPLETED: 'donation.confirm_received',
+      pending: 'donation.create',
+      accepted: 'donation.accept',
+      rejected: 'donation.reject',
+      cancelled: 'donation.cancel',
+      shipping: 'donation.hand_over',
+      received: 'donation.confirm_received',
+      completed: 'donation.confirm_received',
     }) as const
   )[to];
 

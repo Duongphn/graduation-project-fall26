@@ -1,10 +1,12 @@
 import nodemailer from 'nodemailer';
+
+import { env } from '../../config/env.js';
 import type { SendMailOptions } from 'nodemailer';
 
 // Mail port (TD-12: email is optional). The notifications feature depends on `Mailer` only.
-// Without SMTP_HOST the mail is logged (subject + masked address), never sent, so nothing fails
-// because email is not configured. Proposed home: infrastructure/mail/mailer.ts, with the SMTP
-// settings moved into config/env.ts.
+// develop's infrastructure/email/mailer.ts only sends OTP / reset emails, so this port sends the
+// notification emails with the same EMAIL_* settings (config/env.ts). Without EMAIL_USER the
+// mail is logged (subject + masked address), never sent.
 
 export interface MailMessage {
   to: string;
@@ -39,13 +41,13 @@ export interface SmtpSettings {
 const optional = (value: string | undefined): string | undefined =>
   value && value.trim() ? value.trim() : undefined;
 
-export const readSmtpSettings = (source: NodeJS.ProcessEnv = process.env): SmtpSettings => ({
-  host: optional(source.SMTP_HOST),
-  port: Number(source.SMTP_PORT ?? 587) || 587,
-  secure: source.SMTP_SECURE === 'true',
-  user: optional(source.SMTP_USER),
-  password: optional(source.SMTP_PASSWORD),
-  from: optional(source.SMTP_FROM) ?? 'ToyFlow <no-reply@toyflow.vn>',
+export const readSmtpSettings = (): SmtpSettings => ({
+  host: env.emailUser ? env.emailHost : undefined,
+  port: env.emailPort,
+  secure: env.emailPort === 465,
+  user: optional(env.emailUser),
+  password: optional(env.emailAppPassword),
+  from: env.emailUser ? `"ToyFlow Platform" <${env.emailUser}>` : 'ToyFlow <no-reply@toyflow.vn>',
 });
 
 /** "an***@example.com": enough to recognise the address in a log without exposing it. */

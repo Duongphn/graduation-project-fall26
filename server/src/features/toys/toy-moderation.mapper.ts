@@ -1,13 +1,11 @@
-import { ageInYears, toIsoString } from '../../shared/utils/dates.js';
+import { toIsoString } from '../../shared/utils/dates.js';
 import { maskPhone } from '../../shared/utils/phone.js';
-import type * as repository from './toy-moderation.repository.js';
+import type { CategoryRow, OwnerRow, ToyRow } from './toy-moderation.repository.js';
 import type { ToyModerationDetail, ToyModerationListItem } from './toy-moderation.schemas.js';
 
-// Database documents -> response DTOs of the Admin moderation screens. Phones are masked (GB-35).
+// Database documents -> response DTOs of the Admin moderation screens. Phones are masked.
 
-export type QueueToy = Awaited<ReturnType<typeof repository.findQueueToys>>[number];
-export type CategoryRow = Awaited<ReturnType<typeof repository.findCategoriesByIds>>[number];
-export type OwnerRow = Awaited<ReturnType<typeof repository.findOwnersByIds>>[number];
+export type { CategoryRow, OwnerRow } from './toy-moderation.repository.js';
 
 const iso = (date: Date | null | undefined): string => toIsoString(date) ?? '';
 
@@ -15,21 +13,24 @@ const iso = (date: Date | null | undefined): string => toIsoString(date) ?? '';
 export const isLocked = (owner: Pick<OwnerRow, 'status' | 'lock'>, now: Date): boolean =>
   owner.status === 'LOCKED' || (owner.lock?.until ? owner.lock.until > now : false);
 
-export const ownerAge = (owner: OwnerRow, now: Date): number | null =>
-  owner.dateOfBirth ? ageInYears(owner.dateOfBirth, now) : null;
+/** Category status as stored by develop ('active' by default), reported lowercase. */
+export const categoryStatus = (status: string): 'active' | 'hidden' =>
+  status.toLowerCase() === 'active' ? 'active' : 'hidden';
 
 const toCategory = (category: CategoryRow | null | undefined) =>
-  category ? { id: String(category._id), name: category.name, status: category.status } : null;
+  category
+    ? { id: String(category._id), name: category.name, status: categoryStatus(category.status) }
+    : null;
 
 const toOwnerSummary = (owner: OwnerRow) => ({
   id: String(owner._id),
   fullName: owner.fullName,
   maskedPhone: maskPhone(owner.phone),
-  identityStatus: owner.identityStatus,
+  verificationStatus: owner.verificationStatus,
 });
 
 export const toListItem = (
-  toy: QueueToy,
+  toy: ToyRow,
   category: CategoryRow | null | undefined,
   owner: OwnerRow | null | undefined,
 ): ToyModerationListItem => ({
@@ -38,14 +39,10 @@ export const toListItem = (
   listingType: toy.listingType,
   status: toy.status,
   condition: toy.condition,
-  ageGroup: toy.ageGroup,
-  pricing: {
-    rentPerDay: toy.pricing?.rentPerDay ?? null,
-    deposit: toy.pricing?.deposit ?? null,
-    salePrice: toy.pricing?.salePrice ?? null,
-  },
-  area: toy.area ?? null,
-  coverImage: toy.images[0] ?? null,
+  ageRange: { minAge: toy.ageRange.minAge, maxAge: toy.ageRange.maxAge },
+  priceOrRate: toy.priceOrRate,
+  depositPrice: toy.listingType === 'rent' ? (toy.depositPrice ?? null) : null,
+  coverImage: toy.images[0]?.url ?? null,
   imageCount: toy.images.length,
   category: toCategory(category),
   owner: owner ? toOwnerSummary(owner) : null,
@@ -60,15 +57,10 @@ export const toListItem = (
 export const toDetailOwner = (
   owner: OwnerRow,
   now: Date,
-): NonNullable<ToyModerationDetail['owner']> => {
-  const ratingCount = owner.trust?.ratingCount ?? 0;
-  return {
-    ...toOwnerSummary(owner),
-    accountStatus: isLocked(owner, now) ? 'LOCKED' : 'ACTIVE',
-    lockedUntil: owner.lock?.until && owner.lock.until > now ? iso(owner.lock.until) : null,
-    age: ownerAge(owner, now),
-    trustScore: ratingCount > 0 ? (owner.trust?.ratingSum ?? 0) / ratingCount : null,
-    ratingCount,
-    memberSince: iso(owner.createdAt),
-  };
-};
+): NonNullable<ToyModerationDetail['owner']> => ({
+  ...toOwnerSummary(owner),
+  accountStatus: isLocked(owner, now) ? 'LOCKED' : 'ACTIVE',
+  lockedUntil: owner.lock?.until && owner.lock.until > now ? iso(owner.lock.until) : null,
+  trustScore: owner.trust?.score ?? null,
+  memberSince: iso(owner.createdAt),
+});

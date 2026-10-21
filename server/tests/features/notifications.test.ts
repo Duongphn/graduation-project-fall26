@@ -2,7 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { NotificationModel } from '../../src/features/notifications/notifications.model.js';
+import { Notification } from '../../src/features/notifications/notifications.model.js';
 import {
   notificationsRouter,
   subscribeNotifications,
@@ -18,12 +18,13 @@ import {
   renderDonationStatusChanged,
   renderToyReviewed,
 } from '../../src/features/notifications/notification-templates.js';
-import { OrganizationModel } from '../../src/features/organizations/organizations.model.js';
-import { UserModel } from '../../src/features/users/users.model.js';
+import { Organization } from '../../src/features/organizations/organizations.model.js';
+import { User } from '../../src/features/users/users.model.js';
 import type { DonationStatusChangedEvent } from '../../src/shared/events/domain-events.js';
 import { domainEvents } from '../../src/shared/events/domain-events.js';
 import { errorHandler } from '../../src/shared/middleware/error-handler.js';
-import { newId, useTestDatabase } from '../database/helpers.js';
+import { testAuth } from '../support/test-auth.js';
+import { newId, useTestDatabase } from '../support/test-database.js';
 
 useTestDatabase();
 
@@ -31,7 +32,7 @@ const context = { appPublicUrl: 'https://toyflow.test/' };
 
 let phoneSeq = 0;
 const createUser = (email = `user${phoneSeq}@example.com`) =>
-  UserModel.create({
+  User.create({
     phone: `+8491${String(++phoneSeq).padStart(7, '0')}`,
     email,
     passwordHash: 'x',
@@ -41,11 +42,7 @@ const createUser = (email = `user${phoneSeq}@example.com`) =>
 // Signed-in user from a test header (request.auth is what the real auth middleware sets).
 const app = express();
 app.use(express.json());
-app.use((req, _res, next) => {
-  const userId = req.header('x-test-user');
-  if (userId) req.auth = { userId, role: 'USER' };
-  next();
-});
+app.use(testAuth);
 app.use('/api/v1/notifications', notificationsRouter);
 app.use(errorHandler);
 
@@ -67,8 +64,8 @@ const donationEvent = (
   donorId: String(newId()),
   requestedBy: String(newId()),
   receiverType: 'USER',
-  from: 'SHIPPING',
-  to: 'COMPLETED',
+  from: 'shipping',
+  to: 'completed',
   ...overrides,
 });
 
@@ -80,7 +77,7 @@ describe('notification templates', () => {
         toyId: '67098e1b34e12c001a123456',
         ownerId: String(newId()),
         toyTitle: 'Xe <b>',
-        decision: 'REJECTED',
+        decision: 'rejected',
         reason: 'Ảnh bị mờ',
         reviewedBy: String(newId()),
       },
@@ -109,13 +106,13 @@ describe('notification templates', () => {
     const event = donationEvent();
     const parties = (overrides: Partial<DonationStatusChangedEvent>) =>
       donationRecipients({ ...event, ...overrides }).map((r) => r.party);
-    expect(parties({ to: 'PENDING', changedBy: event.requestedBy })).toEqual(['DONOR']);
-    expect(parties({ to: 'ACCEPTED', changedBy: event.donorId })).toEqual(['REQUESTER']);
-    expect(parties({ to: 'ACCEPTED', changedBy: String(newId()) })).toEqual(['REQUESTER', 'DONOR']);
-    expect(parties({ to: 'SHIPPING', changedBy: event.donorId })).toEqual(['REQUESTER']);
-    expect(parties({ to: 'COMPLETED', changedBy: event.requestedBy })).toEqual(['DONOR']);
-    expect(parties({ to: 'CANCELLED', changedBy: event.requestedBy })).toEqual(['DONOR']);
-    expect(parties({ to: 'CANCELLED' })).toEqual(['DONOR', 'REQUESTER']);
+    expect(parties({ to: 'pending', changedBy: event.requestedBy })).toEqual(['DONOR']);
+    expect(parties({ to: 'accepted', changedBy: event.donorId })).toEqual(['REQUESTER']);
+    expect(parties({ to: 'accepted', changedBy: String(newId()) })).toEqual(['REQUESTER', 'DONOR']);
+    expect(parties({ to: 'shipping', changedBy: event.donorId })).toEqual(['REQUESTER']);
+    expect(parties({ to: 'completed', changedBy: event.requestedBy })).toEqual(['DONOR']);
+    expect(parties({ to: 'cancelled', changedBy: event.requestedBy })).toEqual(['DONOR']);
+    expect(parties({ to: 'cancelled' })).toEqual(['DONOR', 'REQUESTER']);
   });
 
   it('sends the requester side of an ORGANIZATION request to every Admin but the actor', () => {
@@ -124,7 +121,7 @@ describe('notification templates', () => {
       receiverType: 'ORGANIZATION',
       organizationId: String(newId()),
       requestedBy: adminA,
-      to: 'ACCEPTED',
+      to: 'accepted',
       changedBy: adminA,
     });
     expect(donationRecipients(event, [adminA, adminB])).toEqual([
@@ -143,7 +140,7 @@ describe('event subscriptions', () => {
   let off: () => void;
 
   beforeEach(async () => {
-    await NotificationModel.deleteMany({});
+    await Notification.deleteMany({});
     sent = [];
     const mailer = createTransportMailer(
       {
@@ -166,12 +163,12 @@ describe('event subscriptions', () => {
       toyId: String(newId()),
       ownerId: String(owner._id),
       toyTitle: 'Tàu hỏa gỗ',
-      decision: 'ACTIVE',
+      decision: 'approved',
       reviewedBy: String(newId()),
     });
-    await waitFor(async () => (await NotificationModel.countDocuments()) === 1);
-    const saved = await NotificationModel.findOne().lean();
-    expect(saved).toMatchObject({ type: 'TOY_REVIEWED', isRead: false, target: { kind: 'TOY' } });
+    await waitFor(async () => (await Notification.countDocuments()) === 1);
+    const saved = await Notification.findOne().lean();
+    expect(saved).toMatchObject({ type: 'TOY_REVIEWED', isRead: false });
     await waitFor(() => Promise.resolve(sent.length === 1));
     expect(sent[0]).toMatchObject({ to: 'owner@example.com' });
   });
@@ -183,12 +180,12 @@ describe('event subscriptions', () => {
       type: 'IDENTITY_REVIEWED',
       verificationId: String(newId()),
       userId: String(user._id),
-      decision: 'VERIFIED',
+      decision: 'verified',
       reviewedBy: String(newId()),
     });
-    await waitFor(async () => (await NotificationModel.countDocuments()) === 1);
+    await waitFor(async () => (await Notification.countDocuments()) === 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(await NotificationModel.countDocuments()).toBe(1);
+    expect(await Notification.countDocuments()).toBe(1);
   });
 
   it('keeps the in-app notification when the email fails', async () => {
@@ -200,11 +197,11 @@ describe('event subscriptions', () => {
       type: 'IDENTITY_REVIEWED',
       verificationId: String(newId()),
       userId: String(user._id),
-      decision: 'REJECTED',
+      decision: 'rejected',
       reason: 'Ảnh mờ',
       reviewedBy: String(newId()),
     });
-    await waitFor(async () => (await NotificationModel.countDocuments()) === 1);
+    await waitFor(async () => (await Notification.countDocuments()) === 1);
     await waitFor(() => Promise.resolve(error.mock.calls.length > 0));
     error.mockRestore();
   });
@@ -212,11 +209,11 @@ describe('event subscriptions', () => {
   it('thanks the donor with the organization name and skips the actor on COMPLETED', async () => {
     const donor = await createUser();
     const requester = await createUser();
-    const organization = await OrganizationModel.create({
+    const organization = await Organization.create({
       name: 'Mái ấm Hoa Mai',
       address: '1 Lê Lợi',
-      contactInfo: '0900000000',
-      supportCriteria: 'Trẻ 3-6 tuổi',
+      contact_info: '0900000000',
+      support_criteria: 'Trẻ 3-6 tuổi',
     });
     domainEvents.publish(
       donationEvent({
@@ -227,8 +224,8 @@ describe('event subscriptions', () => {
         changedBy: String(requester._id),
       }),
     );
-    await waitFor(async () => (await NotificationModel.countDocuments()) === 1);
-    const saved = await NotificationModel.findOne().lean();
+    await waitFor(async () => (await Notification.countDocuments()) === 1);
+    const saved = await Notification.findOne().lean();
     expect(String(saved?.userId)).toBe(String(donor._id));
     expect(saved?.title).toContain('Cảm ơn');
     expect(saved?.body).toContain('Mái ấm Hoa Mai');
@@ -236,9 +233,9 @@ describe('event subscriptions', () => {
 
   it('skips unknown users without throwing', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    domainEvents.publish(donationEvent({ to: 'SHIPPING', from: 'ACCEPTED' }));
+    domainEvents.publish(donationEvent({ to: 'shipping', from: 'accepted' }));
     await waitFor(() => Promise.resolve(warn.mock.calls.length > 0));
-    expect(await NotificationModel.countDocuments()).toBe(0);
+    expect(await Notification.countDocuments()).toBe(0);
     warn.mockRestore();
   });
 });
@@ -247,17 +244,16 @@ describe('notifications API', () => {
   const userId = String(newId());
   const otherId = String(newId());
   const seed = (owner: string, isRead = false) =>
-    NotificationModel.create({
+    Notification.create({
       userId: owner,
       type: 'TOY_REVIEWED',
       title: 'Tin đăng đã được duyệt',
       body: 'Nội dung',
-      target: { kind: 'TOY', id: newId() },
       isRead,
     });
 
   beforeEach(async () => {
-    await NotificationModel.deleteMany({});
+    await Notification.deleteMany({});
   });
 
   it('requires a signed-in user', async () => {
@@ -276,7 +272,7 @@ describe('notifications API', () => {
     expect(all.body.data).toHaveLength(2);
     expect(all.body.pagination.totalItems).toBe(2);
     expect(all.body.data[0]).not.toHaveProperty('userId');
-    expect(all.body.data[0].target.kind).toBe('TOY');
+    expect(all.body.data[0]).not.toHaveProperty('target');
     const unread = await request(app)
       .get('/api/v1/notifications?unreadOnly=true')
       .set('x-test-user', userId)
@@ -327,6 +323,6 @@ describe('notifications API', () => {
       .patch(`/api/v1/notifications/${String(newId())}/read`)
       .set('x-test-user', userId)
       .expect(404);
-    expect((await NotificationModel.findById(theirs._id).lean())?.isRead).toBe(false);
+    expect((await Notification.findById(theirs._id).lean())?.isRead).toBe(false);
   });
 });

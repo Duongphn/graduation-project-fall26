@@ -1,19 +1,18 @@
-import { Types, type ClientSession, type FilterQuery } from 'mongoose';
+import mongoose, { Types, type ClientSession, type FilterQuery } from 'mongoose';
 
 import { writeAuditLog, type AuditEntry } from '../../infrastructure/database/audit.js';
-import { vietnameseNameCollation } from '../../infrastructure/database/schema-types.js';
-import { openDonationStatuses, type VisibilityStatus } from '../../shared/domain/statuses.js';
-import { DonationRequestModel } from '../donation_requests/donation_requests.model.js';
-import { OrganizationModel, type Organization } from './organizations.model.js';
+import { DonationRequest } from '../donation_requests/donation_requests.model.js';
+import { openDonationStatuses, type OrganizationStatus } from './domain/organization-rules.js';
+import { Organization, type IOrganization } from './organizations.model.js';
 
 // Database access of the organization feature. Donation requests are only counted here; they
 // belong to the donations feature.
 
-export type OrganizationRecord = Organization & {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-};
+export type OrganizationRecord = IOrganization;
+
+/** Runs `work` in a MongoDB transaction (needs a replica set). */
+export const withTransaction = <T>(work: (session: ClientSession) => Promise<T>): Promise<T> =>
+  mongoose.connection.transaction(work);
 
 export interface RequestCounts {
   openRequestCount: number;
@@ -28,22 +27,22 @@ export interface Paging {
 
 export const noRequests: RequestCounts = { openRequestCount: 0, requestCount: 0 };
 
-/** Request counts of several organizations ("organization_requests" index). */
+/** Request counts of several organizations . */
 export const countRequestsByOrganization = async (
   ids: Types.ObjectId[],
   session?: ClientSession,
 ): Promise<Map<string, RequestCounts>> => {
   const counts = new Map<string, RequestCounts>();
   if (ids.length === 0) return counts;
-  const rows = await DonationRequestModel.aggregate<{
+  const rows = await DonationRequest.aggregate<{
     _id: Types.ObjectId;
     total: number;
     open: number;
   }>([
-    { $match: { receiverType: 'ORGANIZATION', organizationId: { $in: ids } } },
+    { $match: { 'receiver.organizationId': { $in: ids } } },
     {
       $group: {
-        _id: '$organizationId',
+        _id: '$receiver.organizationId',
         total: { $sum: 1 },
         open: { $sum: { $cond: [{ $in: ['$status', [...openDonationStatuses]] }, 1, 0] } },
       },
@@ -66,22 +65,21 @@ export const findOrganizationsPage = async (
   paging: Paging,
 ): Promise<{ items: OrganizationRecord[]; total: number }> => {
   const [items, total] = await Promise.all([
-    OrganizationModel.find(filter)
-      .collation(vietnameseNameCollation)
+    Organization.find(filter)
       .sort(paging.sort)
       .skip(paging.skip)
       .limit(paging.limit)
       .lean<OrganizationRecord[]>(),
-    OrganizationModel.countDocuments(filter).collation(vietnameseNameCollation),
+    Organization.countDocuments(filter),
   ]);
   return { items, total };
 };
 
 export const findOrganization = (
   id: string,
-  options: { status?: VisibilityStatus; session?: ClientSession } = {},
+  options: { status?: OrganizationStatus; session?: ClientSession } = {},
 ) =>
-  OrganizationModel.findOne({ _id: id, ...(options.status ? { status: options.status } : {}) })
+  Organization.findOne({ _id: id, ...(options.status ? { status: options.status } : {}) })
     .session(options.session ?? null)
     .lean<OrganizationRecord>();
 
@@ -90,7 +88,7 @@ export const insertOrganization = async (
   audit: (record: OrganizationRecord) => AuditEntry,
   session: ClientSession,
 ): Promise<OrganizationRecord> => {
-  const [created] = await OrganizationModel.create([data], { session });
+  const [created] = await Organization.create([data], { session });
   const record = created!.toObject() as OrganizationRecord;
   await writeAuditLog(audit(record), session);
   return record;
@@ -103,7 +101,7 @@ export const updateOrganizationFields = (
   unset: string[],
   session: ClientSession,
 ) =>
-  OrganizationModel.findOneAndUpdate(
+  Organization.findOneAndUpdate(
     { _id: id },
     {
       ...(Object.keys(set).length > 0 ? { $set: set } : {}),
@@ -115,11 +113,11 @@ export const updateOrganizationFields = (
 /** Moves the status only if nobody changed it in the meantime (conditional update). */
 export const changeStatus = (
   id: Types.ObjectId,
-  from: VisibilityStatus,
-  to: VisibilityStatus,
+  from: OrganizationStatus,
+  to: OrganizationStatus,
   session: ClientSession,
 ) =>
-  OrganizationModel.findOneAndUpdate(
+  Organization.findOneAndUpdate(
     { _id: id, status: from },
     { $set: { status: to } },
     { new: true, session },
@@ -129,6 +127,6 @@ export const deleteOrganization = async (
   id: Types.ObjectId,
   session: ClientSession,
 ): Promise<boolean> => {
-  const result = await OrganizationModel.deleteOne({ _id: id }, { session });
+  const result = await Organization.deleteOne({ _id: id }, { session });
   return result.deletedCount === 1;
 };

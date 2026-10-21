@@ -1,15 +1,15 @@
-import type { VisibilityStatus } from '../../shared/domain/statuses.js';
 import type { AuditAction } from '../../infrastructure/database/audit.js';
-import { conflict, notFound, type AppError } from '../../shared/errors/app-error.js';
+import { type AppError } from '../../shared/errors/app-error.js';
+import { conflict, notFound } from '../../shared/errors/http-errors.js';
+import type { TransitionMap } from '../../shared/utils/transitions.js';
+import type { CategoryStatus } from './categories.schemas.js';
 
-// Errors and the ACTIVE <-> HIDDEN state machine of a category.
+// Errors and the active <-> hidden state machine of a category.
 
-/** ACTIVE <-> HIDDEN. Proposed for shared/domain/transitions.ts (organizations use it too). */
-export const visibilityTransitions: Readonly<
-  Record<VisibilityStatus, readonly VisibilityStatus[]>
-> = {
-  ACTIVE: ['HIDDEN'],
-  HIDDEN: ['ACTIVE'],
+/** active <-> hidden. */
+export const visibilityTransitions: TransitionMap<CategoryStatus> = {
+  active: ['hidden'],
+  hidden: ['active'],
 };
 
 const NAME_TAKEN_MESSAGE = 'Tên danh mục đã tồn tại.';
@@ -35,21 +35,21 @@ export const categoryStatusChanged = () =>
     'Trạng thái danh mục vừa được thay đổi. Vui lòng tải lại và thử lại.',
   );
 
-/** What hide (to HIDDEN) and show (to ACTIVE) do. */
+/** What hide (to hidden) and show (to active) do. */
 export const visibilityChanges = {
-  HIDDEN: {
-    from: 'ACTIVE',
+  hidden: {
+    from: 'active',
     action: 'category.hide',
     message: 'Đã ẩn danh mục.',
     alreadyThere: () => conflict('CATEGORY_ALREADY_HIDDEN', 'Danh mục này đã được ẩn từ trước.'),
   },
-  ACTIVE: {
-    from: 'HIDDEN',
+  active: {
+    from: 'hidden',
     action: 'category.show',
     message: 'Đã hiện lại danh mục.',
     alreadyThere: () => conflict('CATEGORY_ALREADY_VISIBLE', 'Danh mục này đang được hiển thị.'),
   },
 } as const satisfies Record<
-  VisibilityStatus,
-  { from: VisibilityStatus; action: AuditAction; message: string; alreadyThere: () => AppError }
+  CategoryStatus,
+  { from: CategoryStatus; action: AuditAction; message: string; alreadyThere: () => AppError }
 >;

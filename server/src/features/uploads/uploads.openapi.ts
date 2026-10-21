@@ -1,5 +1,5 @@
 import {
-  devAuthSecurity,
+  bearerAuthSecurity,
   errorResponses,
   jsonContent,
   openApiRegistry,
@@ -17,7 +17,7 @@ openApiRegistry.registerPath({
     'purpose and the caller. Private purposes (identity, handover, dispute) upload as ' +
     '"authenticated". POST the file to uploadUrl with every entry of `fields` (one upload per ' +
     'signature, jpg/png/webp only), then pass the returned public_id/secure_url/format to the API.',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { body: { content: jsonContent(uploadSignatureBodySchema) } },
   responses: {
     200: {

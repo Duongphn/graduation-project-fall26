@@ -1,5 +1,5 @@
 import {
-  devAuthSecurity,
+  bearerAuthSecurity,
   errorResponses,
   jsonContent,
   openApiRegistry,
@@ -22,11 +22,11 @@ import {
 const adminTag = 'Admin - Charity organizations';
 const publicTag = 'Charity organizations';
 const adminPath = '/api/v1/admin/organizations';
-// Public routes work without signing in; a signed-in caller also gets the phone number.
-const optionalSecurity = [{}, ...devAuthSecurity];
+// Public routes work without signing in.
+const optionalSecurity = [{}];
 
 const adminOrganizationResponse = {
-  description: 'The organization (full phone number)',
+  description: 'The organization',
   content: jsonContent(successResponseSchema(adminOrganizationSchema)),
 };
 
@@ -35,11 +35,11 @@ openApiRegistry.registerPath({
   path: adminPath,
   tags: [adminTag],
   summary: 'List organizations with their donation request counts',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { query: adminOrganizationListQuerySchema },
   responses: {
     200: {
-      description: 'A page of organizations; the phone number is masked (GB-35).',
+      description: 'A page of organizations',
       content: jsonContent(paginatedResponseSchema(adminOrganizationSchema)),
     },
     ...errorResponses(400, 401, 403),
@@ -50,11 +50,10 @@ openApiRegistry.registerPath({
   method: 'post',
   path: adminPath,
   tags: [adminTag],
-  summary: 'Add an organization (ACTIVE: the Admin has checked it)',
+  summary: 'Add an organization (active: the Admin has checked it)',
   description:
-    'logoUrl must be the secure_url of a signed upload with purpose ORGANIZATION_LOGO. ' +
-    '409 ORGANIZATION_NAME_TAKEN when the name exists (case-insensitive).',
-  security: devAuthSecurity,
+    '409 ORGANIZATION_NAME_TAKEN when the name exists.',
+  security: bearerAuthSecurity,
   request: { body: { content: jsonContent(createOrganizationBodySchema) } },
   responses: {
     201: adminOrganizationResponse,
@@ -67,7 +66,7 @@ openApiRegistry.registerPath({
   path: `${adminPath}/{id}`,
   tags: [adminTag],
   summary: 'Organization detail',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema },
   responses: { 200: adminOrganizationResponse, ...errorResponses(400, 401, 403, 404) },
 });
@@ -76,8 +75,8 @@ openApiRegistry.registerPath({
   method: 'patch',
   path: `${adminPath}/{id}`,
   tags: [adminTag],
-  summary: 'Edit an organization (null clears description or logoUrl)',
-  security: devAuthSecurity,
+  summary: 'Edit an organization',
+  security: bearerAuthSecurity,
   request: {
     params: idParamsSchema,
     body: { content: jsonContent(updateOrganizationBodySchema) },
@@ -89,11 +88,11 @@ openApiRegistry.registerPath({
   method: 'post',
   path: `${adminPath}/{id}/hide`,
   tags: [adminTag],
-  summary: 'Hide an organization (ACTIVE -> HIDDEN)',
+  summary: 'Hide an organization (active -> hidden)',
   description:
     'Always allowed: running donation requests continue, no new request can choose it. ' +
     '409 ORGANIZATION_ALREADY_HIDDEN, ORGANIZATION_STATUS_CHANGED.',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema },
   responses: { 200: adminOrganizationResponse, ...errorResponses(400, 401, 403, 404, 409) },
 });
@@ -102,9 +101,9 @@ openApiRegistry.registerPath({
   method: 'post',
   path: `${adminPath}/{id}/show`,
   tags: [adminTag],
-  summary: 'Show a hidden organization again (HIDDEN -> ACTIVE)',
+  summary: 'Show a hidden organization again (hidden -> active)',
   description: '409 ORGANIZATION_ALREADY_VISIBLE, ORGANIZATION_STATUS_CHANGED.',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema },
   responses: { 200: adminOrganizationResponse, ...errorResponses(400, 401, 403, 404, 409) },
 });
@@ -118,7 +117,7 @@ openApiRegistry.registerPath({
     '409 ORGANIZATION_HAS_OPEN_REQUESTS (requests in progress: hide it instead), ' +
     '409 ORGANIZATION_IN_USE (past requests are kept, GB-36). ' +
     'details = { openRequestCount, requestCount }.',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema },
   responses: {
     200: { description: 'Deleted', content: jsonContent(successResponseSchema(z.null())) },
@@ -130,10 +129,9 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/organizations',
   tags: [publicTag],
-  summary: 'ACTIVE organizations for Donors',
+  summary: 'Active organizations for Donors',
   description:
-    'No sign-in needed. Filters: province, ageGroup, q (accent-insensitive). Sorted by name ' +
-    '(A-Z) by default. The phone number is only returned to signed-in callers.',
+    'No sign-in needed. Filter: q (accent-insensitive). Sorted by name (A-Z) by default.',
   security: optionalSecurity,
   request: { query: publicOrganizationListQuerySchema },
   responses: {
@@ -149,7 +147,7 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/organizations/{id}',
   tags: [publicTag],
-  summary: 'One ACTIVE organization',
+  summary: 'One active organization',
   security: optionalSecurity,
   request: { params: idParamsSchema },
   responses: {

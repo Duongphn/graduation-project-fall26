@@ -1,11 +1,11 @@
 import { Types } from 'mongoose';
 
 import type { AdminContext } from '../../shared/http/admin-context.js';
-import { donationStatuses } from '../../shared/domain/statuses.js';
 import { zeroFilledCounts } from '../../shared/utils/counts.js';
 import { escapeRegex, accentInsensitivePattern } from '../../shared/utils/text.js';
 import type { DonationActor } from './donation_requests.policy.js';
 import * as repository from './donation_requests.repository.js';
+import { storedDonationStatuses } from './donation_requests.statuses.js';
 import type { RequestFilter } from './donation_requests.repository.js';
 import type {
   AdminConfirmReceivedBody,
@@ -28,8 +28,12 @@ export const toActor = (context: AdminContext): DonationActor => ({
 
 const buildFilter = async (filters: AdminFilters): Promise<RequestFilter> => {
   const filter: RequestFilter = {};
-  if (filters.receiverType) filter.receiverType = filters.receiverType;
-  if (filters.organizationId) filter.organizationId = new Types.ObjectId(filters.organizationId);
+  if (filters.receiverType) {
+    filter['receiver.organizationId'] = { $exists: filters.receiverType === 'ORGANIZATION' };
+  }
+  if (filters.organizationId) {
+    filter['receiver.organizationId'] = new Types.ObjectId(filters.organizationId);
+  }
   if (filters.q) {
     const toyIds = await repository.findDonationToyIdsByTitle(accentInsensitivePattern(filters.q));
     filter.$or = [
@@ -49,7 +53,7 @@ export const list = async (query: AdminListQuery) => {
 /** Number of requests per status for the StatusTabs (same filters, any status). */
 export const counts = async (filters: AdminFilters) => {
   const rows = await repository.countRequestsByStatus(await buildFilter(filters));
-  return zeroFilledCounts(donationStatuses, rows);
+  return zeroFilledCounts(storedDonationStatuses, rows);
 };
 
 export const detail = (context: AdminContext, id: string) =>

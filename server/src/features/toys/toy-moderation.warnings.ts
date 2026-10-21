@@ -1,7 +1,7 @@
-import type { ListingType } from '../../shared/domain/enums.js';
-import type { IdentityStatus } from '../../shared/domain/statuses.js';
 import { normalizeSearchText } from '../../shared/utils/text.js';
-import type { ModerationWarning } from './toy-moderation.schemas.js';
+import type { ModerationListingType, ModerationWarning } from './toy-moderation.schemas.js';
+
+type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 // Rule-based warnings shown next to a post. They only help the Admin; they never approve or
 // reject anything by themselves (LI-03).
@@ -50,26 +50,25 @@ export const findContactDetails = (text: string): ContactFindings => {
 
 // ---- Warnings for the Admin ----
 
-const listingTypeLabels: Record<ListingType, string> = {
-  RENT: 'cho thuê',
-  SALE: 'bán',
-  DONATION: 'tặng',
+const listingTypeLabels: Record<ModerationListingType, string> = {
+  rent: 'cho thuê',
+  sell: 'bán',
+  donate: 'tặng',
 };
 
-const identityLabels: Record<Exclude<IdentityStatus, 'VERIFIED'>, string> = {
-  UNVERIFIED: 'chưa gửi yêu cầu xác minh',
-  PENDING: 'đang chờ Admin xác minh',
-  REJECTED: 'yêu cầu xác minh bị từ chối',
+const identityLabels: Record<Exclude<VerificationStatus, 'verified'>, string> = {
+  unverified: 'chưa gửi yêu cầu xác minh',
+  pending: 'đang chờ Admin xác minh',
+  rejected: 'yêu cầu xác minh bị từ chối',
 };
 
 export interface WarningInput {
-  listingType: ListingType;
+  listingType: ModerationListingType;
   imageCount: number;
   minPhotos: number;
   text: string;
-  category: { name: string; status: 'ACTIVE' | 'HIDDEN' } | null;
-  owner: { identityStatus: IdentityStatus; locked: boolean; age: number | null } | null;
-  minAgeYears: number;
+  category: { name: string; status: 'active' | 'hidden' } | null;
+  owner: { verificationStatus: VerificationStatus; locked: boolean } | null;
 }
 
 export const buildModerationWarnings = (input: WarningInput): ModerationWarning[] => {
@@ -80,7 +79,7 @@ export const buildModerationWarnings = (input: WarningInput): ModerationWarning[
 
   if (!input.category) {
     add('CATEGORY_MISSING', 'Không tìm thấy danh mục của tin đăng.');
-  } else if (input.category.status === 'HIDDEN') {
+  } else if (input.category.status === 'hidden') {
     add(
       'CATEGORY_HIDDEN',
       `Danh mục "${input.category.name}" đang bị ẩn (bị cấm hoặc không phù hợp): không thể duyệt tin này.`,
@@ -91,24 +90,13 @@ export const buildModerationWarnings = (input: WarningInput): ModerationWarning[
   if (!owner) {
     add('OWNER_MISSING', 'Không tìm thấy tài khoản người đăng.');
   } else {
-    if (owner.identityStatus !== 'VERIFIED') {
+    if (owner.verificationStatus !== 'verified') {
       add(
         'OWNER_UNVERIFIED',
-        `Người đăng chưa xác minh danh tính (${identityLabels[owner.identityStatus]}).`,
+        `Người đăng chưa xác minh danh tính (${identityLabels[owner.verificationStatus]}).`,
       );
     }
     if (owner.locked) add('OWNER_LOCKED', 'Tài khoản người đăng đang bị khoá.');
-    if (owner.age === null) {
-      add(
-        'OWNER_AGE_UNKNOWN',
-        'Người đăng chưa khai báo ngày sinh nên chưa kiểm tra được độ tuổi (GB-07).',
-      );
-    } else if (owner.age < input.minAgeYears) {
-      add(
-        'OWNER_UNDER_AGE',
-        `Người đăng mới ${owner.age} tuổi, chưa đủ ${input.minAgeYears} tuổi để đăng tin (GB-07).`,
-      );
-    }
   }
 
   if (input.imageCount < input.minPhotos) {

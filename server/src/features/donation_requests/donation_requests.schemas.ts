@@ -1,5 +1,3 @@
-import { donationReceiverTypes, ageGroups, toyConditions } from '../../shared/domain/enums.js';
-import { donationStatuses, toyStatuses } from '../../shared/domain/statuses.js';
 import {
   isoDateTimeSchema,
   objectIdSchema,
@@ -9,6 +7,9 @@ import {
   searchQuerySchema,
 } from '../../shared/http/schemas.js';
 import { z } from '../../shared/validation/zod.js';
+import { storedDonationStatuses } from './donation_requests.statuses.js';
+
+const donationReceiverTypes = ['USER', 'ORGANIZATION'] as const;
 
 // Request and response schemas of the donation flow (FE-02, BF-04).
 
@@ -88,7 +89,7 @@ export type AdminConfirmReceivedBody = z.infer<typeof adminConfirmReceivedBodySc
 
 export const donationRequestSortFields = ['createdAt', 'updatedAt', 'status', 'code'] as const;
 
-const statusFilter = z.enum(donationStatuses).optional();
+const statusFilter = z.enum(storedDonationStatuses).optional();
 
 export const myRequestsQuerySchema = paginationQueryWithSort(donationRequestSortFields)
   .extend({ status: statusFilter })
@@ -129,22 +130,21 @@ const toySummarySchema = z
     id: z.string(),
     title: z.string(),
     imageUrl: z.string().nullable(),
-    condition: z.enum(toyConditions),
-    ageGroup: z.enum(ageGroups),
-    status: z.enum(toyStatuses),
+    condition: z.string(),
+    ageRange: z.object({ minAge: z.number(), maxAge: z.number() }).nullable(),
+    status: z.enum(['pending', 'active', 'hidden']),
   })
   .openapi('DonationToy');
 
 const organizationSummarySchema = z
-  .object({ id: z.string(), name: z.string(), status: z.enum(['ACTIVE', 'HIDDEN']) })
+  .object({ id: z.string(), name: z.string(), status: z.string() })
   .openapi('DonationOrganization');
 
 const adminOrganizationSchema = organizationSummarySchema
   .extend({
     address: z.string(),
     contactInfo: z.string(),
-    phone: z.string().nullable(),
-    logoUrl: z.string().nullable(),
+    supportCriteria: z.string(),
   })
   .openapi('DonationAdminOrganization');
 
@@ -162,9 +162,11 @@ export const donationRequestSchema = z
   .object({
     id: z.string(),
     code: z.string(),
-    status: z.enum(donationStatuses),
+    status: z.enum(storedDonationStatuses),
     receiverType: z.enum(donationReceiverTypes),
     message: z.string().nullable(),
+    deliveryMethod: z.string(),
+    dueAt: isoDateTimeSchema.nullable(),
     toy: toySummarySchema.nullable(),
     donor: personSchema.nullable(),
     requester: personSchema.nullable(),
@@ -223,7 +225,7 @@ export const adminDonationRequestDetailSchema = donationRequestDetailSchema
   .openapi('AdminDonationRequestDetail');
 
 export const donationCountsSchema = z
-  .record(z.enum(donationStatuses), z.number().int())
+  .record(z.enum(storedDonationStatuses), z.number().int())
   .openapi('DonationRequestCounts');
 
 export const donorSummarySchema = z

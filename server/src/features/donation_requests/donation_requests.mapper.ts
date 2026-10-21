@@ -2,8 +2,8 @@ import { buildPrivateImageUrl } from '../../infrastructure/storage/cloudinary.js
 import { toIsoString } from '../../shared/utils/dates.js';
 import { maskPhone } from '../../shared/utils/phone.js';
 import { maskEmail } from '../../shared/utils/privacy.js';
-import { counterpartOf } from './donation_requests.policy.js';
-import type { DonationRecord, findHistory, Relations } from './donation_requests.repository.js';
+import { counterpartOf, receiverTypeOf } from './donation_requests.policy.js';
+import type { DonationRecord, Relations } from './donation_requests.repository.js';
 
 /** Who reads the DTO: Admin views get masked contacts, user views the D-03 counterpart. */
 export interface DonationView {
@@ -32,7 +32,7 @@ const iso = (date: Date | null | undefined): string | null => toIsoString(date);
 const person = (relations: Relations, id: unknown, withContacts: boolean) => {
   const user = id ? relations.users.get(String(id)) : undefined;
   if (!user) return null;
-  const base = { id: String(user._id), fullName: user.fullName, avatarUrl: user.avatarUrl ?? null };
+  const base = { id: String(user._id), fullName: user.fullName, avatarUrl: user.avatar ?? null };
   return withContacts
     ? { ...base, phone: maskPhone(user.phone), email: maskEmail(user.email) }
     : base;
@@ -46,9 +46,8 @@ const organization = (relations: Relations, id: unknown, withContacts: boolean) 
     ? {
         ...base,
         address: org.address,
-        contactInfo: org.contactInfo,
-        phone: org.phone ?? null,
-        logoUrl: org.logoUrl ?? null,
+        contactInfo: org.contact_info,
+        supportCriteria: org.support_criteria,
       }
     : base;
 };
@@ -58,8 +57,8 @@ const counterpartContact = (record: DonationRecord, relations: Relations, view: 
   if (view.admin) return null;
   const side = counterpartOf(record, view.viewerId);
   if (side === 'ORGANIZATION') {
-    const org = relations.organizations.get(String(record.organizationId));
-    return org ? { name: org.name, phone: org.phone ?? null } : null;
+    const org = relations.organizations.get(String(record.receiver?.organizationId));
+    return org ? { name: org.name, phone: org.contact_info ?? null } : null;
   }
   if (side === null) return null;
   const user = relations.users.get(String(side === 'DONOR' ? record.donorId : record.requestedBy));
@@ -77,21 +76,23 @@ export const toDonationRequestDto = (
     id: String(record._id),
     code: record.code,
     status: record.status,
-    receiverType: record.receiverType,
-    message: record.message ?? null,
+    receiverType: receiverTypeOf(record),
+    message: record.itemDetails ?? null,
+    deliveryMethod: record.deliveryMethod,
+    dueAt: iso(record.timer?.dueAt),
     toy: toy
       ? {
           id: String(toy._id),
           title: toy.title,
-          imageUrl: toy.images[0] ?? null,
+          imageUrl: toy.images[0]?.url ?? null,
           condition: toy.condition,
-          ageGroup: toy.ageGroup,
+          ageRange: toy.ageRange ?? null,
           status: toy.status,
         }
       : null,
     donor: person(relations, record.donorId, withContacts),
     requester: person(relations, record.requestedBy, withContacts),
-    organization: organization(relations, record.organizationId, withContacts),
+    organization: organization(relations, record.receiver?.organizationId, withContacts),
     counterpartContact: counterpartContact(record, relations, view),
     decidedAt: iso(record.decidedAt),
     rejectReason: record.rejectReason ?? null,
@@ -101,10 +102,71 @@ export const toDonationRequestDto = (
   };
 };
 
+/**
+ * The status timeline, rebuilt from the request's own fields (develop's donation_requests keeps
+ * no separate history): created, decided, handed over, completed or cancelled.
+ */
+const historyOf = (record: DonationRecord) => {
+  type Row = {
+    fromStatus: string | null;
+    toStatus: string;
+    actorType: string;
+    actorId: string | null;
+    reason: string | null;
+    at: string;
+  };
+  const rows: Row[] = [
+    {
+      fromStatus: null,
+      toStatus: 'pending',
+      actorType: 'USER',
+      actorId: String(record.requestedBy),
+      reason: null,
+      at: iso(record.createdAt)!,
+    },
+  ];
+  let last = 'pending';
+  const push = (toStatus: string, at: Date | undefined, actorId: unknown, reason?: string) => {
+    if (!at) return;
+    rows.push({
+      fromStatus: last,
+      toStatus,
+      actorType: actorId ? 'USER' : 'SYSTEM',
+      actorId: actorId ? String(actorId) : null,
+      reason: reason ?? null,
+      at: iso(at)!,
+    });
+    last = toStatus;
+  };
+  if (record.decidedAt) {
+    const accepted = record.status !== 'rejected';
+    push(
+      accepted ? 'accepted' : 'rejected',
+      record.decidedAt,
+      record.decidedBy,
+      record.rejectReason,
+    );
+  }
+  const sent = record.handovers?.find((handover) => handover.step === 'DONOR_SENT');
+  if (sent) push('shipping', sent.at, sent.by, sent.note);
+  const received = record.handovers?.find((handover) => handover.step === 'RECEIVER_RECEIVED');
+  if (record.completedAt) push('completed', record.completedAt, received?.by);
+  if (record.cancellation) {
+    rows.push({
+      fromStatus: last,
+      toStatus: 'cancelled',
+      actorType: record.cancellation.actorType,
+      actorId: record.cancellation.by ? String(record.cancellation.by) : null,
+      reason: record.cancellation.note ?? record.cancellation.reason,
+      at: iso(record.cancellation.at)!,
+    });
+  }
+  return rows;
+};
+
 export const toDonationRequestDetailDto = (
   record: DonationRecord,
   relations: Relations,
-  history: Awaited<ReturnType<typeof findHistory>>,
   view: DonationView = { admin: false },
 ) => ({
   ...toDonationRequestDto(record, relations, view),
@@ -125,12 +187,5 @@ export const toDonationRequestDetailDto = (
         at: iso(record.cancellation.at)!,
       }
     : null,
-  history: history.map((row) => ({
-    fromStatus: row.fromStatus ?? null,
-    toStatus: row.toStatus,
-    actorType: row.actor?.type ?? 'SYSTEM',
-    actorId: row.actor?.userId ? String(row.actor.userId) : null,
-    reason: row.reason ?? null,
-    at: iso(row.createdAt)!,
-  })),
+  history: historyOf(record),
 });

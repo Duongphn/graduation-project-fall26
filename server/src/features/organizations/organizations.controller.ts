@@ -18,9 +18,6 @@ import * as service from './organizations.service.js';
 
 const organizationId = (response: Response): string => getValidatedParams<IdParams>(response).id;
 
-// request.auth is set by optionalAuth on the public routes (never answers 401).
-const phoneOptions = (request: Request) => ({ includePhone: request.auth !== undefined });
-
 export const adminOrganizationsController = {
   list: async (_request: Request, response: Response) => {
     const query = getValidatedQuery<AdminOrganizationListQuery>(response);
@@ -72,16 +69,13 @@ export const adminOrganizationsController = {
 };
 
 export const publicOrganizationsController = {
-  list: async (request: Request, response: Response) => {
+  list: async (_request: Request, response: Response) => {
     const query = getValidatedQuery<PublicOrganizationListQuery>(response);
-    const { items, total } = await service.listPublicOrganizations(query, phoneOptions(request));
+    const { items, total } = await service.listPublicOrganizations(query);
     sendPaginated(response, items, query, total);
   },
 
-  get: async (request: Request, response: Response) => {
-    sendSuccess(
-      response,
-      await service.getPublicOrganization(organizationId(response), phoneOptions(request)),
-    );
+  get: async (_request: Request, response: Response) => {
+    sendSuccess(response, await service.getPublicOrganization(organizationId(response)));
   },
 };

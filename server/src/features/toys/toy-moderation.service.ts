@@ -1,19 +1,15 @@
 import type { Types } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../../infrastructure/database/audit.js';
-import { withTransaction } from '../../infrastructure/database/schema-types.js';
-import type { ListingType } from '../../shared/domain/enums.js';
-import { toyStatuses } from '../../shared/domain/statuses.js';
-import { assertTransition, toyTransitions } from '../../shared/domain/transitions.js';
-import { conflict, notFound, unprocessable } from '../../shared/errors/app-error.js';
+import { conflict, notFound, unprocessable } from '../../shared/errors/http-errors.js';
 import { domainEvents } from '../../shared/events/domain-events.js';
 import type { AdminContext } from '../../shared/http/admin-context.js';
 import { toIsoString } from '../../shared/utils/dates.js';
 import { zeroFilledCounts } from '../../shared/utils/counts.js';
 import { toMongoPaging } from '../../shared/utils/response.js';
+import { assertTransition, type TransitionMap } from '../../shared/utils/transitions.js';
 import {
   isLocked,
-  ownerAge,
   toDetailOwner,
   toListItem,
   type CategoryRow,
@@ -21,7 +17,9 @@ import {
 } from './toy-moderation.mapper.js';
 import * as repository from './toy-moderation.repository.js';
 import {
+  moderationToyStatuses,
   toyModerationSortFields,
+  type ModerationToyStatus,
   type ApproveToyBody,
   type RejectToyBody,
   type ToyModerationCountsQuery,
@@ -33,17 +31,18 @@ import {
 } from './toy-moderation.schemas.js';
 import { buildModerationWarnings } from './toy-moderation.warnings.js';
 
-// Admin moderation of toy posts (UC27): every new or edited post stays PENDING_REVIEW until an
+// Admin moderation of toy posts (UC27): every new or edited post stays pending until an
 // Admin approves or rejects it (FE-03, GB-08). Nothing is approved automatically (LI-03).
 
-const minPhotosSettingKey = {
-  RENT: 'TOY_MIN_PHOTOS_RENT',
-  SALE: 'TOY_MIN_PHOTOS_SALE',
-  DONATION: 'TOY_MIN_PHOTOS_DONATION',
-} as const satisfies Record<ListingType, string>;
-// Used only if the settings collection has no value and no default (never in practice).
-const FALLBACK_MIN_PHOTOS = 1;
-const FALLBACK_MIN_AGE_YEARS = 18;
+// Develop has no settings for these yet: one photo minimum for every listing type.
+const MIN_PHOTOS = 1;
+
+/** Moderation decisions on develop's toy statuses; a rejected post is hidden with a reason. */
+const toyTransitions: TransitionMap<ModerationToyStatus> = {
+  pending: ['active', 'hidden'],
+  active: [],
+  hidden: [],
+};
 
 const toyNotFound = () => notFound('TOY_NOT_FOUND', 'Không tìm thấy tin đăng.');
 
@@ -62,7 +61,7 @@ const resolvePaging = (query: ToyModerationQueueQuery) => {
   const sortable = (toyModerationSortFields as readonly string[]).includes(query.sortBy ?? '');
   if (sortable) return paging;
   const sort: repository.ToySort =
-    query.status === 'PENDING_REVIEW'
+    query.status === 'pending'
       ? { 'moderation.submittedAt': 1, _id: 1 }
       : { createdAt: -1, _id: -1 };
   return { ...paging, sort };
@@ -103,7 +102,7 @@ export const countByStatus = async (query: ToyModerationCountsQuery): Promise<To
     categoryId: query.categoryId,
     q: query.q || undefined,
   });
-  return zeroFilledCounts(toyStatuses, rows);
+  return zeroFilledCounts(moderationToyStatuses, rows);
 };
 
 // ---- Detail ----
@@ -112,42 +111,33 @@ export const getDetail = async (id: string): Promise<ToyModerationDetail> => {
   const toy = await repository.findToyById(id);
   if (!toy) throw toyNotFound();
 
-  const photoKey = minPhotosSettingKey[toy.listingType];
   const reviewerId = toy.moderation?.reviewedBy;
-  const [category, owners, reviewer, settings] = await Promise.all([
+  const [category, owners, reviewer] = await Promise.all([
     repository.findCategoryById(toy.categoryId),
     repository.findOwnersByIds([toy.ownerId]),
     reviewerId ? repository.findUserNameById(reviewerId) : null,
-    repository.findNumberSettings([photoKey, 'USER_MIN_AGE_YEARS']),
   ]);
   const owner = owners[0];
   const now = new Date();
-  const minPhotos = settings[photoKey] ?? FALLBACK_MIN_PHOTOS;
-  const minAgeYears = settings.USER_MIN_AGE_YEARS ?? FALLBACK_MIN_AGE_YEARS;
+  const minPhotos = MIN_PHOTOS;
 
   const item = toListItem(toy, category, owner);
   const warnings = buildModerationWarnings({
     listingType: toy.listingType,
     imageCount: toy.images.length,
     minPhotos,
-    text: `${toy.title}\n${toy.description}`,
+    text: `${toy.title}\n${toy.description ?? ''}`,
     category: item.category,
     owner: owner
-      ? {
-          identityStatus: owner.identityStatus,
-          locked: isLocked(owner, now),
-          age: ownerAge(owner, now),
-        }
+      ? { verificationStatus: owner.verificationStatus, locked: isLocked(owner, now) }
       : null,
-    minAgeYears,
   });
 
   return {
     ...item,
-    description: toy.description,
-    images: toy.images,
+    description: toy.description ?? '',
+    images: toy.images.map((image) => ({ url: image.url, publicId: image.publicId })),
     minPhotos,
-    minAgeYears,
     owner: owner ? toDetailOwner(owner, now) : null,
     moderation: {
       ...item.moderation,
@@ -162,7 +152,7 @@ export const getDetail = async (id: string): Promise<ToyModerationDetail> => {
 
 // ---- Decisions ----
 
-type Decision = { to: 'ACTIVE' } | { to: 'REJECTED'; reason: string };
+type Decision = { to: 'active' } | { to: 'hidden'; reason: string };
 
 const decide = async (
   toyId: string,
@@ -173,10 +163,10 @@ const decide = async (
   const reviewerId = context.actor.actorId;
   const expected = new Date(expectedUpdatedAt);
 
-  const { before, after } = await withTransaction(async (session) => {
+  const { before, after } = await repository.withTransaction(async (session) => {
     const current = await repository.findToyById(toyId, session);
     if (!current) throw toyNotFound();
-    if (current.status !== 'PENDING_REVIEW') {
+    if (current.status !== 'pending') {
       throw conflict('TOY_ALREADY_DECIDED', 'Tin đăng không còn ở trạng thái chờ duyệt.', {
         status: current.status,
       });
@@ -190,20 +180,20 @@ const decide = async (
     }
     assertTransition(toyTransitions, current.status, decision.to);
 
-    if (decision.to === 'ACTIVE') {
+    if (decision.to === 'active') {
       // BF-01: only a verified, unlocked owner may have an active post. The other checks of
       // the detail page (photos, contact details, age) stay advisory warnings (LI-03).
       const owner = await repository.findOwnerForDecision(current.ownerId, session);
-      if (!owner || owner.identityStatus !== 'VERIFIED' || isLocked(owner, new Date())) {
+      if (!owner || owner.verificationStatus !== 'verified' || isLocked(owner, new Date())) {
         throw unprocessable(
           'OWNER_NOT_ELIGIBLE',
           !owner
             ? 'Không tìm thấy tài khoản người đăng, không thể duyệt tin này.'
-            : owner.identityStatus !== 'VERIFIED'
+            : owner.verificationStatus !== 'verified'
               ? 'Người đăng chưa xác minh danh tính, không thể duyệt tin này.'
               : 'Tài khoản người đăng đang bị khoá, không thể duyệt tin này.',
           {
-            identityStatus: owner?.identityStatus ?? null,
+            verificationStatus: owner?.verificationStatus ?? null,
             locked: owner ? isLocked(owner, new Date()) : null,
           },
         );
@@ -230,7 +220,7 @@ const decide = async (
       session,
     };
     const updated =
-      decision.to === 'ACTIVE'
+      decision.to === 'active'
         ? await repository.approvePending(write)
         : await repository.rejectPending({ ...write, reason: decision.reason });
     // Another Admin or an Owner edit won the race between the read and the write.
@@ -244,16 +234,8 @@ const decide = async (
     await writeAuditLog(
       adminAuditEntry(
         context,
-        decision.to === 'ACTIVE' ? 'toy.approve' : 'toy.reject',
+        decision.to === 'active' ? 'toy.approve' : 'toy.reject',
         { kind: 'TOY', id: String(current._id) },
-        {
-          title: current.title,
-          before: { status: current.status, updatedAt: current.updatedAt.toISOString() },
-          after:
-            decision.to === 'ACTIVE'
-              ? { status: 'ACTIVE' }
-              : { status: 'REJECTED', rejectReason: decision.reason },
-        },
       ),
       session,
     );
@@ -266,9 +248,9 @@ const decide = async (
     toyId: String(before._id),
     ownerId: String(before.ownerId),
     toyTitle: before.title,
-    decision: decision.to,
+    decision: decision.to === 'active' ? 'approved' : 'rejected',
     reviewedBy: reviewerId,
-    ...(decision.to === 'REJECTED' ? { reason: decision.reason } : {}),
+    ...(decision.to === 'hidden' ? { reason: decision.reason } : {}),
   });
 
   return {
@@ -288,11 +270,11 @@ export const approveToy = (
   body: ApproveToyBody,
   context: AdminContext,
 ): Promise<ToyModerationDecision> =>
-  decide(toyId, body.expectedUpdatedAt, { to: 'ACTIVE' }, context);
+  decide(toyId, body.expectedUpdatedAt, { to: 'active' }, context);
 
 export const rejectToy = (
   toyId: string,
   body: RejectToyBody,
   context: AdminContext,
 ): Promise<ToyModerationDecision> =>
-  decide(toyId, body.expectedUpdatedAt, { to: 'REJECTED', reason: body.reason }, context);
+  decide(toyId, body.expectedUpdatedAt, { to: 'hidden', reason: body.reason }, context);

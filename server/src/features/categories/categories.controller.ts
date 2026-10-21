@@ -20,16 +20,11 @@ import {
   createCategory,
   deleteCategory,
   listAdminCategories,
-  listPublicCategories,
   reorderCategories,
   updateCategory,
 } from './categories.service.js';
 
 const categoryId = (response: Response): string => getValidatedParams<IdParams>(response).id;
-
-export const listPublic = async (_request: Request, response: Response): Promise<void> => {
-  sendSuccess(response, await listPublicCategories());
-};
 
 export const listAdmin = async (_request: Request, response: Response): Promise<void> => {
   const query = getValidatedQuery<AdminCategoryListQuery>(response);
@@ -57,19 +52,19 @@ export const update = async (request: Request, response: Response): Promise<void
 export const hide = async (request: Request, response: Response): Promise<void> => {
   const category = await changeCategoryVisibility(
     categoryId(response),
-    'HIDDEN',
+    'hidden',
     getAdminContext(request),
   );
-  sendSuccess(response, category, { message: visibilityChanges.HIDDEN.message });
+  sendSuccess(response, category, { message: visibilityChanges.hidden.message });
 };
 
 export const show = async (request: Request, response: Response): Promise<void> => {
   const category = await changeCategoryVisibility(
     categoryId(response),
-    'ACTIVE',
+    'active',
     getAdminContext(request),
   );
-  sendSuccess(response, category, { message: visibilityChanges.ACTIVE.message });
+  sendSuccess(response, category, { message: visibilityChanges.active.message });
 };
 
 export const remove = async (request: Request, response: Response): Promise<void> => {

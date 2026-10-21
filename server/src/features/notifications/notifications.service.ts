@@ -1,4 +1,4 @@
-import { notFound } from '../../shared/errors/app-error.js';
+import { notFound } from '../../shared/errors/http-errors.js';
 import { toMongoPaging } from '../../shared/utils/response.js';
 import { getDefaultMailer, type Mailer } from './mailer.js';
 import type { NotificationMessage } from './notification-templates.js';
@@ -42,7 +42,6 @@ export const createNotifier = (options: NotifierOptions = {}) => ({
       type: message.type,
       title: message.title,
       body: message.body,
-      target: message.target,
     });
     if (!address) return { notificationId, email: 'NO_ADDRESS' };
     try {
@@ -63,7 +62,6 @@ const toNotificationDto = (record: NotificationRecord): NotificationDto => ({
   type: record.type,
   title: record.title,
   body: record.body,
-  target: record.target ? { kind: record.target.kind, id: String(record.target.id) } : null,
   isRead: record.isRead,
   createdAt: record.createdAt.toISOString(),
 });

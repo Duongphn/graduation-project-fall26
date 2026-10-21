@@ -1,13 +1,13 @@
 import { Router } from 'express';
 
 import { emptyObjectSchema, idParamsSchema } from '../../../shared/http/schemas.js';
-import { requireAdmin } from '../../../shared/middleware/auth-placeholder.js';
+import { requireAdmin } from '../../../shared/middleware/require-admin.js';
 import { validateRequest } from '../../../shared/middleware/validate.js';
 import * as controller from './identity-review.controller.js';
 import './identity-review.openapi.js';
 import { identityQueueQuerySchema, rejectIdentityBodySchema } from './identity-review.schemas.js';
 
-// Mounted at /api/v1/admin/identity-verifications.
+// Mounted at /api/v1/admin/identity-verifications behind develop's `authenticate`.
 export const adminIdentityReviewRouter = Router();
 
 adminIdentityReviewRouter.use(requireAdmin);

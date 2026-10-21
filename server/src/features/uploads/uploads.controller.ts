@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
 
-import { getRequestAuth } from '../../shared/middleware/auth-placeholder.js';
+import { getRequestAuth } from '../../shared/http/admin-context.js';
 import { getValidatedBody } from '../../shared/middleware/validate.js';
-import { unauthorized } from '../../shared/errors/app-error.js';
+import { unauthorized } from '../../shared/errors/http-errors.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import type { UploadSignatureBody } from './uploads.schemas.js';
 import { signUpload } from './uploads.service.js';

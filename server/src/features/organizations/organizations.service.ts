@@ -7,18 +7,16 @@ import {
   writeAuditLog,
   type AuditEntry,
 } from '../../infrastructure/database/audit.js';
-import { withTransaction } from '../../infrastructure/database/schema-types.js';
-import type { VisibilityStatus } from '../../shared/domain/statuses.js';
-import { assertTransition } from '../../shared/domain/transitions.js';
-import { conflict, notFound, type AppError } from '../../shared/errors/app-error.js';
+import { type AppError } from '../../shared/errors/app-error.js';
+import { conflict, notFound } from '../../shared/errors/http-errors.js';
 import type { AdminContext } from '../../shared/http/admin-context.js';
 import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
 import { toMongoPaging } from '../../shared/utils/response.js';
 import { accentInsensitivePattern } from '../../shared/utils/text.js';
-import { organizationTransitions } from './domain/organization-rules.js';
+import { assertTransition } from '../../shared/utils/transitions.js';
+import { organizationTransitions, type OrganizationStatus } from './domain/organization-rules.js';
 import {
   toAdminOrganization,
-  toAuditView,
   toPublicOrganization,
   type AdminOrganizationDto,
 } from './organizations.mapper.js';
@@ -32,6 +30,7 @@ import {
   insertOrganization,
   noRequests,
   updateOrganizationFields,
+  withTransaction,
   type OrganizationRecord,
   type RequestCounts,
 } from './organizations.repository.js';
@@ -55,7 +54,7 @@ const nameTaken = () =>
     { field: 'name', message: 'Đã có tổ chức khác dùng tên này.' },
   ]);
 
-// The "name_unique" index (collation vi, strength 2) is the single guard for duplicate names.
+// The "name_unique" index is the single guard for duplicate names.
 const rethrowDuplicateName = (error: unknown): never => {
   throw isDuplicateKeyError(error, 'name_unique') ? nameTaken() : error;
 };
@@ -64,8 +63,17 @@ const auditEntry = (
   context: AdminContext,
   action: AuditEntry['action'],
   id: string,
-  meta: Record<string, unknown>,
-): AuditEntry => adminAuditEntry(context, action, { kind: 'ORGANIZATION', id }, meta);
+): AuditEntry => adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
+
+/** API body (camelCase) -> develop's stored fields. */
+const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
+  const stored: Record<string, unknown> = {};
+  if (body.name !== undefined) stored.name = body.name;
+  if (body.address !== undefined) stored.address = body.address;
+  if (body.contactInfo !== undefined) stored.contact_info = body.contactInfo;
+  if (body.supportCriteria !== undefined) stored.support_criteria = body.supportCriteria;
+  return stored;
+};
 
 const searchFilter = (q: string | undefined, fields: readonly string[]) => {
   if (!q) return {};
@@ -78,8 +86,7 @@ const searchFilter = (q: string | undefined, fields: readonly string[]) => {
 export const listOrganizationsForAdmin = async (query: AdminOrganizationListQuery) => {
   const filter: FilterQuery<OrganizationRecord> = {
     ...(query.status ? { status: query.status } : {}),
-    ...(query.province ? { province: query.province } : {}),
-    ...searchFilter(query.q, ['name', 'address', 'contactInfo', 'supportCriteria']),
+    ...searchFilter(query.q, ['name', 'address', 'contact_info', 'support_criteria']),
   };
   const { items, total } = await findOrganizationsPage(
     filter,
@@ -88,9 +95,7 @@ export const listOrganizationsForAdmin = async (query: AdminOrganizationListQuer
   const counts = await countRequestsByOrganization(items.map((item) => item._id));
   return {
     items: items.map((item) =>
-      toAdminOrganization(item, counts.get(String(item._id)) ?? noRequests, {
-        includePhone: false,
-      }),
+toAdminOrganization(item, counts.get(String(item._id)) ?? noRequests),
     ),
     total,
   };
@@ -99,10 +104,10 @@ export const listOrganizationsForAdmin = async (query: AdminOrganizationListQuer
 export const getOrganizationForAdmin = async (id: string): Promise<AdminOrganizationDto> => {
   const record = await findOrganization(id);
   if (!record) throw organizationNotFound();
-  return toAdminOrganization(record, await countRequests(record._id), { includePhone: true });
+  return toAdminOrganization(record, await countRequests(record._id));
 };
 
-// The Admin adds an organization after checking it, so it is ACTIVE at once.
+// The Admin adds an organization after checking it, so it is active at once.
 export const createOrganization = async (
   body: CreateOrganizationBody,
   context: AdminContext,
@@ -110,31 +115,15 @@ export const createOrganization = async (
   try {
     const record = await withTransaction((session) =>
       insertOrganization(
-        { ...body, status: 'ACTIVE' },
-        (created) =>
-          auditEntry(context, 'organization.create', String(created._id), {
-            after: toAuditView(created),
-          }),
+        { ...toStored(body), status: 'active' },
+        (created) => auditEntry(context, 'organization.create', String(created._id)),
         session,
       ),
     );
-    return toAdminOrganization(record, noRequests, { includePhone: true });
+    return toAdminOrganization(record, noRequests);
   } catch (error) {
     return rethrowDuplicateName(error);
   }
-};
-
-const clearableFields = new Set<string>(['description', 'logoUrl']);
-
-const splitUpdate = (body: UpdateOrganizationBody) => {
-  const set: Record<string, unknown> = {};
-  const unset: string[] = [];
-  for (const [field, value] of Object.entries(body)) {
-    if (value === undefined) continue;
-    if (value === null && clearableFields.has(field)) unset.push(field);
-    else set[field] = value;
-  }
-  return { set, unset };
 };
 
 export const updateOrganization = async (
@@ -146,47 +135,43 @@ export const updateOrganization = async (
     const { record, counts } = await withTransaction(async (session) => {
       const before = await findOrganization(id, { session });
       if (!before) throw organizationNotFound();
-      const { set, unset } = splitUpdate(body);
-      const after = await updateOrganizationFields(before._id, set, unset, session);
+      const set = toStored(body);
+      const after = await updateOrganizationFields(before._id, set, [], session);
       if (!after) throw organizationNotFound();
 
-      const beforeView = toAuditView(before);
-      const afterView = toAuditView(after);
-      const changed = (Object.keys(afterView) as Array<keyof typeof afterView>).filter(
-        (key) => !isDeepStrictEqual(beforeView[key], afterView[key]),
+      const changed = Object.keys(set).some(
+        (key) =>
+          !isDeepStrictEqual(
+            (before as unknown as Record<string, unknown>)[key],
+            (after as unknown as Record<string, unknown>)[key],
+          ),
       );
-      if (changed.length > 0) {
-        await writeAuditLog(
-          auditEntry(context, 'organization.update', id, {
-            before: Object.fromEntries(changed.map((key) => [key, beforeView[key]])),
-            after: Object.fromEntries(changed.map((key) => [key, afterView[key]])),
-          }),
-          session,
-        );
+      if (changed) {
+        await writeAuditLog(auditEntry(context, 'organization.update', id), session);
       }
       return { record: after, counts: await countRequests(after._id, session) };
     });
-    return toAdminOrganization(record, counts, { includePhone: true });
+    return toAdminOrganization(record, counts);
   } catch (error) {
     return rethrowDuplicateName(error);
   }
 };
 
-const alreadyInStatus: Record<VisibilityStatus, () => AppError> = {
-  HIDDEN: () => conflict('ORGANIZATION_ALREADY_HIDDEN', 'Tổ chức này đã được ẩn trước đó.'),
-  ACTIVE: () => conflict('ORGANIZATION_ALREADY_VISIBLE', 'Tổ chức này đang hiển thị.'),
+const alreadyInStatus: Record<OrganizationStatus, () => AppError> = {
+  hidden: () => conflict('ORGANIZATION_ALREADY_HIDDEN', 'Tổ chức này đã được ẩn trước đó.'),
+  active: () => conflict('ORGANIZATION_ALREADY_VISIBLE', 'Tổ chức này đang hiển thị.'),
 };
 
-/** ACTIVE <-> HIDDEN: conditional update, audit log and request counts in one transaction. */
+/** active <-> hidden: conditional update, audit log and request counts in one transaction. */
 const transitionVisibility = (
   id: string,
-  to: VisibilityStatus,
+  to: OrganizationStatus,
   context: AdminContext,
 ): Promise<{ record: OrganizationRecord; counts: RequestCounts }> =>
   withTransaction(async (session) => {
     const current = await findOrganization(id, { session });
     if (!current) throw organizationNotFound();
-    const from = current.status as VisibilityStatus;
+    const from = current.status as OrganizationStatus;
     if (from === to) throw alreadyInStatus[to]();
     assertTransition(organizationTransitions, from, to);
 
@@ -199,11 +184,7 @@ const transitionVisibility = (
     }
     const counts = await countRequests(current._id, session);
     await writeAuditLog(
-      auditEntry(context, to === 'HIDDEN' ? 'organization.hide' : 'organization.show', id, {
-        before: { status: from },
-        after: { status: to },
-        openRequestCount: counts.openRequestCount,
-      }),
+      auditEntry(context, to === 'hidden' ? 'organization.hide' : 'organization.show', id),
       session,
     );
     return { record: changed, counts };
@@ -212,9 +193,9 @@ const transitionVisibility = (
 // Hiding is always allowed: accepted requests continue, PENDING ones can no longer be accepted
 // (an Admin rejects or cancels them), and the organization gets no new requests.
 export const hideOrganization = async (id: string, context: AdminContext) => {
-  const { record, counts } = await transitionVisibility(id, 'HIDDEN', context);
+  const { record, counts } = await transitionVisibility(id, 'hidden', context);
   return {
-    organization: toAdminOrganization(record, counts, { includePhone: true }),
+    organization: toAdminOrganization(record, counts),
     message:
       counts.openRequestCount > 0
         ? `Đã ẩn tổ chức. ${counts.openRequestCount} yêu cầu quyên góp chưa hoàn tất: yêu cầu đã chấp nhận vẫn tiếp tục, yêu cầu đang chờ không thể được chấp nhận nữa và cần được từ chối hoặc hủy; tổ chức không nhận yêu cầu mới.`
@@ -223,17 +204,15 @@ export const hideOrganization = async (id: string, context: AdminContext) => {
 };
 
 export const showOrganization = async (id: string, context: AdminContext) => {
-  const { record, counts } = await transitionVisibility(id, 'ACTIVE', context);
+  const { record, counts } = await transitionVisibility(id, 'active', context);
   return {
-    organization: toAdminOrganization(record, counts, { includePhone: true }),
+    organization: toAdminOrganization(record, counts),
     message: 'Đã hiện lại tổ chức. Người tặng có thể chọn tổ chức này.',
   };
 };
 
 // Only an organization that never received a donation request can be deleted. With running
 // requests it can only be hidden; with past requests the history is kept (GB-36).
-// Race: the donations feature touches the organization document (conditional update on status
-// ACTIVE) inside its create transaction, so that create and this delete write-conflict.
 export const deleteOrganizationById = async (id: string, context: AdminContext): Promise<void> => {
   await withTransaction(async (session) => {
     const record = await findOrganization(id, { session });
@@ -255,7 +234,7 @@ export const deleteOrganizationById = async (id: string, context: AdminContext):
     }
     if (!(await deleteOrganization(record._id, session))) throw organizationNotFound();
     await writeAuditLog(
-      auditEntry(context, 'organization.delete', id, { before: toAuditView(record) }),
+      auditEntry(context, 'organization.delete', id),
       session,
     );
   });
@@ -265,23 +244,20 @@ export const deleteOrganizationById = async (id: string, context: AdminContext):
 
 export const listPublicOrganizations = async (
   query: PublicOrganizationListQuery,
-  options: { includePhone: boolean },
 ) => {
   const filter: FilterQuery<OrganizationRecord> = {
-    status: 'ACTIVE',
-    ...(query.province ? { province: query.province } : {}),
-    ...(query.ageGroup ? { ageGroups: query.ageGroup } : {}),
-    ...searchFilter(query.q, ['name', 'address', 'supportCriteria']),
+    status: 'active',
+    ...searchFilter(query.q, ['name', 'address', 'support_criteria']),
   };
   const { items, total } = await findOrganizationsPage(
     filter,
     toMongoPaging(query, publicOrganizationSortFields, 'name'),
   );
-  return { items: items.map((item) => toPublicOrganization(item, options)), total };
+  return { items: items.map((item) => toPublicOrganization(item)), total };
 };
 
-export const getPublicOrganization = async (id: string, options: { includePhone: boolean }) => {
-  const record = await findOrganization(id, { status: 'ACTIVE' });
+export const getPublicOrganization = async (id: string) => {
+  const record = await findOrganization(id, { status: 'active' });
   if (!record) throw organizationNotFound();
-  return toPublicOrganization(record, options);
+  return toPublicOrganization(record);
 };

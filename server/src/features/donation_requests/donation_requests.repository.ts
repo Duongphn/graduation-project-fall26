@@ -1,121 +1,119 @@
 import { randomBytes } from 'node:crypto';
 
-import { Types, type ClientSession } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 
-import type { ActorReference } from '../../shared/contracts/actor.js';
-import type { DonationStatus, ToyStatus } from '../../shared/domain/statuses.js';
 import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
-import { OrderStatusHistoryModel } from '../order_status_history/order_status_history.model.js';
-import { OrganizationModel } from '../organizations/organizations.model.js';
+import { Organization } from '../organizations/organizations.model.js';
+import { Toy } from '../toys/toys.model.js';
+import { User } from '../users/users.model.js';
 import {
-  settingDefaults,
-  SystemSettingModel,
-  type SettingKey,
-} from '../system_settings/system_settings.model.js';
-import { ToyModel } from '../toys/toys.model.js';
-import { UserModel } from '../users/users.model.js';
-import { DonationRequestModel, type DonationRequest } from './donation_requests.model.js';
+  DonationRequest,
+  type IDonationRequest,
+  type StoredDonationStatus,
+} from './donation_requests.model.js';
+import type { ToyStatus } from './donation_requests.policy.js';
+import { DELIVERY_METHOD } from './donation_requests.statuses.js';
 
 // The only file of this feature that touches models (features/README.md rule 6). It also
-// reads and writes the toy, organization and user models the donation flow depends on.
+// reads and writes develop's toy, organization and user models the donation flow depends on.
 
-export type DonationRecord = DonationRequest & {
-  _id: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-};
+export type DonationRecord = IDonationRequest;
 
 const oid = (id: string | Types.ObjectId) => (typeof id === 'string' ? new Types.ObjectId(id) : id);
 
-const toySummaryFields = 'ownerId title images condition ageGroup listingType status';
+const toySummaryFields = 'ownerId title images condition ageRange listingType status';
+
+/** The lean toy fields the donation flow reads. */
+export interface ToySummary {
+  _id: Types.ObjectId;
+  ownerId: Types.ObjectId;
+  title: string;
+  images: Array<{ url: string; publicId: string }>;
+  condition: string;
+  ageRange?: { minAge: number; maxAge: number };
+  listingType: string;
+  status: string;
+}
+
+/** Runs `work` in a MongoDB transaction (retried by the driver on transient errors). */
+export const withTransaction = <T>(work: (session: ClientSession) => Promise<T>): Promise<T> =>
+  mongoose.connection.transaction(work);
 
 // ---- Single documents ----------------------------------------------------------------------
 
 export const findRequestById = (id: string, session?: ClientSession) =>
-  DonationRequestModel.findById(id)
+  DonationRequest.findById(id)
     .session(session ?? null)
     .lean<DonationRecord>();
 
 export const findToy = (toyId: string | Types.ObjectId, session?: ClientSession) =>
-  ToyModel.findById(toyId)
+  Toy.findById(toyId)
     .select(toySummaryFields)
     .session(session ?? null)
-    .lean();
+    .lean<ToySummary>();
 
 export const findOrganization = (id: string | Types.ObjectId, session?: ClientSession) =>
-  OrganizationModel.findById(id)
+  Organization.findById(id)
     .select('name status')
     .session(session ?? null)
     .lean();
 
-/** Whether the user exists and is not LOCKED (GB-05: a locked account's toys are hidden). */
+/** The user's account status ('ACTIVE' / 'LOCKED'), undefined when missing. */
 export const findUserStatus = async (userId: string | Types.ObjectId, session?: ClientSession) =>
   (
-    await UserModel.findById(userId)
+    await User.findById(userId)
       .select('status')
       .session(session ?? null)
       .lean()
   )?.status;
 
-/** The numeric value of a system setting, or its default (system_settings.model.ts). */
-export const getNumberSetting = async (key: SettingKey): Promise<number | undefined> => {
-  const setting = await SystemSettingModel.findOne({ key }, { value: 1 }).lean();
-  return typeof setting?.value === 'number' ? setting.value : settingDefaults[key];
-};
-
-/** An ACCEPTED or SHIPPING request holds the toy (GB-12). */
+/** An accepted or shipping request holds the toy (GB-12). */
 export const hasActiveRequestForToy = async (toyId: string): Promise<boolean> =>
   Types.ObjectId.isValid(toyId) &&
-  (await DonationRequestModel.exists({
+  (await DonationRequest.exists({
     toyId: oid(toyId),
-    status: { $in: ['ACCEPTED', 'SHIPPING'] },
+    status: { $in: ['accepted', 'shipping'] },
   })) !== null;
 
-/** Ids of requests in `status` whose `dateField` is before `before` (expiry job). */
-export const findStaleRequestIds = async (
-  status: DonationStatus,
-  dateField: 'createdAt' | 'decidedAt',
-  before: Date,
-  limit: number,
-) =>
+/** Ids of requests in `status` whose timer.dueAt is before `now` (expiry job). */
+export const findDueRequestIds = async (status: StoredDonationStatus, now: Date, limit: number) =>
   (
-    await DonationRequestModel.find({ status, [dateField]: { $lt: before } })
+    await DonationRequest.find({ status, 'timer.dueAt': { $lt: now } })
       .select('_id')
-      .sort({ [dateField]: 1 })
+      .sort({ 'timer.dueAt': 1 })
       .limit(limit)
       .lean()
   ).map((item) => item._id);
 
-/** Ids of the PENDING requests of a toy. */
+/** Ids of the pending requests of a toy. */
 export const findPendingRequestIdsOfToy = async (toyId: string) =>
   (
-    await DonationRequestModel.find({ toyId: oid(toyId), status: 'PENDING' })
+    await DonationRequest.find({ toyId: oid(toyId), status: 'pending' })
       .select('_id')
       .lean()
   ).map((item) => item._id);
 
 export const userExists = async (userId: string): Promise<boolean> =>
-  (await UserModel.exists({ _id: oid(userId) })) !== null;
+  (await User.exists({ _id: oid(userId) })) !== null;
 
 // ---- Writes (always inside the caller's transaction) -----------------------------------------
 
 // The "touch" writes below bump __v (timestamps untouched) only while the document is still in
-// the expected state. A create transaction then writes the same document as a concurrent
-// accept (toy), hide or delete (organization), so MongoDB aborts one of them with a write
-// conflict and withTransaction retries it with fresh data. A plain read would not conflict.
+// the expected state, so a create write-conflicts with a concurrent accept of the toy or a
+// concurrent hide of the organization, and the transaction is retried with fresh data.
 
-/** The DONATION toy, if it is still ACTIVE (else null). */
+/** The donation toy, if it is still active (else null). */
 export const touchActiveDonationToy = (toyId: string | Types.ObjectId, session: ClientSession) =>
-  ToyModel.findOneAndUpdate(
-    { _id: oid(toyId), status: 'ACTIVE', listingType: 'DONATION' },
+  Toy.findOneAndUpdate(
+    { _id: oid(toyId), status: 'active', listingType: 'donate' },
     { $inc: { __v: 1 } },
     { new: true, session, timestamps: false, projection: toySummaryFields },
-  ).lean();
+  ).lean<ToySummary>();
 
-/** The organization, if it is still ACTIVE (else null). */
+/** The organization, if it is still active (else null). */
 export const touchActiveOrganization = (id: string | Types.ObjectId, session: ClientSession) =>
-  OrganizationModel.findOneAndUpdate(
-    { _id: oid(id), status: 'ACTIVE' },
+  Organization.findOneAndUpdate(
+    { _id: oid(id), status: { $regex: /^active$/i } },
     { $inc: { __v: 1 } },
     { new: true, session, timestamps: false, projection: 'name status' },
   ).lean();
@@ -123,28 +121,34 @@ export const touchActiveOrganization = (id: string | Types.ObjectId, session: Cl
 const newCode = (): string => `DN${randomBytes(5).toString('hex').toUpperCase()}`;
 const CODE_ATTEMPTS = 3;
 
-/** Inserts a PENDING request with a fresh code (retried on the rare code clash). */
+/** Inserts a pending request with a fresh code (retried on the rare code clash). */
 export const insertRequest = async (
   data: {
     toyId: Types.ObjectId;
     donorId: Types.ObjectId;
     requestedBy: string;
-    receiverType: 'USER' | 'ORGANIZATION';
     organizationId?: string;
-    message?: string;
+    itemDetails: string;
+    dueAt: Date;
   },
   session: ClientSession,
 ): Promise<DonationRecord> => {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const [created] = await DonationRequestModel.create(
+      const [created] = await DonationRequest.create(
         [
           {
-            ...data,
-            requestedBy: oid(data.requestedBy),
-            ...(data.organizationId ? { organizationId: oid(data.organizationId) } : {}),
             code: newCode(),
-            status: 'PENDING',
+            toyId: data.toyId,
+            donorId: data.donorId,
+            requestedBy: oid(data.requestedBy),
+            receiver: data.organizationId
+              ? { organizationId: oid(data.organizationId) }
+              : { userId: oid(data.requestedBy) },
+            itemDetails: data.itemDetails,
+            deliveryMethod: DELIVERY_METHOD,
+            status: 'pending',
+            timer: { dueAt: data.dueAt },
           },
         ],
         { session },
@@ -160,15 +164,22 @@ export const insertRequest = async (
 /** Conditional status move: null when the request is no longer in `from`. */
 export const updateRequestStatus = (
   id: Types.ObjectId,
-  from: DonationStatus,
-  to: DonationStatus,
-  changes: { set?: Record<string, unknown>; pushHandover?: Record<string, unknown> },
+  from: StoredDonationStatus,
+  to: StoredDonationStatus,
+  changes: {
+    set?: Record<string, unknown>;
+    unset?: string[];
+    pushHandover?: Record<string, unknown>;
+  },
   session: ClientSession,
 ) =>
-  DonationRequestModel.findOneAndUpdate(
+  DonationRequest.findOneAndUpdate(
     { _id: id, status: from },
     {
       $set: { ...changes.set, status: to },
+      ...(changes.unset?.length
+        ? { $unset: Object.fromEntries(changes.unset.map((path) => [path, 1])) }
+        : {}),
       ...(changes.pushHandover ? { $push: { handovers: changes.pushHandover } } : {}),
     },
     { new: true, session, runValidators: true },
@@ -181,63 +192,35 @@ export const moveToy = async (
   to: ToyStatus,
   session: ClientSession,
 ): Promise<boolean> => {
-  const result = await ToyModel.updateOne(
+  const result = await Toy.updateOne(
     { _id: toyId, status: from },
     { $set: { status: to } },
-    {
-      session,
-    },
+    { session },
   );
   return result.modifiedCount === 1;
 };
 
-/** Rejects every other PENDING request of the toy; returns the rejected requests. */
+/** Rejects every other pending request of the toy; returns the rejected requests. */
 export const rejectPendingSiblings = async (
   toyId: Types.ObjectId,
   acceptedId: Types.ObjectId,
   decision: { decidedBy: Types.ObjectId; decidedAt: Date; rejectReason: string },
   session: ClientSession,
 ): Promise<DonationRecord[]> => {
-  const siblings = await DonationRequestModel.find({
+  const siblings = await DonationRequest.find({
     toyId,
-    status: 'PENDING',
+    status: 'pending',
     _id: { $ne: acceptedId },
   })
     .session(session)
     .lean<DonationRecord[]>();
   if (siblings.length === 0) return [];
-  await DonationRequestModel.updateMany(
-    { _id: { $in: siblings.map((item) => item._id) }, status: 'PENDING' },
-    { $set: { ...decision, status: 'REJECTED' } },
+  await DonationRequest.updateMany(
+    { _id: { $in: siblings.map((item) => item._id) }, status: 'pending' },
+    { $set: { ...decision, status: 'rejected' }, $unset: { timer: 1 } },
     { session },
   );
-  return siblings;
-};
-
-export interface HistoryRow {
-  orderId: Types.ObjectId;
-  fromStatus?: DonationStatus;
-  toStatus: DonationStatus;
-  actor: ActorReference;
-  reason?: string;
-}
-
-export const insertHistory = async (rows: HistoryRow[], session: ClientSession) => {
-  if (rows.length === 0) return;
-  await OrderStatusHistoryModel.insertMany(
-    rows.map((row) => ({
-      orderType: 'DONATION',
-      orderId: row.orderId,
-      ...(row.fromStatus ? { fromStatus: row.fromStatus } : {}),
-      toStatus: row.toStatus,
-      actor: {
-        type: row.actor.actorType,
-        ...(row.actor.actorId ? { userId: oid(row.actor.actorId) } : {}),
-      },
-      ...(row.reason ? { reason: row.reason } : {}),
-    })),
-    { session },
-  );
+  return siblings.map((sibling) => ({ ...sibling, ...decision, status: 'rejected' as const }));
 };
 
 // ---- Lists -----------------------------------------------------------------------------------
@@ -249,59 +232,60 @@ export const listRequests = async (
   paging: { skip: number; limit: number; sort: Record<string, 1 | -1> },
 ) => {
   const [items, total] = await Promise.all([
-    DonationRequestModel.find(filter)
+    DonationRequest.find(filter)
       .sort(paging.sort)
       .skip(paging.skip)
       .limit(paging.limit)
       .lean<DonationRecord[]>(),
-    DonationRequestModel.countDocuments(filter),
+    DonationRequest.countDocuments(filter),
   ]);
   return { items, total };
 };
 
 export const countRequestsByStatus = (filter: RequestFilter) =>
-  DonationRequestModel.aggregate<{ _id: DonationStatus; count: number }>([
+  DonationRequest.aggregate<{ _id: StoredDonationStatus; count: number }>([
     { $match: filter },
     { $group: { _id: '$status', count: { $sum: 1 } } },
   ]);
 
-/** Ids of DONATION toys whose title matches (for the admin search). */
+/** Ids of donation toys whose title matches (for the admin search). */
 export const findDonationToyIdsByTitle = async (pattern: string, limit = 500) =>
   (
-    await ToyModel.find({ listingType: 'DONATION', title: { $regex: pattern, $options: 'i' } })
+    await Toy.find({ listingType: 'donate', title: { $regex: pattern, $options: 'i' } })
       .select('_id')
       .limit(limit)
       .lean()
   ).map((toy) => toy._id);
 
 export const countCompletedByDonor = (donorId: string) =>
-  DonationRequestModel.countDocuments({ donorId: oid(donorId), status: 'COMPLETED' });
-
-export const findHistory = (requestId: Types.ObjectId) =>
-  OrderStatusHistoryModel.find({ orderType: 'DONATION', orderId: requestId })
-    .sort({ createdAt: 1, _id: 1 })
-    .lean();
+  DonationRequest.countDocuments({ donorId: oid(donorId), status: 'completed' });
 
 // ---- Related documents for the DTOs (one query per collection) --------------------------------
 
 const unique = (ids: Array<Types.ObjectId | null | undefined>) => [
-  ...new Map(ids.filter(Boolean).map((id) => [String(id), id!])).values(),
+  ...new Map(
+    ids.filter((id): id is Types.ObjectId => Boolean(id)).map((id) => [String(id), id]),
+  ).values(),
 ];
 
 export const loadRelations = async (records: DonationRecord[], withContacts = false) => {
   const toyIds = unique(records.map((item) => item.toyId));
   const userIds = unique(records.flatMap((item) => [item.donorId, item.requestedBy]));
-  const organizationIds = unique(records.map((item) => item.organizationId));
+  const organizationIds = unique(records.map((item) => item.receiver?.organizationId));
   const [toys, users, organizations] = await Promise.all([
-    ToyModel.find({ _id: { $in: toyIds } })
+    Toy.find({ _id: { $in: toyIds } })
       .select(toySummaryFields)
-      .lean(),
-    UserModel.find({ _id: { $in: userIds } })
+      .lean<ToySummary[]>(),
+    User.find({ _id: { $in: userIds } })
       // phone: also the D-03 counterpart contact of user views (the mapper decides who sees it).
-      .select(withContacts ? 'fullName avatarUrl phone email' : 'fullName avatarUrl phone')
+      .select(withContacts ? 'fullName avatar phone email' : 'fullName avatar phone')
       .lean(),
-    OrganizationModel.find({ _id: { $in: organizationIds } })
-      .select(withContacts ? 'name status address contactInfo phone logoUrl' : 'name status phone')
+    Organization.find({ _id: { $in: organizationIds } })
+      .select(
+        withContacts
+          ? 'name status address contact_info support_criteria'
+          : 'name status contact_info',
+      )
       .lean(),
   ]);
   return {

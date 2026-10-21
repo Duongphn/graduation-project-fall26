@@ -1,52 +1,46 @@
 import type { Types } from 'mongoose';
 
-import type {
-  UserStatus,
-  IdentityStatus,
-  VerificationStatus,
-} from '../../../shared/domain/statuses.js';
-import { ageInYears, toIsoString } from '../../../shared/utils/dates.js';
+import { toIsoString } from '../../../shared/utils/dates.js';
 import { maskPhone } from '../../../shared/utils/phone.js';
 import { maskEmail } from '../../../shared/utils/privacy.js';
+import type { UserVerificationStatus, VerificationStatus } from '../identity-verification.ports.js';
 
-// Database documents -> response DTOs. Images are never part of these shapes.
+// Database documents (develop's users / identity_verifications) -> response DTOs.
+// Images are never part of these shapes.
 
 export interface ReviewUser {
   _id: Types.ObjectId;
   fullName: string;
   phone: string;
   email: string;
-  dateOfBirth?: Date | null;
-  status: UserStatus;
+  status: 'ACTIVE' | 'LOCKED';
   lock?: { until?: Date | null } | null;
-  identityStatus: IdentityStatus;
+  verificationStatus: UserVerificationStatus;
   createdAt: Date;
 }
 
 export interface VerificationSummary {
   _id: Types.ObjectId;
   status: VerificationStatus;
-  createdAt: Date;
+  submittedAt: Date;
   reviewedAt?: Date | null;
   reviewedBy?: Types.ObjectId | null;
-  rejectReason?: string | null;
+  rejectionReason?: string | null;
 }
 
 export const isLocked = (user: Pick<ReviewUser, 'status' | 'lock'>, now: Date): boolean =>
   user.status === 'LOCKED' || Boolean(user.lock?.until && user.lock.until > now);
 
-export const toQueueUser = (user: ReviewUser, now: Date) => ({
+export const toQueueUser = (user: ReviewUser) => ({
   id: String(user._id),
   fullName: user.fullName,
   maskedPhone: maskPhone(user.phone),
   maskedEmail: maskEmail(user.email),
-  age: user.dateOfBirth ? ageInYears(user.dateOfBirth, now) : null,
 });
 
 export const toDetailUser = (user: ReviewUser, now: Date) => ({
-  ...toQueueUser(user, now),
-  dateOfBirth: toIsoString(user.dateOfBirth),
-  identityStatus: user.identityStatus,
+  ...toQueueUser(user),
+  verificationStatus: user.verificationStatus,
   accountStatus: user.status,
   locked: isLocked(user, now),
   joinedAt: user.createdAt.toISOString(),
@@ -55,7 +49,7 @@ export const toDetailUser = (user: ReviewUser, now: Date) => ({
 export const toVerificationSummary = (verification: VerificationSummary) => ({
   id: String(verification._id),
   status: verification.status,
-  submittedAt: verification.createdAt.toISOString(),
+  submittedAt: verification.submittedAt.toISOString(),
   reviewedAt: toIsoString(verification.reviewedAt),
-  rejectReason: verification.rejectReason ?? null,
+  rejectionReason: verification.rejectionReason ?? null,
 });

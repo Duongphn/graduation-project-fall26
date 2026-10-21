@@ -1,5 +1,5 @@
 import {
-  devAuthSecurity,
+  bearerAuthSecurity,
   errorResponses,
   jsonContent,
   openApiRegistry,
@@ -17,7 +17,7 @@ import {
 } from './notifications.schemas.js';
 
 const tags = ['Notifications'];
-const security = devAuthSecurity;
+const security = bearerAuthSecurity;
 
 openApiRegistry.registerPath({
   method: 'get',

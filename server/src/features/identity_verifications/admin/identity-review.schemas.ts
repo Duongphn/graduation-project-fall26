@@ -1,9 +1,4 @@
 import {
-  identityStatuses,
-  userStatuses,
-  verificationStatuses,
-} from '../../../shared/domain/statuses.js';
-import {
   isoDateTimeSchema,
   objectIdSchema,
   paginationQuerySchema,
@@ -11,6 +6,9 @@ import {
   searchQuerySchema,
 } from '../../../shared/http/schemas.js';
 import { z } from '../../../shared/validation/zod.js';
+import { verificationStatuses } from './identity-review.transitions.js';
+
+const userVerificationStatuses = ['unverified', 'pending', 'verified', 'rejected'] as const;
 
 // Admin review of identity verifications (UC27 identity part, FE-01, LI-04: no eKYC).
 
@@ -18,15 +16,15 @@ export const verificationStatusSchema = z.enum(verificationStatuses);
 
 export const identityQueueQuerySchema = paginationQuerySchema
   .extend({
-    status: verificationStatusSchema.default('PENDING').openapi({
+    status: verificationStatusSchema.default('pending').openapi({
       description: 'Tab of the queue. Pending requests are listed oldest first.',
     }),
     q: searchQuerySchema.openapi({
       description: 'Full name (with or without accents), email prefix or phone number.',
       example: 'Nguyễn Văn An',
     }),
-    sortBy: z.enum(['createdAt', 'reviewedAt']).optional().openapi({
-      description: 'Default: createdAt ascending for PENDING, reviewedAt descending otherwise.',
+    sortBy: z.enum(['submittedAt', 'reviewedAt']).optional().openapi({
+      description: 'Default: submittedAt ascending for pending, reviewedAt descending otherwise.',
     }),
   })
   .strict();
@@ -46,7 +44,6 @@ const queueUserSchema = z.object({
   // GB-35: masked on Admin screens.
   maskedPhone: z.string().openapi({ example: '+8491***5678' }),
   maskedEmail: z.string().openapi({ example: 'ng***@gmail.com' }),
-  age: z.number().int().nullable().openapi({ description: 'Null when no date of birth.' }),
 });
 
 export const identityQueueItemSchema = z
@@ -55,7 +52,7 @@ export const identityQueueItemSchema = z
     status: verificationStatusSchema,
     submittedAt: isoDateTimeSchema,
     reviewedAt: isoDateTimeSchema.nullable(),
-    rejectReason: z.string().nullable(),
+    rejectionReason: z.string().nullable(),
     user: queueUserSchema.nullable(),
     previousAttempts: z.number().int().openapi({
       description: 'Number of requests the same user sent before this one.',
@@ -64,7 +61,7 @@ export const identityQueueItemSchema = z
   .openapi('AdminIdentityQueueItem');
 
 export const identityCountsSchema = z
-  .object({ PENDING: z.number().int(), VERIFIED: z.number().int(), REJECTED: z.number().int() })
+  .object({ pending: z.number().int(), verified: z.number().int(), rejected: z.number().int() })
   .openapi('AdminIdentityCounts');
 
 const documentLinkSchema = z
@@ -72,7 +69,7 @@ const documentLinkSchema = z
   .nullable()
   .openapi({
     description:
-      'Signed Cloudinary link valid for 5 minutes (R04 III.1.3). Null when the request is ' +
+      'Authorized Cloudinary link (develop IdentityImageStorage). Null when the request is ' +
       'already decided or Cloudinary is not configured; the stored asset is never exposed.',
   });
 
@@ -83,12 +80,13 @@ export const identityDetailSchema = z
     submittedAt: isoDateTimeSchema,
     reviewedAt: isoDateTimeSchema.nullable(),
     reviewedBy: objectIdSchema.nullable(),
-    rejectReason: z.string().nullable(),
+    phone: z.string(),
+    idCardNumber: z.string(),
+    rejectionReason: z.string().nullable(),
     user: queueUserSchema
       .extend({
-        dateOfBirth: isoDateTimeSchema.nullable(),
-        identityStatus: z.enum(identityStatuses),
-        accountStatus: z.enum(userStatuses),
+        verificationStatus: z.enum(userVerificationStatuses),
+        accountStatus: z.enum(['ACTIVE', 'LOCKED']),
         locked: z.boolean(),
         joinedAt: isoDateTimeSchema,
       })
@@ -96,7 +94,7 @@ export const identityDetailSchema = z
     documents: z.object({
       frontImage: documentLinkSchema,
       backImage: documentLinkSchema,
-      selfieImage: documentLinkSchema,
+      selfie: documentLinkSchema,
     }),
     previewAvailable: z.boolean().openapi({
       description: 'True when all three links were signed (PENDING and Cloudinary configured).',
@@ -110,7 +108,7 @@ export const identityDetailSchema = z
         status: verificationStatusSchema,
         submittedAt: isoDateTimeSchema,
         reviewedAt: isoDateTimeSchema.nullable(),
-        rejectReason: z.string().nullable(),
+        rejectionReason: z.string().nullable(),
       }),
     ),
   })
@@ -121,7 +119,7 @@ export const identityReviewResultSchema = z
     id: objectIdSchema,
     status: verificationStatusSchema,
     reviewedAt: isoDateTimeSchema,
-    rejectReason: z.string().nullable(),
-    user: z.object({ id: objectIdSchema, identityStatus: z.enum(identityStatuses) }),
+    rejectionReason: z.string().nullable(),
+    user: z.object({ id: objectIdSchema, verificationStatus: z.enum(userVerificationStatuses) }),
   })
   .openapi('AdminIdentityReviewResult');

@@ -6,6 +6,8 @@ export {
   donorProfileRouter,
 } from './donation_requests.routes.js';
 
+export { createDonationPostsRouter } from './donation_posts.js';
+
 export {
   closePendingRequestsForToy,
   expireStaleRequests,

@@ -1,5 +1,5 @@
 import {
-  devAuthSecurity,
+  bearerAuthSecurity,
   errorResponses,
   jsonContent,
   openApiRegistry,
@@ -28,8 +28,8 @@ openApiRegistry.registerPath({
   path: BASE,
   tags,
   summary: 'Moderation queue of toy posts (UC27)',
-  description: 'Default status PENDING_REVIEW, oldest submission first. Phones are masked (GB-35).',
-  security: devAuthSecurity,
+  description: 'Default status pending, oldest submission first. Phones are masked (GB-35).',
+  security: bearerAuthSecurity,
   request: { query: toyModerationQueueQuerySchema },
   responses: {
     200: {
@@ -45,7 +45,7 @@ openApiRegistry.registerPath({
   path: `${BASE}/counts`,
   tags,
   summary: 'Number of posts in every status, for the queue tabs',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { query: toyModerationCountsQuerySchema },
   responses: {
     200: {
@@ -61,7 +61,7 @@ openApiRegistry.registerPath({
   path: `${BASE}/{id}`,
   tags,
   summary: 'A post with its owner, settings and rule-based warnings (GB-07, GB-11)',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema },
   responses: {
     200: {
@@ -84,13 +84,13 @@ openApiRegistry.registerPath({
   method: 'post',
   path: `${BASE}/{id}/approve`,
   tags,
-  summary: 'Approve a pending post (PENDING_REVIEW -> ACTIVE)',
+  summary: 'Approve a pending post (pending -> active)',
   description:
     '409 TOY_CHANGED when updatedAt differs from expectedUpdatedAt (the Owner edited the post), ' +
     '409 TOY_ALREADY_DECIDED when it is no longer pending, 409 CATEGORY_NOT_AVAILABLE when the ' +
     'category is hidden or deleted, 422 OWNER_NOT_ELIGIBLE when the owner is not identity ' +
     'VERIFIED or is locked (BF-01).',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema, body: { content: jsonContent(approveToyBodySchema) } },
   responses: decisionResponses,
 });
@@ -100,7 +100,7 @@ openApiRegistry.registerPath({
   path: `${BASE}/{id}/reject`,
   tags,
   summary: 'Reject a pending post with a reason shown to the Owner',
-  security: devAuthSecurity,
+  security: bearerAuthSecurity,
   request: { params: idParamsSchema, body: { content: jsonContent(rejectToyBodySchema) } },
   responses: decisionResponses,
 });

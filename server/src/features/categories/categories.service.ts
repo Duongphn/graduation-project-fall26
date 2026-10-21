@@ -5,16 +5,15 @@ import {
   writeAuditLog,
   type AuditAction,
 } from '../../infrastructure/database/audit.js';
-import { withTransaction } from '../../infrastructure/database/schema-types.js';
-import type { VisibilityStatus } from '../../shared/domain/statuses.js';
-import { assertTransition } from '../../shared/domain/transitions.js';
-import { notFound } from '../../shared/errors/app-error.js';
+import { withTransaction } from '../../infrastructure/database/transaction.js';
+import { notFound } from '../../shared/errors/http-errors.js';
 import type { AdminContext } from '../../shared/http/admin-context.js';
-import { isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
+import { duplicateKeyFields, isDuplicateKeyError } from '../../shared/utils/mongo-errors.js';
 import { toSkipLimit } from '../../shared/utils/response.js';
 import { pickFreeSlug, slugify } from '../../shared/utils/slug.js';
 import { accentInsensitivePattern } from '../../shared/utils/text.js';
-import { toAdminCategory, toAuditSnapshot, toPublicCategory } from './categories.mapper.js';
+import { assertTransition } from '../../shared/utils/transitions.js';
+import { toAdminCategory } from './categories.mapper.js';
 import { categoriesRepository as repo, type CategoryRecord } from './categories.repository.js';
 import {
   categoryInUse,
@@ -27,8 +26,8 @@ import {
 import type {
   AdminCategoryListQuery,
   AdminCategoryView,
+  CategoryStatus,
   CreateCategoryBody,
-  PublicCategoryView,
   ReorderCategoriesBody,
   UpdateCategoryBody,
 } from './categories.schemas.js';
@@ -40,16 +39,13 @@ const audit = (
   context: AdminContext,
   action: AuditAction,
   target: CategoryRecord | undefined,
-  meta: Record<string, unknown>,
   session: ClientSession,
 ) =>
   writeAuditLog(
-    adminAuditEntry(
-      context,
-      action,
-      { kind: 'CATEGORY', ...(target ? { id: String(target._id) } : {}) },
-      meta,
-    ),
+    adminAuditEntry(context, action, {
+      kind: 'CATEGORY',
+      ...(target ? { id: String(target._id) } : {}),
+    }),
     session,
   );
 
@@ -58,9 +54,12 @@ const withToyCount = async (category: CategoryRecord): Promise<AdminCategoryView
   return toAdminCategory(category, counts.get(String(category._id)) ?? 0);
 };
 
-/** Throws CATEGORY_NAME_TAKEN for a duplicate key on name_unique (two Admins at once). */
+const isDuplicateOn = (error: unknown, field: string) =>
+  isDuplicateKeyError(error) && duplicateKeyFields(error).includes(field);
+
+/** Throws CATEGORY_NAME_TAKEN for a duplicate key on the name (two Admins at once). */
 const rethrowNameTaken = (error: unknown): never => {
-  if (isDuplicateKeyError(error, 'name_unique')) throw categoryNameTaken();
+  if (isDuplicateOn(error, 'name')) throw categoryNameTaken();
   throw error;
 };
 
@@ -80,9 +79,6 @@ export const listAdminCategories = async (query: AdminCategoryListQuery) => {
     total,
   };
 };
-
-export const listPublicCategories = async (): Promise<PublicCategoryView[]> =>
-  (await repo.listActive()).map(toPublicCategory);
 
 export const createCategory = async (
   input: CreateCategoryBody,
@@ -105,18 +101,12 @@ export const createCategory = async (
           },
           session,
         );
-        await audit(
-          context,
-          'category.create',
-          category,
-          { after: toAuditSnapshot(category) },
-          session,
-        );
+        await audit(context, 'category.create', category, session);
         return category;
       });
       return toAdminCategory(created, 0);
     } catch (error) {
-      if (isDuplicateKeyError(error, 'slug_unique') && attempt < MAX_CREATE_ATTEMPTS) continue;
+      if (isDuplicateOn(error, 'slug') && attempt < MAX_CREATE_ATTEMPTS) continue;
       return rethrowNameTaken(error);
     }
   }
@@ -151,13 +141,7 @@ export const updateCategory = async (
 
     const category = await repo.update(id, { set, unset }, session);
     if (!category) throw categoryNotFound();
-    await audit(
-      context,
-      'category.update',
-      category,
-      { before: toAuditSnapshot(current), after: toAuditSnapshot(category) },
-      session,
-    );
+    await audit(context, 'category.update', category, session);
     return category;
   }).catch(rethrowNameTaken);
   return withToyCount(updated);
@@ -167,24 +151,19 @@ export const updateCategory = async (
 // The update is conditional on the status just read, so two Admins cannot both succeed.
 export const changeCategoryVisibility = async (
   id: string,
-  to: VisibilityStatus,
+  to: CategoryStatus,
   context: AdminContext,
 ): Promise<AdminCategoryView> => {
   const change = visibilityChanges[to];
   const changed = await withTransaction(async (session) => {
     const current = await repo.findById(id, session);
     if (!current) throw categoryNotFound();
-    if (current.status === to) throw change.alreadyThere();
-    assertTransition(visibilityTransitions, current.status, to);
+    const status: CategoryStatus = current.status.toLowerCase() === 'hidden' ? 'hidden' : 'active';
+    if (status === to) throw change.alreadyThere();
+    assertTransition(visibilityTransitions, status, to);
     const category = await repo.changeStatus(id, current.status, to, session);
     if (!category) throw categoryStatusChanged();
-    await audit(
-      context,
-      change.action,
-      category,
-      { before: { status: current.status }, after: { status: to } },
-      session,
-    );
+    await audit(context, change.action, category, session);
     return category;
   });
   return withToyCount(changed);
@@ -201,13 +180,7 @@ export const deleteCategory = async (id: string, context: AdminContext): Promise
     const toyCount = (await repo.countToys([category._id], session)).get(String(category._id)) ?? 0;
     if (toyCount > 0) throw categoryInUse(toyCount);
     if (!(await repo.deleteById(id, session))) throw categoryNotFound();
-    await audit(
-      context,
-      'category.delete',
-      category,
-      { before: toAuditSnapshot(category) },
-      session,
-    );
+    await audit(context, 'category.delete', category, session);
   });
 };
 
@@ -239,16 +212,7 @@ export const reorderCategories = async (
     if (changes.length === 0) return;
 
     await repo.setDisplayOrders(changes, session);
-    // Collection-level action: no target id, the new order is in meta.
-    await audit(
-      context,
-      'category.reorder',
-      undefined,
-      {
-        before: all.map((category) => String(category._id)),
-        after: ordered.map((category) => String(category._id)),
-      },
-      session,
-    );
+    // Collection-level action: no target id.
+    await audit(context, 'category.reorder', undefined, session);
   });
 };

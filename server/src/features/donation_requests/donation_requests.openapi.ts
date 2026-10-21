@@ -1,7 +1,7 @@
 import type { ZodType } from 'zod';
 
 import {
-  devAuthSecurity,
+  bearerAuthSecurity,
   errorResponses,
   jsonContent,
   openApiRegistry,
@@ -59,7 +59,7 @@ const register = (spec: PathSpec) =>
     tags: [spec.tag],
     summary: spec.summary,
     ...(spec.description ? { description: spec.description } : {}),
-    ...(spec.isPublic ? {} : { security: devAuthSecurity }),
+    ...(spec.isPublic ? {} : { security: bearerAuthSecurity }),
     request: {
       ...(spec.params ? { params: spec.params as typeof idParamsSchema } : {}),
       ...(spec.query ? { query: spec.query as typeof idParamsSchema } : {}),
@@ -88,9 +88,9 @@ register({
   method: 'post',
   path: userBase,
   tag: USER_TAG,
-  summary: 'Receiver: request a posted DONATION toy',
+  summary: 'Receiver: request a posted donation toy (listingType donate)',
   description:
-    "The toy must be a DONATION post in status ACTIVE and not the caller's own. One PENDING " +
+    "The toy must be a donation post (listingType donate) in status active and not the caller's own. One pending " +
     'request per toy and requester (per organization for Admin requests). No fee, no deposit. ' +
     'Errors: 404 TOY_NOT_FOUND, 409 ' +
     'TOY_NOT_AVAILABLE / DONATION_REQUEST_EXISTS / DONOR_LOCKED, 422 OWN_TOY.',
@@ -125,10 +125,10 @@ register({
   tag: USER_TAG,
   summary: 'Requester or donor: one request with handovers and status history',
   description:
-    'While ACCEPTED or SHIPPING, `counterpartContact` gives the full name and full phone of ' +
+    'While accepted or shipping, `counterpartContact` gives the full name and full phone of ' +
     'the other party (Donor: the requesting user or the organization; requesting user: the ' +
     'Donor). ' +
-    'null before acceptance and after COMPLETED / CANCELLED / REJECTED. 404 for anyone else.',
+    'null before acceptance and after completed / cancelled / rejected. 404 for anyone else.',
   params: idParamsSchema,
   response: donationRequestDetailSchema,
   errors: [400, 401, 404],
@@ -137,9 +137,9 @@ register({
   method: 'post',
   path: `${userBase}/{id}/accept`,
   tag: USER_TAG,
-  summary: 'Donor: accept (PENDING -> ACCEPTED)',
+  summary: 'Donor: accept (pending -> accepted)',
   description:
-    'The toy moves ACTIVE -> RESERVED and every other PENDING request of the toy is rejected. ' +
+    'The toy moves active -> hidden and every other pending request of the toy is rejected. ' +
     '409 TOY_NOT_AVAILABLE when another request was accepted first. Only the Donor decides ' +
     '(also for organization requests); anyone else gets 403.',
   params: idParamsSchema,
@@ -150,7 +150,7 @@ register({
   method: 'post',
   path: `${userBase}/{id}/reject`,
   tag: USER_TAG,
-  summary: 'Donor: reject with a reason (PENDING -> REJECTED)',
+  summary: 'Donor: reject with a reason (pending -> rejected)',
   params: idParamsSchema,
   body: rejectBodySchema,
   response: donationRequestDetailSchema,
@@ -162,7 +162,7 @@ register({
   tag: USER_TAG,
   summary: 'Requester or donor: cancel before handover',
   description:
-    'PENDING or ACCEPTED -> CANCELLED. A RESERVED toy goes back to ACTIVE. Requests filed for ' +
+    'pending or accepted -> cancelled. A hidden (reserved) toy goes back to active. Requests filed for ' +
     'an organization are cancelled on the admin route only (403 here).',
   params: idParamsSchema,
   body: cancelBodySchema,
@@ -173,7 +173,7 @@ register({
   method: 'post',
   path: `${userBase}/{id}/handover`,
   tag: USER_TAG,
-  summary: 'Donor: hand the toy over with photos (ACCEPTED -> SHIPPING)',
+  summary: 'Donor: hand the toy over with photos (accepted -> shipping)',
   description:
     'Photos are private uploads signed with purpose HANDOVER_PHOTO by the caller ' +
     '(publicId toyflow/handovers/<caller id>/...); 422 HANDOVER_PHOTO_NOT_OWNED otherwise.',
@@ -186,7 +186,7 @@ register({
   method: 'post',
   path: `${userBase}/{id}/confirm-received`,
   tag: USER_TAG,
-  summary: 'Receiving user: confirm receipt (SHIPPING -> COMPLETED, toy DONATED)',
+  summary: 'Receiving user: confirm receipt (shipping -> completed, toy DONATED)',
   description:
     'At least one photo of the received toy is required (GB-20): own HANDOVER_PHOTO uploads, ' +
     '400 VALIDATION_ERROR without photos, 422 HANDOVER_PHOTO_NOT_OWNED for foreign photos.',
@@ -197,7 +197,7 @@ register({
 });
 register({
   method: 'get',
-  path: '/api/v1/users/{userId}/donation-summary',
+  path: '/api/v1/donors/{userId}/donation-summary',
   tag: USER_TAG,
   summary: 'Public donor profile: number of completed donations',
   params: userParamsSchema,
@@ -232,7 +232,7 @@ register({
   method: 'post',
   path: adminBase,
   tag: ADMIN_TAG,
-  summary: 'Admin: request a DONATION toy for an ACTIVE organization',
+  summary: 'Admin: request a donation toy (listingType donate) for an ACTIVE organization',
   body: adminCreateRequestBodySchema,
   response: adminDonationRequestDetailSchema,
   status: 201,
@@ -253,9 +253,9 @@ register({
   tag: ADMIN_TAG,
   summary: 'Admin: accept - always refused, the Donor decides (D-04)',
   description:
-    '409 DONOR_DECISION_REQUIRED for a PENDING request (also an organization request an Admin ' +
+    '409 DONOR_DECISION_REQUIRED for a pending request (also an organization request an Admin ' +
     'filed); 409 INVALID_STATUS_TRANSITION for any other status, 404 for an unknown id. Admins ' +
-    'resolve stuck ACCEPTED/SHIPPING requests with cancel or confirm-received.',
+    'resolve stuck accepted/shipping requests with cancel or confirm-received.',
   params: idParamsSchema,
   response: adminDonationRequestDetailSchema,
   errors: MOVE_ERRORS,
@@ -266,7 +266,7 @@ register({
   tag: ADMIN_TAG,
   summary: 'Admin: reject - always refused, the Donor decides (D-04)',
   description:
-    '409 DONOR_DECISION_REQUIRED for a PENDING request; 409 INVALID_STATUS_TRANSITION for any ' +
+    '409 DONOR_DECISION_REQUIRED for a pending request; 409 INVALID_STATUS_TRANSITION for any ' +
     'other status. An Admin who wants a request gone cancels it (reason required, audited).',
   params: idParamsSchema,
   body: rejectBodySchema,
@@ -277,8 +277,8 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/cancel`,
   tag: ADMIN_TAG,
-  summary: 'Admin: cancel with a reason, also a stuck SHIPPING request (toy back to ACTIVE)',
-  description: 'PENDING, ACCEPTED or SHIPPING -> CANCELLED (CANCELLED_BY_ADMIN), audited.',
+  summary: 'Admin: cancel with a reason, also a stuck shipping request (toy back to ACTIVE)',
+  description: 'pending, accepted or shipping -> cancelled (CANCELLED_BY_ADMIN), audited.',
   params: idParamsSchema,
   body: adminCancelBodySchema,
   response: adminDonationRequestDetailSchema,
@@ -288,7 +288,7 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/confirm-received`,
   tag: ADMIN_TAG,
-  summary: 'Admin: confirm receipt (SHIPPING -> COMPLETED, toy DONATED)',
+  summary: 'Admin: confirm receipt (shipping -> completed, toy DONATED)',
   description:
     'For an organization, or for a USER receiver who does not confirm (then `reason` is ' +
     'required: 422 REASON_REQUIRED). Audited.',

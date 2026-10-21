@@ -1,10 +1,3 @@
-import { ageGroups, listingTypes, toyConditions } from '../../shared/domain/enums.js';
-import {
-  identityStatuses,
-  toyStatuses,
-  userStatuses,
-  visibilityStatuses,
-} from '../../shared/domain/statuses.js';
 import {
   isoDateTimeSchema,
   objectIdSchema,
@@ -13,6 +6,13 @@ import {
   searchQuerySchema,
 } from '../../shared/http/schemas.js';
 import { z } from '../../shared/validation/zod.js';
+
+// Values stored by develop's toys / users models.
+export const moderationToyStatuses = ['pending', 'active', 'hidden'] as const;
+export type ModerationToyStatus = (typeof moderationToyStatuses)[number];
+export const moderationListingTypes = ['rent', 'sell', 'donate'] as const;
+export type ModerationListingType = (typeof moderationListingTypes)[number];
+const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected'] as const;
 
 // Admin moderation of toy posts (UC27, FE-03, GB-08): request and response schemas. The same
 // schemas validate the requests and document them in Swagger (api-conventions.md §4).
@@ -26,7 +26,7 @@ export const toyModerationSortFields = [
 ] as const;
 
 const filterShape = {
-  listingType: z.enum(listingTypes).optional(),
+  listingType: z.enum(moderationListingTypes).optional(),
   categoryId: objectIdSchema.optional(),
   q: searchQuerySchema.openapi({
     description: 'Words of the title or description, or the id of a post.',
@@ -34,7 +34,7 @@ const filterShape = {
 };
 
 export const toyModerationQueueQuerySchema = paginationQueryWithSort(toyModerationSortFields)
-  .extend({ status: z.enum(toyStatuses).default('PENDING_REVIEW'), ...filterShape })
+  .extend({ status: z.enum(moderationToyStatuses).default('pending'), ...filterShape })
   .strict();
 export type ToyModerationQueueQuery = z.infer<typeof toyModerationQueueQuerySchema>;
 
@@ -62,7 +62,7 @@ export type RejectToyBody = z.infer<typeof rejectToyBodySchema>;
 // ---- Responses ----
 
 const categorySummarySchema = z
-  .object({ id: z.string(), name: z.string(), status: z.enum(visibilityStatuses) })
+  .object({ id: z.string(), name: z.string(), status: z.enum(['active', 'hidden']) })
   .openapi('ModerationCategorySummary');
 
 const ownerSummarySchema = z
@@ -70,26 +70,20 @@ const ownerSummarySchema = z
     id: z.string(),
     fullName: z.string(),
     maskedPhone: z.string().openapi({ example: '+8490***4567' }),
-    identityStatus: z.enum(identityStatuses),
+    verificationStatus: z.enum(verificationStatuses),
   })
   .openapi('ModerationOwnerSummary');
-
-const pricingSchema = z.object({
-  rentPerDay: z.number().nullable(),
-  deposit: z.number().nullable(),
-  salePrice: z.number().nullable(),
-});
 
 export const toyModerationListItemSchema = z
   .object({
     id: z.string(),
     title: z.string(),
-    listingType: z.enum(listingTypes),
-    status: z.enum(toyStatuses),
-    condition: z.enum(toyConditions),
-    ageGroup: z.enum(ageGroups),
-    pricing: pricingSchema,
-    area: z.string().nullable(),
+    listingType: z.enum(moderationListingTypes),
+    status: z.enum(moderationToyStatuses),
+    condition: z.string(),
+    ageRange: z.object({ minAge: z.number(), maxAge: z.number() }),
+    priceOrRate: z.number(),
+    depositPrice: z.number().nullable(),
     coverImage: z.string().nullable(),
     imageCount: z.number().int(),
     category: categorySummarySchema.nullable(),
@@ -105,18 +99,8 @@ export const toyModerationListItemSchema = z
 export type ToyModerationListItem = z.infer<typeof toyModerationListItemSchema>;
 
 export const toyStatusCountsSchema = z
-  .record(z.enum(toyStatuses), z.number().int())
-  .openapi('ToyStatusCounts', {
-    example: {
-      PENDING_REVIEW: 4,
-      ACTIVE: 20,
-      REJECTED: 2,
-      RESERVED: 1,
-      HIDDEN: 1,
-      SOLD: 3,
-      DONATED: 0,
-    },
-  });
+  .record(z.enum(moderationToyStatuses), z.number().int())
+  .openapi('ToyStatusCounts', { example: { pending: 4, active: 20, hidden: 2 } });
 export type ToyStatusCounts = z.infer<typeof toyStatusCountsSchema>;
 
 export const moderationWarningCodes = [
@@ -125,8 +109,6 @@ export const moderationWarningCodes = [
   'OWNER_MISSING',
   'OWNER_UNVERIFIED',
   'OWNER_LOCKED',
-  'OWNER_AGE_UNKNOWN',
-  'OWNER_UNDER_AGE',
   'TOO_FEW_PHOTOS',
   'CONTACT_PHONE',
   'CONTACT_BANK_ACCOUNT',
@@ -142,18 +124,15 @@ export type ModerationWarning = z.infer<typeof moderationWarningSchema>;
 export const toyModerationDetailSchema = toyModerationListItemSchema
   .extend({
     description: z.string(),
-    images: z.array(z.string()),
-    minPhotos: z.number().int().openapi({ description: 'TOY_MIN_PHOTOS_* for this type.' }),
-    minAgeYears: z.number().int().openapi({ description: 'USER_MIN_AGE_YEARS.' }),
+    images: z.array(z.object({ url: z.string(), publicId: z.string() })),
+    minPhotos: z.number().int(),
     owner: ownerSummarySchema
       .extend({
-        accountStatus: z.enum(userStatuses).openapi({
+        accountStatus: z.enum(['ACTIVE', 'LOCKED']).openapi({
           description: 'LOCKED also while a temporary lock (lock.until) is running.',
         }),
         lockedUntil: isoDateTimeSchema.nullable(),
-        age: z.number().int().nullable().openapi({ description: 'Years, from dateOfBirth.' }),
-        trustScore: z.number().nullable().openapi({ description: 'ratingSum / ratingCount.' }),
-        ratingCount: z.number().int(),
+        trustScore: z.number().nullable().openapi({ description: 'users.trust.score.' }),
         memberSince: isoDateTimeSchema,
       })
       .nullable(),
@@ -173,7 +152,7 @@ export type ToyModerationDetail = z.infer<typeof toyModerationDetailSchema>;
 export const toyModerationDecisionSchema = z
   .object({
     id: z.string(),
-    status: z.enum(['ACTIVE', 'REJECTED']),
+    status: z.enum(['active', 'hidden']),
     updatedAt: isoDateTimeSchema,
     moderation: z.object({
       reviewedBy: z.string(),

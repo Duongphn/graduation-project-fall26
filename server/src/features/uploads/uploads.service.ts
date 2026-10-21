@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 
 import { createUploadSignature } from '../../infrastructure/storage/cloudinary.js';
-import { AppError, forbidden } from '../../shared/errors/app-error.js';
-import type { RequestAuth } from '../../shared/middleware/auth-placeholder.js';
+import { AppError } from '../../shared/errors/app-error.js';
+import type { RequestActor } from '../../shared/contracts/request-actor.js';
 import { uploadPurposes, type UploadPurpose } from './uploads.schemas.js';
 
 /**
@@ -20,9 +20,8 @@ export const uploadPublicId = (purpose: UploadPurpose, userId: string): string =
   `${uploadPurposes[purpose].folder}/${userId}/${randomBytes(12).toString('hex')}`;
 
 /** Signs one direct upload for `purpose`, bound to the caller. */
-export const signUpload = (purpose: UploadPurpose, auth: RequestAuth) => {
+export const signUpload = (purpose: UploadPurpose, auth: RequestActor) => {
   const target = uploadPurposes[purpose];
-  if (target.adminOnly && auth.role !== 'ADMIN') throw forbidden();
 
   const signature = createUploadSignature({
     publicId: uploadPublicId(purpose, auth.userId),
