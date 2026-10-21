@@ -1,4 +1,4 @@
-import type { RequestAuth } from '../middleware/auth-placeholder.js';
+import 'express';
 
 export type RequestActorType = 'USER' | 'ADMIN';
 
@@ -7,9 +7,11 @@ export interface RequestActor {
   actorType: RequestActorType;
 }
 
-// `request.auth` is declared once, in shared/middleware/auth-placeholder.ts ({ userId, role }).
-// The toy listing service acts on behalf of the signed-in account.
-export const toRequestActor = (auth: RequestAuth): RequestActor => ({
-  userId: auth.userId,
-  actorType: 'USER',
-});
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      auth?: RequestActor;
+    }
+  }
+}

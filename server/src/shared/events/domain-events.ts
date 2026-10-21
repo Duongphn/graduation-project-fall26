@@ -1,11 +1,10 @@
 import { EventEmitter } from 'node:events';
 
-import type { DonationReceiverType, NotificationType } from '../domain/enums.js';
-import type { DonationStatus } from '../domain/statuses.js';
+import type { StoredDonationStatus } from '../../features/donation_requests/donation_requests.model.js';
 
 // Domain events let one feature react to another without importing it (backend-architecture.md).
-// Event names are the notification types of shared/domain/enums.ts, so the notifications
-// feature maps one event to one notifications.type. Publish only after the transaction commits.
+// Event names are notification types, so the notifications feature maps one event to one
+// notifications.type. Publish only after the transaction commits.
 // Events are in-process: they are lost if the process stops before the handlers run.
 
 export interface ToyReviewedEvent {
@@ -13,7 +12,8 @@ export interface ToyReviewedEvent {
   toyId: string;
   ownerId: string;
   toyTitle: string;
-  decision: 'ACTIVE' | 'REJECTED';
+  // Toy status after the review: approved toys become 'active', rejected ones 'hidden'.
+  decision: 'approved' | 'rejected';
   reason?: string;
   reviewedBy: string;
 }
@@ -22,7 +22,7 @@ export interface IdentityReviewedEvent {
   type: 'IDENTITY_REVIEWED';
   verificationId: string;
   userId: string;
-  decision: 'VERIFIED' | 'REJECTED';
+  decision: 'verified' | 'rejected';
   reason?: string;
   reviewedBy: string;
 }
@@ -34,11 +34,11 @@ export interface DonationStatusChangedEvent {
   toyTitle: string;
   donorId: string;
   requestedBy: string;
-  receiverType: DonationReceiverType;
+  receiverType: 'USER' | 'ORGANIZATION';
   organizationId?: string;
   // Absent when the request has just been created (PENDING).
-  from?: DonationStatus;
-  to: DonationStatus;
+  from?: StoredDonationStatus;
+  to: StoredDonationStatus;
   reason?: string;
   // The user or Admin who made the change; absent for system changes.
   changedBy?: string;
@@ -47,11 +47,6 @@ export interface DonationStatusChangedEvent {
 export type DomainEvent = ToyReviewedEvent | IdentityReviewedEvent | DonationStatusChangedEvent;
 
 export type DomainEventType = DomainEvent['type'];
-
-// Every event name must be a notification type.
-const eventTypesAreNotificationTypes: DomainEventType extends NotificationType ? true : never =
-  true;
-void eventTypesAreNotificationTypes;
 
 type EventOf<T extends DomainEventType> = Extract<DomainEvent, { type: T }>;
 type Handler<T extends DomainEventType> = (event: EventOf<T>) => Promise<void> | void;

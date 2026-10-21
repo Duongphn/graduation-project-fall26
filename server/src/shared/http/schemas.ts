@@ -1,4 +1,3 @@
-import { vietnamProvinces } from '../domain/provinces.js';
 import { normalizeVietnamPhone } from '../utils/phone.js';
 import { normalizeText } from '../utils/text.js';
 import { z } from '../validation/zod.js';
@@ -96,8 +95,6 @@ export const vietnamPhoneSchema = z
     return phone;
   })
   .openapi({ type: 'string', example: '0912345678' });
-
-export const provinceSchema = z.enum(vietnamProvinces).openapi({ example: 'Hà Nội' });
 
 /** A public image (toy photos, logos, avatars): the https URL Cloudinary returned. */
 export const imageUrlSchema = z

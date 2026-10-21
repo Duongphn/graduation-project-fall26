@@ -1,12 +1,5 @@
-import mongoose, { Schema, model, type InferSchemaType, type Model } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
-import { identityStatuses, userRoles, userStatuses } from '../../shared/domain/statuses.js';
-
-// Merge of develop (identityStatus, avatarUrl, trust, lock) and UC03 profile / identity
-// verification (verificationStatus, avatar, address, idCardNumber). Both sets of fields are kept
-// until the team picks one naming; see the merge fix commit.
-
-// UC03: shipping address on the profile.
 const addressSchema = new Schema(
   {
     province: { type: String, required: true },
@@ -19,27 +12,14 @@ const addressSchema = new Schema(
 
 const userSchema = new Schema(
   {
-    phone: { type: String, required: true, trim: true },
-    email: { type: String, required: true, trim: true, lowercase: true },
-    passwordHash: { type: String, required: true, select: false },
-    fullName: { type: String, required: true, trim: true, maxlength: 100 },
-    avatarUrl: { type: String },
-    // UC03: avatar uploaded from the profile page.
+    phone: { type: String, required: true },
+    email: { type: String, required: true },
+    passwordHash: { type: String, required: true },
+    fullName: { type: String, required: true },
     avatar: { type: String },
-    // Google account subject (`sub`), set on the first Google login.
     googleId: { type: String },
-    // GB-07: minimum age (setting USER_MIN_AGE_YEARS). Optional for earlier accounts.
-    dateOfBirth: { type: Date },
-    role: { type: String, enum: userRoles, required: true, default: 'USER' },
-    status: { type: String, enum: userStatuses, required: true, default: 'ACTIVE' },
-    // Copy of the latest identity_verifications result, written in the same transaction.
-    identityStatus: {
-      type: String,
-      enum: identityStatuses,
-      required: true,
-      default: 'UNVERIFIED',
-    },
-    // UC03: identity verification status used by the profile and verification services.
+    role: { type: String, required: true, default: 'USER', enum: ['USER', 'ADMIN'] },
+    status: { type: String, required: true, default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] },
     verificationStatus: {
       type: String,
       required: true,
@@ -48,38 +28,37 @@ const userSchema = new Schema(
     },
     address: { type: addressSchema },
     idCardNumber: { type: String },
-    // FE-09: the score is ratingSum / ratingCount.
     trust: {
-      ratingCount: { type: Number, required: true, default: 0, min: 0 },
-      ratingSum: { type: Number, required: true, default: 0, min: 0 },
-      bookingBlocked: { type: Boolean, required: true, default: false },
-      reviewRequestedAt: { type: Date },
+      score: { type: Number, min: 0, max: 100 },
+      review: {
+        requestedAt: { type: Date },
+      },
     },
     lock: {
       until: { type: Date },
-      reason: { type: String, trim: true, maxlength: 500 },
     },
   },
-  { collection: 'users', timestamps: true },
+  { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
 
+// Tạo các Index đồng bộ tuyệt đối với Atlas
 userSchema.index({ phone: 1 }, { unique: true, name: 'phone_unique' });
-userSchema.index({ email: 1 }, { unique: true, name: 'email_unique' });
 userSchema.index(
-  { googleId: 1 },
+  { email: 1 },
   {
     unique: true,
-    partialFilterExpression: { googleId: { $exists: true } },
-    name: 'google_id_unique',
+    partialFilterExpression: { email: { $exists: true, $ne: null } },
+    name: 'email_unique',
   },
+);
+userSchema.index(
+  { googleId: 1 },
+  { unique: true, partialFilterExpression: { googleId: { $exists: true, $ne: null } }, name: 'google_id_unique' },
 );
 userSchema.index({ role: 1, status: 1, createdAt: -1 }, { name: 'admin_user_list' });
 userSchema.index(
-  { 'trust.reviewRequestedAt': 1 },
-  {
-    partialFilterExpression: { 'trust.reviewRequestedAt': { $exists: true } },
-    name: 'trust_review_queue',
-  },
+  { 'trust.review.requestedAt': 1 },
+  { partialFilterExpression: { 'trust.review.requestedAt': { $exists: true } }, name: 'trust_review_queue' },
 );
 userSchema.index(
   { 'lock.until': 1 },
@@ -94,10 +73,6 @@ userSchema.index(
   },
 );
 
-export type User = InferSchemaType<typeof userSchema>;
-export const UserModel = model('User', userSchema);
-
-/** UC03 view of a user document (profile and identity verification services). */
 export interface IUser {
   _id: mongoose.Types.ObjectId;
   phone: string;
@@ -116,10 +91,19 @@ export interface IUser {
     street: string;
   };
   idCardNumber?: string;
+  trust?: {
+    score?: number;
+    review?: {
+      requestedAt?: Date;
+    };
+  };
+  lock?: {
+    until?: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Same model, typed with the UC03 interface.
-export const User = UserModel as unknown as Model<IUser>;
+export const User: mongoose.Model<IUser> =
+  (mongoose.models.User as mongoose.Model<IUser>) || mongoose.model<IUser>('User', userSchema);
 export default User;

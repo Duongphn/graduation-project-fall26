@@ -1,7 +1,7 @@
 import 'multer';
 import type { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { toRequestActor } from '../../shared/contracts/request-actor.js';
+import '../../shared/contracts/request-actor.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { ListingFilterStatus } from './toy-listing.ports.js';
 import {
@@ -106,7 +106,7 @@ export class ToyListingController {
       const input = validateCreateToyListingInput(req.body);
       const files = (Array.isArray(req.files) ? req.files : []) as Express.Multer.File[];
 
-      const created = await this.service.create(toRequestActor(req.auth), input, files);
+      const created = await this.service.create(req.auth, input, files);
       res.status(201).json(created);
     } catch (err) {
       next(err);
@@ -155,7 +155,7 @@ export class ToyListingController {
         status = statusStr;
       }
 
-      const result = await this.service.listMine(toRequestActor(req.auth), {
+      const result = await this.service.listMine(req.auth, {
         ...(status ? { status } : {}),
         page,
         limit,
@@ -179,7 +179,7 @@ export class ToyListingController {
       const files = (Array.isArray(req.files) ? req.files : []) as Express.Multer.File[];
 
       const updated = await this.service.update(
-        toRequestActor(req.auth),
+        req.auth,
         toyId,
         input,
         files,
@@ -199,7 +199,7 @@ export class ToyListingController {
       }
 
       const toyId = parseToyId(req.params.toyId);
-      const hidden = await this.service.hide(toRequestActor(req.auth), toyId);
+      const hidden = await this.service.hide(req.auth, toyId);
 
       res.status(200).json(hidden);
     } catch (err) {
@@ -214,7 +214,7 @@ export class ToyListingController {
       }
 
       const toyId = parseToyId(req.params.toyId);
-      await this.service.delete(toRequestActor(req.auth), toyId);
+      await this.service.delete(req.auth, toyId);
 
       res.status(204).send();
     } catch (err) {

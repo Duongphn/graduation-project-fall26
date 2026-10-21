@@ -39,8 +39,8 @@ describe('startIntervalJob', () => {
   });
 
   it('is disabled in tests by the env config', async () => {
-    const { env } = await import('../../src/config/env.js');
-    expect(env.jobs.donationExpiry.enabled).toBe(false);
-    expect(env.jobs.donationExpiry.intervalMinutes).toBeGreaterThan(0);
+    const { featureEnv } = await import('../../src/config/feature-env.js');
+    expect(featureEnv.jobs.donationExpiry.enabled).toBe(false);
+    expect(featureEnv.jobs.donationExpiry.intervalMinutes).toBeGreaterThan(0);
   });
 });

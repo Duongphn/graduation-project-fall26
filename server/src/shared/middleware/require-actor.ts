@@ -1,21 +1,22 @@
 import type { RequestHandler } from 'express';
 import mongoose from 'mongoose';
+import '../contracts/request-actor.js';
 import { AppError } from '../errors/app-error.js';
-import { requireUser } from './auth-placeholder.js';
 
-const authenticationRequired = () => new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+export const requireActor: RequestHandler = (req, _res, next) => {
+  // Signed in, but not as a USER (e.g. an Admin): forbidden rather than unauthenticated.
+  if (req.auth?.userId && req.auth.actorType && req.auth.actorType !== 'USER') {
+    return next(new AppError(403, 'FORBIDDEN', 'This action is only available to users.'));
+  }
+  if (
+    !req.auth ||
+    req.auth.actorType !== 'USER' ||
+    !req.auth.userId ||
+    typeof req.auth.userId !== 'string' ||
+    !mongoose.Types.ObjectId.isValid(req.auth.userId)
+  ) {
+    return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required.'));
+  }
 
-// Signs the caller in through the shared guard (requireUser), then checks the user id.
-export const requireActor: RequestHandler = (req, res, next) => {
-  requireUser(req, res, (error?: unknown) => {
-    if (error) {
-      return next(
-        error instanceof AppError && error.statusCode === 401 ? authenticationRequired() : error,
-      );
-    }
-    if (!req.auth?.userId || !mongoose.Types.ObjectId.isValid(req.auth.userId)) {
-      return next(authenticationRequired());
-    }
-    next();
-  });
+  next();
 };

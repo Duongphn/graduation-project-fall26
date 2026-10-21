@@ -18,8 +18,6 @@ config/shared/infrastructure -> features -> app
 
 The `app` layer is the only composition root. Feature-to-feature imports are prohibited. A feature that needs another capability depends on a shared port or publishes a domain event; the `app` layer wires the implementation.
 
-The one exception is data access: a repository may read and write another feature's model file, never its service, controller or repository (`src/features/README.md`, rule 6).
-
 ## Workflow mapping
 
 ```text

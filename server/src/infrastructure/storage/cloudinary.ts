@@ -34,7 +34,7 @@ const UNSIGNED_PARAMS = new Set(['api_key', 'resource_type', 'cloud_name', 'file
 export type SignableParams = Record<string, string | number | undefined | null>;
 
 export const isCloudinaryConfigured = (
-  credentials: CloudinaryCredentials = env.cloudinary,
+  credentials: CloudinaryCredentials = developCloudinaryCredentials(),
 ): credentials is ConfiguredCloudinary =>
   Boolean(credentials.cloudName && credentials.apiKey && credentials.apiSecret);
 
@@ -53,6 +53,13 @@ export const signCloudinaryParams = (params: SignableParams, apiSecret: string):
   createHash('sha1')
     .update(buildStringToSign(params) + apiSecret)
     .digest('hex');
+
+/** Develop's Cloudinary settings (config/env.ts). */
+const developCloudinaryCredentials = (): CloudinaryCredentials => ({
+  cloudName: env.cloudinaryCloudName || undefined,
+  apiKey: env.cloudinaryApiKey || undefined,
+  apiSecret: env.cloudinaryApiSecret || undefined,
+});
 
 const unixSeconds = (date: Date): number => Math.floor(date.getTime() / 1000);
 
@@ -88,7 +95,7 @@ export const createUploadSignature = (
   target: UploadTarget,
   options: { now?: Date; credentials?: CloudinaryCredentials } = {},
 ): UploadSignature | null => {
-  const credentials = options.credentials ?? env.cloudinary;
+  const credentials = options.credentials ?? developCloudinaryCredentials();
   if (!isCloudinaryConfigured(credentials)) return null;
   const timestamp = unixSeconds(options.now ?? new Date());
   const signed = {
@@ -125,7 +132,7 @@ export const buildPrivateImageUrl = (
   image: { publicId: string; format: string },
   options: { ttlSeconds?: number; now?: Date; credentials?: CloudinaryCredentials } = {},
 ): SignedAssetUrl | null => {
-  const credentials = options.credentials ?? env.cloudinary;
+  const credentials = options.credentials ?? developCloudinaryCredentials();
   if (!isCloudinaryConfigured(credentials)) return null;
 
   const timestamp = unixSeconds(options.now ?? new Date());

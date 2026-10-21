@@ -12,6 +12,16 @@ import type {
 } from '../src/features/toys/toy-catalog.ports.js';
 import { errorHandler } from '../src/shared/middleware/error-handler.js';
 
+import mongoose from 'mongoose';
+import { createApiRouter } from '../src/app/router.js';
+import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
+import type {
+  CatalogToyRecord,
+  ToyCatalogFilter,
+  ToyCatalogPorts,
+  ToyCatalogRepository,
+} from '../src/features/toys/toy-catalog.types.js';
+
 describe('UC05 Toy Catalog API', () => {
   let app: express.Express;
   let mockPort: ToyCatalogReadPort;
@@ -225,19 +235,8 @@ describe('UC05 Toy Catalog API', () => {
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe('NOT_FOUND');
     });
-import mongoose from 'mongoose';
-import request from 'supertest';
-import { describe, expect, it } from 'vitest';
-
-import { createApiRouter } from '../src/app/router.js';
-import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
-import type {
-  CatalogToyRecord,
-  ToyCatalogFilter,
-  ToyCatalogPorts,
-  ToyCatalogRepository,
-} from '../src/features/toys/toy-catalog.types.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+  });
+});
 
 const CATEGORY_A = new mongoose.Types.ObjectId().toString();
 const CATEGORY_B = new mongoose.Types.ObjectId().toString();
@@ -473,7 +472,7 @@ describe('API router mount order', () => {
   }
 
   it('serves GET /toys publicly', async () => {
-    const response = await request(createAppWithFullRouter()).get('/api/v1/toys');
+    const response = await request(createAppWithFullRouter()).get('/api/v1/toys?listingType=rent');
 
     expect(response.status).toBe(200);
   });

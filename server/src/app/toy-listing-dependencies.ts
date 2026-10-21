@@ -2,14 +2,10 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 
 import { env } from '../config/env.js';
-import { CategoryModel as Category } from '../features/categories/categories.model.js';
-import {
-  closePendingRequestsForToy,
-  hasActiveRequestForToy,
-} from '../features/donation_requests/index.js';
-import { IdentityVerificationModel as IdentityVerification } from '../features/identity_verifications/identity_verifications.model.js';
-import { PurchaseOrderModel as PurchaseOrder } from '../features/purchase_orders/purchase_orders.model.js';
-import { RentalOrderModel as RentalOrder } from '../features/rental_orders/rental_orders.model.js';
+import Category from '../features/categories/categories.model.js';
+import IdentityVerification from '../features/identity_verifications/identity_verifications.model.js';
+import PurchaseOrder from '../features/purchase_orders/purchase_orders.model.js';
+import RentalOrder from '../features/rental_orders/rental_orders.model.js';
 import type { ToyListingPorts } from '../features/toys/toy-listing.ports.js';
 import { createToyListingRouter } from '../features/toys/toy-listing.routes.js';
 import { ToyListingService } from '../features/toys/toy-listing.service.js';
@@ -37,9 +33,9 @@ const ACTIVE_STATUS_REGEX = /^active$/i;
 const COMPLETED_STATUS_REGEX = /^completed$/i;
 
 function createDefaultToyImageStorage(): ToyImageStorage {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || env.cloudinary.cloudName;
-  const apiKey = process.env.CLOUDINARY_API_KEY || env.cloudinary.apiKey;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET || env.cloudinary.apiSecret;
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY || env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || env.CLOUDINARY_API_SECRET;
 
   if (
     !process.env.CLOUDINARY_CLOUD_NAME ||
@@ -115,12 +111,6 @@ export function createToyListingDependencies(
       ]);
 
       return Boolean(hasRental || hasPurchase);
-    },
-
-    hasActiveDonationRequest: hasActiveRequestForToy,
-
-    async closePendingDonationRequests(toyId, ownerId, toyTitle, why): Promise<void> {
-      await closePendingRequestsForToy(toyId, ownerId, why, toyTitle);
     },
 
     async getSoldToyIds(toyIds: string[]): Promise<Set<string>> {

@@ -35,9 +35,9 @@ export interface CreateUC03DependenciesOptions {
 }
 
 function createDefaultAvatarStorage(): UserAvatarStorage {
-  const cloudName = env.cloudinary.cloudName;
-  const apiKey = env.cloudinary.apiKey;
-  const apiSecret = env.cloudinary.apiSecret;
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY || env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || env.CLOUDINARY_API_SECRET;
 
   if (!cloudName || !apiKey || !apiSecret) {
     return {
@@ -55,9 +55,9 @@ function createDefaultAvatarStorage(): UserAvatarStorage {
 }
 
 function createDefaultIdentityStorage(): IdentityImageStorage {
-  const cloudName = env.cloudinary.cloudName;
-  const apiKey = env.cloudinary.apiKey;
-  const apiSecret = env.cloudinary.apiSecret;
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY || env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || env.CLOUDINARY_API_SECRET;
 
   if (!cloudName || !apiKey || !apiSecret) {
     return {

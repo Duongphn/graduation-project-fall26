@@ -12,7 +12,6 @@
     "clean": "node --input-type=module -e \"import fs from 'node:fs'; fs.rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/app/server.js",
-    "db:sync": "tsx src/app/sync-database.ts",
     "jobs:expire-donations": "tsx src/app/jobs/expire-donations.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

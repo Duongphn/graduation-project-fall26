@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { optionalAuth } from '../../shared/middleware/optional-auth.js';
 import { requireActor } from '../../shared/middleware/require-actor.js';
 import { toyImageUpload } from './toy-image-upload.js';
 import { ToyListingController } from './toy-listing.controller.js';
@@ -10,11 +11,11 @@ export function createToyListingRouter(
 ): Router {
   const router = Router();
 
-  router.post('/', requireActor, toyImageUpload, controller.create);
-  router.get('/mine', requireActor, controller.listMine);
-  router.patch('/:toyId', requireActor, toyImageUpload, controller.update);
-  router.post('/:toyId/hide', requireActor, controller.hide);
-  router.delete('/:toyId', requireActor, controller.delete);
+  router.post('/', optionalAuth, requireActor, toyImageUpload, controller.create);
+  router.get('/mine', optionalAuth, requireActor, controller.listMine);
+  router.patch('/:toyId', optionalAuth, requireActor, toyImageUpload, controller.update);
+  router.post('/:toyId/hide', optionalAuth, requireActor, controller.hide);
+  router.delete('/:toyId', optionalAuth, requireActor, controller.delete);
 
   return router;
 }

@@ -1,4 +1,4 @@
-import { env } from '../../config/env.js';
+import { featureEnv } from '../../config/feature-env.js';
 import { expireStaleRequests } from '../../features/donation_requests/index.js';
 import { startIntervalJob } from './interval-job.js';
 
@@ -7,8 +7,10 @@ import { startIntervalJob } from './interval-job.js';
 // deadline, so it runs every DONATION_EXPIRY_JOB_INTERVAL_MINUTES (default 5). Disabled with
 // DONATION_EXPIRY_JOB_ENABLED=false, and never started when NODE_ENV=test.
 export const startDonationExpiryJob = () => {
-  if (!env.jobs.donationExpiry.enabled) return undefined;
-  return startIntervalJob('donation-expiry', env.jobs.donationExpiry.intervalMinutes * 60_000, () =>
-    expireStaleRequests(new Date()),
+  if (!featureEnv.jobs.donationExpiry.enabled) return undefined;
+  return startIntervalJob(
+    'donation-expiry',
+    featureEnv.jobs.donationExpiry.intervalMinutes * 60_000,
+    () => expireStaleRequests(new Date()),
   );
 };

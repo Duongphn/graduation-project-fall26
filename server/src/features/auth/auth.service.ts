@@ -6,9 +6,9 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import { sendOtpEmail, sendResetPasswordEmail } from '../../infrastructure/email/mailer.js';
 import { AppError } from '../../shared/errors/app-error.js';
-import { OtpRequestModel as OtpRequest } from '../otp_requests/otp_requests.model.js';
-import { RefreshTokenModel as RefreshToken } from '../refresh_tokens/refresh_tokens.model.js';
-import { UserModel as User } from '../users/users.model.js';
+import { OtpRequest } from '../otp_requests/otp_requests.model.js';
+import { RefreshToken } from '../refresh_tokens/refresh_tokens.model.js';
+import { User } from '../users/users.model.js';
 import type {
   GoogleAuthResult,
   GoogleLoginResponse,
@@ -32,9 +32,6 @@ import type {
 
 const googleClient = new OAuth2Client(env.googleClientId);
 
-/** OTP codes and refresh tokens are stored as SHA-256 hashes (otp_requests.codeHash, refresh_tokens.tokenHash). */
-const hashSecret = (value: string): string => crypto.createHash('sha256').update(value).digest('hex');
-
 /** Các trường của document User mà AuthService sử dụng (model User đang khai báo kiểu any) */
 interface UserDocument {
   _id: unknown;
@@ -42,9 +39,9 @@ interface UserDocument {
   fullName: string;
   phone?: string;
   role: string;
-  avatarUrl?: string | null | undefined;
+  avatar?: string;
   status: string;
-  lock?: { until?: Date | null | undefined } | null | undefined;
+  lock?: { until?: Date };
 }
 
 /** Khoảng chờ tối thiểu giữa hai lần gửi mã đăng ký cho cùng một email */
@@ -99,7 +96,7 @@ export class AuthService {
     const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await RefreshToken.create({
       userId: user._id,
-      tokenHash: hashSecret(refreshToken),
+      token: refreshToken,
       expiresAt: refreshExpiresAt,
     });
 
@@ -110,7 +107,7 @@ export class AuthService {
         fullName: user.fullName,
         phone: user.phone,
         role: user.role,
-        avatar: user.avatarUrl ?? undefined,
+        avatar: user.avatar,
       },
       tokens: {
         accessToken,
@@ -185,8 +182,8 @@ export class AuthService {
       user.googleId = profile.googleId;
       updated = true;
     }
-    if (profile.picture && !user.avatarUrl) {
-      user.avatarUrl = profile.picture;
+    if (profile.picture && !user.avatar) {
+      user.avatar = profile.picture;
       updated = true;
     }
     if (updated) {
@@ -225,9 +222,11 @@ export class AuthService {
 
     await OtpRequest.create({
       identifier: email,
-      codeHash: hashSecret(otpCode),
-      purpose: 'GOOGLE_SIGN_UP',
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      otp_code: otpCode,
+      purpose: 'google_login_2fa',
+      is_used: false,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000),
+      purgeAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
     try {
@@ -268,9 +267,11 @@ export class AuthService {
     const loginCode = crypto.randomBytes(32).toString('hex');
     await OtpRequest.create({
       identifier: user.email,
-      codeHash: hashSecret(loginCode),
-      purpose: 'GOOGLE_LOGIN_EXCHANGE',
-      expiresAt: new Date(Date.now() + GOOGLE_LOGIN_CODE_TTL_SECONDS * 1000),
+      otp_code: loginCode,
+      purpose: 'google_login_exchange',
+      is_used: false,
+      expires_at: new Date(Date.now() + GOOGLE_LOGIN_CODE_TTL_SECONDS * 1000),
+      purgeAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
     return { step: 'AUTHENTICATED', loginCode };
@@ -282,12 +283,12 @@ export class AuthService {
   public async exchangeGoogleLoginCode(code: string): Promise<AuthSessionResponse> {
     const record = await OtpRequest.findOneAndUpdate(
       {
-        codeHash: hashSecret(code),
-        purpose: 'GOOGLE_LOGIN_EXCHANGE',
-        consumedAt: { $exists: false },
-        expiresAt: { $gt: new Date() },
+        otp_code: code,
+        purpose: 'google_login_exchange',
+        is_used: false,
+        expires_at: { $gt: new Date() },
       },
-      { consumedAt: new Date() }
+      { is_used: true }
     );
     if (!record) {
       throw new AppError(401, 'INVALID_GOOGLE_LOGIN_CODE', 'Phiên đăng nhập Google đã hết hạn. Vui lòng thử lại.');
@@ -313,12 +314,12 @@ export class AuthService {
     const otpRecord = await OtpRequest.findOneAndUpdate(
       {
         identifier: decoded.email,
-        codeHash: hashSecret(otpCode),
-        purpose: 'GOOGLE_SIGN_UP',
-        consumedAt: { $exists: false },
-        expiresAt: { $gt: new Date() },
+        otp_code: otpCode,
+        purpose: 'google_login_2fa',
+        is_used: false,
+        expires_at: { $gt: new Date() },
       },
-      { consumedAt: new Date() }
+      { is_used: true }
     );
 
     if (!otpRecord) {
@@ -339,7 +340,7 @@ export class AuthService {
         fullName: decoded.profile.fullName,
         phone: randomPhone,
         passwordHash: dummyPasswordHash,
-        avatarUrl: decoded.profile.avatar,
+        avatar: decoded.profile.avatar,
         googleId: decoded.profile.googleId,
         role: 'USER',
         status: 'ACTIVE',
@@ -407,12 +408,15 @@ export class AuthService {
 
     const otpCode = Math.floor(100_000 + Math.random() * 900_000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const purgeAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await OtpRequest.create({
       identifier: email,
-      codeHash: hashSecret(otpCode),
-      purpose: 'GOOGLE_SIGN_UP',
-      expiresAt: expiresAt,
+      otp_code: otpCode,
+      purpose: 'google_login_2fa',
+      is_used: false,
+      expires_at: expiresAt,
+      purgeAt,
     });
 
     await sendOtpEmail(email, otpCode);
@@ -467,13 +471,13 @@ export class AuthService {
     const otpRecord = await OtpRequest.findOneAndUpdate(
       {
         identifier: normalizedEmail,
-        codeHash: hashSecret(dto.otpCode),
-        purpose: 'SIGN_UP',
-        consumedAt: { $exists: false },
-        expiresAt: { $gt: new Date() },
+        otp_code: dto.otpCode,
+        purpose: 'register',
+        is_used: false,
+        expires_at: { $gt: new Date() },
       },
-      { consumedAt: new Date() }
-    ).select('+payload');
+      { is_used: true }
+    );
 
     if (!otpRecord?.payload) {
       throw new AppError(400, 'INVALID_OTP', 'Mã OTP không chính xác hoặc đã hết hạn.');
@@ -510,7 +514,7 @@ export class AuthService {
   public async resendRegistrationOtp(email: string): Promise<RegistrationChallenge> {
     const normalizedEmail = email.toLowerCase().trim();
 
-    const latest = await OtpRequest.findOne({ identifier: normalizedEmail, purpose: 'SIGN_UP', consumedAt: { $exists: false } }).select('+payload').sort({
+    const latest = await OtpRequest.findOne({ identifier: normalizedEmail, purpose: 'register', is_used: false }).sort({
       createdAt: -1,
     });
     if (!latest?.payload) {
@@ -549,9 +553,11 @@ export class AuthService {
 
     await OtpRequest.create({
       identifier: email,
-      codeHash: hashSecret(otpCode),
-      purpose: 'SIGN_UP',
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      otp_code: otpCode,
+      purpose: 'register',
+      is_used: false,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000),
+      purgeAt: new Date(Date.now() + 30 * 60 * 1000),
       payload: pending,
     });
 
@@ -571,7 +577,7 @@ export class AuthService {
     const query = identifier.includes('@') ? { email: identifier.toLowerCase() } : { phone: identifier };
 
     // Dùng chung một thông báo lỗi để không lộ việc tài khoản có tồn tại hay không
-    const user = await User.findOne(query).select('+passwordHash');
+    const user = await User.findOne(query);
     const isPasswordValid = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
     if (!user || !isPasswordValid) {
       throw new AppError(401, 'INVALID_CREDENTIALS', 'Số điện thoại/email hoặc mật khẩu không chính xác.');
@@ -609,7 +615,7 @@ export class AuthService {
     // Chặn spam email: vừa gửi trong khoảng chờ thì bỏ qua, vẫn trả phản hồi như bình thường
     const recentOtp = await OtpRequest.exists({
       identifier: normalizedEmail,
-      purpose: 'RESET_PASSWORD',
+      purpose: 'reset_password',
       createdAt: { $gt: new Date(Date.now() - RESET_OTP_RESEND_SECONDS * 1000) },
     });
     if (recentOtp) {
@@ -619,12 +625,15 @@ export class AuthService {
     // Sinh mã OTP 6 số (hạn 10 phút). Giữ bản ghi lâu hơn hạn resetToken để bước đổi mật khẩu còn tìm thấy
     const otpCode = crypto.randomInt(100_000, 1_000_000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const purgeAt = new Date(Date.now() + 30 * 60 * 1000);
 
     await OtpRequest.create({
       identifier: normalizedEmail,
-      codeHash: hashSecret(otpCode),
-      purpose: 'RESET_PASSWORD',
-      expiresAt: expiresAt,
+      otp_code: otpCode,
+      purpose: 'reset_password',
+      is_used: false,
+      expires_at: expiresAt,
+      purgeAt,
     });
 
     // Link trỏ về trang Quên mật khẩu của Frontend, điền sẵn email và mã
@@ -648,10 +657,10 @@ export class AuthService {
 
     const otpRecord = await OtpRequest.findOne({
       identifier: normalizedEmail,
-      codeHash: hashSecret(dto.otpCode),
-      purpose: 'RESET_PASSWORD',
-      consumedAt: { $exists: false },
-      expiresAt: { $gt: new Date() },
+      otp_code: dto.otpCode,
+      purpose: 'reset_password',
+      is_used: false,
+      expires_at: { $gt: new Date() },
     });
 
     if (!otpRecord) {
@@ -689,8 +698,8 @@ export class AuthService {
 
     // 2. Đánh dấu OTP đã dùng một cách nguyên tử — token đã dùng rồi (hoặc gửi trùng) sẽ không khớp
     const otpRecord = await OtpRequest.findOneAndUpdate(
-      { _id: decoded.otpId, identifier: decoded.email, purpose: 'RESET_PASSWORD', consumedAt: { $exists: false } },
-      { consumedAt: new Date() }
+      { _id: decoded.otpId, identifier: decoded.email, purpose: 'reset_password', is_used: false },
+      { is_used: true }
     );
     if (!otpRecord) {
       throw new AppError(401, 'INVALID_RESET_TOKEN', 'Phiên đặt lại mật khẩu đã được sử dụng hoặc hết hạn.');
@@ -719,7 +728,7 @@ export class AuthService {
    */
   public async refreshToken(token: string): Promise<RefreshTokenResponse> {
     // 1. Kiểm tra tính hợp lệ của Refresh Token trong Database
-    const storedToken = await RefreshToken.findOne({ tokenHash: hashSecret(token) });
+    const storedToken = await RefreshToken.findOne({ token });
     if (!storedToken) {
       throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã bị thu hồi.');
     }
@@ -730,19 +739,19 @@ export class AuthService {
       decoded = jwt.verify(token, env.jwtRefreshSecret) as { userId: string };
     } catch {
       // Nếu token hết hạn hoặc sai chữ ký, xóa khỏi DB luôn
-      await RefreshToken.deleteOne({ tokenHash: hashSecret(token) });
+      await RefreshToken.deleteOne({ token });
       throw new AppError(401, 'EXPIRED_REFRESH_TOKEN', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
 
     // 3. Kiểm tra User có còn active không
     const user = await User.findById(decoded.userId);
     if (!user || user.status !== 'ACTIVE') {
-      await RefreshToken.deleteOne({ tokenHash: hashSecret(token) });
+      await RefreshToken.deleteOne({ token });
       throw new AppError(403, 'USER_INACTIVE', 'Tài khoản không tồn tại hoặc đã bị khóa.');
     }
 
     // 4. Token Rotation: Xóa token cũ và cấp token mới
-    await RefreshToken.deleteOne({ tokenHash: hashSecret(token) });
+    await RefreshToken.deleteOne({ token });
 
     const newAccessToken = jwt.sign(
       {
@@ -766,7 +775,7 @@ export class AuthService {
     const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await RefreshToken.create({
       userId: user._id,
-      tokenHash: hashSecret(newRefreshToken),
+      token: newRefreshToken,
       expiresAt: refreshExpiresAt,
     });
 
@@ -792,7 +801,7 @@ export class AuthService {
       }
     }
 
-    await RefreshToken.deleteOne({ tokenHash: hashSecret(token) });
+    await RefreshToken.deleteOne({ token });
     return {
       message: 'Đăng xuất thành công!',
     };
