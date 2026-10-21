@@ -54,8 +54,8 @@ const isGuest = () => getAccessToken() === null
 async function homeLoader() {
   await Promise.all([
     queryClient.query(homeCategoriesQuery).catch(ignoreError), // GET /categories
-    queryClient.infiniteQuery(featuredRentalsQuery).catch(ignoreError), // GET /toys?listingType=rent&sort=popular&page=1
-    queryClient.infiniteQuery(resaleToysQuery).catch(ignoreError), // GET /toys?listingType=sell&sort=newest&page=1
+    queryClient.infiniteQuery(featuredRentalsQuery).catch(ignoreError), // GET /toys?type=rent&sort=newest&page=1
+    queryClient.infiniteQuery(resaleToysQuery).catch(ignoreError), // GET /toys?type=sell&sort=newest&page=1
   ])
   return null
 }

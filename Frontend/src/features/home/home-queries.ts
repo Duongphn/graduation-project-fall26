@@ -36,7 +36,7 @@ const publicToysInfiniteQuery = (listingType: ListingType, sort: PublicToySort) 
     retry: HOME_RETRY,
   })
 
-/** Đồ cho thuê nổi bật: được thuê nhiều trong tuần trước */
+/** Đồ cho thuê nổi bật: được thuê nhiều trong tuần trước (backend chưa hỗ trợ — tạm theo tin mới nhất) */
 export const featuredRentalsQuery = publicToysInfiniteQuery('rent', 'popular')
 
 /** Đồ cũ bán lại: tin mới nhất trước */

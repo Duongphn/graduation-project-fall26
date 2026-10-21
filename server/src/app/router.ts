@@ -52,13 +52,11 @@ export function createApiRouter(deps?: ApiRouterDependencies): Router {
   router.use('/users', donorProfileRouter);
   router.use('/uploads', uploadsRouter);
 
-  // Thứ tự quan trọng: router công khai (chỉ GET /toys) đứng trước router đăng tin (bắt đăng nhập),
-  // để khách xem được danh sách mà /toys/mine, POST, PATCH… vẫn yêu cầu đăng nhập như cũ.
-  const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
-  router.use('/toys', toyCatalog.router);
-
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
+  const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
+
   router.use('/toys', toyListing.router);
+  router.use('/toys', toyCatalog.router);
 
   const uc03 = deps?.uc03Dependencies ?? createUC03Dependencies();
   router.use('/users', authenticate, uc03.usersRouter);

@@ -1,6 +1,7 @@
 import { httpClient } from '../../services/http-client'
 import type { Category, ListingType, ToyListing } from '../toy-listings/toy-listing-api'
 import type { ApiResponse } from '../../types/api'
+import { searchToys } from '../toy-catalog/toy-catalog-api'
 
 /**
  * Dữ liệu công khai cho trang chủ. Các endpoint trả JSON thô như /toys/mine (chưa bọc envelope).
@@ -41,10 +42,29 @@ export interface HomeCategory extends Category {
   toyCount?: number
 }
 
-/** GET /toys — danh sách tin đang hiển thị, không cần đăng nhập */
-export async function fetchPublicToys(params: PublicToysParams): Promise<PublicToysPage> {
-  const { data } = await httpClient.get<PublicToysPage>('/toys', { params })
-  return data
+/**
+ * GET /toys (tìm kiếm của toy catalog) — danh sách tin đang hiển thị, không cần đăng nhập.
+ * API tìm kiếm chưa có kiểu sắp xếp "phổ biến" (theo số đơn thuê): tạm lấy tin mới nhất.
+ */
+export async function fetchPublicToys({ listingType, page, limit }: PublicToysParams): Promise<PublicToysPage> {
+  const result = await searchToys({ type: listingType, sort: 'newest', page, limit })
+  return {
+    items: result.items.map((toy) => ({
+      id: toy.id,
+      categoryId: toy.category.id,
+      title: toy.title,
+      condition: toy.condition,
+      listingType: toy.listingType,
+      priceOrRate: toy.priceOrRate,
+      ...(toy.depositPrice !== null ? { depositPrice: toy.depositPrice } : {}),
+      ageRange: toy.ageRange,
+      createdAt: toy.createdAt,
+      images: toy.primaryImage ? [{ url: toy.primaryImage.url }] : [],
+    })),
+    page: result.page,
+    limit: result.limit,
+    total: result.total,
+  }
 }
 
 export async function fetchHomeCategories(): Promise<HomeCategory[]> {
