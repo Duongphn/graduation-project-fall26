@@ -7,59 +7,9 @@ import type {
   ToySearchQuery,
   ToySearchResult,
 } from './toy-catalog.ports.js';
-import type {
-  CatalogToyRecord,
-  PublicToyDto,
-  ToyCatalogFilter,
-  ToyCatalogPage,
-  ToyCatalogPorts,
-  ToyCatalogQuery,
-  ToyCatalogRepository,
-} from './toy-catalog.types.js';
 
-/** "Phổ biến" = nhiều đơn thuê nhất trong khoảng thời gian này */
-export const POPULAR_WINDOW_DAYS = 7;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function toPublicDto(record: CatalogToyRecord): PublicToyDto {
-  return {
-    id: record.id,
-    categoryId: record.categoryId,
-    title: record.title,
-    condition: record.condition,
-    listingType: record.listingType,
-    priceOrRate: record.priceOrRate,
-    // Tiền cọc chỉ có nghĩa với tin cho thuê (cùng quy tắc với ToyListingService)
-    ...(record.listingType === 'rent' && record.depositPrice !== undefined
-      ? { depositPrice: record.depositPrice }
-      : {}),
-    ageRange: record.ageRange,
-    images: record.images,
-    createdAt: record.createdAt,
-  };
-}
-
-/** Dependencies of the public list (homepage): toys collection and order data from other features. */
-export interface ToyCatalogListDependencies {
-  repository: ToyCatalogRepository;
-  ports: ToyCatalogPorts;
-  now?: () => Date;
-}
-
-/**
- * Public toy catalog. Merge of the search / detail / availability flow (ToyCatalogReadPort) and
- * the homepage list with "popular" ranking (ToyCatalogRepository + ToyCatalogPorts).
- */
 export class ToyCatalogService {
-  private readonly now: () => Date;
-
-  public constructor(
-    private readonly readPort: ToyCatalogReadPort,
-    private readonly listDependencies?: ToyCatalogListDependencies,
-  ) {
-    this.now = listDependencies?.now ?? (() => new Date());
-  }
+  public constructor(private readonly readPort: ToyCatalogReadPort) {}
 
   public async search(query: ToySearchQuery): Promise<ToySearchResult> {
     const { items, total } = await this.readPort.search(query);
@@ -145,62 +95,5 @@ export class ToyCatalogService {
 
     const periods = await this.readPort.findAvailability(toyId, from, to);
     return { periods };
-  }
-
-  public async list(query: ToyCatalogQuery): Promise<ToyCatalogPage> {
-    const soldToyIds = await this.listDeps().ports.getSoldToyIds();
-    const filter: ToyCatalogFilter = {
-      ...(query.listingType ? { listingType: query.listingType } : {}),
-      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
-      ...(query.minAge !== undefined ? { minAge: query.minAge } : {}),
-      ...(query.maxAge !== undefined ? { maxAge: query.maxAge } : {}),
-      excludeIds: soldToyIds,
-    };
-
-    const skip = (query.page - 1) * query.limit;
-    const [total, records] = await Promise.all([
-      this.listDeps().repository.count(filter),
-      query.sort === 'popular'
-        ? this.findPopular(filter, skip, query.limit)
-        : this.listDeps().repository.findNewest(filter, skip, query.limit),
-    ]);
-
-    return { items: records.map(toPublicDto), page: query.page, limit: query.limit, total };
-  }
-
-  /**
-   * Tin có đơn thuê gần đây đứng trước (nhiều đơn hơn đứng trước), phần còn lại xếp theo tin mới nhất.
-   * Khi chưa có đơn thuê nào, kết quả giống hệt sort=newest.
-   */
-  private async findPopular(filter: ToyCatalogFilter, skip: number, limit: number): Promise<CatalogToyRecord[]> {
-    const since = new Date(this.now().getTime() - POPULAR_WINDOW_DAYS * DAY_MS);
-    const rentalCounts = await this.listDeps().ports.getRentalCountsSince(since);
-
-    const popularToys =
-      rentalCounts.size === 0 ? [] : await this.listDeps().repository.findByIds(filter, [...rentalCounts.keys()]);
-    popularToys.sort(
-      (a, b) =>
-        (rentalCounts.get(b.id) ?? 0) - (rentalCounts.get(a.id) ?? 0) ||
-        b.createdAt.getTime() - a.createdAt.getTime(),
-    );
-
-    const fromPopular = popularToys.slice(skip, skip + limit);
-    const remaining = limit - fromPopular.length;
-    if (remaining <= 0) return fromPopular;
-
-    const rest = await this.listDeps().repository.findNewest(
-      { ...filter, excludeIds: [...filter.excludeIds, ...popularToys.map((toy) => toy.id)] },
-      Math.max(0, skip - popularToys.length),
-      remaining,
-    );
-
-    return [...fromPopular, ...rest];
-  }
-
-  private listDeps(): ToyCatalogListDependencies {
-    if (!this.listDependencies) {
-      throw new Error('ToyCatalogService.list needs repository and ports dependencies.');
-    }
-    return this.listDependencies;
   }
 }

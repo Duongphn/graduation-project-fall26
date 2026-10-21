@@ -301,28 +301,8 @@ export class ToyListingService {
       }
     }
 
-    const storedListingType = fromStoredListingType(listing.listingType);
-    // FE-02: a donation post stays a free donation post (and a rent/sell post never becomes one).
-    if (storedListingType === 'donate') {
-      if (
-        (validatedInput.listingType !== undefined && validatedInput.listingType !== 'donate') ||
-        validatedInput.priceOrRate !== undefined ||
-        validatedInput.depositPrice !== undefined
-      ) {
-        throw new AppError(
-          400,
-          'VALIDATION_ERROR',
-          'A donation post has no price and cannot change its listing type.',
-        );
-      }
-    } else if (validatedInput.listingType === 'donate') {
-      throw new AppError(
-        400,
-        'VALIDATION_ERROR',
-        'A rent or sell post cannot become a donation post; create a donation post instead.',
-      );
-    }
-    const effectiveListingType = validatedInput.listingType ?? storedListingType;
+    const effectiveListingType =
+      validatedInput.listingType ?? fromStoredListingType(listing.listingType);
     if (effectiveListingType === 'sell') {
       if (validatedInput.depositPrice !== undefined) {
         throw new AppError(
