@@ -26,7 +26,7 @@ export function DonationReceiverSection({ control, organizations, organizationsL
       <DonationPostSection
         step="03"
         title="Chọn đơn vị tiếp nhận"
-        subtitle="Tổ chức đã được ToyFlow xác minh, tiếp nhận đúng độ tuổi bạn chọn."
+        subtitle="Tổ chức đã được ToyFlow xác minh. Xem nhu cầu để chọn nơi phù hợp với món đồ."
       >
         <FormField control={control} name="receiver">
           {(field) => (

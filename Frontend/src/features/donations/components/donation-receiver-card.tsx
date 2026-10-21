@@ -7,6 +7,8 @@ import { organizationDetailQuery } from '../../organizations/public-queries'
 import { charityOrganizationPath } from '../../../routes/paths'
 import type { DonationRequestDetail } from '../types'
 
+const PHONE_PATTERN = /^\+?[\d\s.]{9,15}$/
+
 /**
  * Bên nhận đồ chơi: tổ chức (hồ sơ công khai GET /organizations/:id) hoặc người dùng.
  * Số điện thoại đầy đủ chỉ có khi phiếu đang ACCEPTED/SHIPPING (counterpartContact, D-03).
@@ -17,6 +19,8 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
   const profile = organization.data
   const name = profile?.name ?? request.organization?.name ?? request.requester?.fullName ?? 'Bên nhận'
   const contact = request.counterpartContact
+  // Với tổ chức, backend trả thông tin liên hệ dạng chữ (contact_info), không chắc là số điện thoại
+  const dialable = contact?.phone && PHONE_PATTERN.test(contact.phone) ? contact.phone.replace(/[\s.]/g, '') : null
 
   return (
     <section aria-labelledby="receiver-title" className="rounded-xl border border-tf-surface bg-white p-5">
@@ -66,12 +70,14 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
         <div className="flex gap-2">
           <Phone className="mt-1 size-4 shrink-0 text-tf-ink-muted" aria-hidden />
           <div>
-            <dt className="font-semibold text-tf-ink">Số điện thoại</dt>
+            <dt className="font-semibold text-tf-ink">Liên hệ</dt>
             <dd className="text-tf-ink-muted">
-              {contact?.phone ? (
-                <a href={`tel:${contact.phone}`} className="font-semibold text-tf-primary hover:underline">
-                  {contact.phone}
+              {dialable ? (
+                <a href={`tel:${dialable}`} className="font-semibold text-tf-primary hover:underline">
+                  {contact?.phone}
                 </a>
+              ) : contact?.phone ? (
+                contact.phone
               ) : request.status === 'pending' ? (
                 'Hiển thị sau khi bạn đồng ý tặng'
               ) : (
