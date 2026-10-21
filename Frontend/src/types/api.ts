@@ -1,9 +1,6 @@
 // Response envelopes of the backend (server/docs/api-conventions.md).
-export interface ApiResponse<T> {
-  success: true
-  data: T
-  message?: string
-}
+export type { ApiResponse } from '../services/http-client'
+import type { ApiResponse } from '../services/http-client'
 
 export interface PaginationMeta {
   page: number
@@ -14,8 +11,7 @@ export interface PaginationMeta {
   hasPrevPage: boolean
 }
 
-export interface PaginatedResponse<T> {
-  success: true
+export interface PaginatedResponse<T> extends Omit<ApiResponse<T[]>, 'data'> {
   data: T[]
   pagination: PaginationMeta
 }
@@ -25,9 +21,9 @@ export interface ValidationErrorDetail {
   message: string
 }
 
+// Error body of develop's errorHandler.
 export interface ApiErrorBody {
-  success: false
-  error: { code: string; message: string; details?: unknown }
+  error?: { code: string; message: string; details?: unknown }
 }
 
 export interface PaginationParams {

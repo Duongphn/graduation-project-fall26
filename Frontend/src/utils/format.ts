@@ -1,5 +1,3 @@
-import { ageGroupLabels } from '../constants/labels'
-import type { AgeGroup } from '../constants/domain'
 import { dayjs } from './dayjs'
 
 const vnd = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' })
@@ -18,10 +16,7 @@ export const formatDateTime = (value: string | Date | null | undefined): string 
 export const formatFromNow = (value: string | Date | null | undefined): string =>
   value ? dayjs(value).fromNow() : '—'
 
-// "AGE_3_5" -> "3–5 tuổi"
-export const formatAgeGroup = (value: AgeGroup | null | undefined): string =>
-  value ? ageGroupLabels[value] : '—'
-
-// ["AGE_3_5", "AGE_6_8"] -> "3–5 tuổi, 6–8 tuổi"
-export const formatAgeGroups = (values: readonly AgeGroup[] | null | undefined): string =>
-  values && values.length > 0 ? values.map((value) => ageGroupLabels[value]).join(', ') : '—'
+// { minAge: 3, maxAge: 8 } -> "3–8 tuổi" (develop's toys.ageRange)
+export const formatAgeRange = (
+  value: { minAge: number; maxAge: number } | null | undefined,
+): string => (value ? `${value.minAge}–${value.maxAge} tuổi` : '—')

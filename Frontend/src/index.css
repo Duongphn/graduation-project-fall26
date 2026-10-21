@@ -97,8 +97,8 @@
   --color-night-700: #3a3b47;
 }
 
-/* Màu dùng chung: giá trị nằm trong src/styles/palette.ts và được ghi thành biến --tf-* lúc
-   khởi động (applyCssVariables). Ví dụ: bg-primary, text-muted, border-border. */
+/* Màu của khu quản trị và trang quyên góp: giá trị nằm trong src/styles/palette.ts và được ghi
+   thành biến --tf-* lúc khởi động (applyCssVariables). Ví dụ: bg-primary, text-muted. */
 @theme inline {
   --color-primary: var(--tf-primary);
   --color-primary-hover: var(--tf-primary-hover);

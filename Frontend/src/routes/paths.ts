@@ -33,8 +33,7 @@ export const charityOrganizationPath = (organizationId: string) =>
 
 export const myDonationPath = (requestId: string) => PATHS.myDonation.replace(':requestId', requestId)
 
-// Paths of the admin pages: admin-routes, admin-menu and every feature link use these, so a path
-// is written once.
+// Paths of the admin pages: admin-routes, admin-menu and every feature link use these.
 export const ADMIN_ROOT = '/admin'
 
 export const adminPaths = {
@@ -55,6 +54,7 @@ export const adminChildPath = (path: string, suffix = '') =>
 
 // First breadcrumb item of every admin page.
 export const adminHomeCrumb = { title: 'Quản trị', to: ADMIN_ROOT }
+
 export const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId', toyId)
 
 export interface BrowseToysFilters {

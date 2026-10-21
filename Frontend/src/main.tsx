@@ -7,7 +7,7 @@ import { ThemeProvider } from './contexts/theme-provider'
 import { queryClient } from './services/query-client'
 import { applyCssVariables } from './styles/theme'
 
-// Write the shared palette as CSS variables before the first render (Tailwind colours).
+// Biến màu --tf-* cho khu quản trị và trang quyên góp (src/styles/palette.ts).
 applyCssVariables()
 
 createRoot(document.getElementById('root')!).render(

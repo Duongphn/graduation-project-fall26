@@ -18,16 +18,25 @@ const TOKEN_CHANGE_EVENT = 'toyflow:access-token-change'
 
 const notifyTokenChange = () => window.dispatchEvent(new Event(TOKEN_CHANGE_EVENT))
 
-/**
- * "Ghi nhớ đăng nhập" → localStorage (giữ qua phiên), ngược lại → sessionStorage (mất khi đóng tab).
- * `user` (nếu có) được lưu kèm để header hiện tên mà không cần gọi API.
- */
-export function saveAuthTokens({ accessToken, refreshToken }: StoredTokens, remember: boolean, user?: StoredUser) {
+/** "Ghi nhớ đăng nhập" → localStorage (giữ qua phiên), ngược lại → sessionStorage (mất khi đóng tab) */
+export function saveAuthTokens({ accessToken, refreshToken }: StoredTokens, remember: boolean) {
   clearAuthTokens()
   const storage = remember ? localStorage : sessionStorage
   storage.setItem(ACCESS_TOKEN_KEY, accessToken)
   storage.setItem(REFRESH_TOKEN_KEY, refreshToken)
-  if (user) storage.setItem(USER_KEY, JSON.stringify({ id: user.id, fullName: user.fullName }))
+  notifyTokenChange()
+}
+
+/** Lưu phiên kèm thông tin hiển thị của người dùng */
+export function saveSession(
+  session: { accessToken: string; refreshToken?: string; user: StoredUser },
+  remember: boolean,
+) {
+  clearAuthTokens()
+  const storage = remember ? localStorage : sessionStorage
+  storage.setItem(ACCESS_TOKEN_KEY, session.accessToken)
+  if (session.refreshToken) storage.setItem(REFRESH_TOKEN_KEY, session.refreshToken)
+  storage.setItem(USER_KEY, JSON.stringify({ id: session.user.id, fullName: session.user.fullName }))
   notifyTokenChange()
 }
 
@@ -59,6 +68,9 @@ export function clearAuthTokens() {
   }
   notifyTokenChange()
 }
+
+/** Tên cũ của clearAuthTokens */
+export const clearAccessToken = clearAuthTokens
 
 /** Đăng ký nghe thay đổi đăng nhập/đăng xuất (cả tab này lẫn tab khác) — dùng với useSyncExternalStore */
 export function subscribeAccessToken(onChange: () => void): () => void {

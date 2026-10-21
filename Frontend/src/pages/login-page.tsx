@@ -7,14 +7,15 @@ import {
   GOOGLE_OTP_RESEND_SECONDS,
   resendGoogleOtp,
   verifyGoogleOtp,
-  type AuthSession,
+  type AuthTokens,
 } from '../features/auth/auth-api'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
-import { PATHS } from '../routes/paths'
+import { ADMIN_ROOT, PATHS } from '../routes/paths'
 import { getApiErrorMessage } from '../services/http-client'
 import { queryClient } from '../services/query-client'
+import { getCurrentRole } from '../services/current-role'
 import { saveAuthTokens } from '../services/token-storage'
 import { maskEmail } from '../utils/mask-contact'
 
@@ -42,7 +43,10 @@ export function LoginPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as LoginPageState | null
   // Chưa có trang chủ (`/` đang quay về /login) nên mặc định đưa vào trang hồ sơ
-  const redirectTo = state?.from ?? PATHS.profile
+  // ?redirect= comes from the /admin guard; only same-site paths are accepted.
+  const redirectParam = searchParams.get('redirect')
+  const safeRedirect = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
+  const redirectTo = state?.from ?? safeRedirect ?? PATHS.profile
   const registeredIdentifier = state?.registeredIdentifier
 
   // Sau khi Google xác thực, backend chuyển về một trong hai dạng:
@@ -64,17 +68,18 @@ export function LoginPage() {
   })
 
   const completeLogin = useCallback(
-    ({ tokens, user }: AuthSession, rememberMe: boolean) => {
-      saveAuthTokens(tokens, rememberMe, user)
+    (tokens: AuthTokens, rememberMe: boolean) => {
+      saveAuthTokens(tokens, rememberMe)
       // Bỏ dữ liệu/lỗi 401 đã cache trước khi đăng nhập để trang đích tải lại bằng token mới
       queryClient.clear()
-      navigate(redirectTo, { replace: true })
+      const target = getCurrentRole() === 'ADMIN' && !redirectTo.startsWith(ADMIN_ROOT) ? ADMIN_ROOT : redirectTo
+      navigate(target, { replace: true })
     },
     [navigate, redirectTo],
   )
 
   useEffect(() => {
-    if (googleExchange.data) completeLogin(googleExchange.data, true)
+    if (googleExchange.data) completeLogin(googleExchange.data.tokens, true)
   }, [googleExchange.data, completeLogin])
 
   if (googleCode && !googleExchange.isError) {
@@ -113,7 +118,7 @@ export function LoginPage() {
           resendAfterSeconds={GOOGLE_OTP_RESEND_SECONDS}
           verify={(otpCode) => verifyGoogleOtp({ tempToken: googleTempToken, otpCode })}
           resend={() => resendGoogleOtp(googleTempToken)}
-          onVerified={(session) => completeLogin(session, true)}
+          onVerified={({ tokens }) => completeLogin(tokens, true)}
           submitLabel="Xác minh và tạo tài khoản"
           backLabel="Đăng nhập cách khác"
           onBack={() => setSearchParams({}, { replace: true })}
@@ -136,7 +141,7 @@ export function LoginPage() {
             <Alert type="error" showIcon title={getApiErrorMessage(googleExchange.error)} className="auth-form__alert" />
           )}
 
-          <LoginForm defaultIdentifier={registeredIdentifier} onSuccess={(session, rememberMe) => completeLogin(session, rememberMe)} />
+          <LoginForm defaultIdentifier={registeredIdentifier} onSuccess={({ tokens }, rememberMe) => completeLogin(tokens, rememberMe)} />
         </>
       )}
     </AuthLayout>

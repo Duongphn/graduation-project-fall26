@@ -10,6 +10,21 @@ import {
   myListingQuery,
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
+import { ForgotPasswordPage } from '../pages/forgot-password-page'
+import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
+import { IdentityVerificationPage } from '../pages/identity-verification-page'
+import { HomePage } from '../pages/home-page'
+import { LoginPage } from '../pages/login-page'
+import { MyListingsPage } from '../pages/my-listings-page'
+import { ProfilePage } from '../pages/profile-page'
+import { RegisterPage } from '../pages/register-page'
+import { ToyDetailPage } from '../pages/toy-detail-page'
+import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
+import { ToySearchPage } from '../pages/toy-search-page'
+import { queryClient } from '../services/query-client'
+import { getAccessToken } from '../services/token-storage'
+import { PATHS } from './paths'
+import { RequireAuth } from './require-auth'
 import {
   completedDonationsQuery,
   myDonationQuery,
@@ -23,26 +38,11 @@ import {
 } from '../features/organizations/public-queries'
 import { CharityOrganizationDetailPage } from '../pages/charity-organization-detail-page'
 import { CharityOrganizationsPage } from '../pages/charity-organizations-page'
-import { ForgotPasswordPage } from '../pages/forgot-password-page'
-import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
-import { IdentityVerificationPage } from '../pages/identity-verification-page'
-import { HomePage } from '../pages/home-page'
-import { LoginPage } from '../pages/login-page'
+import { DonationHistoryPage } from '../pages/donation-history-page'
 import { MyDonationDetailPage } from '../pages/my-donation-detail-page'
 import { MyDonationsPage } from '../pages/my-donations-page'
 import { NewDonationPage } from '../pages/new-donation-page'
-import { DonationHistoryPage } from '../pages/donation-history-page'
-import { MyListingsPage } from '../pages/my-listings-page'
-import { ProfilePage } from '../pages/profile-page'
-import { RegisterPage } from '../pages/register-page'
-import { ToyDetailPage } from '../pages/toy-detail-page'
-import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
-import { ToySearchPage } from '../pages/toy-search-page'
-import { queryClient } from '../services/query-client'
-import { getAccessToken } from '../services/token-storage'
-import { PATHS } from './paths'
 import { adminRoute } from './router'
-import { RequireAuth } from './require-auth'
 
 // Lỗi vẫn được lưu trong cache query, trang tự đọc và hiển thị (vd. 401 kèm nút đăng nhập)
 const ignoreError = () => undefined
@@ -54,8 +54,8 @@ const isGuest = () => getAccessToken() === null
 async function homeLoader() {
   await Promise.all([
     queryClient.query(homeCategoriesQuery).catch(ignoreError), // GET /categories
-    queryClient.infiniteQuery(featuredRentalsQuery).catch(ignoreError), // GET /toys?type=rent&sort=newest&page=1
-    queryClient.infiniteQuery(resaleToysQuery).catch(ignoreError), // GET /toys?type=sell&sort=newest&page=1
+    queryClient.infiniteQuery(featuredRentalsQuery).catch(ignoreError), // GET /toys?listingType=rent&sort=popular&page=1
+    queryClient.infiniteQuery(resaleToysQuery).catch(ignoreError), // GET /toys?listingType=sell&sort=newest&page=1
   ])
   return null
 }
@@ -110,7 +110,7 @@ async function toyDetailLoader({ params }: LoaderFunctionArgs) {
 
 async function charityOrganizationsLoader({ request }: LoaderFunctionArgs) {
   const filters = parseOrganizationSearch(new URL(request.url).searchParams)
-  await queryClient.query(organizationListQuery(filters)).catch(ignoreError) // GET /organizations?q=&province=&ageGroup=&page=
+  await queryClient.query(organizationListQuery(filters)).catch(ignoreError) // GET /organizations?q=&page=
   return null
 }
 
@@ -267,8 +267,6 @@ export const router = createBrowserRouter([
     HydrateFallback: PageLoadingFallback,
   },
   adminRoute,
-  // Chưa có trang chủ: tạm đưa mọi đường dẫn về trang đăng nhập
-  { path: '*', element: <Navigate to={PATHS.login} replace /> },
   // Trang chưa xây (danh sách đồ, chi tiết, quyên góp…) và đường dẫn sai: đưa về trang chủ
   { path: '*', element: <Navigate to={PATHS.home} replace /> },
 ])

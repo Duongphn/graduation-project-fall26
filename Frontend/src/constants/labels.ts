@@ -1,33 +1,11 @@
-import type {
-  ActorType,
-  AgeGroup,
-  DonationReceiverType,
-  HandoverStep,
-  ListingType,
-  ToyCondition,
-} from './domain'
+import type { ActorType, DonationReceiverType, HandoverStep, ListingType } from './domain'
 
 // Vietnamese labels of the value lists that are not statuses (statuses: src/styles/status.ts).
 
 export const listingTypeLabels: Record<ListingType, string> = {
-  RENT: 'Cho thuê',
-  SALE: 'Bán lại',
-  DONATION: 'Tặng',
-}
-
-export const toyConditionLabels: Record<ToyCondition, string> = {
-  NEW: 'Mới',
-  LIKE_NEW: 'Như mới',
-  GOOD: 'Tốt',
-  FAIR: 'Đã qua sử dụng',
-}
-
-export const ageGroupLabels: Record<AgeGroup, string> = {
-  AGE_0_2: '0–2 tuổi',
-  AGE_3_5: '3–5 tuổi',
-  AGE_6_8: '6–8 tuổi',
-  AGE_9_12: '9–12 tuổi',
-  AGE_13_PLUS: 'Từ 13 tuổi',
+  rent: 'Cho thuê',
+  sell: 'Bán lại',
+  donate: 'Tặng',
 }
 
 export const donationReceiverTypeLabels: Record<DonationReceiverType, string> = {
