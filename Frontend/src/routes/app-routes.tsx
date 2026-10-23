@@ -2,7 +2,12 @@ import { createBrowserRouter, Navigate, type LoaderFunctionArgs } from 'react-ro
 import { PageLoadingFallback } from '../components/ui/page-loading-fallback'
 import { parseCatalogSearch } from '../features/toy-catalog/catalog-search-params'
 import { toyDetailQuery, toySearchQuery } from '../features/toy-catalog/toy-catalog-queries'
-import { featuredRentalsQuery, homeCategoriesQuery, resaleToysQuery } from '../features/home/home-queries'
+import {
+  donateToysQuery,
+  featuredRentalsQuery,
+  homeCategoriesQuery,
+  resaleToysQuery,
+} from '../features/home/home-queries'
 import { parseMyListingsSearch } from '../features/toy-listings/listing-display'
 import {
   categoriesQuery,
@@ -42,6 +47,9 @@ import { DonationHistoryPage } from '../pages/donation-history-page'
 import { MyDonationDetailPage } from '../pages/my-donation-detail-page'
 import { MyDonationsPage } from '../pages/my-donations-page'
 import { NewDonationPage } from '../pages/new-donation-page'
+import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
+import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
+import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
 import { adminRoute } from './router'
 
 // Lỗi vẫn được lưu trong cache query, trang tự đọc và hiển thị (vd. 401 kèm nút đăng nhập)
@@ -56,6 +64,7 @@ async function homeLoader() {
     queryClient.query(homeCategoriesQuery).catch(ignoreError), // GET /categories
     queryClient.infiniteQuery(featuredRentalsQuery).catch(ignoreError), // GET /toys?listingType=rent&sort=popular&page=1
     queryClient.infiniteQuery(resaleToysQuery).catch(ignoreError), // GET /toys?listingType=sell&sort=newest&page=1
+    queryClient.infiniteQuery(donateToysQuery).catch(ignoreError), // GET /toys?listingType=donate&sort=newest&page=1
   ])
   return null
 }
@@ -152,6 +161,19 @@ async function myDonationLoader({ params }: LoaderFunctionArgs) {
     queryClient.query(myDonationQuery(params.requestId!)).catch(ignoreError), // GET /donation-requests/:id
     queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (biết mình có phải người tặng)
   ])
+  return null
+}
+
+async function myRequestsLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const filters = parseMyDonationsSearch(new URL(request.url).searchParams)
+  await queryClient.query(myRequestsQuery(filters)).catch(ignoreError) // GET /donation-requests/mine?status=&page=
+  return null
+}
+
+async function myRequestLoader({ params }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  await queryClient.query(myRequestQuery(params.requestId!)).catch(ignoreError) // GET /donation-requests/:id
   return null
 }
 
@@ -262,6 +284,26 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <MyDonationDetailPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonationRequests,
+    loader: myRequestsLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationRequestsPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonationRequest,
+    loader: myRequestLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationRequestDetailPage />
       </RequireAuth>
     ),
     HydrateFallback: PageLoadingFallback,

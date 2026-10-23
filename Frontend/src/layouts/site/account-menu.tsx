@@ -1,7 +1,7 @@
-import { Heart, LogOut, Package, Plus, UserRound } from 'lucide-react'
+import { Gift, HandHeart, Heart, LogOut, Package, Plus, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PATHS } from '../../routes/paths'
-import { clearAuthTokens } from '../../services/token-storage'
+import { logout } from '../../features/auth/auth-api'
 import { HeaderPopover } from './header-popover'
 
 /** Ảnh đại diện góc phải header (chỉ hiện khi đã đăng nhập): menu tài khoản */
@@ -23,6 +23,12 @@ export function AccountMenu() {
           <Link to={PATHS.newListing} className="account-menu__link" onClick={close}>
             <Plus aria-hidden /> Đăng đồ chơi mới
           </Link>
+          <Link to={PATHS.myDonations} className="account-menu__link" onClick={close}>
+            <HandHeart aria-hidden /> Quyên góp của tôi
+          </Link>
+          <Link to={PATHS.myDonationRequests} className="account-menu__link" onClick={close}>
+            <Gift aria-hidden /> Yêu cầu nhận đồ của tôi
+          </Link>
           <Link to={PATHS.favorites} className="account-menu__link" onClick={close}>
             <Heart aria-hidden /> Yêu thích
           </Link>
@@ -30,9 +36,8 @@ export function AccountMenu() {
             type="button"
             className="account-menu__link account-menu__link--danger"
             onClick={() => {
-              clearAuthTokens()
               close()
-              navigate(PATHS.home)
+              void logout().then(() => navigate(PATHS.home))
             }}
           >
             <LogOut aria-hidden /> Đăng xuất

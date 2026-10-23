@@ -1,5 +1,6 @@
 import { Button, Input, Select, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import {
@@ -15,6 +16,7 @@ import type { DonationReceiverType, DonationStatus } from '../../../constants/do
 import { donationReceiverTypeLabels, toOptions } from '../../../constants/labels'
 import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb, adminPaths } from '../../../routes/paths'
+import { CreateOrganizationRequestModal } from '../components/CreateOrganizationRequestModal'
 import { donationSortFields } from '../constants'
 import type { DonationSortField } from '../constants'
 import { useDonationCounts, useDonationRequests } from '../hooks'
@@ -30,6 +32,7 @@ const isSortField = (value: unknown): value is DonationSortField =>
 // Admin queue of donation requests (FE-02 / BF-04), filtered by status tabs.
 export function AdminDonationRequestsPage() {
   const navigate = useNavigate()
+  const [creating, setCreating] = useState(false)
   const list = useListParams({ schema: donationFiltersSchema, sortFields: donationSortFields })
   const { status, receiverType, q } = list.filters
   const query = useDonationRequests(list.params)
@@ -98,7 +101,13 @@ export function AdminDonationRequestsPage() {
         title="Yêu cầu nhận tặng"
         description="Duyệt, từ chối, huỷ và xác nhận nhận hàng thay bên nhận."
         breadcrumb={[adminHomeCrumb, { title: 'Yêu cầu nhận tặng' }]}
+        actions={
+          <Button type="primary" onClick={() => setCreating(true)}>
+            Tạo yêu cầu cho tổ chức
+          </Button>
+        }
       />
+      <CreateOrganizationRequestModal open={creating} onClose={() => setCreating(false)} />
       <StatusTabs
         domain="donation"
         value={status}

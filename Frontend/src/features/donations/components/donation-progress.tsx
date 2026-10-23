@@ -14,7 +14,15 @@ interface Step {
 const STEP_OF_STATUS = { pending: 0, accepted: 1, shipping: 2, received: 2, completed: 3 } as const
 
 /** Tiến trình 4 bước của một phiếu, mốc thời gian lấy từ phiếu và lần bàn giao (DONOR_SENT) */
-export function DonationProgress({ request }: { request: DonationRequestDetail }) {
+export function DonationProgress({
+  request,
+  perspective = 'donor',
+}: {
+  request: DonationRequestDetail
+  // Bên nhận xem cùng tiến trình với lời nhắc theo vai của mình
+  perspective?: 'donor' | 'receiver'
+}) {
+  const forReceiver = perspective === 'receiver'
   if (request.status === 'rejected' || request.status === 'cancelled') {
     const reason = request.status === 'rejected' ? request.rejectReason : request.cancellation?.note
     return (
@@ -22,7 +30,11 @@ export function DonationProgress({ request }: { request: DonationRequestDetail }
         <CircleX className="mt-0.5 size-5 shrink-0 text-tf-ink-muted" aria-hidden />
         <div className="text-sm leading-6">
           <p className="font-semibold text-tf-ink">
-            {request.status === 'rejected' ? 'Yêu cầu nhận đã bị từ chối' : 'Phiếu quyên góp đã huỷ'}
+            {request.status === 'rejected'
+              ? 'Yêu cầu nhận đã bị từ chối'
+              : forReceiver
+                ? 'Yêu cầu nhận đã huỷ'
+                : 'Phiếu quyên góp đã huỷ'}
             {request.cancellation && ` · ${formatDateTime(request.cancellation.at)}`}
           </p>
           {reason && <p className="text-tf-ink-muted">{reason}</p>}
@@ -33,9 +45,24 @@ export function DonationProgress({ request }: { request: DonationRequestDetail }
 
   const sent = request.handovers.find((handover) => handover.step === 'DONOR_SENT')
   const steps: Step[] = [
-    { icon: HandHeart, title: 'Có người đăng ký nhận', at: request.createdAt, hint: 'Chờ bạn đồng ý tặng' },
-    { icon: UserRoundCheck, title: 'Đồng ý & đóng gói', at: request.decidedAt, hint: 'Đóng gói và gửi đồ chơi' },
-    { icon: Truck, title: 'Đang chuyển tới bên nhận', at: sent?.at ?? null, hint: 'Chờ bên nhận xác nhận' },
+    {
+      icon: HandHeart,
+      title: forReceiver ? 'Đã gửi yêu cầu nhận' : 'Có người đăng ký nhận',
+      at: request.createdAt,
+      hint: forReceiver ? 'Chờ người tặng đồng ý' : 'Chờ bạn đồng ý tặng',
+    },
+    {
+      icon: UserRoundCheck,
+      title: 'Đồng ý & đóng gói',
+      at: request.decidedAt,
+      hint: forReceiver ? 'Người tặng chuẩn bị gửi đồ chơi' : 'Đóng gói và gửi đồ chơi',
+    },
+    {
+      icon: Truck,
+      title: 'Đang chuyển tới bên nhận',
+      at: sent?.at ?? null,
+      hint: forReceiver ? 'Xác nhận khi bạn nhận được' : 'Chờ bên nhận xác nhận',
+    },
     { icon: PackageCheck, title: 'Bên nhận đã nhận', at: request.completedAt, hint: 'Hoàn tất quyên góp' },
   ]
   const current = STEP_OF_STATUS[request.status]

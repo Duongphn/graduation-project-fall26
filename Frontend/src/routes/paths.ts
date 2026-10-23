@@ -18,6 +18,8 @@ export const PATHS = {
   newDonation: '/donations/new',
   donationHistory: '/profile/donations',
   myDonation: '/donations/:requestId',
+  myDonationRequests: '/donation-requests/mine',
+  myDonationRequest: '/donation-requests/:requestId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   donations: '/donations',
@@ -26,10 +28,16 @@ export const PATHS = {
   help: '/help',
 } as const
 
+/** Mục "Đồ chơi quyên góp" trên trang chủ (/#do-choi-quyen-gop) */
+export const DONATE_TOYS_ANCHOR = 'do-choi-quyen-gop'
+
 export const toyListingEditPath = (toyId: string) => PATHS.editListing.replace(':toyId', toyId)
 
 export const charityOrganizationPath = (organizationId: string) =>
   PATHS.charityOrganization.replace(':organizationId', organizationId)
+
+export const myDonationRequestPath = (requestId: string) =>
+  PATHS.myDonationRequest.replace(':requestId', requestId)
 
 export const myDonationPath = (requestId: string) => PATHS.myDonation.replace(':requestId', requestId)
 

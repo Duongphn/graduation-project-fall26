@@ -62,3 +62,27 @@ export const composeHandoverNote = ({ method, carrier, trackingCode, note }: Shi
   ]
     .filter(Boolean)
     .join('\n')
+
+// Receiver asks for a donation toy (POST /donation-requests): an optional message to the Donor.
+export const requestToySchema = z.object({
+  message: z.string().trim().max(1000, 'Tối đa 1000 ký tự.'),
+})
+export type RequestToyValues = z.infer<typeof requestToySchema>
+
+// Receiver confirms receipt (POST /donation-requests/:id/confirm-received): 1–10 HANDOVER_PHOTO.
+export const confirmReceiptSchema = z.object({
+  photos: z
+    .array(z.object({ publicId: z.string(), url: z.string(), format: z.string() }))
+    .min(1, 'Cần ít nhất 1 ảnh đồ chơi lúc nhận.')
+    .max(10, 'Tối đa 10 ảnh.'),
+  note: z.string().trim().max(1000, 'Tối đa 1000 ký tự.'),
+})
+export type ConfirmReceiptValues = z.infer<typeof confirmReceiptSchema>
+
+// Admin creates a request for an organization (POST /admin/donation-requests).
+export const createOrganizationRequestSchema = z.object({
+  toyId: z.string().min(1, 'Chọn đồ chơi quyên góp.'),
+  organizationId: z.string().min(1, 'Chọn tổ chức tiếp nhận.'),
+  message: z.string().trim().max(1000, 'Tối đa 1000 ký tự.'),
+})
+export type CreateOrganizationRequestValues = z.infer<typeof createOrganizationRequestSchema>

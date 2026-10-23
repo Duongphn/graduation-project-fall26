@@ -15,6 +15,7 @@ interface ToyCardProps {
 const LISTING_TYPE_LABELS: Record<PublicToy['listingType'], string> = {
   rent: 'Cho thuê',
   sell: 'Bán lại',
+  donate: 'Quyên góp',
 }
 
 /** Thẻ đồ chơi dùng chung cho mục thuê và bán lại — cả thẻ bấm được nhờ link phủ (stretched link) */
@@ -38,7 +39,7 @@ export function ToyCard({ toy, category }: ToyCardProps) {
         </h3>
 
         <p className="toy-card__price">
-          {formatVnd(toy.priceOrRate)}
+          {toy.listingType === 'donate' ? 'Miễn phí' : formatVnd(toy.priceOrRate)}
           {isRent && <span className="toy-card__unit"> /ngày</span>}
         </p>
         {isRent && toy.depositPrice !== undefined && (

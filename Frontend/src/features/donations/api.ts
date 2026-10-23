@@ -15,6 +15,10 @@ export const donationRequestsApi = {
 
   counts: (params: DonationCountParams) => apiGet<DonationCounts>(`${BASE}/counts`, params),
 
+  // Admin creates a request on behalf of an organization (receiverType ORGANIZATION).
+  create: (input: { toyId: string; organizationId: string; message?: string }) =>
+    apiPost<DonationRequestDetail>(BASE, input),
+
   detail: (id: string) => apiGet<DonationRequestDetail>(`${BASE}/${id}`),
 
   accept: (id: string) => apiPost<DonationRequestDetail>(`${BASE}/${id}/accept`),

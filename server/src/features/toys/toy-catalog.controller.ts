@@ -1,8 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
-import type { ListingType } from './toy-listing.ports.js';
-import type { ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
+import type { CatalogListingType, ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
 
 import {
   validateAvailabilityQuery,
@@ -14,7 +13,7 @@ import type { ToyCatalogService } from './toy-catalog.service.js';
 export const DEFAULT_CATALOG_LIMIT = 20;
 export const MAX_CATALOG_LIMIT = 100;
 
-const LISTING_TYPES: readonly ListingType[] = ['rent', 'sell'];
+const LISTING_TYPES: readonly CatalogListingType[] = ['rent', 'sell', 'donate'];
 const SORTS: readonly ToyCatalogSort[] = ['newest', 'popular'];
 
 const invalid = (message: string) => new AppError(400, 'VALIDATION_ERROR', message);

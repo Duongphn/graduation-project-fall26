@@ -392,6 +392,17 @@ describe('GET /api/v1/toys (public catalog)', () => {
     expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([match.id]);
   });
 
+  it('lists donation posts with listingType=donate', async () => {
+    const donation = makeToy({ listingType: 'donate', priceOrRate: 0, depositPrice: undefined });
+    const app = setup([donation, makeToy({ listingType: 'rent' }), makeToy({ listingType: 'sell' })]);
+
+    const response = await request(app).get('/api/v1/toys').query({ listingType: 'donate' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([donation.id]);
+    expect(response.body.items[0]).toMatchObject({ listingType: 'donate', priceOrRate: 0 });
+  });
+
   it('sorts newest first by default and paginates', async () => {
     const [newest, middle, oldest] = [makeToy(), makeToy(), makeToy()]; // tin tạo sau có createdAt cũ hơn
     const app = setup([oldest, newest, middle]);
@@ -435,7 +446,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
   });
 
   it.each([
-    ['listingType', { listingType: 'donate' }],
+    ['listingType', { listingType: 'swap' }],
     ['sort', { sort: 'cheapest' }],
     ['categoryId', { categoryId: 'not-an-id' }],
     ['page', { page: 0 }],

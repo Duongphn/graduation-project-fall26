@@ -1,4 +1,6 @@
 import { httpClient, type ApiResponse } from '../../services/http-client'
+import { queryClient } from '../../services/query-client'
+import { clearAuthTokens, getRefreshToken } from '../../services/token-storage'
 import type { LoginFormValues, RegisterFormValues } from './auth-schemas'
 
 export type UserRole = 'USER' | 'ADMIN'
@@ -99,4 +101,20 @@ export async function resendGoogleOtp(tempToken: string): Promise<{ resendAfterS
 
 export function getGoogleAuthUrl(): string {
   return `${httpClient.defaults.baseURL}/auth/google`
+}
+
+/**
+ * Đăng xuất: thu hồi refresh token trên máy chủ (POST /auth/logout) rồi xoá phiên ở trình duyệt.
+ * Máy chủ lỗi hoặc mất mạng vẫn xoá phiên cục bộ để người dùng không bị kẹt.
+ */
+export async function logout(): Promise<void> {
+  const refreshToken = getRefreshToken()
+  try {
+    if (refreshToken) await httpClient.post('/auth/logout', { refreshToken })
+  } catch {
+    // Bỏ qua: token có thể đã hết hạn hoặc bị thu hồi
+  } finally {
+    clearAuthTokens()
+    queryClient.clear()
+  }
 }

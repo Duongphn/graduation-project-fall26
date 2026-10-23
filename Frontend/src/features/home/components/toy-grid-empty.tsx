@@ -12,7 +12,7 @@ export interface ToyGridEmptyContent {
 interface ToyGridEmptyProps extends ToyGridEmptyContent {
   /** Số thẻ khung mờ phía sau (1 hàng) — chỉ để giữ nhịp bố cục, không phải dữ liệu */
   ghostCount: number
-  variant: 'rent' | 'sell'
+  variant: 'rent' | 'sell' | 'donate'
 }
 
 /** Trạng thái chưa có tin: hàng thẻ khung mờ (trang trí) + lời mời đăng tin ở giữa */

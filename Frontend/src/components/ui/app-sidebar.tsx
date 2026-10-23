@@ -1,5 +1,6 @@
 import {
   CircleUserRound,
+  Gift,
   HandHeart,
   Heart,
   KeyRound,
@@ -16,13 +17,15 @@ import { Link, useNavigate } from "react-router-dom";
 import brandMark from "../../assets/brand/toyflow-mark.png";
 import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
-import { clearAuthTokens, getAccessToken } from "../../services/token-storage";
+import { logout } from "../../features/auth/auth-api";
+import { getAccessToken } from "../../services/token-storage";
 
 export type SidebarItemKey =
   | "browse"
   | "donations"
   | "profile"
   | "listings"
+  | "donationRequests"
   | "rentals"
   | "wallet"
   | "favorites"
@@ -56,7 +59,13 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     key: "listings",
     label: "Tin đăng của tôi",
     icon: Package,
-    to: PATHS.newListing,
+    to: PATHS.myListings,
+  },
+  {
+    key: "donationRequests",
+    label: "Yêu cầu nhận đồ của tôi",
+    icon: Gift,
+    to: PATHS.myDonationRequests,
   },
   { key: "rentals", label: "Đơn đặt thuê", icon: ReceiptText },
   { key: "wallet", label: "Ví ToyFlow", icon: Wallet },
@@ -86,8 +95,7 @@ export function LogoutButton() {
       type="button"
       className="app-sidebar__item app-sidebar__item--logout"
       onClick={() => {
-        clearAuthTokens();
-        navigate(PATHS.login, { replace: true });
+        void logout().then(() => navigate(PATHS.login, { replace: true }));
       }}
     >
       <LogOut aria-hidden />

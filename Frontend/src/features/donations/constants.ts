@@ -57,3 +57,10 @@ export const donorRejectReasonPresets = [
   'Bên nhận ở quá xa, tôi không gửi được',
   'Đồ chơi không phù hợp với độ tuổi bên nhận',
 ] as const
+
+// Quick reasons when the receiver cancels their own request before shipping.
+export const receiverCancelReasonPresets = [
+  'Tôi không còn nhu cầu nhận đồ chơi này',
+  'Tôi đã tìm được món đồ chơi khác',
+  'Không thống nhất được cách nhận đồ',
+] as const

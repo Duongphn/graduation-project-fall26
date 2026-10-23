@@ -40,6 +40,14 @@ export function saveSession(
   notifyTokenChange()
 }
 
+/** Sau khi làm mới token: ghi đè cặp token ở đúng nơi đang lưu, giữ nguyên thông tin người dùng */
+export function replaceAuthTokens({ accessToken, refreshToken }: StoredTokens) {
+  const storage = localStorage.getItem(REFRESH_TOKEN_KEY) !== null ? localStorage : sessionStorage
+  storage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  storage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+  notifyTokenChange()
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY) ?? sessionStorage.getItem(ACCESS_TOKEN_KEY)
 }
