@@ -116,8 +116,6 @@
     @apply -rotate-6;
   }
 
-  .app-sidebar-brand__name {
-    @apply text-lg leading-none font-bold tracking-[-0.02em] text-tf-primary;
   .app-sidebar-brand__text {
     @apply flex flex-col;
   }

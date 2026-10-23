@@ -44,7 +44,8 @@ export const toySchema = new Schema<IToy>(
     title: { type: String, required: true },
     description: { type: String, required: true },
     condition: { type: String, required: true },
-    listingType: { type: String, required: true, enum: ['rent', 'sell'] },
+    // 'donate': free donation posts (donor flow); develop's listing service handles rent/sell.
+    listingType: { type: String, required: true, enum: ['rent', 'sell', 'donate'] },
     priceOrRate: { type: Number, required: true },
     depositPrice: { type: Number },
     status: {
@@ -60,6 +61,10 @@ export const toySchema = new Schema<IToy>(
     },
     moderation: {
       submittedAt: { type: Date },
+      // Set by the Admin toy moderation (approve / reject).
+      reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      reviewedAt: { type: Date },
+      rejectReason: { type: String },
     },
     ageRange: {
       minAge: { type: Number, required: true },

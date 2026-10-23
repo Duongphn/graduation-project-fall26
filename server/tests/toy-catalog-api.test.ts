@@ -12,6 +12,16 @@ import type {
 } from '../src/features/toys/toy-catalog.ports.js';
 import { errorHandler } from '../src/shared/middleware/error-handler.js';
 
+import mongoose from 'mongoose';
+import { createApiRouter } from '../src/app/router.js';
+import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
+import type {
+  CatalogToyRecord,
+  ToyCatalogFilter,
+  ToyCatalogPorts,
+  ToyCatalogRepository,
+} from '../src/features/toys/toy-catalog.types.js';
+
 describe('UC05 Toy Catalog API', () => {
   let app: express.Express;
   let mockPort: ToyCatalogReadPort;
@@ -225,19 +235,8 @@ describe('UC05 Toy Catalog API', () => {
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe('NOT_FOUND');
     });
-import mongoose from 'mongoose';
-import request from 'supertest';
-import { describe, expect, it } from 'vitest';
-
-import { createApiRouter } from '../src/app/router.js';
-import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
-import type {
-  CatalogToyRecord,
-  ToyCatalogFilter,
-  ToyCatalogPorts,
-  ToyCatalogRepository,
-} from '../src/features/toys/toy-catalog.types.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+  });
+});
 
 const CATEGORY_A = new mongoose.Types.ObjectId().toString();
 const CATEGORY_B = new mongoose.Types.ObjectId().toString();
@@ -393,6 +392,17 @@ describe('GET /api/v1/toys (public catalog)', () => {
     expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([match.id]);
   });
 
+  it('lists donation posts with listingType=donate', async () => {
+    const donation = makeToy({ listingType: 'donate', priceOrRate: 0, depositPrice: undefined });
+    const app = setup([donation, makeToy({ listingType: 'rent' }), makeToy({ listingType: 'sell' })]);
+
+    const response = await request(app).get('/api/v1/toys').query({ listingType: 'donate' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([donation.id]);
+    expect(response.body.items[0]).toMatchObject({ listingType: 'donate', priceOrRate: 0 });
+  });
+
   it('sorts newest first by default and paginates', async () => {
     const [newest, middle, oldest] = [makeToy(), makeToy(), makeToy()]; // tin tạo sau có createdAt cũ hơn
     const app = setup([oldest, newest, middle]);
@@ -436,7 +446,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
   });
 
   it.each([
-    ['listingType', { listingType: 'donate' }],
+    ['listingType', { listingType: 'swap' }],
     ['sort', { sort: 'cheapest' }],
     ['categoryId', { categoryId: 'not-an-id' }],
     ['page', { page: 0 }],
@@ -473,7 +483,7 @@ describe('API router mount order', () => {
   }
 
   it('serves GET /toys publicly', async () => {
-    const response = await request(createAppWithFullRouter()).get('/api/v1/toys');
+    const response = await request(createAppWithFullRouter()).get('/api/v1/toys?listingType=rent');
 
     expect(response.status).toBe(200);
   });

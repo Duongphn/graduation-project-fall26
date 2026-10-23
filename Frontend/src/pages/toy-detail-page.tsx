@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Bookmark, ChevronRight, Flag, Home, MessageCircle, ShoppingBag } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { RequestDonationCard } from '../features/donations/components/request-donation-card'
 import { RentalBookingCard } from '../features/toy-catalog/components/rental-booking-card'
 import { SimilarToys } from '../features/toy-catalog/components/similar-toys'
 import { ToyGallery } from '../features/toy-catalog/components/toy-gallery'
@@ -15,6 +16,18 @@ import { PATHS } from '../routes/paths'
 import { getApiErrorCode, getApiErrorMessage } from '../services/http-client'
 
 const UPCOMING = 'Sắp ra mắt'
+
+const LISTING_LABELS: Record<ToyDetail['listingType'], string> = {
+  rent: 'Cho thuê',
+  sell: 'Bán lại',
+  donate: 'Quyên góp',
+}
+
+const SPEC_LABELS: Record<ToyDetail['listingType'], string> = {
+  rent: 'Cho thuê theo ngày',
+  sell: 'Bán lại',
+  donate: 'Tặng miễn phí',
+}
 
 /** "Mẹ Bảo Anh" → "BA": chữ cái đầu của hai từ cuối */
 const initialsOf = (name: string) =>
@@ -66,7 +79,7 @@ function SpecsCard({ toy }: { toy: ToyDetail }) {
     ['Độ tuổi phù hợp', formatAgeRange(toy.ageRange)],
     ['Danh mục', toy.category.name],
     ['Tình trạng', toy.condition],
-    ['Hình thức', isRent ? 'Cho thuê theo ngày' : 'Bán lại'],
+    ['Hình thức', SPEC_LABELS[toy.listingType]],
     ...(isRent && toy.depositPrice ? [['Tiền cọc', formatVnd(toy.depositPrice)] as [string, string]] : []),
     ['Ngày đăng', formatDate(toy.createdAt)],
   ]
@@ -213,7 +226,9 @@ export function ToyDetailPage() {
 
   const data = detail.data
   const isRent = data.listingType === 'rent'
-  const badge = <span className={`toy-detail__badge toy-detail__badge--${data.listingType}`}>{isRent ? 'Cho thuê' : 'Bán lại'}</span>
+  const isDonate = data.listingType === 'donate'
+  const label = LISTING_LABELS[data.listingType]
+  const badge = <span className={`toy-detail__badge toy-detail__badge--${data.listingType}`}>{label}</span>
 
   return (
     <Shell crumb={data}>
@@ -226,9 +241,7 @@ export function ToyDetailPage() {
 
         <aside className="toy-detail__side" aria-label="Thông tin chính">
           <header className="toy-detail__head">
-            <span className={`tf-pill ${isRent ? 'tf-pill--primary' : 'tf-pill--secondary'}`}>
-              {isRent ? 'Cho thuê' : 'Bán lại'}
-            </span>
+            <span className={`tf-pill ${isRent ? 'tf-pill--primary' : 'tf-pill--secondary'}`}>{label}</span>
             <h1 className="toy-detail__title">{data.title}</h1>
             <div className="toy-detail__actions">
               <button type="button" className="toy-detail__action" disabled title={UPCOMING}>
@@ -241,7 +254,15 @@ export function ToyDetailPage() {
           </header>
 
           <OwnerCard toy={data} />
-          <div id="dat-thue">{isRent ? <RentalBookingCard toy={data} /> : <BuyCard toy={data} />}</div>
+          <div id="dat-thue">
+            {isDonate ? (
+              <RequestDonationCard toyId={data.id} ownerId={data.owner.id} />
+            ) : isRent ? (
+              <RentalBookingCard toy={data} />
+            ) : (
+              <BuyCard toy={data} />
+            )}
+          </div>
         </aside>
       </div>
 

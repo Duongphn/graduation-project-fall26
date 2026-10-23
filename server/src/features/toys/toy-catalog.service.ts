@@ -8,8 +8,46 @@ import type {
   ToySearchResult,
 } from './toy-catalog.ports.js';
 
+import type {
+  CatalogToyRecord,
+  PublicToyDto,
+  ToyCatalogFilter,
+  ToyCatalogPage,
+  ToyCatalogPorts,
+  ToyCatalogQuery,
+  ToyCatalogRepository,
+} from './toy-catalog.types.js';
+
+/** "Phổ biến" = nhiều đơn thuê nhất trong khoảng thời gian này */
+export const POPULAR_WINDOW_DAYS = 7;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function toPublicDto(record: CatalogToyRecord): PublicToyDto {
+  return {
+    id: record.id,
+    categoryId: record.categoryId,
+    title: record.title,
+    condition: record.condition,
+    listingType: record.listingType,
+    priceOrRate: record.priceOrRate,
+    // Tiền cọc chỉ có nghĩa với tin cho thuê (cùng quy tắc với ToyListingService)
+    ...(record.listingType === 'rent' && record.depositPrice !== undefined
+      ? { depositPrice: record.depositPrice }
+      : {}),
+    ageRange: record.ageRange,
+    images: record.images,
+    createdAt: record.createdAt,
+  };
+}
+
 export class ToyCatalogService {
-  public constructor(private readonly readPort: ToyCatalogReadPort) {}
+  public constructor(
+    private readonly readPort: ToyCatalogReadPort,
+    private readonly repository?: ToyCatalogRepository,
+    private readonly ports?: ToyCatalogPorts,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   public async search(query: ToySearchQuery): Promise<ToySearchResult> {
     const { items, total } = await this.readPort.search(query);
@@ -95,48 +133,18 @@ export class ToyCatalogService {
 
     const periods = await this.readPort.findAvailability(toyId, from, to);
     return { periods };
-import type {
-  CatalogToyRecord,
-  PublicToyDto,
-  ToyCatalogFilter,
-  ToyCatalogPage,
-  ToyCatalogPorts,
-  ToyCatalogQuery,
-  ToyCatalogRepository,
-} from './toy-catalog.types.js';
+  }
 
-/** "Phổ biến" = nhiều đơn thuê nhất trong khoảng thời gian này */
-export const POPULAR_WINDOW_DAYS = 7;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function toPublicDto(record: CatalogToyRecord): PublicToyDto {
-  return {
-    id: record.id,
-    categoryId: record.categoryId,
-    title: record.title,
-    condition: record.condition,
-    listingType: record.listingType,
-    priceOrRate: record.priceOrRate,
-    // Tiền cọc chỉ có nghĩa với tin cho thuê (cùng quy tắc với ToyListingService)
-    ...(record.listingType === 'rent' && record.depositPrice !== undefined
-      ? { depositPrice: record.depositPrice }
-      : {}),
-    ageRange: record.ageRange,
-    images: record.images,
-    createdAt: record.createdAt,
-  };
-}
-
-export class ToyCatalogService {
-  public constructor(
-    private readonly repository: ToyCatalogRepository,
-    private readonly ports: ToyCatalogPorts,
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+  private catalog(): { repository: ToyCatalogRepository; ports: ToyCatalogPorts } {
+    if (!this.repository || !this.ports) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Toy catalog listing is not configured.');
+    }
+    return { repository: this.repository, ports: this.ports };
+  }
 
   public async list(query: ToyCatalogQuery): Promise<ToyCatalogPage> {
-    const soldToyIds = await this.ports.getSoldToyIds();
+    const soldToyIds = await this.catalog().ports.getSoldToyIds();
     const filter: ToyCatalogFilter = {
       ...(query.listingType ? { listingType: query.listingType } : {}),
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
@@ -147,10 +155,10 @@ export class ToyCatalogService {
 
     const skip = (query.page - 1) * query.limit;
     const [total, records] = await Promise.all([
-      this.repository.count(filter),
+      this.catalog().repository.count(filter),
       query.sort === 'popular'
         ? this.findPopular(filter, skip, query.limit)
-        : this.repository.findNewest(filter, skip, query.limit),
+        : this.catalog().repository.findNewest(filter, skip, query.limit),
     ]);
 
     return { items: records.map(toPublicDto), page: query.page, limit: query.limit, total };
@@ -162,10 +170,10 @@ export class ToyCatalogService {
    */
   private async findPopular(filter: ToyCatalogFilter, skip: number, limit: number): Promise<CatalogToyRecord[]> {
     const since = new Date(this.now().getTime() - POPULAR_WINDOW_DAYS * DAY_MS);
-    const rentalCounts = await this.ports.getRentalCountsSince(since);
+    const rentalCounts = await this.catalog().ports.getRentalCountsSince(since);
 
     const popularToys =
-      rentalCounts.size === 0 ? [] : await this.repository.findByIds(filter, [...rentalCounts.keys()]);
+      rentalCounts.size === 0 ? [] : await this.catalog().repository.findByIds(filter, [...rentalCounts.keys()]);
     popularToys.sort(
       (a, b) =>
         (rentalCounts.get(b.id) ?? 0) - (rentalCounts.get(a.id) ?? 0) ||
@@ -176,7 +184,7 @@ export class ToyCatalogService {
     const remaining = limit - fromPopular.length;
     if (remaining <= 0) return fromPopular;
 
-    const rest = await this.repository.findNewest(
+    const rest = await this.catalog().repository.findNewest(
       { ...filter, excludeIds: [...filter.excludeIds, ...popularToys.map((toy) => toy.id)] },
       Math.max(0, skip - popularToys.length),
       remaining,

@@ -1,6 +1,9 @@
 import { httpClient } from '../../services/http-client'
 import type { Category, ListingType, ToyListing } from '../toy-listings/toy-listing-api'
 
+/** Loại tin trên trang chủ: thêm 'donate' (tin quyên góp, priceOrRate 0) */
+export type PublicListingType = ListingType | 'donate'
+
 /**
  * Dữ liệu công khai cho trang chủ. Các endpoint trả JSON thô như /toys/mine (chưa bọc envelope).
  * Trường nào backend chưa có thì để optional — giao diện tự ẩn phần đó thay vì hiển thị dữ liệu giả.
@@ -9,8 +12,9 @@ import type { Category, ListingType, ToyListing } from '../toy-listings/toy-list
 /** Tin công khai: không có ownerId, location, status; ảnh chỉ có url (không lộ publicId Cloudinary) */
 export type PublicToy = Pick<
   ToyListing,
-  'id' | 'categoryId' | 'title' | 'condition' | 'listingType' | 'priceOrRate' | 'depositPrice' | 'ageRange' | 'createdAt'
+  'id' | 'categoryId' | 'title' | 'condition' | 'priceOrRate' | 'depositPrice' | 'ageRange' | 'createdAt'
 > & {
+  listingType: PublicListingType
   images: { url: string }[]
   /**
    * Khu vực gần đúng để hiển thị (vd. "Quận 3, TP.HCM") — KHÔNG phải địa chỉ/toạ độ chính xác.
@@ -29,7 +33,7 @@ export interface PublicToysPage {
 export type PublicToySort = 'popular' | 'newest'
 
 export interface PublicToysParams {
-  listingType: ListingType
+  listingType: PublicListingType
   sort: PublicToySort
   page: number
   limit: number

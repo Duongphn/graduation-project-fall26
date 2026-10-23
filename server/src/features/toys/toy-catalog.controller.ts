@@ -1,4 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
+import mongoose from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
+import type { CatalogListingType, ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
+
 import {
   validateAvailabilityQuery,
   validateToyId,
@@ -6,50 +10,10 @@ import {
 } from './toy-catalog.schemas.js';
 import type { ToyCatalogService } from './toy-catalog.service.js';
 
-export class ToyCatalogController {
-  public constructor(private readonly service: ToyCatalogService) {}
-
-  public search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const query = validateToySearchQuery(req.query);
-      const result = await this.service.search(query);
-      res.status(200).json(result);
-    } catch (err: unknown) {
-      next(err);
-    }
-  };
-
-  public getDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const toyId = validateToyId(req.params.toyId);
-      const detail = await this.service.getDetail(toyId);
-      res.status(200).json(detail);
-    } catch (err: unknown) {
-      next(err);
-    }
-  };
-
-  public getAvailability = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      const toyId = validateToyId(req.params.toyId);
-      const { from, toInclusive } = validateAvailabilityQuery(req.query);
-      const result = await this.service.getAvailability(toyId, from, toInclusive);
-      res.status(200).json(result);
-    } catch (err: unknown) {
-import mongoose from 'mongoose';
-import { AppError } from '../../shared/errors/app-error.js';
-import type { ListingType } from './toy-listing.ports.js';
-import type { ToyCatalogService } from './toy-catalog.service.js';
-import type { ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
-
 export const DEFAULT_CATALOG_LIMIT = 20;
 export const MAX_CATALOG_LIMIT = 100;
 
-const LISTING_TYPES: readonly ListingType[] = ['rent', 'sell'];
+const LISTING_TYPES: readonly CatalogListingType[] = ['rent', 'sell', 'donate'];
 const SORTS: readonly ToyCatalogSort[] = ['newest', 'popular'];
 
 const invalid = (message: string) => new AppError(400, 'VALIDATION_ERROR', message);
@@ -109,8 +73,55 @@ export function parseToyCatalogQuery(query: Request['query']): ToyCatalogQuery {
   };
 }
 
+const SEARCH_ONLY_PARAMS = [
+  'q',
+  'type',
+  'ageMin',
+  'ageMax',
+  'minPrice',
+  'maxPrice',
+  'lat',
+  'lng',
+  'radiusKm',
+] as const;
+
 export class ToyCatalogController {
   public constructor(private readonly service: ToyCatalogService) {}
+
+  public search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const query = validateToySearchQuery(req.query);
+      const result = await this.service.search(query);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      next(err);
+    }
+  };
+
+  public getDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const toyId = validateToyId(req.params.toyId);
+      const detail = await this.service.getDetail(toyId);
+      res.status(200).json(detail);
+    } catch (err: unknown) {
+      next(err);
+    }
+  };
+
+  public getAvailability = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const toyId = validateToyId(req.params.toyId);
+      const { from, toInclusive } = validateAvailabilityQuery(req.query);
+      const result = await this.service.getAvailability(toyId, from, toInclusive);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      next(err);
+    }
+  };
 
   public list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -119,5 +130,27 @@ export class ToyCatalogController {
     } catch (err) {
       next(err);
     }
+  };
+
+  /**
+   * GET /toys phục vụ hai màn hình (develop gộp hai nhánh vào cùng đường dẫn):
+   * - trang tìm kiếm (UC05): q, type, ageMin/ageMax, giá, khu vực, hoặc có tham số sort (relevance, newest…);
+   * - danh sách trang chủ: listingType, sort=popular, minAge/maxAge, hoặc chỉ có page/limit.
+   */
+  public index = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const query = req.query;
+    const isHomeList =
+      query.listingType !== undefined ||
+      query.sort === 'popular' ||
+      query.minAge !== undefined ||
+      query.maxAge !== undefined;
+    const isSearch =
+      !isHomeList &&
+      (SEARCH_ONLY_PARAMS.some((name) => query[name] !== undefined) || query.sort !== undefined);
+    if (isSearch) {
+      await this.search(req, res, next);
+      return;
+    }
+    await this.list(req, res, next);
   };
 }
