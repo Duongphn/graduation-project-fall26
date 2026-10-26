@@ -1,8 +1,10 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { env } from '../src/config/env.js';
 import type { RequestActor } from '../src/types/request-actor.js';
 import type { IToy } from '../src/models/toy.model.js';
 import type { ToyListingDto, ToyListingPorts } from '../src/interfaces/toy-listing.ports.js';
@@ -157,9 +159,15 @@ function setup(options: PortOptions = {}) {
 
   const app = express();
   app.use(express.json());
+  // Ký JWT thật cho actor hiện tại để request đi qua middleware authenticate của router
   app.use((req, _res, next) => {
     if (currentActor) {
-      req.auth = currentActor;
+      const token = jwt.sign(
+        { userId: currentActor.userId, role: currentActor.actorType },
+        env.jwtAccessSecret,
+        { expiresIn: '1h' },
+      );
+      req.headers.authorization = `Bearer ${token}`;
     }
     next();
   });
