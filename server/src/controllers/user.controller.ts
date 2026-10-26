@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
-import { AppError } from '../../utils/app-error.js';
-import type { UsersService } from './users.service.js';
+import { AppError } from '../utils/app-error.js';
+import type { UsersService } from '../services/user.service.js';
 
 export class UsersController {
   public constructor(private readonly service: UsersService) {}

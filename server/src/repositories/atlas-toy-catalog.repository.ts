@@ -1,23 +1,23 @@
 import mongoose, { type Model } from 'mongoose';
-import { Category, type ICategory } from '../../models/category.model.js';
+import { Category, type ICategory } from '../models/category.model.js';
 import {
   PurchaseOrder,
   type IPurchaseOrder,
-} from '../../models/purchase-order.model.js';
+} from '../models/purchase-order.model.js';
 import {
   RentalOrder,
   type IRentalOrder,
-} from '../../models/rental-order.model.js';
-import { Toy, type IToy } from '../../models/toy.model.js';
-import { User, type IUser } from '../../models/user.model.js';
-import { AppError } from '../../utils/app-error.js';
+} from '../models/rental-order.model.js';
+import { Toy, type IToy } from '../models/toy.model.js';
+import { User, type IUser } from '../models/user.model.js';
+import { AppError } from '../utils/app-error.js';
 import type {
   OccupiedRentalPeriod,
   ToyCardDto,
   ToyCatalogReadPort,
   ToyDetailDto,
   ToySearchQuery,
-} from '../../interfaces/toy-catalog.ports.js';
+} from '../interfaces/toy-catalog.ports.js';
 
 export interface AtlasToyCatalogRepositoryDependencies {
   toyModel?: Model<IToy>;

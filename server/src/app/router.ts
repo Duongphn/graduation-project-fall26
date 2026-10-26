@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { authRouter } from '../features/auth/auth.routes.js';
-import { categoriesRouter } from '../features/categories/categories.routes.js';
-import { healthRouter } from '../features/health/health.routes.js';
+import { authRouter } from '../routes/auth.routes.js';
+import { categoriesRouter } from '../routes/category.routes.js';
+import { healthRouter } from '../routes/health.routes.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import {
   createToyCatalogDependencies,

@@ -1,5 +1,5 @@
-import { AppError } from '../../utils/app-error.js';
-import type { ListingType, ToyAgeRange } from '../../interfaces/toy-listing.ports.js';
+import { AppError } from '../utils/app-error.js';
+import type { ListingType, ToyAgeRange } from '../interfaces/toy-listing.ports.js';
 
 export interface CreateToyListingInput {
   title: string;

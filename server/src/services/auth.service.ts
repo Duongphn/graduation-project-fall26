@@ -3,12 +3,12 @@ import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 
-import { env } from '../../config/env.js';
-import { sendOtpEmail, sendResetPasswordEmail } from '../../integrations/email/mailer.js';
-import { AppError } from '../../utils/app-error.js';
-import { OtpRequest } from '../../models/otp-request.model.js';
-import { RefreshToken } from '../../models/refresh-token.model.js';
-import { User } from '../../models/user.model.js';
+import { env } from '../config/env.js';
+import { sendOtpEmail, sendResetPasswordEmail } from '../integrations/email/mailer.js';
+import { AppError } from '../utils/app-error.js';
+import { OtpRequest } from '../models/otp-request.model.js';
+import { RefreshToken } from '../models/refresh-token.model.js';
+import { User } from '../models/user.model.js';
 import type {
   GoogleAuthResult,
   GoogleLoginResponse,
@@ -28,7 +28,7 @@ import type {
   VerifyResetCodeResponse,
   ResetPasswordDTO,
   RefreshTokenResponse,
-} from '../../types/auth.types.js';
+} from '../types/auth.types.js';
 
 const googleClient = new OAuth2Client(env.googleClientId);
 

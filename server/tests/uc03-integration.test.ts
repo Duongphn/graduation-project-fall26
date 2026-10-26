@@ -15,8 +15,8 @@ import type {
   VerificationStatus,
 } from '../src/interfaces/identity-verification.ports.js';
 import type { UserAvatarStorage } from '../src/interfaces/user.ports.js';
-import { UsersService } from '../src/features/users/users.service.js';
-import { IdentityVerificationService } from '../src/features/identity_verifications/identity-verification.service.js';
+import { UsersService } from '../src/services/user.service.js';
+import { IdentityVerificationService } from '../src/services/identity-verification.service.js';
 
 const VALID_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]);
 

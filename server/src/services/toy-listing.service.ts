@@ -1,22 +1,22 @@
 import 'multer';
 import mongoose, { type Model } from 'mongoose';
-import type { RequestActor } from '../../types/request-actor.js';
-import { AppError } from '../../utils/app-error.js';
-import type { ToyImageStorage } from '../../integrations/cloudinary/cloudinary-image-storage.js';
-import { validateToyImage } from '../../utils/image-validation.js';
-import { Toy, type IToy } from '../../models/toy.model.js';
+import type { RequestActor } from '../types/request-actor.js';
+import { AppError } from '../utils/app-error.js';
+import type { ToyImageStorage } from '../integrations/cloudinary/cloudinary-image-storage.js';
+import { validateToyImage } from '../utils/image-validation.js';
+import { Toy, type IToy } from '../models/toy.model.js';
 import type {
   ListingFilterStatus,
   ToyImage,
   ToyListingDto,
   ToyListingPorts,
-} from '../../interfaces/toy-listing.ports.js';
+} from '../interfaces/toy-listing.ports.js';
 import {
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
   validateUpdateToyListingInput,
-} from './toy-listing.schemas.js';
+} from '../validations/toy-listing.validation.js';
 
 export class ToyListingService {
   public constructor(

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { ToyCatalogController } from './toy-catalog.controller.js';
-import type { ToyCatalogService } from './toy-catalog.service.js';
+import { ToyCatalogController } from '../controllers/toy-catalog.controller.js';
+import type { ToyCatalogService } from '../services/toy-catalog.service.js';
 
 /**
  * Router công khai của /toys — KHÔNG dùng requireActor.

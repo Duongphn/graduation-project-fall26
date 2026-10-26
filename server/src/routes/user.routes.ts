@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { requireActor } from '../../middlewares/require-actor.js';
-import { userAvatarUpload } from '../../middlewares/upload.middleware.js';
-import { UsersController } from './users.controller.js';
-import type { UsersService } from './users.service.js';
+import { requireActor } from '../middlewares/require-actor.js';
+import { userAvatarUpload } from '../middlewares/upload.middleware.js';
+import { UsersController } from '../controllers/user.controller.js';
+import type { UsersService } from '../services/user.service.js';
 
 export function createUsersRouter(
   service: UsersService,

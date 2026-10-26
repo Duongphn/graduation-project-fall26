@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { env } from '../config/env.js';
 import { User } from '../models/user.model.js';
 import { IdentityVerification } from '../models/identity-verification.model.js';
-import { UsersService } from '../features/users/users.service.js';
-import { createUsersRouter } from '../features/users/users.routes.js';
+import { UsersService } from '../services/user.service.js';
+import { createUsersRouter } from '../routes/user.routes.js';
 import type { UserAvatarStorage } from '../interfaces/user.ports.js';
-import { IdentityVerificationService } from '../features/identity_verifications/identity-verification.service.js';
-import { createIdentityVerificationRouter } from '../features/identity_verifications/identity-verification.routes.js';
+import { IdentityVerificationService } from '../services/identity-verification.service.js';
+import { createIdentityVerificationRouter } from '../routes/identity-verification.routes.js';
 import type {
   IdentityImageStorage,
   IdentityVerificationEvents,

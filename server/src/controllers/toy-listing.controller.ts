@@ -1,14 +1,14 @@
 import 'multer';
 import type { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
-import '../../types/request-actor.js';
-import { AppError } from '../../utils/app-error.js';
-import type { ListingFilterStatus } from '../../interfaces/toy-listing.ports.js';
+import '../types/request-actor.js';
+import { AppError } from '../utils/app-error.js';
+import type { ListingFilterStatus } from '../interfaces/toy-listing.ports.js';
 import {
   validateCreateToyListingInput,
   validateUpdateToyListingInput,
-} from './toy-listing.schemas.js';
-import type { ToyListingService } from './toy-listing.service.js';
+} from '../validations/toy-listing.validation.js';
+import type { ToyListingService } from '../services/toy-listing.service.js';
 
 function parsePositiveInteger(val: unknown, paramName: string): number {
   if (typeof val === 'number') {

@@ -1,10 +1,10 @@
 import type { RequestHandler } from 'express';
-import { AppError } from '../../utils/app-error.js';
-import type { IdentityVerificationService } from './identity-verification.service.js';
+import { AppError } from '../utils/app-error.js';
+import type { IdentityVerificationService } from '../services/identity-verification.service.js';
 import type {
   IdentityVerificationFiles,
   VerificationStatus,
-} from '../../interfaces/identity-verification.ports.js';
+} from '../interfaces/identity-verification.ports.js';
 
 export class IdentityVerificationController {
   public constructor(private readonly service: IdentityVerificationService) {}

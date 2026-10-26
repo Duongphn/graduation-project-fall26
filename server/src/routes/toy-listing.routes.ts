@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { requireActor } from '../../middlewares/require-actor.js';
-import { toyImageUpload } from '../../middlewares/upload.middleware.js';
-import { ToyListingController } from './toy-listing.controller.js';
-import type { ToyListingService } from './toy-listing.service.js';
+import { requireActor } from '../middlewares/require-actor.js';
+import { toyImageUpload } from '../middlewares/upload.middleware.js';
+import { ToyListingController } from '../controllers/toy-listing.controller.js';
+import type { ToyListingService } from '../services/toy-listing.service.js';
 
 export function createToyListingRouter(
   service: ToyListingService,

@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { requireActor } from '../../middlewares/require-actor.js';
-import { requireAdmin } from '../../middlewares/require-admin.js';
-import { identityVerificationUpload } from '../../middlewares/upload.middleware.js';
-import { IdentityVerificationController } from './identity-verification.controller.js';
-import type { IdentityVerificationService } from './identity-verification.service.js';
+import { requireActor } from '../middlewares/require-actor.js';
+import { requireAdmin } from '../middlewares/require-admin.js';
+import { identityVerificationUpload } from '../middlewares/upload.middleware.js';
+import { IdentityVerificationController } from '../controllers/identity-verification.controller.js';
+import type { IdentityVerificationService } from '../services/identity-verification.service.js';
 
 export function createIdentityVerificationRouter(
   service: IdentityVerificationService,

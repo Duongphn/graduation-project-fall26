@@ -9,8 +9,8 @@ import type {
   IdentityImageStorage,
   StoredIdentityImage,
 } from '../src/interfaces/identity-verification.ports.js';
-import { IdentityVerificationService } from '../src/features/identity_verifications/identity-verification.service.js';
-import { createIdentityVerificationRouter } from '../src/features/identity_verifications/identity-verification.routes.js';
+import { IdentityVerificationService } from '../src/services/identity-verification.service.js';
+import { createIdentityVerificationRouter } from '../src/routes/identity-verification.routes.js';
 import type { IIdentityVerification } from '../src/models/identity-verification.model.js';
 import type { IUser } from '../src/models/user.model.js';
 

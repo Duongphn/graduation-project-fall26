@@ -1,10 +1,10 @@
 import mongoose, { type Model } from 'mongoose';
-import { AppError } from '../../utils/app-error.js';
+import { AppError } from '../utils/app-error.js';
 import {
   IdentityVerification,
   type IIdentityVerification,
-} from '../../models/identity-verification.model.js';
-import { User, type IUser } from '../../models/user.model.js';
+} from '../models/identity-verification.model.js';
+import { User, type IUser } from '../models/user.model.js';
 import type {
   AdminQueueItem,
   AdminVerificationDetail,
@@ -15,11 +15,11 @@ import type {
   ReviewReceipt,
   StoredIdentityImage,
   VerificationStatus,
-} from '../../interfaces/identity-verification.ports.js';
+} from '../interfaces/identity-verification.ports.js';
 import {
   type SubmissionInput,
   validateSubmissionInput,
-} from './identity-verification.schemas.js';
+} from '../validations/identity-verification.validation.js';
 
 export interface SubmissionReceipt {
   id: string;

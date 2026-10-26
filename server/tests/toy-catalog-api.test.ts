@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createApiRouter } from '../src/app/router.js';
 import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
-import { createToyCatalogRouter } from '../src/features/toys/toy-catalog.routes.js';
-import { ToyCatalogService } from '../src/features/toys/toy-catalog.service.js';
+import { createToyCatalogRouter } from '../src/routes/toy-catalog.routes.js';
+import { ToyCatalogService } from '../src/services/toy-catalog.service.js';
 import type {
   OccupiedRentalPeriod,
   ToyCardDto,

@@ -1,6 +1,13 @@
 import mongoose, { type FilterQuery, type Model } from 'mongoose';
-import { Toy, type IToy } from '../../models/toy.model.js';
-import type { CatalogToyRecord, ToyCatalogFilter, ToyCatalogRepository } from '../../types/toy-catalog.types.js';
+import PurchaseOrder from '../models/purchase-order.model.js';
+import RentalOrder from '../models/rental-order.model.js';
+import { Toy, type IToy } from '../models/toy.model.js';
+import type {
+  CatalogToyRecord,
+  ToyCatalogFilter,
+  ToyCatalogPorts,
+  ToyCatalogRepository,
+} from '../types/toy-catalog.types.js';
 
 /** Chỉ lấy các trường cần cho danh sách công khai */
 const CATALOG_PROJECTION = {
@@ -82,4 +89,28 @@ export class MongoToyCatalogRepository implements ToyCatalogRepository {
     const docs = await this.toyModel.find(query, CATALOG_PROJECTION).lean<CatalogLeanToy[]>();
     return docs.map(toRecord);
   }
+}
+
+// Cùng quy tắc với createToyListingPorts (repositories/toy-listing.repository.ts)
+const COMPLETED_STATUS_REGEX = /^completed$/i;
+const NOT_COUNTED_RENTAL_STATUS_REGEX = /^(rejected|cancell?ed|expired)$/i;
+
+/** Truy vấn đơn hàng cần cho danh sách trang chủ: tin đã bán và số đơn thuê gần đây */
+export function createToyCatalogPorts(): ToyCatalogPorts {
+  return {
+    async getSoldToyIds(): Promise<string[]> {
+      const toyIds = await PurchaseOrder.distinct('toyId', {
+        status: { $regex: COMPLETED_STATUS_REGEX },
+      });
+      return toyIds.map((toyId) => toyId.toString());
+    },
+
+    async getRentalCountsSince(since: Date): Promise<Map<string, number>> {
+      const rows = await RentalOrder.aggregate<{ _id: unknown; count: number }>([
+        { $match: { createdAt: { $gte: since }, status: { $not: NOT_COUNTED_RENTAL_STATUS_REGEX } } },
+        { $group: { _id: '$toyId', count: { $sum: 1 } } },
+      ]);
+      return new Map(rows.map((row) => [String(row._id), row.count]));
+    },
+  };
 }

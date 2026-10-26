@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { RequestActor } from '../src/types/request-actor.js';
 import { errorHandler } from '../src/middlewares/error-handler.js';
-import { createUsersRouter } from '../src/features/users/users.routes.js';
-import { UsersService } from '../src/features/users/users.service.js';
+import { createUsersRouter } from '../src/routes/user.routes.js';
+import { UsersService } from '../src/services/user.service.js';
 import type { UserAvatarStorage } from '../src/interfaces/user.ports.js';
 import type { IUser } from '../src/models/user.model.js';
 
