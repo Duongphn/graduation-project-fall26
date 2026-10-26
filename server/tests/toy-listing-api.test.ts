@@ -1,15 +1,17 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { RequestActor } from '../src/shared/contracts/request-actor.js';
-import type { IToy } from '../src/features/toys/toys.model.js';
-import type { ToyListingDto, ToyListingPorts } from '../src/features/toys/toy-listing.ports.js';
-import { ToyListingService } from '../src/features/toys/toy-listing.service.js';
-import { createToyListingRouter } from '../src/features/toys/toy-listing.routes.js';
-import type { ToyImageStorage } from '../src/infrastructure/cloudinary/cloudinary-image-storage.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import { env } from '../src/config/env.js';
+import type { RequestActor } from '../src/types/request-actor.js';
+import type { IToy } from '../src/models/toy.model.js';
+import type { ToyListingDto, ToyListingPorts } from '../src/interfaces/toy-listing.ports.js';
+import { ToyListingService } from '../src/services/toy-listing.service.js';
+import { createToyListingRouter } from '../src/routes/toy-listing.routes.js';
+import type { ToyImageStorage } from '../src/interfaces/toy-listing.ports.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 
 const CATEGORY_ID = '64b000000000000000000001';
 
@@ -157,9 +159,15 @@ function setup(options: PortOptions = {}) {
 
   const app = express();
   app.use(express.json());
+  // Ký JWT thật cho actor hiện tại để request đi qua middleware authenticate của router
   app.use((req, _res, next) => {
     if (currentActor) {
-      req.auth = currentActor;
+      const token = jwt.sign(
+        { userId: currentActor.userId, role: currentActor.actorType },
+        env.jwtAccessSecret,
+        { expiresIn: '1h' },
+      );
+      req.headers.authorization = `Bearer ${token}`;
     }
     next();
   });

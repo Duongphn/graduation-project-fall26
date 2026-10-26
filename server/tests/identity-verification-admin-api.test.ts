@@ -3,17 +3,17 @@ import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RequestActor } from '../src/shared/contracts/request-actor.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import type { RequestActor } from '../src/types/request-actor.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 import type {
   IdentityImageStorage,
   IdentityVerificationEvents,
   StoredIdentityImage,
-} from '../src/features/identity_verifications/identity-verification.ports.js';
-import { IdentityVerificationService } from '../src/features/identity_verifications/identity-verification.service.js';
-import { createIdentityVerificationRouter } from '../src/features/identity_verifications/identity-verification.routes.js';
-import type { IIdentityVerification } from '../src/features/identity_verifications/identity_verifications.model.js';
-import type { IUser } from '../src/features/users/users.model.js';
+} from '../src/interfaces/identity-verification.ports.js';
+import { IdentityVerificationService } from '../src/services/identity-verification.service.js';
+import { createIdentityVerificationRouter } from '../src/routes/identity-verification.routes.js';
+import type { IIdentityVerification } from '../src/models/identity-verification.model.js';
+import type { IUser } from '../src/models/user.model.js';
 
 interface FakeUserDoc {
   _id: mongoose.Types.ObjectId;

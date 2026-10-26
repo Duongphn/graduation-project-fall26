@@ -12,21 +12,23 @@ Backend scaffold for the ToyFlow graduation project. The current baseline follow
 
 ## Architecture
 
-The codebase adapts the feature-based and one-direction dependency principles from [Bulletproof React's project structure](https://github.com/alan2207/bulletproof-react/blob/master/docs/project-structure.md) to an Express backend:
+The backend uses a layered MVC structure:
 
 ```text
-shared/config/infrastructure -> features -> app
+src/
+  server.ts  app.ts  container.ts
+  config/  routes/  controllers/  services/  repositories/  models/  validations/
+  middlewares/  interfaces/  integrations/  types/  constants/  sockets/  utils/
 ```
 
-- `app`: composition root, HTTP application and route mounting.
-- `config`: validated environment configuration.
-- `infrastructure`: database and real-time adapters.
-- `shared`: cross-feature contracts, errors and middleware.
-- `features`: self-contained business modules. A feature must not import another feature directly.
+Requests flow `routes → controllers → services → repositories / models`. Services depend on ports in `interfaces/`; `container.ts` wires the Cloudinary, email and event adapters from `integrations/` into them. ESLint enforces these boundaries.
 
-Cross-feature collaboration should use shared contracts, ports or domain events and be wired in `app`.
+- Architecture and how to add a module: [`docs/backend-architecture.md`](docs/backend-architecture.md)
+- Collections: [`docs/models.md`](docs/models.md)
+- Endpoints: [`docs/api/`](docs/api/) (users, identity verification, toys)
+- Response format: [`docs/api-conventions.md`](docs/api-conventions.md)
 
-## Business modules
+## Business modules (planned)
 
 | Workflow/report area | Backend module |
 |---|---|
@@ -49,7 +51,7 @@ copy .env.example .env
 npm run dev
 ```
 
-Default health endpoint: `GET /api/v1/health`.
+`npm run dev` starts `src/server.ts` with hot reload. Default health endpoint: `GET /api/v1/health`. The home page list is served by `GET /api/v1/toys/showcase`; search uses `GET /api/v1/toys` (Atlas Search).
 
 ## Commands
 
