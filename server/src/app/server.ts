@@ -4,8 +4,8 @@ import { env } from '../config/env.js';
 import {
   connectDatabase,
   disconnectDatabase,
-} from '../infrastructure/database/mongoose.js';
-import { createSocketServer } from '../infrastructure/realtime/socket.js';
+} from '../config/database.js';
+import { createSocketServer } from '../sockets/socket.js';
 import { createApp } from './create-app.js';
 
 const startServer = async (): Promise<void> => {

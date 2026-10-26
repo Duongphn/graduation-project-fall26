@@ -1,5 +1,5 @@
 import mongoose, { type Model } from 'mongoose';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 import {
   IdentityVerification,
   type IIdentityVerification,
@@ -15,7 +15,7 @@ import type {
   ReviewReceipt,
   StoredIdentityImage,
   VerificationStatus,
-} from './identity-verification.ports.js';
+} from '../../interfaces/identity-verification.ports.js';
 import {
   type SubmissionInput,
   validateSubmissionInput,

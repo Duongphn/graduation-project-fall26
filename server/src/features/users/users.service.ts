@@ -1,11 +1,11 @@
 import mongoose, { type Model } from 'mongoose';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 import { User, type IUser } from './users.model.js';
 import type {
   UserAvatarStorage,
   UserProfileDto,
-} from './users.ports.js';
-import type { UploadedImageFile } from '../identity_verifications/identity-verification.ports.js';
+} from '../../interfaces/user.ports.js';
+import type { UploadedImageFile } from '../../interfaces/identity-verification.ports.js';
 
 export class UsersService {
   public constructor(

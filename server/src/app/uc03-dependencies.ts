@@ -4,17 +4,17 @@ import { User } from '../features/users/users.model.js';
 import { IdentityVerification } from '../features/identity_verifications/identity_verifications.model.js';
 import { UsersService } from '../features/users/users.service.js';
 import { createUsersRouter } from '../features/users/users.routes.js';
-import type { UserAvatarStorage } from '../features/users/users.ports.js';
+import type { UserAvatarStorage } from '../interfaces/user.ports.js';
 import { IdentityVerificationService } from '../features/identity_verifications/identity-verification.service.js';
 import { createIdentityVerificationRouter } from '../features/identity_verifications/identity-verification.routes.js';
 import type {
   IdentityImageStorage,
   IdentityVerificationEvents,
-} from '../features/identity_verifications/identity-verification.ports.js';
-import { configureCloudinary } from '../infrastructure/cloudinary/cloudinary-client.js';
-import { CloudinaryImageStorage } from '../infrastructure/cloudinary/cloudinary-image-storage.js';
-import { CloudinaryIdentityStorage } from '../infrastructure/cloudinary/cloudinary-identity-storage.js';
-import { DefaultIdentityVerificationEvents } from '../infrastructure/events/identity-verification-events.js';
+} from '../interfaces/identity-verification.ports.js';
+import { configureCloudinary } from '../integrations/cloudinary/cloudinary-client.js';
+import { CloudinaryImageStorage } from '../integrations/cloudinary/cloudinary-image-storage.js';
+import { CloudinaryIdentityStorage } from '../integrations/cloudinary/cloudinary-identity-storage.js';
+import { DefaultIdentityVerificationEvents } from '../integrations/events/identity-verification-events.js';
 
 export interface UC03Dependencies {
   usersService: UsersService;

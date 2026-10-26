@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { requireActor } from '../../shared/middleware/require-actor.js';
-import { toyImageUpload } from './toy-image-upload.js';
+import { requireActor } from '../../middlewares/require-actor.js';
+import { toyImageUpload } from '../../middlewares/upload.middleware.js';
 import { ToyListingController } from './toy-listing.controller.js';
 import type { ToyListingService } from './toy-listing.service.js';
 

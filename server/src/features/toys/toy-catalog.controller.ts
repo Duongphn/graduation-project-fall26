@@ -1,14 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { AppError } from '../../shared/errors/app-error.js';
-import type { ListingType } from './toy-listing.ports.js';
+import { AppError } from '../../utils/app-error.js';
+import type { ListingType } from '../../interfaces/toy-listing.ports.js';
 import {
   validateAvailabilityQuery,
   validateToyId,
   validateToySearchQuery,
 } from './toy-catalog.schemas.js';
 import type { ToyCatalogService } from './toy-catalog.service.js';
-import type { ToyCatalogQuery, ToyCatalogSort } from './toy-catalog.types.js';
+import type { ToyCatalogQuery, ToyCatalogSort } from '../../types/toy-catalog.types.js';
 
 export const DEFAULT_CATALOG_LIMIT = 20;
 export const MAX_CATALOG_LIMIT = 100;

@@ -1,6 +1,4 @@
-import type { RequestHandler } from 'express';
-import multer, { MulterError } from 'multer';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from './app-error.js';
 
 export type AllowedToyImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -80,43 +78,54 @@ export const validateToyImage = (buffer: Buffer, mimeType?: string): AllowedToyI
   );
 };
 
-const multerUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 10,
-  },
-}).array('images', 10);
+export type AllowedIdentityImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 
-export const toyImageUpload: RequestHandler = (req, res, next) => {
-  multerUpload(req, res, (err) => {
-    if (!err) {
-      return next();
-    }
+export const validateIdentityImageBuffer = (
+  buffer: Buffer,
+  mimeType?: string,
+): AllowedIdentityImageMimeType => {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 3) {
+    throw new AppError(400, 'INVALID_IMAGE_TYPE', 'Buffer is too small or invalid.');
+  }
 
-    if (err instanceof MulterError) {
-      let message = err.message;
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        message = 'Each image must be at most 5 MB.';
-      } else if (err.code === 'LIMIT_FILE_COUNT') {
-        message = 'A maximum of 10 images can be uploaded.';
-      } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        message = 'Unexpected image upload field or exceeded maximum limit of 10 images.';
-      }
+  const headStr = buffer.subarray(0, Math.min(buffer.length, 100)).toString('utf8').toLowerCase();
+  if (
+    mimeType === 'image/svg+xml' ||
+    headStr.includes('<svg') ||
+    headStr.includes('<?xml')
+  ) {
+    throw new AppError(400, 'INVALID_IMAGE_TYPE', 'SVG images are not permitted.');
+  }
 
-      return next(new AppError(400, 'INVALID_IMAGE_UPLOAD', message, { code: err.code }));
-    }
+  let detectedType: AllowedIdentityImageMimeType | null = null;
+  if (isJpegSignature(buffer)) {
+    detectedType = 'image/jpeg';
+  } else if (isPngSignature(buffer)) {
+    detectedType = 'image/png';
+  } else if (isWebpSignature(buffer)) {
+    detectedType = 'image/webp';
+  }
 
-    if (err instanceof AppError) {
-      return next(err);
-    }
-
-    return next(
-      new AppError(
-        400,
-        'INVALID_IMAGE_UPLOAD',
-        err instanceof Error ? err.message : 'Image upload failed.',
-      ),
+  if (!detectedType) {
+    throw new AppError(
+      400,
+      'INVALID_IMAGE_TYPE',
+      'Image content does not match allowed signatures (JPEG, PNG, WebP).',
     );
-  });
+  }
+
+  if (mimeType) {
+    const normalized = mimeType.toLowerCase();
+    const isJpegMatch =
+      (normalized === 'image/jpeg' || normalized === 'image/jpg') && detectedType === 'image/jpeg';
+    if (!isJpegMatch && normalized !== detectedType) {
+      throw new AppError(
+        400,
+        'INVALID_IMAGE_TYPE',
+        `MIME type "${mimeType}" does not match signature "${detectedType}".`,
+      );
+    }
+  }
+
+  return detectedType;
 };

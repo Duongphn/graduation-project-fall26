@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { requireActor } from '../../shared/middleware/require-actor.js';
-import { userAvatarUpload } from './user-avatar-upload.js';
+import { requireActor } from '../../middlewares/require-actor.js';
+import { userAvatarUpload } from '../../middlewares/upload.middleware.js';
 import { UsersController } from './users.controller.js';
 import type { UsersService } from './users.service.js';
 

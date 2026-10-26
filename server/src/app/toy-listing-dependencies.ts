@@ -6,15 +6,15 @@ import Category from '../features/categories/categories.model.js';
 import IdentityVerification from '../features/identity_verifications/identity_verifications.model.js';
 import PurchaseOrder from '../features/purchase_orders/purchase_orders.model.js';
 import RentalOrder from '../features/rental_orders/rental_orders.model.js';
-import type { ToyListingPorts } from '../features/toys/toy-listing.ports.js';
+import type { ToyListingPorts } from '../interfaces/toy-listing.ports.js';
 import { createToyListingRouter } from '../features/toys/toy-listing.routes.js';
 import { ToyListingService } from '../features/toys/toy-listing.service.js';
-import { configureCloudinary } from '../infrastructure/cloudinary/cloudinary-client.js';
+import { configureCloudinary } from '../integrations/cloudinary/cloudinary-client.js';
 import {
   CloudinaryImageStorage,
   type ToyImageStorage,
-} from '../infrastructure/cloudinary/cloudinary-image-storage.js';
-import { AppError } from '../shared/errors/app-error.js';
+} from '../integrations/cloudinary/cloudinary-image-storage.js';
+import { AppError } from '../utils/app-error.js';
 
 export interface ToyListingDependencies {
   service: ToyListingService;

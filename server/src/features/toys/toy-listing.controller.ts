@@ -1,9 +1,9 @@
 import 'multer';
 import type { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
-import '../../shared/contracts/request-actor.js';
-import { AppError } from '../../shared/errors/app-error.js';
-import type { ListingFilterStatus } from './toy-listing.ports.js';
+import '../../types/request-actor.js';
+import { AppError } from '../../utils/app-error.js';
+import type { ListingFilterStatus } from '../../interfaces/toy-listing.ports.js';
 import {
   validateCreateToyListingInput,
   validateUpdateToyListingInput,

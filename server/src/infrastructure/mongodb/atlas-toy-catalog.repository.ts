@@ -10,14 +10,14 @@ import {
 } from '../../features/rental_orders/rental_orders.model.js';
 import { Toy, type IToy } from '../../features/toys/toys.model.js';
 import { User, type IUser } from '../../features/users/users.model.js';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 import type {
   OccupiedRentalPeriod,
   ToyCardDto,
   ToyCatalogReadPort,
   ToyDetailDto,
   ToySearchQuery,
-} from '../../features/toys/toy-catalog.ports.js';
+} from '../../interfaces/toy-catalog.ports.js';
 
 export interface AtlasToyCatalogRepositoryDependencies {
   toyModel?: Model<IToy>;

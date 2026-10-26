@@ -12,14 +12,14 @@ import type {
   ToyCardDto,
   ToyCatalogReadPort,
   ToyDetailDto,
-} from '../src/features/toys/toy-catalog.ports.js';
+} from '../src/interfaces/toy-catalog.ports.js';
 import type {
   CatalogToyRecord,
   ToyCatalogFilter,
   ToyCatalogPorts,
   ToyCatalogRepository,
-} from '../src/features/toys/toy-catalog.types.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+} from '../src/types/toy-catalog.types.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 
 describe('UC05 Toy Catalog API', () => {
   let app: express.Express;

@@ -3,11 +3,11 @@ import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { RequestActor } from '../src/shared/contracts/request-actor.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import type { RequestActor } from '../src/types/request-actor.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 import { createUsersRouter } from '../src/features/users/users.routes.js';
 import { UsersService } from '../src/features/users/users.service.js';
-import type { UserAvatarStorage } from '../src/features/users/users.ports.js';
+import type { UserAvatarStorage } from '../src/interfaces/user.ports.js';
 import type { IUser } from '../src/features/users/users.model.js';
 
 const VALID_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]);

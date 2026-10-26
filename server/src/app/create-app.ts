@@ -4,8 +4,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 
 import { env } from '../config/env.js';
-import { errorHandler } from '../shared/middleware/error-handler.js';
-import { notFoundHandler } from '../shared/middleware/not-found.js';
+import { errorHandler } from '../middlewares/error-handler.js';
+import { notFoundHandler } from '../middlewares/not-found.js';
 import { apiRouter } from './router.js';
 
 export const createApp = (): express.Express => {

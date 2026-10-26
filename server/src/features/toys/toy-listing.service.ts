@@ -1,16 +1,16 @@
 import 'multer';
 import mongoose, { type Model } from 'mongoose';
-import type { RequestActor } from '../../shared/contracts/request-actor.js';
-import { AppError } from '../../shared/errors/app-error.js';
-import type { ToyImageStorage } from '../../infrastructure/cloudinary/cloudinary-image-storage.js';
-import { validateToyImage } from './toy-image-upload.js';
+import type { RequestActor } from '../../types/request-actor.js';
+import { AppError } from '../../utils/app-error.js';
+import type { ToyImageStorage } from '../../integrations/cloudinary/cloudinary-image-storage.js';
+import { validateToyImage } from '../../utils/image-validation.js';
 import { Toy, type IToy } from './toys.model.js';
 import type {
   ListingFilterStatus,
   ToyImage,
   ToyListingDto,
   ToyListingPorts,
-} from './toy-listing.ports.js';
+} from '../../interfaces/toy-listing.ports.js';
 import {
   type CreateToyListingInput,
   type UpdateToyListingInput,

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { AppError } from '../../shared/errors/app-error.js';
-import type { ToySearchQuery } from './toy-catalog.ports.js';
+import { AppError } from '../../utils/app-error.js';
+import type { ToySearchQuery } from '../../interfaces/toy-catalog.ports.js';
 
 const ALLOWED_SORTS = ['relevance', 'newest', 'price_asc', 'price_desc', 'distance'] as const;
 type AllowedSort = (typeof ALLOWED_SORTS)[number];

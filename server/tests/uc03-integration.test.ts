@@ -5,7 +5,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { env } from '../src/config/env.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 import { createApiRouter } from '../src/app/router.js';
 import { createUC03Dependencies } from '../src/app/uc03-dependencies.js';
 import type {
@@ -13,8 +13,8 @@ import type {
   IdentityVerificationEvents,
   StoredIdentityImage,
   VerificationStatus,
-} from '../src/features/identity_verifications/identity-verification.ports.js';
-import type { UserAvatarStorage } from '../src/features/users/users.ports.js';
+} from '../src/interfaces/identity-verification.ports.js';
+import type { UserAvatarStorage } from '../src/interfaces/user.ports.js';
 import { UsersService } from '../src/features/users/users.service.js';
 import { IdentityVerificationService } from '../src/features/identity_verifications/identity-verification.service.js';
 

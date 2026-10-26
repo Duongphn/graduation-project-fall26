@@ -3,13 +3,13 @@ import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { RequestActor } from '../src/shared/contracts/request-actor.js';
+import type { RequestActor } from '../src/types/request-actor.js';
 import type { IToy } from '../src/features/toys/toys.model.js';
-import type { ToyListingDto, ToyListingPorts } from '../src/features/toys/toy-listing.ports.js';
+import type { ToyListingDto, ToyListingPorts } from '../src/interfaces/toy-listing.ports.js';
 import { ToyListingService } from '../src/features/toys/toy-listing.service.js';
 import { createToyListingRouter } from '../src/features/toys/toy-listing.routes.js';
-import type { ToyImageStorage } from '../src/infrastructure/cloudinary/cloudinary-image-storage.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import type { ToyImageStorage } from '../src/integrations/cloudinary/cloudinary-image-storage.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 
 const CATEGORY_ID = '64b000000000000000000001';
 

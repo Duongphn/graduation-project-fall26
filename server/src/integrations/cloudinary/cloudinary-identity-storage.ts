@@ -3,7 +3,7 @@ import { type CloudinaryClient, configureCloudinary } from './cloudinary-client.
 import type {
   IdentityImageStorage,
   StoredIdentityImage,
-} from '../../features/identity_verifications/identity-verification.ports.js';
+} from '../../interfaces/identity-verification.ports.js';
 
 /**
  * Cloudinary private delivery strategy documentation:

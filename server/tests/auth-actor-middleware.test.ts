@@ -5,10 +5,10 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
 import { env } from '../src/config/env.js';
-import { authenticate } from '../src/shared/middleware/authenticate.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
-import { requireActor } from '../src/shared/middleware/require-actor.js';
-import { requireAdmin } from '../src/shared/middleware/require-admin.js';
+import { authenticate } from '../src/middlewares/authenticate.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
+import { requireActor } from '../src/middlewares/require-actor.js';
+import { requireAdmin } from '../src/middlewares/require-admin.js';
 
 function createTestApp() {
   const app = express();

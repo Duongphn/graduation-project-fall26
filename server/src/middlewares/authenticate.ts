@@ -2,9 +2,9 @@ import type { RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 
-import { env } from '../../config/env.js';
-import '../contracts/request-actor.js';
-import { AppError } from '../errors/app-error.js';
+import { env } from '../config/env.js';
+import '../types/request-actor.js';
+import { AppError } from '../utils/app-error.js';
 
 interface AccessTokenPayload {
   userId?: unknown;

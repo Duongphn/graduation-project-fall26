@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env.js';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 import { AuthService } from './auth.service.js';
 import {
   googleLoginSchema,

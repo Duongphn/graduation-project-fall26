@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 
 // Vietnamese mobile numbers: 10 digits starting with 03, 05, 07, 08, 09 or international +84/84
 const VN_PHONE_REGEX = /^(0|84|\+84)(3|5|7|8|9)[0-9]{8}$/;

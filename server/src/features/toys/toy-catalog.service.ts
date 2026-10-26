@@ -1,4 +1,4 @@
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 import type {
   OccupiedRentalPeriod,
   SearchSuggestion,
@@ -6,7 +6,7 @@ import type {
   ToyDetailDto,
   ToySearchQuery,
   ToySearchResult,
-} from './toy-catalog.ports.js';
+} from '../../interfaces/toy-catalog.ports.js';
 import type {
   CatalogToyRecord,
   PublicToyDto,
@@ -15,7 +15,7 @@ import type {
   ToyCatalogPorts,
   ToyCatalogQuery,
   ToyCatalogRepository,
-} from './toy-catalog.types.js';
+} from '../../types/toy-catalog.types.js';
 
 /** "Phổ biến" = nhiều đơn thuê nhất trong khoảng thời gian này */
 export const POPULAR_WINDOW_DAYS = 7;

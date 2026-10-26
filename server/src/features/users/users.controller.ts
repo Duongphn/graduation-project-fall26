@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AppError } from '../../utils/app-error.js';
 import type { UsersService } from './users.service.js';
 
 export class UsersController {

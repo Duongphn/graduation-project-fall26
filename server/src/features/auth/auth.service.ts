@@ -4,8 +4,8 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 
 import { env } from '../../config/env.js';
-import { sendOtpEmail, sendResetPasswordEmail } from '../../infrastructure/email/mailer.js';
-import { AppError } from '../../shared/errors/app-error.js';
+import { sendOtpEmail, sendResetPasswordEmail } from '../../integrations/email/mailer.js';
+import { AppError } from '../../utils/app-error.js';
 import { OtpRequest } from '../otp_requests/otp_requests.model.js';
 import { RefreshToken } from '../refresh_tokens/refresh_tokens.model.js';
 import { User } from '../users/users.model.js';
@@ -28,7 +28,7 @@ import type {
   VerifyResetCodeResponse,
   ResetPasswordDTO,
   RefreshTokenResponse,
-} from './domain/auth.types.js';
+} from '../../types/auth.types.js';
 
 const googleClient = new OAuth2Client(env.googleClientId);
 

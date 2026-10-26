@@ -6,7 +6,7 @@ import type {
   ToyImage,
   ToyLocation,
   ToyModeration,
-} from './toy-listing.ports.js';
+} from '../../interfaces/toy-listing.ports.js';
 
 export interface IToy {
   ownerId: mongoose.Types.ObjectId;

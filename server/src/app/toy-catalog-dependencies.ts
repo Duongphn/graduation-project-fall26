@@ -2,11 +2,11 @@ import type { Router } from 'express';
 
 import PurchaseOrder from '../features/purchase_orders/purchase_orders.model.js';
 import RentalOrder from '../features/rental_orders/rental_orders.model.js';
-import type { ToyCatalogReadPort } from '../features/toys/toy-catalog.ports.js';
+import type { ToyCatalogReadPort } from '../interfaces/toy-catalog.ports.js';
 import { MongoToyCatalogRepository } from '../features/toys/toy-catalog.repository.js';
 import { createToyCatalogRouter } from '../features/toys/toy-catalog.routes.js';
 import { ToyCatalogService } from '../features/toys/toy-catalog.service.js';
-import type { ToyCatalogPorts, ToyCatalogRepository } from '../features/toys/toy-catalog.types.js';
+import type { ToyCatalogPorts, ToyCatalogRepository } from '../types/toy-catalog.types.js';
 import { AtlasToyCatalogRepository } from '../infrastructure/mongodb/atlas-toy-catalog.repository.js';
 
 export interface ToyCatalogDependencies {

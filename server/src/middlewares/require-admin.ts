@@ -1,8 +1,8 @@
 import type { RequestHandler } from 'express';
 import mongoose from 'mongoose';
 
-import '../contracts/request-actor.js';
-import { AppError } from '../errors/app-error.js';
+import '../types/request-actor.js';
+import { AppError } from '../utils/app-error.js';
 
 export const requireAdmin: RequestHandler = (req, _res, next) => {
   if (

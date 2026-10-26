@@ -7,8 +7,8 @@ import {
   createToyListingDependencies,
   type ToyListingDependencies,
 } from '../src/app/toy-listing-dependencies.js';
-import { validateToyImage } from '../src/features/toys/toy-image-upload.js';
-import { AppError } from '../src/shared/errors/app-error.js';
+import { validateToyImage } from '../src/utils/image-validation.js';
+import { AppError } from '../src/utils/app-error.js';
 
 describe('UC04 final review fixes', () => {
   describe('validateToyImage MIME type error formatting', () => {

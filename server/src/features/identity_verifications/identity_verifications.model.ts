@@ -1,5 +1,5 @@
 import mongoose, { type Model, Schema } from 'mongoose';
-import type { StoredIdentityImage } from './identity-verification.ports.js';
+import type { StoredIdentityImage } from '../../interfaces/identity-verification.ports.js';
 
 const storedIdentityImageSchema = new Schema(
   {

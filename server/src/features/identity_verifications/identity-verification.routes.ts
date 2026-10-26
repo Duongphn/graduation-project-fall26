@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { requireActor } from '../../shared/middleware/require-actor.js';
-import { requireAdmin } from '../../shared/middleware/require-admin.js';
-import { identityVerificationUpload } from './identity-verification-upload.js';
+import { requireActor } from '../../middlewares/require-actor.js';
+import { requireAdmin } from '../../middlewares/require-admin.js';
+import { identityVerificationUpload } from '../../middlewares/upload.middleware.js';
 import { IdentityVerificationController } from './identity-verification.controller.js';
 import type { IdentityVerificationService } from './identity-verification.service.js';
 

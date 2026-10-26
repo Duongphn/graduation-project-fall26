@@ -1,4 +1,4 @@
-import type { UploadedImageFile, UserAddress, UserVerificationStatus } from '../identity_verifications/identity-verification.ports.js';
+import type { UploadedImageFile, UserAddress, UserVerificationStatus } from './identity-verification.ports.js';
 
 export interface UserProfileDto {
   id: string;

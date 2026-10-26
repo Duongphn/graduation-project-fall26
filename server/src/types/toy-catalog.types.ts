@@ -1,4 +1,4 @@
-import type { ListingType, ToyAgeRange } from './toy-listing.ports.js';
+import type { ListingType, ToyAgeRange } from '../interfaces/toy-listing.ports.js';
 
 /**
  * Danh sách đồ chơi công khai (khách chưa đăng nhập cũng xem được).
