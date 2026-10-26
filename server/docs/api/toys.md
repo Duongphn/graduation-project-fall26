@@ -98,6 +98,39 @@ These endpoints do not require authentication (`request.auth`).
   ```
 - **Availability Rules**: Returns occupied date ranges from non-terminal rental orders. For sell listings, returns an empty array `[]`.
 
+#### 4. Home Page Showcase
+- **Method / Path**: `GET /api/v1/toys/showcase`
+- **Purpose**: Plain MongoDB list for the home page sections (no Atlas Search). Sold listings (completed purchase order) are excluded.
+- **Query Parameters** (each may appear only once):
+  - `listingType` (`'rent' | 'sell'`, optional)
+  - `categoryId` (ObjectId string, optional)
+  - `minAge`, `maxAge` (integer >= 0, optional; `minAge` must not exceed `maxAge`)
+  - `sort` (`'newest' | 'popular'`, default `'newest'`): `popular` puts listings with the most rental orders in the last 7 days first, then the newest.
+  - `page` (integer >= 1, default 1), `limit` (integer >= 1, default 20, capped at 100)
+- **Response Shape (`200 OK`)**:
+  ```json
+  {
+    "items": [
+      {
+        "id": "670cf321...",
+        "categoryId": "...",
+        "title": "LEGO Technic Crane",
+        "condition": "Như mới (90–99%)",
+        "listingType": "rent",
+        "priceOrRate": 25000,
+        "depositPrice": 400000,
+        "ageRange": { "minAge": 3, "maxAge": 8 },
+        "images": [{ "url": "https://..." }],
+        "createdAt": "2026-10-14T..."
+      }
+    ],
+    "page": 1,
+    "limit": 20,
+    "total": 1
+  }
+  ```
+  `depositPrice` is present only for rent listings. Invalid parameters return `400 VALIDATION_ERROR`.
+
 ---
 
 ### Owner Listing Management Endpoints (UC04)
@@ -114,4 +147,4 @@ These endpoints require an authenticated user actor (`request.auth`).
 
 ## Infrastructure & Atlas Search Prerequisite
 
-The search endpoint uses MongoDB Atlas Search with index `toys_search`. Refer to [`server/infra/atlas-search/README.md`](../../../infra/atlas-search/README.md) for the JSON index definition and deployment instructions.
+The search endpoint uses MongoDB Atlas Search with index `toys_search`. Refer to [`server/infra/atlas-search/README.md`](../../infra/atlas-search/README.md) for the JSON index definition and deployment instructions.

@@ -243,24 +243,21 @@ openApiRegistry.registerPath({
 
 ## 5. Tổ Chức Thư Mục Mã Nguồn Đề Xuất
 
-Tuân thủ kiến trúc phân tầng `config/shared/infrastructure -> features -> app`:
+Tuân thủ cấu trúc MVC phân lớp mô tả trong [`backend-architecture.md`](backend-architecture.md):
 
 ```text
 server/src/
-├── app/
-│   ├── create-app.ts            # Cài đặt middleware và mount /api/docs
-│   └── router.ts                # Mount các feature routers
-├── infrastructure/
+├── app.ts                       # Cài đặt middleware và mount /api/docs
+├── routes/
+│   └── index.ts                 # Mount các router
+├── integrations/
 │   └── docs/                    # OpenAPI registry builder và Swagger UI setup
-├── shared/
-│   ├── errors/
-│   │   └── app-error.ts         # AppError class kế thừa mã lỗi & status
-│   ├── middleware/
-│   │   ├── error-handler.ts     # Middleware format lỗi chuẩn
-│   │   └── validate.ts          # Middleware xác thực dữ liệu qua Zod
-│   └── utils/
-│       └── response.ts          # Helper: sendSuccess, sendPaginated
-└── features/
-    └── toy-catalog/
-        └── schemas/             # Zod validation schemas cho feature
+├── middlewares/
+│   ├── error-handler.ts         # Middleware format lỗi chuẩn
+│   └── validate.ts              # Middleware xác thực dữ liệu qua Zod
+├── utils/
+│   ├── app-error.ts             # AppError class kế thừa mã lỗi & status
+│   └── response.ts              # Helper: sendSuccess, sendPaginated
+└── validations/
+    └── toy-catalog.validation.ts  # Zod validation schemas
 ```
