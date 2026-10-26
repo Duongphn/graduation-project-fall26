@@ -3,8 +3,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createApiRouter } from '../src/app/router.js';
-import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
+import { createApp } from '../src/app.js';
 import { createToyCatalogRouter } from '../src/routes/toy-catalog.routes.js';
 import { ToyCatalogService } from '../src/services/toy-catalog.service.js';
 import type {
@@ -340,18 +339,13 @@ function createFakeRepository(toys: FakeToy[]): ToyCatalogRepository {
 }
 
 function setup(toys: FakeToy[], ports: Partial<ToyCatalogPorts> = {}) {
-  const deps = createToyCatalogDependencies({
-    readPort: fakeReadPort,
-    repository: createFakeRepository(toys),
-    ports: {
-      getSoldToyIds: async () => [],
-      getRentalCountsSince: async () => new Map(),
-      ...ports,
-    },
+  const service = new ToyCatalogService(fakeReadPort, createFakeRepository(toys), {
+    ...noopCatalogPorts,
+    ...ports,
   });
 
   const app = express();
-  app.use('/api/v1/toys', deps.router);
+  app.use('/api/v1/toys', createToyCatalogRouter(service));
   app.use(errorHandler);
   return app;
 }
@@ -492,15 +486,11 @@ describe('GET /api/v1/toys/showcase (home showcase)', () => {
 
 describe('API router mount order', () => {
   function createAppWithFullRouter() {
-    const toyCatalogDependencies = createToyCatalogDependencies({
-      readPort: fakeReadPort,
-      repository: createFakeRepository([makeToy()]),
-      ports: { getSoldToyIds: async () => [], getRentalCountsSince: async () => new Map() },
+    return createApp({
+      toyCatalogReadPort: fakeReadPort,
+      toyCatalogRepository: createFakeRepository([makeToy()]),
+      toyCatalogPorts: noopCatalogPorts,
     });
-    const app = express();
-    app.use('/api/v1', createApiRouter({ toyCatalogDependencies }));
-    app.use(errorHandler);
-    return app;
   }
 
   it('serves GET /toys publicly', async () => {

@@ -5,9 +5,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { env } from '../src/config/env.js';
-import { errorHandler } from '../src/middlewares/error-handler.js';
-import { createApiRouter } from '../src/app/router.js';
-import { createUC03Dependencies } from '../src/app/uc03-dependencies.js';
+import { createApp } from '../src/app.js';
 import type {
   IdentityImageStorage,
   IdentityVerificationEvents,
@@ -228,28 +226,13 @@ describe('UC03 End-to-End Integration Lifecycle', () => {
       mockEvents,
     );
 
-    const uc03 = createUC03Dependencies({
+    app = createApp({
       usersService,
       identityVerificationService,
       avatarStorage: mockAvatarStorage,
-      identityStorage: mockIdentityStorage,
-      events: mockEvents,
+      identityImageStorage: mockIdentityStorage,
+      identityVerificationEvents: mockEvents,
     });
-
-    const mockToyListingDeps: any = {
-      router: express.Router(),
-    };
-
-    app = express();
-    app.use(express.json());
-    app.use(
-      '/api/v1',
-      createApiRouter({
-        toyListingDependencies: mockToyListingDeps,
-        uc03Dependencies: uc03,
-      }),
-    );
-    app.use(errorHandler);
   });
 
   it('runs complete lifecycle: unverified -> pending -> rejected -> pending -> verified', async () => {

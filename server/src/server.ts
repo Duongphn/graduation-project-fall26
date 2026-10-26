@@ -1,12 +1,12 @@
 import { createServer } from 'node:http';
 
-import { env } from '../config/env.js';
+import { createApp } from './app.js';
+import { env } from './config/env.js';
 import {
   connectDatabase,
   disconnectDatabase,
-} from '../config/database.js';
-import { createSocketServer } from '../sockets/socket.js';
-import { createApp } from './create-app.js';
+} from './config/database.js';
+import { createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
   await connectDatabase(env.mongoDbUri);
