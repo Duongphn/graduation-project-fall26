@@ -1,6 +1,6 @@
 import mongoose, { type Model } from 'mongoose';
 import { AppError } from '../../utils/app-error.js';
-import { User, type IUser } from './users.model.js';
+import { User, type IUser } from '../../models/user.model.js';
 import type {
   UserAvatarStorage,
   UserProfileDto,

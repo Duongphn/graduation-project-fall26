@@ -12,8 +12,8 @@ import type {
 } from '../src/interfaces/identity-verification.ports.js';
 import { IdentityVerificationService } from '../src/features/identity_verifications/identity-verification.service.js';
 import { createIdentityVerificationRouter } from '../src/features/identity_verifications/identity-verification.routes.js';
-import type { IIdentityVerification } from '../src/features/identity_verifications/identity_verifications.model.js';
-import type { IUser } from '../src/features/users/users.model.js';
+import type { IIdentityVerification } from '../src/models/identity-verification.model.js';
+import type { IUser } from '../src/models/user.model.js';
 
 interface FakeUserDoc {
   _id: mongoose.Types.ObjectId;

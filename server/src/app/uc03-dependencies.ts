@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { env } from '../config/env.js';
-import { User } from '../features/users/users.model.js';
-import { IdentityVerification } from '../features/identity_verifications/identity_verifications.model.js';
+import { User } from '../models/user.model.js';
+import { IdentityVerification } from '../models/identity-verification.model.js';
 import { UsersService } from '../features/users/users.service.js';
 import { createUsersRouter } from '../features/users/users.routes.js';
 import type { UserAvatarStorage } from '../interfaces/user.ports.js';

@@ -1,15 +1,15 @@
 import mongoose, { type Model } from 'mongoose';
-import { Category, type ICategory } from '../../features/categories/categories.model.js';
+import { Category, type ICategory } from '../../models/category.model.js';
 import {
   PurchaseOrder,
   type IPurchaseOrder,
-} from '../../features/purchase_orders/purchase_orders.model.js';
+} from '../../models/purchase-order.model.js';
 import {
   RentalOrder,
   type IRentalOrder,
-} from '../../features/rental_orders/rental_orders.model.js';
-import { Toy, type IToy } from '../../features/toys/toys.model.js';
-import { User, type IUser } from '../../features/users/users.model.js';
+} from '../../models/rental-order.model.js';
+import { Toy, type IToy } from '../../models/toy.model.js';
+import { User, type IUser } from '../../models/user.model.js';
 import { AppError } from '../../utils/app-error.js';
 import type {
   OccupiedRentalPeriod,

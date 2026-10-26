@@ -4,7 +4,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { RequestActor } from '../src/types/request-actor.js';
-import type { IToy } from '../src/features/toys/toys.model.js';
+import type { IToy } from '../src/models/toy.model.js';
 import type { ToyListingDto, ToyListingPorts } from '../src/interfaces/toy-listing.ports.js';
 import { ToyListingService } from '../src/features/toys/toy-listing.service.js';
 import { createToyListingRouter } from '../src/features/toys/toy-listing.routes.js';

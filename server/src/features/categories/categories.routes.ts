@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import Category from './categories.model.js';
+import Category from '../../models/category.model.js';
 
 export interface CategoryDto {
   id: string;

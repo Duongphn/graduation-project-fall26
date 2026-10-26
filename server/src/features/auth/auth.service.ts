@@ -6,9 +6,9 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import { sendOtpEmail, sendResetPasswordEmail } from '../../integrations/email/mailer.js';
 import { AppError } from '../../utils/app-error.js';
-import { OtpRequest } from '../otp_requests/otp_requests.model.js';
-import { RefreshToken } from '../refresh_tokens/refresh_tokens.model.js';
-import { User } from '../users/users.model.js';
+import { OtpRequest } from '../../models/otp-request.model.js';
+import { RefreshToken } from '../../models/refresh-token.model.js';
+import { User } from '../../models/user.model.js';
 import type {
   GoogleAuthResult,
   GoogleLoginResponse,

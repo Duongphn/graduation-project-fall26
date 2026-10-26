@@ -1,7 +1,7 @@
 import type { Router } from 'express';
 
-import PurchaseOrder from '../features/purchase_orders/purchase_orders.model.js';
-import RentalOrder from '../features/rental_orders/rental_orders.model.js';
+import PurchaseOrder from '../models/purchase-order.model.js';
+import RentalOrder from '../models/rental-order.model.js';
 import type { ToyCatalogReadPort } from '../interfaces/toy-catalog.ports.js';
 import { MongoToyCatalogRepository } from '../features/toys/toy-catalog.repository.js';
 import { createToyCatalogRouter } from '../features/toys/toy-catalog.routes.js';

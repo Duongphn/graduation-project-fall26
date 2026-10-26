@@ -11,8 +11,8 @@ import type {
 } from '../src/interfaces/identity-verification.ports.js';
 import { IdentityVerificationService } from '../src/features/identity_verifications/identity-verification.service.js';
 import { createIdentityVerificationRouter } from '../src/features/identity_verifications/identity-verification.routes.js';
-import type { IIdentityVerification } from '../src/features/identity_verifications/identity_verifications.model.js';
-import type { IUser } from '../src/features/users/users.model.js';
+import type { IIdentityVerification } from '../src/models/identity-verification.model.js';
+import type { IUser } from '../src/models/user.model.js';
 
 const VALID_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]);
 

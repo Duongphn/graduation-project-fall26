@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { User } from '../src/features/users/users.model.js';
-import { IdentityVerification } from '../src/features/identity_verifications/identity_verifications.model.js';
+import { User } from '../src/models/user.model.js';
+import { IdentityVerification } from '../src/models/identity-verification.model.js';
 
 describe('UC03 Mongoose Models and Indexes', () => {
   describe('User model', () => {

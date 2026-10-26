@@ -3,8 +3,8 @@ import { AppError } from '../../utils/app-error.js';
 import {
   IdentityVerification,
   type IIdentityVerification,
-} from './identity_verifications.model.js';
-import { User, type IUser } from '../users/users.model.js';
+} from '../../models/identity-verification.model.js';
+import { User, type IUser } from '../../models/user.model.js';
 import type {
   AdminQueueItem,
   AdminVerificationDetail,

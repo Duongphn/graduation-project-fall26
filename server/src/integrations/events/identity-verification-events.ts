@@ -3,7 +3,7 @@ import type {
   IdentityVerificationEvents,
   VerificationStatus,
 } from '../../interfaces/identity-verification.ports.js';
-import Notification from '../../features/notifications/notifications.model.js';
+import Notification from '../../models/notification.model.js';
 
 export interface CreateIdentityVerificationEventsOptions {
   io?: SocketIoServer;

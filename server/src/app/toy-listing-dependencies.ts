@@ -2,10 +2,10 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 
 import { env } from '../config/env.js';
-import Category from '../features/categories/categories.model.js';
-import IdentityVerification from '../features/identity_verifications/identity_verifications.model.js';
-import PurchaseOrder from '../features/purchase_orders/purchase_orders.model.js';
-import RentalOrder from '../features/rental_orders/rental_orders.model.js';
+import Category from '../models/category.model.js';
+import IdentityVerification from '../models/identity-verification.model.js';
+import PurchaseOrder from '../models/purchase-order.model.js';
+import RentalOrder from '../models/rental-order.model.js';
 import type { ToyListingPorts } from '../interfaces/toy-listing.ports.js';
 import { createToyListingRouter } from '../features/toys/toy-listing.routes.js';
 import { ToyListingService } from '../features/toys/toy-listing.service.js';
