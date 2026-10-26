@@ -49,3 +49,9 @@ export interface ToyListingPorts {
   hasUnfinishedOrder(toyId: string): Promise<boolean>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
 }
+
+/** Lưu ảnh tin đăng; bản thật là integrations/cloudinary/cloudinary-image-storage.ts */
+export interface ToyImageStorage {
+  upload(buffer: Buffer, mimeType: string): Promise<{ url: string; publicId: string }>;
+  delete(publicIds: string[]): Promise<void>;
+}

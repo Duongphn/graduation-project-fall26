@@ -1,10 +1,6 @@
 import type { UploadApiResponse } from 'cloudinary';
 import { type CloudinaryClient, configureCloudinary } from './cloudinary-client.js';
-
-export interface ToyImageStorage {
-  upload(buffer: Buffer, mimeType: string): Promise<{ url: string; publicId: string }>;
-  delete(publicIds: string[]): Promise<void>;
-}
+import type { ToyImageStorage } from '../../interfaces/toy-listing.ports.js';
 
 export interface CloudinaryImageStorageOptions {
   client?: CloudinaryClient;

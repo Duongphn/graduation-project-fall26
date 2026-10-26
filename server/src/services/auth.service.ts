@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 
 import { env } from '../config/env.js';
-import { sendOtpEmail, sendResetPasswordEmail } from '../integrations/email/mailer.js';
+import type { AuthMailer } from '../interfaces/auth.ports.js';
 import { AppError } from '../utils/app-error.js';
 import { OtpRequest } from '../models/otp-request.model.js';
 import { RefreshToken } from '../models/refresh-token.model.js';
@@ -70,6 +70,8 @@ interface ResetTokenPayload {
 }
 
 export class AuthService {
+  public constructor(private readonly mailer: AuthMailer) {}
+
   /**
    * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập
    */
@@ -230,7 +232,7 @@ export class AuthService {
     });
 
     try {
-      await sendOtpEmail(email, otpCode);
+      await this.mailer.sendOtpEmail(email, otpCode);
     } catch (mailError) {
       console.error('Lỗi khi gửi mail OTP:', mailError);
       throw new AppError(500, 'MAIL_SEND_FAILED', 'Không thể gửi mã OTP tới email của bạn. Vui lòng thử lại sau.');
@@ -419,7 +421,7 @@ export class AuthService {
       purgeAt,
     });
 
-    await sendOtpEmail(email, otpCode);
+    await this.mailer.sendOtpEmail(email, otpCode);
 
     const tempToken = jwt.sign(
       { userId: String(user._id), email, type: 'google_2fa_pending' },
@@ -562,7 +564,7 @@ export class AuthService {
     });
 
     try {
-      await sendOtpEmail(email, otpCode, 'register');
+      await this.mailer.sendOtpEmail(email, otpCode, 'register');
     } catch (error) {
       console.error('Lỗi gửi email OTP đăng ký:', error);
       throw new AppError(500, 'MAIL_SEND_FAILED', 'Không thể gửi mã xác minh tới email của bạn. Vui lòng thử lại sau.');
@@ -640,7 +642,7 @@ export class AuthService {
     const resetLink = `${env.corsOrigin}/forgot-password?email=${encodeURIComponent(normalizedEmail)}&otp=${otpCode}`;
 
     try {
-      await sendResetPasswordEmail(normalizedEmail, otpCode, resetLink);
+      await this.mailer.sendResetPasswordEmail(normalizedEmail, otpCode, resetLink);
     } catch (error) {
       console.error('Lỗi gửi email reset password:', error);
       throw new AppError(500, 'MAIL_SEND_FAILED', 'Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau.');

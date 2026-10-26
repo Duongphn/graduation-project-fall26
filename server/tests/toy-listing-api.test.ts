@@ -8,7 +8,7 @@ import type { IToy } from '../src/models/toy.model.js';
 import type { ToyListingDto, ToyListingPorts } from '../src/interfaces/toy-listing.ports.js';
 import { ToyListingService } from '../src/services/toy-listing.service.js';
 import { createToyListingRouter } from '../src/routes/toy-listing.routes.js';
-import type { ToyImageStorage } from '../src/integrations/cloudinary/cloudinary-image-storage.js';
+import type { ToyImageStorage } from '../src/interfaces/toy-listing.ports.js';
 import { errorHandler } from '../src/middlewares/error-handler.js';
 
 const CATEGORY_ID = '64b000000000000000000001';

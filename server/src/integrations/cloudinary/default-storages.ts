@@ -4,7 +4,8 @@ import type { UserAvatarStorage } from '../../interfaces/user.ports.js';
 import { AppError } from '../../utils/app-error.js';
 import { configureCloudinary } from './cloudinary-client.js';
 import { CloudinaryIdentityStorage } from './cloudinary-identity-storage.js';
-import { CloudinaryImageStorage, type ToyImageStorage } from './cloudinary-image-storage.js';
+import type { ToyImageStorage } from '../../interfaces/toy-listing.ports.js';
+import { CloudinaryImageStorage } from './cloudinary-image-storage.js';
 
 /**
  * Adapter Cloudinary mặc định cho container.ts.

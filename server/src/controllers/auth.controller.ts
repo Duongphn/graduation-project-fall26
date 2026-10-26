@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/app-error.js';
-import { AuthService } from '../services/auth.service.js';
+import type { AuthService } from '../services/auth.service.js';
 import {
   googleLoginSchema,
   googleExchangeSchema,
@@ -23,7 +23,7 @@ import {
 export class AuthController {
   private readonly authService: AuthService;
 
-  public constructor(authService = new AuthService()) {
+  public constructor(authService: AuthService) {
     this.authService = authService;
   }
 

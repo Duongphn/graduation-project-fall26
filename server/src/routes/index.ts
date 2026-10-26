@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Container } from '../container.js';
 import { authenticate } from '../middlewares/authenticate.js';
-import { authRouter } from './auth.routes.js';
+import { createAuthRouter } from './auth.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
@@ -13,7 +13,7 @@ export function createApiRouter(container: Container): Router {
   const router = Router();
 
   router.use(healthRouter);
-  router.use(authRouter);
+  router.use(createAuthRouter(container.authService));
   router.use('/categories', categoriesRouter);
 
   // Thứ tự quan trọng: router đăng tin đứng trước router công khai để /toys/mine không bị

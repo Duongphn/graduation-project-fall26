@@ -2,7 +2,7 @@ import 'multer';
 import mongoose, { type Model } from 'mongoose';
 import type { RequestActor } from '../types/request-actor.js';
 import { AppError } from '../utils/app-error.js';
-import type { ToyImageStorage } from '../integrations/cloudinary/cloudinary-image-storage.js';
+import type { ToyImageStorage } from '../interfaces/toy-listing.ports.js';
 import { validateToyImage } from '../utils/image-validation.js';
 import { Toy, type IToy } from '../models/toy.model.js';
 import type {

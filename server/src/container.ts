@@ -1,9 +1,12 @@
+import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/mailer.js';
+import type { AuthMailer } from './interfaces/auth.ports.js';
+import { AuthService } from './services/auth.service.js';
 import {
   createDefaultAvatarStorage,
   createDefaultIdentityStorage,
   createDefaultToyImageStorage,
 } from './integrations/cloudinary/default-storages.js';
-import type { ToyImageStorage } from './integrations/cloudinary/cloudinary-image-storage.js';
+import type { ToyImageStorage } from './interfaces/toy-listing.ports.js';
 import { DefaultIdentityVerificationEvents } from './integrations/events/identity-verification-events.js';
 import type {
   IdentityImageStorage,
@@ -28,6 +31,7 @@ import type { ToyCatalogPorts, ToyCatalogRepository } from './types/toy-catalog.
 
 /** Thay thế adapter hoặc cả service — dùng trong test để không gọi Cloudinary/MongoDB thật */
 export interface ContainerOverrides {
+  authMailer?: AuthMailer;
   avatarStorage?: UserAvatarStorage;
   identityImageStorage?: IdentityImageStorage;
   identityVerificationEvents?: IdentityVerificationEvents;
@@ -36,6 +40,7 @@ export interface ContainerOverrides {
   toyCatalogReadPort?: ToyCatalogReadPort;
   toyCatalogRepository?: ToyCatalogRepository;
   toyCatalogPorts?: ToyCatalogPorts;
+  authService?: AuthService;
   usersService?: UsersService;
   identityVerificationService?: IdentityVerificationService;
   toyListingService?: ToyListingService;
@@ -43,6 +48,7 @@ export interface ContainerOverrides {
 }
 
 export interface Container {
+  authService: AuthService;
   usersService: UsersService;
   identityVerificationService: IdentityVerificationService;
   toyListingService: ToyListingService;
@@ -54,6 +60,10 @@ export interface Container {
  * Adapter mặc định chỉ được tạo khi service tương ứng không bị override.
  */
 export function createContainer(overrides: ContainerOverrides = {}): Container {
+  const authService =
+    overrides.authService ??
+    new AuthService(overrides.authMailer ?? { sendOtpEmail, sendResetPasswordEmail });
+
   const usersService =
     overrides.usersService ??
     new UsersService(User, overrides.avatarStorage ?? createDefaultAvatarStorage());
@@ -82,5 +92,11 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       overrides.toyCatalogPorts ?? createToyCatalogPorts(),
     );
 
-  return { usersService, identityVerificationService, toyListingService, toyCatalogService };
+  return {
+    authService,
+    usersService,
+    identityVerificationService,
+    toyListingService,
+    toyCatalogService,
+  };
 }
