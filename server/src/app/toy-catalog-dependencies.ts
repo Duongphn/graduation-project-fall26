@@ -1,19 +1,13 @@
 import type { Router } from 'express';
-import { createToyCatalogRouter } from '../features/toys/toy-catalog.routes.js';
-import { ToyCatalogService } from '../features/toys/toy-catalog.service.js';
-import type { ToyCatalogReadPort } from '../features/toys/toy-catalog.ports.js';
-import { AtlasToyCatalogRepository } from '../infrastructure/mongodb/atlas-toy-catalog.repository.js';
-
-export interface ToyCatalogDependencies {
-  service: ToyCatalogService;
-  readPort: ToyCatalogReadPort;
 
 import PurchaseOrder from '../features/purchase_orders/purchase_orders.model.js';
 import RentalOrder from '../features/rental_orders/rental_orders.model.js';
+import type { ToyCatalogReadPort } from '../features/toys/toy-catalog.ports.js';
 import { MongoToyCatalogRepository } from '../features/toys/toy-catalog.repository.js';
 import { createToyCatalogRouter } from '../features/toys/toy-catalog.routes.js';
 import { ToyCatalogService } from '../features/toys/toy-catalog.service.js';
 import type { ToyCatalogPorts, ToyCatalogRepository } from '../features/toys/toy-catalog.types.js';
+import { AtlasToyCatalogRepository } from '../infrastructure/mongodb/atlas-toy-catalog.repository.js';
 
 export interface ToyCatalogDependencies {
   service: ToyCatalogService;
@@ -22,20 +16,6 @@ export interface ToyCatalogDependencies {
 
 export interface CreateToyCatalogDependenciesOptions {
   readPort?: ToyCatalogReadPort;
-}
-
-export function createToyCatalogDependencies(
-  options: CreateToyCatalogDependenciesOptions = {},
-): ToyCatalogDependencies {
-  const readPort = options.readPort ?? new AtlasToyCatalogRepository();
-  const service = new ToyCatalogService(readPort);
-  const router = createToyCatalogRouter(service);
-
-  return {
-    service,
-    readPort,
-    router,
-  };
   repository?: ToyCatalogRepository;
   ports?: ToyCatalogPorts;
 }
@@ -47,6 +27,7 @@ const NOT_COUNTED_RENTAL_STATUS_REGEX = /^(rejected|cancell?ed|expired)$/i;
 export function createToyCatalogDependencies(
   options?: CreateToyCatalogDependenciesOptions,
 ): ToyCatalogDependencies {
+  const readPort = options?.readPort ?? new AtlasToyCatalogRepository();
   const repository = options?.repository ?? new MongoToyCatalogRepository();
 
   const ports: ToyCatalogPorts = options?.ports ?? {
@@ -66,7 +47,7 @@ export function createToyCatalogDependencies(
     },
   };
 
-  const service = new ToyCatalogService(repository, ports);
+  const service = new ToyCatalogService(readPort, repository, ports);
   const router = createToyCatalogRouter(service);
 
   return { service, router };

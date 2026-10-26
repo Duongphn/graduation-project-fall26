@@ -7,9 +7,50 @@ import type {
   ToySearchQuery,
   ToySearchResult,
 } from './toy-catalog.ports.js';
+import type {
+  CatalogToyRecord,
+  PublicToyDto,
+  ToyCatalogFilter,
+  ToyCatalogPage,
+  ToyCatalogPorts,
+  ToyCatalogQuery,
+  ToyCatalogRepository,
+} from './toy-catalog.types.js';
 
+/** "Phổ biến" = nhiều đơn thuê nhất trong khoảng thời gian này */
+export const POPULAR_WINDOW_DAYS = 7;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function toPublicDto(record: CatalogToyRecord): PublicToyDto {
+  return {
+    id: record.id,
+    categoryId: record.categoryId,
+    title: record.title,
+    condition: record.condition,
+    listingType: record.listingType,
+    priceOrRate: record.priceOrRate,
+    // Tiền cọc chỉ có nghĩa với tin cho thuê (cùng quy tắc với ToyListingService)
+    ...(record.listingType === 'rent' && record.depositPrice !== undefined
+      ? { depositPrice: record.depositPrice }
+      : {}),
+    ageRange: record.ageRange,
+    images: record.images,
+    createdAt: record.createdAt,
+  };
+}
+
+/**
+ * Đọc tin công khai: tìm kiếm/chi tiết/lịch thuê (Atlas Search qua readPort)
+ * và danh sách trang chủ /toys/showcase (Mongo thường qua repository + ports).
+ */
 export class ToyCatalogService {
-  public constructor(private readonly readPort: ToyCatalogReadPort) {}
+  public constructor(
+    private readonly readPort: ToyCatalogReadPort,
+    private readonly repository: ToyCatalogRepository,
+    private readonly ports: ToyCatalogPorts,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   public async search(query: ToySearchQuery): Promise<ToySearchResult> {
     const { items, total } = await this.readPort.search(query);
@@ -95,45 +136,7 @@ export class ToyCatalogService {
 
     const periods = await this.readPort.findAvailability(toyId, from, to);
     return { periods };
-import type {
-  CatalogToyRecord,
-  PublicToyDto,
-  ToyCatalogFilter,
-  ToyCatalogPage,
-  ToyCatalogPorts,
-  ToyCatalogQuery,
-  ToyCatalogRepository,
-} from './toy-catalog.types.js';
-
-/** "Phổ biến" = nhiều đơn thuê nhất trong khoảng thời gian này */
-export const POPULAR_WINDOW_DAYS = 7;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function toPublicDto(record: CatalogToyRecord): PublicToyDto {
-  return {
-    id: record.id,
-    categoryId: record.categoryId,
-    title: record.title,
-    condition: record.condition,
-    listingType: record.listingType,
-    priceOrRate: record.priceOrRate,
-    // Tiền cọc chỉ có nghĩa với tin cho thuê (cùng quy tắc với ToyListingService)
-    ...(record.listingType === 'rent' && record.depositPrice !== undefined
-      ? { depositPrice: record.depositPrice }
-      : {}),
-    ageRange: record.ageRange,
-    images: record.images,
-    createdAt: record.createdAt,
-  };
-}
-
-export class ToyCatalogService {
-  public constructor(
-    private readonly repository: ToyCatalogRepository,
-    private readonly ports: ToyCatalogPorts,
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+  }
 
   public async list(query: ToyCatalogQuery): Promise<ToyCatalogPage> {
     const soldToyIds = await this.ports.getSoldToyIds();

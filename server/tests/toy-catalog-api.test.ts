@@ -1,7 +1,10 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createApiRouter } from '../src/app/router.js';
+import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
 import { createToyCatalogRouter } from '../src/features/toys/toy-catalog.routes.js';
 import { ToyCatalogService } from '../src/features/toys/toy-catalog.service.js';
 import type {
@@ -10,6 +13,12 @@ import type {
   ToyCatalogReadPort,
   ToyDetailDto,
 } from '../src/features/toys/toy-catalog.ports.js';
+import type {
+  CatalogToyRecord,
+  ToyCatalogFilter,
+  ToyCatalogPorts,
+  ToyCatalogRepository,
+} from '../src/features/toys/toy-catalog.types.js';
 import { errorHandler } from '../src/shared/middleware/error-handler.js';
 
 describe('UC05 Toy Catalog API', () => {
@@ -65,7 +74,7 @@ describe('UC05 Toy Catalog API', () => {
       ],
     };
 
-    service = new ToyCatalogService(mockPort);
+    service = new ToyCatalogService(mockPort, createFakeRepository([]), noopCatalogPorts);
     app = express();
     app.use(express.json());
     app.use('/api/v1/toys', createToyCatalogRouter(service));
@@ -225,19 +234,39 @@ describe('UC05 Toy Catalog API', () => {
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe('NOT_FOUND');
     });
-import mongoose from 'mongoose';
-import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+  });
+});
 
-import { createApiRouter } from '../src/app/router.js';
-import { createToyCatalogDependencies } from '../src/app/toy-catalog-dependencies.js';
-import type {
-  CatalogToyRecord,
-  ToyCatalogFilter,
-  ToyCatalogPorts,
-  ToyCatalogRepository,
-} from '../src/features/toys/toy-catalog.types.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+const SAMPLE_TOY_ID = '64b000000000000000000001';
+
+const noopCatalogPorts: ToyCatalogPorts = {
+  getSoldToyIds: async () => [],
+  getRentalCountsSince: async () => new Map(),
+};
+
+/** readPort giả cho Atlas Search: có đúng một tin SAMPLE_TOY_ID */
+const fakeReadPort: ToyCatalogReadPort = {
+  search: async () => ({ items: [], total: 0 }),
+  findActiveDetail: async (toyId: string) =>
+    toyId === SAMPLE_TOY_ID
+      ? {
+          id: SAMPLE_TOY_ID,
+          title: 'LEGO',
+          description: 'Bộ LEGO',
+          images: [],
+          listingType: 'rent',
+          priceOrRate: 50_000,
+          depositPrice: 200_000,
+          category: { id: '64b000000000000000000099', name: 'Lắp ráp', slug: 'lap-rap' },
+          ageRange: { minAge: 6, maxAge: 12 },
+          condition: 'like_new',
+          owner: { id: '64b000000000000000000088', displayName: 'A' },
+          createdAt: '2026-10-14T00:00:00.000Z',
+          updatedAt: '2026-10-14T00:00:00.000Z',
+        }
+      : null,
+  findAvailability: async () => [],
+};
 
 const CATEGORY_A = new mongoose.Types.ObjectId().toString();
 const CATEGORY_B = new mongoose.Types.ObjectId().toString();
@@ -312,6 +341,7 @@ function createFakeRepository(toys: FakeToy[]): ToyCatalogRepository {
 
 function setup(toys: FakeToy[], ports: Partial<ToyCatalogPorts> = {}) {
   const deps = createToyCatalogDependencies({
+    readPort: fakeReadPort,
     repository: createFakeRepository(toys),
     ports: {
       getSoldToyIds: async () => [],
@@ -326,11 +356,11 @@ function setup(toys: FakeToy[], ports: Partial<ToyCatalogPorts> = {}) {
   return app;
 }
 
-describe('GET /api/v1/toys (public catalog)', () => {
+describe('GET /api/v1/toys/showcase (home showcase)', () => {
   it('lets guests list toys without authentication', async () => {
     const app = setup([makeToy()]);
 
-    const response = await request(app).get('/api/v1/toys');
+    const response = await request(app).get('/api/v1/toys/showcase');
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ page: 1, limit: 20, total: 1 });
@@ -344,7 +374,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
       getSoldToyIds: async () => [sold.id],
     });
 
-    const response = await request(app).get('/api/v1/toys');
+    const response = await request(app).get('/api/v1/toys/showcase');
 
     expect(response.body.total).toBe(1);
     expect(response.body.items.map((item: { id: string }) => item.id)).toEqual([active.id]);
@@ -353,7 +383,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
   it('never exposes owner, location or image public ids', async () => {
     const app = setup([makeToy({ images: [{ url: 'https://img.example/toy.jpg' }] })]);
 
-    const [item] = (await request(app).get('/api/v1/toys')).body.items;
+    const [item] = (await request(app).get('/api/v1/toys/showcase')).body.items;
 
     expect(item).not.toHaveProperty('ownerId');
     expect(item).not.toHaveProperty('location');
@@ -367,7 +397,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
       makeToy({ listingType: 'sell', depositPrice: 999 }),
     ]);
 
-    const response = await request(app).get('/api/v1/toys');
+    const response = await request(app).get('/api/v1/toys/showcase');
     const byType = Object.fromEntries(
       response.body.items.map((item: { listingType: string }) => [item.listingType, item]),
     );
@@ -386,7 +416,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
     ]);
 
     const response = await request(app)
-      .get('/api/v1/toys')
+      .get('/api/v1/toys/showcase')
       .query({ listingType: 'sell', categoryId: CATEGORY_B, minAge: 9, maxAge: 12 });
 
     expect(response.status).toBe(200);
@@ -397,8 +427,8 @@ describe('GET /api/v1/toys (public catalog)', () => {
     const [newest, middle, oldest] = [makeToy(), makeToy(), makeToy()]; // tin tạo sau có createdAt cũ hơn
     const app = setup([oldest, newest, middle]);
 
-    const firstPage = await request(app).get('/api/v1/toys').query({ limit: 2 });
-    const secondPage = await request(app).get('/api/v1/toys').query({ page: 2, limit: 2 });
+    const firstPage = await request(app).get('/api/v1/toys/showcase').query({ limit: 2 });
+    const secondPage = await request(app).get('/api/v1/toys/showcase').query({ page: 2, limit: 2 });
 
     expect(firstPage.body.items.map((item: { id: string }) => item.id)).toEqual([newest.id, middle.id]);
     expect(secondPage.body).toMatchObject({ page: 2, limit: 2, total: 3 });
@@ -418,8 +448,8 @@ describe('GET /api/v1/toys (public catalog)', () => {
       },
     });
 
-    const firstPage = await request(app).get('/api/v1/toys').query({ sort: 'popular', limit: 2 });
-    const secondPage = await request(app).get('/api/v1/toys').query({ sort: 'popular', limit: 2, page: 2 });
+    const firstPage = await request(app).get('/api/v1/toys/showcase').query({ sort: 'popular', limit: 2 });
+    const secondPage = await request(app).get('/api/v1/toys/showcase').query({ sort: 'popular', limit: 2, page: 2 });
 
     expect(firstPage.body.items.map((item: { id: string }) => item.id)).toEqual([oldest.id, middle.id]);
     expect(secondPage.body.items.map((item: { id: string }) => item.id)).toEqual([newest.id]);
@@ -430,7 +460,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
   it('caps limit at 100', async () => {
     const app = setup([makeToy()]);
 
-    const response = await request(app).get('/api/v1/toys').query({ limit: 500 });
+    const response = await request(app).get('/api/v1/toys/showcase').query({ limit: 500 });
 
     expect(response.body.limit).toBe(100);
   });
@@ -445,7 +475,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
   ])('rejects invalid %s with 400 VALIDATION_ERROR', async (_label, query) => {
     const app = setup([makeToy()]);
 
-    const response = await request(app).get('/api/v1/toys').query(query);
+    const response = await request(app).get('/api/v1/toys/showcase').query(query);
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
@@ -454,7 +484,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
   it('rejects repeated query parameters', async () => {
     const app = setup([makeToy()]);
 
-    const response = await request(app).get('/api/v1/toys?listingType=rent&listingType=sell');
+    const response = await request(app).get('/api/v1/toys/showcase?listingType=rent&listingType=sell');
 
     expect(response.status).toBe(400);
   });
@@ -463,6 +493,7 @@ describe('GET /api/v1/toys (public catalog)', () => {
 describe('API router mount order', () => {
   function createAppWithFullRouter() {
     const toyCatalogDependencies = createToyCatalogDependencies({
+      readPort: fakeReadPort,
       repository: createFakeRepository([makeToy()]),
       ports: { getSoldToyIds: async () => [], getRentalCountsSince: async () => new Map() },
     });
@@ -488,5 +519,27 @@ describe('API router mount order', () => {
 
     expect(mine.status).toBe(401);
     expect(create.status).toBe(401);
+  });
+
+  it('serves GET /toys/showcase publicly and does not treat it as a toyId', async () => {
+    const res = await request(createAppWithFullRouter()).get('/api/v1/toys/showcase');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('items');
+    expect(res.body).not.toHaveProperty('suggestions');
+  });
+
+  it('serves toy detail and availability publicly', async () => {
+    const app = createAppWithFullRouter();
+
+    const detail = await request(app).get(`/api/v1/toys/${SAMPLE_TOY_ID}`);
+    const availability = await request(app)
+      .get(`/api/v1/toys/${SAMPLE_TOY_ID}/availability`)
+      .query({ from: '2026-11-01', to: '2026-11-30' });
+
+    expect(detail.status).toBe(200);
+    expect(detail.body.id).toBe(SAMPLE_TOY_ID);
+    expect(availability.status).toBe(200);
+    expect(availability.body).toEqual({ periods: [] });
   });
 });

@@ -4,7 +4,8 @@ import type { ToyCatalogService } from './toy-catalog.service.js';
 
 /**
  * Router công khai của /toys — KHÔNG dùng requireActor.
- * Chỉ khai báo đúng `GET /`; mọi đường dẫn khác (/mine, /:toyId…) đi tiếp sang router đăng tin.
+ * Router đăng tin được gắn trước router này, nên /mine đã được xử lý trước khi tới `/:toyId`.
+ * `/showcase` phải khai báo trước `/:toyId` để không bị hiểu là một toyId.
  */
 export function createToyCatalogRouter(
   service: ToyCatalogService,
@@ -13,9 +14,9 @@ export function createToyCatalogRouter(
   const router = Router();
 
   router.get('/', controller.search);
+  router.get('/showcase', controller.list);
   router.get('/:toyId/availability', controller.getAvailability);
   router.get('/:toyId', controller.getDetail);
-  router.get('/', controller.list);
 
   return router;
 }

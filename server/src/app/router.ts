@@ -16,36 +16,24 @@ import {
   type UC03Dependencies,
 } from './uc03-dependencies.js';
 
-export interface CreateApiRouterDependencies {
-  toyListingDependencies?: ToyListingDependencies;
-  uc03Dependencies?: UC03Dependencies;
-}
-
-export function createApiRouter(deps?: CreateApiRouterDependencies): Router {
 export interface ApiRouterDependencies {
   toyListingDependencies?: ToyListingDependencies;
   toyCatalogDependencies?: ToyCatalogDependencies;
+  uc03Dependencies?: UC03Dependencies;
 }
 
 export function createApiRouter(deps?: ApiRouterDependencies): Router {
-export function createApiRouter(deps?: {
-  toyListingDependencies?: ToyListingDependencies;
-  toyCatalogDependencies?: ToyCatalogDependencies;
-}): Router {
   const router = Router();
 
   router.use(healthRouter);
   router.use(authRouter);
   router.use('/categories', categoriesRouter);
 
-  // Thứ tự quan trọng: router công khai (chỉ GET /toys) đứng trước router đăng tin (bắt đăng nhập),
-  // để khách xem được danh sách mà /toys/mine, POST, PATCH… vẫn yêu cầu đăng nhập như cũ.
-  const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
-  router.use('/toys', toyCatalog.router);
-
+  // Thứ tự quan trọng: router đăng tin đứng trước router công khai để /toys/mine không bị
+  // hiểu là GET /toys/:toyId. Router đăng tin chỉ gắn requireActor trên từng route,
+  // nên khách vẫn đi tiếp tới GET /toys, /toys/showcase, /toys/:toyId… mà không cần đăng nhập.
   const toyListing = deps?.toyListingDependencies ?? createToyListingDependencies();
   const toyCatalog = deps?.toyCatalogDependencies ?? createToyCatalogDependencies();
-
   router.use('/toys', toyListing.router);
   router.use('/toys', toyCatalog.router);
 
