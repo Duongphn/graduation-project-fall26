@@ -2,7 +2,7 @@ import mongoose, { type Model, Schema } from 'mongoose';
 
 const purchaseOrderSchema = new Schema(
   {
-    code: { type: String, required: true, unique: true },
+    code: { type: String, required: true },
     buyerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     sellerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     toyId: { type: Schema.Types.ObjectId, ref: 'Toy', required: true },

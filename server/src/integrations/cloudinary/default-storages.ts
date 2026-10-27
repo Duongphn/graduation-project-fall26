@@ -1,10 +1,11 @@
 import { env } from '../../config/env.js';
 import type { IdentityImageStorage } from '../../interfaces/identity-verification.ports.js';
+import type { RentalPhotoStorage } from '../../interfaces/rental-order.ports.js';
+import type { ToyImageStorage } from '../../interfaces/toy-listing.ports.js';
 import type { UserAvatarStorage } from '../../interfaces/user.ports.js';
 import { AppError } from '../../utils/app-error.js';
 import { configureCloudinary } from './cloudinary-client.js';
 import { CloudinaryIdentityStorage } from './cloudinary-identity-storage.js';
-import type { ToyImageStorage } from '../../interfaces/toy-listing.ports.js';
 import { CloudinaryImageStorage } from './cloudinary-image-storage.js';
 
 /**
@@ -93,5 +94,42 @@ export function createDefaultToyImageStorage(): ToyImageStorage {
 
   return new CloudinaryImageStorage({
     client: configureCloudinary({ cloudName, apiKey, apiSecret }),
+  });
+}
+
+export function createDefaultRentalPhotoStorage(): RentalPhotoStorage {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY || env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || env.CLOUDINARY_API_SECRET;
+
+  if (
+    !process.env.CLOUDINARY_CLOUD_NAME ||
+    !process.env.CLOUDINARY_API_KEY ||
+    !process.env.CLOUDINARY_API_SECRET ||
+    !cloudName ||
+    !apiKey ||
+    !apiSecret
+  ) {
+    return {
+      async upload(): Promise<{ url: string; publicId: string }> {
+        throw new AppError(
+          500,
+          'CLOUDINARY_NOT_CONFIGURED',
+          'Cloudinary credentials are not configured.',
+        );
+      },
+      async delete(): Promise<void> {
+        throw new AppError(
+          500,
+          'CLOUDINARY_NOT_CONFIGURED',
+          'Cloudinary credentials are not configured.',
+        );
+      },
+    };
+  }
+
+  return new CloudinaryImageStorage({
+    client: configureCloudinary({ cloudName, apiKey, apiSecret }),
+    folder: 'toyflow/rentals',
   });
 }

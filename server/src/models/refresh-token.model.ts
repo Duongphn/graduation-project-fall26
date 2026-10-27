@@ -8,11 +8,14 @@ export interface IRefreshToken {
   updatedAt?: Date;
 }
 
-const refreshTokenSchema = new Schema<IRefreshToken>({
+const refreshTokenSchema = new Schema<IRefreshToken>(
+  {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    token: { type: String, required: true, unique: true },
-    expiresAt: { type: Date, required: true }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+    token: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+  },
+  { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
+);
 
 // Index duy nhất cho token và TTL index tự xóa khi hết hạn
 refreshTokenSchema.index({ token: 1 }, { unique: true, name: 'token_unique' });

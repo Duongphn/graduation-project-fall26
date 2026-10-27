@@ -3,46 +3,51 @@ import multer, { MulterError } from 'multer';
 import { AppError } from '../utils/app-error.js';
 import { validateIdentityImageBuffer } from '../utils/image-validation.js';
 
-const multerUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 10,
-  },
-}).array('images', 10);
+export const imageArrayUpload = (fieldName: string): RequestHandler => {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+      files: 10,
+    },
+  }).array(fieldName, 10);
 
-export const toyImageUpload: RequestHandler = (req, res, next) => {
-  multerUpload(req, res, (err) => {
-    if (!err) {
-      return next();
-    }
-
-    if (err instanceof MulterError) {
-      let message = err.message;
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        message = 'Each image must be at most 5 MB.';
-      } else if (err.code === 'LIMIT_FILE_COUNT') {
-        message = 'A maximum of 10 images can be uploaded.';
-      } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        message = 'Unexpected image upload field or exceeded maximum limit of 10 images.';
+  return (req, res, next) => {
+    upload(req, res, (err) => {
+      if (!err) {
+        return next();
       }
 
-      return next(new AppError(400, 'INVALID_IMAGE_UPLOAD', message, { code: err.code }));
-    }
+      if (err instanceof MulterError) {
+        let message = err.message;
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          message = 'Each image must be at most 5 MB.';
+        } else if (err.code === 'LIMIT_FILE_COUNT') {
+          message = 'A maximum of 10 images can be uploaded.';
+        } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          message = 'Unexpected image upload field or exceeded maximum limit of 10 images.';
+        }
 
-    if (err instanceof AppError) {
-      return next(err);
-    }
+        return next(new AppError(400, 'INVALID_IMAGE_UPLOAD', message, { code: err.code }));
+      }
 
-    return next(
-      new AppError(
-        400,
-        'INVALID_IMAGE_UPLOAD',
-        err instanceof Error ? err.message : 'Image upload failed.',
-      ),
-    );
-  });
+      if (err instanceof AppError) {
+        return next(err);
+      }
+
+      return next(
+        new AppError(
+          400,
+          'INVALID_IMAGE_UPLOAD',
+          err instanceof Error ? err.message : 'Image upload failed.',
+        ),
+      );
+    });
+  };
 };
+
+export const toyImageUpload = imageArrayUpload('images');
+export const rentalPhotoUpload = imageArrayUpload('photos');
 
 const multerFieldsUpload = multer({
   storage: multer.memoryStorage(),

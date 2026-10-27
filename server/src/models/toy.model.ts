@@ -23,6 +23,7 @@ export interface IToy {
   ageRange: ToyAgeRange;
   images: ToyImage[];
   quantity: number;
+  bookingVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +74,7 @@ export const toySchema = new Schema<IToy>(
       },
     ],
     quantity: { type: Number, required: true, default: 1 },
+    bookingVersion: { type: Number, required: true, default: 0 },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );

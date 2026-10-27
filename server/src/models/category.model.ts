@@ -2,8 +2,8 @@ import mongoose, { type Model, Schema } from 'mongoose';
 
 const categorySchema = new Schema(
   {
-    name: { type: String, required: true, unique: true },
-    slug: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    slug: { type: String, required: true },
     parent_id: { type: Schema.Types.ObjectId, ref: 'Category', default: null },
     description: { type: String },
     status: { type: String, required: true, default: 'active' },
