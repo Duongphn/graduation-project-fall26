@@ -100,6 +100,14 @@ export function ToyListingEditorPage() {
         <div className="tf-card load-state">Đang tải tin đăng...</div>
       ) : isEdit && !listing ? (
         <div className="tf-card load-state">Không tìm thấy tin đăng này trong danh sách tin của bạn.</div>
+      ) : listing?.listingType === 'donate' ? (
+        // Tin tặng không có giá: form đăng tin (cho thuê / bán) sẽ đổi nhầm loại tin
+        <div className="tf-card load-state">
+          <p>Tin tặng không chỉnh sửa ở đây. Theo dõi các yêu cầu nhận đồ trong mục Quyên góp của tôi.</p>
+          <Link to={PATHS.myDonations} className="tf-btn tf-btn--soft tf-btn--inline">
+            Quyên góp của tôi
+          </Link>
+        </div>
       ) : (
         <ToyListingForm
           key={listing?.id ?? 'new'}

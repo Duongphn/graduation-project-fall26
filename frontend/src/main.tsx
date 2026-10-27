@@ -5,6 +5,10 @@ import './index.css'
 import App from './App.tsx'
 import { ThemeProvider } from './contexts/theme-provider'
 import { queryClient } from './services/query-client'
+import { applyCssVariables } from './styles/theme'
+
+// Biến màu --tf-* cho khu quản trị và trang quyên góp (src/styles/palette.ts).
+applyCssVariables()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -460,7 +460,8 @@ describe('GET /api/v1/toys/showcase (home showcase)', () => {
   });
 
   it.each([
-    ['listingType', { listingType: 'donate' }],
+    // 'donate' is valid since the donation flow (home "donate" section); 'gift' is not a type.
+    ['listingType', { listingType: 'gift' }],
     ['sort', { sort: 'cheapest' }],
     ['categoryId', { categoryId: 'not-an-id' }],
     ['page', { page: 0 }],

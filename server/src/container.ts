@@ -1,4 +1,5 @@
 import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/mailer.js';
+import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
 import { AuthService } from './services/auth.service.js';
 import {
@@ -23,6 +24,7 @@ import {
 } from './interfaces/rental-order.ports.js';
 import type { ToyCatalogReadPort } from './interfaces/toy-catalog.ports.js';
 import type { ToyListingPorts } from './interfaces/toy-listing.ports.js';
+import type { Mailer } from './interfaces/notification.ports.js';
 import type { UserAvatarStorage } from './interfaces/user.ports.js';
 import type { WalletLedgerPort } from './interfaces/wallet.ports.js';
 import { IdentityVerification } from './models/identity-verification.model.js';
@@ -35,7 +37,10 @@ import {
 } from './repositories/toy-catalog.repository.js';
 import { createToyListingPorts } from './repositories/toy-listing.repository.js';
 import { WalletLedgerRepository } from './repositories/wallet-ledger.repository.js';
+import { setReviewStorage } from './services/identity-review.documents.js';
+import { setIdentityReviewService } from './services/identity-review.service.js';
 import { IdentityVerificationService } from './services/identity-verification.service.js';
+import { setNotificationMailer } from './services/notification.service.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
@@ -45,6 +50,7 @@ import { ToyListingService } from './services/toy-listing.service.js';
 import { UsersService } from './services/user.service.js';
 import { WalletService } from './services/wallet.service.js';
 import type { ToyCatalogPorts, ToyCatalogRepository } from './types/toy-catalog.types.js';
+import { isCloudinaryConfigured } from './utils/cloudinary-signing.js';
 
 /** Thay thế adapter hoặc cả service — dùng trong test để không gọi Cloudinary/MongoDB thật */
 export interface ContainerOverrides {
@@ -63,6 +69,8 @@ export interface ContainerOverrides {
   clock?: Clock;
   rentalSettings?: RentalSettingsProvider;
   rentalOrderRepository?: RentalOrderRepository;
+  // Email of the in-app notifications (SMTP when configured, else only logged).
+  notificationMailer?: Mailer;
   authService?: AuthService;
   usersService?: UsersService;
   identityVerificationService?: IdentityVerificationService;
@@ -75,6 +83,8 @@ export interface ContainerOverrides {
 }
 
 export interface Container {
+  // Shared by the toy listing service and the donation posts router.
+  toyImageStorage: ToyImageStorage;
   authService: AuthService;
   usersService: UsersService;
   identityVerificationService: IdentityVerificationService;
@@ -100,21 +110,30 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     overrides.usersService ??
     new UsersService(User, overrides.avatarStorage ?? createDefaultAvatarStorage());
 
+  const identityImageStorage = overrides.identityImageStorage ?? createDefaultIdentityStorage();
   const identityVerificationService =
     overrides.identityVerificationService ??
     new IdentityVerificationService(
       IdentityVerification,
       User,
-      overrides.identityImageStorage ?? createDefaultIdentityStorage(),
+      identityImageStorage,
       overrides.identityVerificationEvents ?? new DefaultIdentityVerificationEvents(),
     );
 
+  // Admin identity review: develop's service for the decision; document links only with real
+  // Cloudinary credentials (the unconfigured fallback storage would hand out dead links).
+  setIdentityReviewService(identityVerificationService);
+  setReviewStorage(
+    overrides.identityImageStorage ?? (isCloudinaryConfigured() ? identityImageStorage : null),
+  );
+
+  // Donor / Admin notification emails.
+  setNotificationMailer(overrides.notificationMailer ?? getDefaultMailer());
+
+  const toyImageStorage = overrides.toyImageStorage ?? createDefaultToyImageStorage();
   const toyListingService =
     overrides.toyListingService ??
-    new ToyListingService(
-      overrides.toyListingPorts ?? createToyListingPorts(),
-      overrides.toyImageStorage ?? createDefaultToyImageStorage(),
-    );
+    new ToyListingService(overrides.toyListingPorts ?? createToyListingPorts(), toyImageStorage);
 
   const toyCatalogService =
     overrides.toyCatalogService ??
@@ -157,6 +176,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     );
 
   return {
+    toyImageStorage,
     authService,
     usersService,
     identityVerificationService,

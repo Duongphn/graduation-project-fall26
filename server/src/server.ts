@@ -8,10 +8,14 @@ import {
 } from './config/database.js';
 import { createContainer } from './container.js';
 import { startRentalScheduler } from './services/rental-timer.service.js';
+import { registerEventHandlers } from './event-handlers.js';
+import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
   await connectDatabase(env.mongoDbUri);
+  registerEventHandlers();
+  const donationExpiryJob = startDonationExpiryJob();
 
   const container = createContainer();
   const httpServer = createServer(createApp(undefined, container));
@@ -32,6 +36,7 @@ const startServer = async (): Promise<void> => {
     if (stopScheduler) {
       stopScheduler();
     }
+    donationExpiryJob?.stop();
     socketServer.close();
     httpServer.close(async () => {
       await disconnectDatabase();

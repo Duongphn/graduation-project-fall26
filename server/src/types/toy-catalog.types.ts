@@ -1,5 +1,8 @@
 import type { ListingType, ToyAgeRange } from '../interfaces/toy-listing.ports.js';
 
+/** Loại tin trong danh sách công khai: thêm 'donate' (tin quyên góp, priceOrRate 0) ngoài rent/sell */
+export type CatalogListingType = ListingType | 'donate';
+
 /**
  * Danh sách đồ chơi công khai (khách chưa đăng nhập cũng xem được).
  * Chỉ chứa thông tin cần để hiển thị — không có ownerId, location, publicId của ảnh.
@@ -9,7 +12,7 @@ export interface PublicToyDto {
   categoryId: string;
   title: string;
   condition: string;
-  listingType: ListingType;
+  listingType: CatalogListingType;
   priceOrRate: number;
   depositPrice?: number;
   ageRange: ToyAgeRange;
@@ -20,7 +23,7 @@ export interface PublicToyDto {
 export type ToyCatalogSort = 'newest' | 'popular';
 
 export interface ToyCatalogQuery {
-  listingType?: ListingType;
+  listingType?: CatalogListingType;
   categoryId?: string;
   /** Lọc theo độ tuổi: lấy đồ chơi có khoảng tuổi giao với [minAge, maxAge] */
   minAge?: number;
@@ -39,7 +42,7 @@ export interface ToyCatalogPage {
 
 /** Bộ lọc đã chuẩn hoá mà repository nhận — chỉ tin đang hiển thị, đã loại các id trong `excludeIds` */
 export interface ToyCatalogFilter {
-  listingType?: ListingType;
+  listingType?: CatalogListingType;
   categoryId?: string;
   minAge?: number;
   maxAge?: number;
@@ -51,7 +54,7 @@ export interface CatalogToyRecord {
   categoryId: string;
   title: string;
   condition: string;
-  listingType: ListingType;
+  listingType: CatalogListingType;
   priceOrRate: number;
   depositPrice?: number | undefined;
   ageRange: ToyAgeRange;

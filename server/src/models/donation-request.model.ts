@@ -1,8 +1,37 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { type Model, Schema } from 'mongoose';
+
+import type { DonationStatus } from '../constants/donation-status.js';
+
+/** Stored value of a donation status: develop's model stores lowercase ('pending' by default). */
+export type StoredDonationStatus = Lowercase<DonationStatus>;
+
+// Added for the donor flow (not in develop's original schema): who decided and why, the
+// handover photo proofs, completion and cancellation.
+const handoverSchema = new Schema(
+  {
+    step: { type: String, required: true, enum: ['DONOR_SENT', 'RECEIVER_RECEIVED'] },
+    by: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    photos: { type: [String], default: [] },
+    note: { type: String },
+    at: { type: Date, required: true },
+  },
+  { _id: false },
+);
+
+const cancellationSchema = new Schema(
+  {
+    by: { type: Schema.Types.ObjectId, ref: 'User' },
+    actorType: { type: String, required: true, enum: ['USER', 'ADMIN', 'SYSTEM'] },
+    reason: { type: String, required: true },
+    note: { type: String },
+    at: { type: Date, required: true },
+  },
+  { _id: false },
+);
 
 const donationRequestSchema = new Schema(
   {
-    code: { type: String, required: true },
+    code: { type: String, required: true, unique: true },
     donorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     requestedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     toyId: { type: Schema.Types.ObjectId, ref: 'Toy', required: true },
@@ -16,6 +45,12 @@ const donationRequestSchema = new Schema(
     timer: {
       dueAt: { type: Date },
     },
+    decidedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    decidedAt: { type: Date },
+    rejectReason: { type: String },
+    handovers: { type: [handoverSchema], default: [] },
+    completedAt: { type: Date },
+    cancellation: { type: cancellationSchema, default: undefined },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
@@ -38,7 +73,48 @@ donationRequestSchema.index(
   { partialFilterExpression: { 'timer.dueAt': { $exists: true } }, name: 'timer_due' },
 );
 
-export const DonationRequest =
-  mongoose.models.DonationRequest || mongoose.model('DonationRequest', donationRequestSchema);
+export interface DonationHandover {
+  step: 'DONOR_SENT' | 'RECEIVER_RECEIVED';
+  by: mongoose.Types.ObjectId;
+  photos: string[];
+  note?: string;
+  at: Date;
+}
+
+export interface DonationCancellation {
+  by?: mongoose.Types.ObjectId;
+  actorType: 'USER' | 'ADMIN' | 'SYSTEM';
+  reason: string;
+  note?: string;
+  at: Date;
+}
+
+export interface IDonationRequest {
+  _id: mongoose.Types.ObjectId;
+  code: string;
+  donorId: mongoose.Types.ObjectId;
+  requestedBy: mongoose.Types.ObjectId;
+  toyId: mongoose.Types.ObjectId;
+  receiver?: {
+    userId?: mongoose.Types.ObjectId;
+    organizationId?: mongoose.Types.ObjectId;
+  };
+  itemDetails: string;
+  deliveryMethod: string;
+  status: StoredDonationStatus;
+  timer?: { dueAt?: Date };
+  decidedBy?: mongoose.Types.ObjectId;
+  decidedAt?: Date;
+  rejectReason?: string;
+  handovers: DonationHandover[];
+  completedAt?: Date;
+  cancellation?: DonationCancellation;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const DonationRequest: Model<IDonationRequest> =
+  (mongoose.models.DonationRequest as Model<IDonationRequest>) ||
+  mongoose.model<IDonationRequest>('DonationRequest', donationRequestSchema);
 
 export default DonationRequest;

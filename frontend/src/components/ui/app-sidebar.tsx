@@ -1,5 +1,6 @@
 import {
   CircleUserRound,
+  Gift,
   HandHeart,
   Heart,
   KeyRound,
@@ -16,14 +17,15 @@ import { Link, useNavigate } from "react-router-dom";
 import brandMark from "../../assets/brand/toyflow-mark.png";
 import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
-import { clearAccessToken, getAccessToken } from "../../services/token-storage";
-import { clearAuthTokens } from "../../services/token-storage";
+import { logout } from "../../features/auth/auth-api";
+import { getAccessToken } from "../../services/token-storage";
 
 export type SidebarItemKey =
   | "browse"
   | "donations"
   | "profile"
   | "listings"
+  | "donationRequests"
   | "rentals"
   | "wallet"
   | "favorites"
@@ -46,15 +48,24 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: CircleUserRound,
     to: PATHS.profile,
   },
-  { key: "profile", label: "Hồ sơ của tôi", icon: CircleUserRound },
   { key: "browse", label: "Tìm đồ chơi", icon: Search, to: PATHS.toys },
-  // Chờ API quyên góp (server/src/features/donation_requests)
-  { key: "donations", label: "Quyên góp", icon: HandHeart },
+  {
+    key: "donations",
+    label: "Quyên góp của tôi",
+    icon: HandHeart,
+    to: PATHS.donationHistory,
+  },
   {
     key: "listings",
     label: "Tin đăng của tôi",
     icon: Package,
-    to: PATHS.newListing,
+    to: PATHS.myListings,
+  },
+  {
+    key: "donationRequests",
+    label: "Yêu cầu nhận đồ của tôi",
+    icon: Gift,
+    to: PATHS.myDonationRequests,
   },
   { key: "rentals", label: "Đơn đặt thuê", icon: ReceiptText },
   { key: "wallet", label: "Ví ToyFlow", icon: Wallet },
@@ -65,9 +76,6 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 
 export function SidebarBrand() {
   return (
-    <Link to={PATHS.home} className="app-sidebar-brand">
-      <span className="app-sidebar-brand__mark">T</span>
-      <span className="app-sidebar-brand__name">ToyFlow</span>
     <Link to={PATHS.home} className="app-sidebar-brand" aria-label="ToyFlow - Trang chủ">
       <img src={brandMark} alt="" className="app-sidebar-brand__mark" width={226} height={160} />
       <span className="app-sidebar-brand__text">
@@ -87,8 +95,7 @@ export function LogoutButton() {
       type="button"
       className="app-sidebar__item app-sidebar__item--logout"
       onClick={() => {
-        clearAuthTokens();
-        navigate(PATHS.login, { replace: true });
+        void logout().then(() => navigate(PATHS.login, { replace: true }));
       }}
     >
       <LogOut aria-hidden />

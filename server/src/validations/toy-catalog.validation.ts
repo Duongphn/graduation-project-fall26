@@ -2,8 +2,11 @@ import type { Request } from 'express';
 import mongoose from 'mongoose';
 import { AppError } from '../utils/app-error.js';
 import type { ToySearchQuery } from '../interfaces/toy-catalog.ports.js';
-import type { ListingType } from '../interfaces/toy-listing.ports.js';
-import type { ToyCatalogQuery, ToyCatalogSort } from '../types/toy-catalog.types.js';
+import type {
+  CatalogListingType,
+  ToyCatalogQuery,
+  ToyCatalogSort,
+} from '../types/toy-catalog.types.js';
 
 const ALLOWED_SORTS = ['relevance', 'newest', 'price_asc', 'price_desc', 'distance'] as const;
 type AllowedSort = (typeof ALLOWED_SORTS)[number];
@@ -280,7 +283,7 @@ export function validateAvailabilityQuery(raw: unknown): { from: Date; toInclusi
 export const DEFAULT_CATALOG_LIMIT = 20;
 export const MAX_CATALOG_LIMIT = 100;
 
-const LISTING_TYPES: readonly ListingType[] = ['rent', 'sell'];
+const LISTING_TYPES: readonly CatalogListingType[] = ['rent', 'sell', 'donate'];
 const SORTS: readonly ToyCatalogSort[] = ['newest', 'popular'];
 
 const invalid = (message: string) => new AppError(400, 'VALIDATION_ERROR', message);

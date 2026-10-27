@@ -5,6 +5,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ListingPagination } from '../features/toy-listings/components/listing-pagination'
 import { ListingStats } from '../features/toy-listings/components/listing-stats'
 import { ListingStatusTabs } from '../features/toy-listings/components/listing-status-tabs'
+import { donationToyStatesQuery } from '../features/donations/donor-queries'
 import { MyListingRow } from '../features/toy-listings/components/my-listing-row'
 import { parseMyListingsSearch, STATUS_LABELS } from '../features/toy-listings/listing-display'
 import { getListingErrorMessage, isUnauthorizedError } from '../features/toy-listings/toy-listing-api'
@@ -27,6 +28,9 @@ export function MyListingsPage() {
   const listingsResult = useQuery(myListingsQuery({ status, page }))
   const categoriesResult = useQuery(categoriesQuery)
   const categoryNames = new Map(categoriesResult.data?.map((category) => [category.id, category.name]))
+  // Chỉ hỏi trạng thái quyên góp khi trang có tin tặng
+  const hasDonationPosts = Boolean(listingsResult.data?.items.some((listing) => listing.listingType === 'donate'))
+  const donationStates = useQuery({ ...donationToyStatesQuery, enabled: hasDonationPosts }).data
 
   useEffect(() => {
     document.title = 'Tin đăng của tôi - ToyFlow'
@@ -117,7 +121,12 @@ export function MyListingsPage() {
         <>
           <div className="listings-list">
             {listings.items.map((listing) => (
-              <MyListingRow key={listing.id} listing={listing} categoryName={categoryNames.get(listing.categoryId)} />
+              <MyListingRow
+                key={listing.id}
+                listing={listing}
+                categoryName={categoryNames.get(listing.categoryId)}
+                donationState={listing.listingType === 'donate' ? donationStates?.[listing.id] : undefined}
+              />
             ))}
           </div>
           <ListingPagination page={page} pageSize={MY_LISTINGS_PAGE_SIZE} total={listings.total} hrefFor={hrefForPage} />

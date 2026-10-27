@@ -1,6 +1,7 @@
 import { ChevronDown, Loader2, WifiOff } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { getApiErrorMessage } from '../../../services/http-client'
+import type { PublicListingType } from '../home-api'
 import type { featuredRentalsQuery } from '../home-queries'
 import { useCategoryLookup } from '../hooks/use-category-lookup'
 import { useToyShowcase } from '../hooks/use-toy-showcase'
@@ -10,7 +11,7 @@ import { ToyGridEmpty, type ToyGridEmptyContent } from './toy-grid-empty'
 
 interface ToyGridProps {
   query: typeof featuredRentalsQuery
-  listingType: 'rent' | 'sell'
+  listingType: PublicListingType
   empty: ToyGridEmptyContent
 }
 
