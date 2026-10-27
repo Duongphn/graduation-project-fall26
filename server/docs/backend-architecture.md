@@ -77,7 +77,7 @@ Trust  ratings + chat + notifications
 - No delivery-provider integration, delivery fee, tracking code or platform-operated delivery.
 - AI is advisory; Admin makes final moderation and dispute decisions.
 - Payments and deposits are records around an external service boundary, not an approved licensed wallet.
-- Exact status-transition permissions and timer rules remain `[NEEDS CONFIRMATION]`; the scaffold defines status catalogs but deliberately does not implement transition automation.
+- Rental flow (UC06–UC11) status transitions and timers are fully specified and implemented (see `docs/superpowers/specs/2026-10-27-uc06-uc11-rental-flow-backend-design.md` and `docs/api/rentals.md`). Automated timers run via an in-process scheduler (`RentalTimerService`). Multi-document database operations require a MongoDB replica set (`withTransaction`).
 
 ## First implementation order
 
