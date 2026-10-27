@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { QueryErrorAlert, StatusTabs, StatusTag } from '../components/common'
+import { donationStatuses } from '../constants/domain'
 import { formatDateTime } from '../features/donations/format'
 import {
   MY_DONATIONS_PAGE_SIZE,
@@ -15,6 +16,9 @@ import {
 import type { DonationRequest } from '../features/donations/types'
 import { SiteLayout } from '../layouts/site/site-layout'
 import { myDonationPath, PATHS } from '../routes/paths'
+
+// 'received' không dùng trong luồng này (bên nhận xác nhận là hoàn tất luôn) nên không có tab riêng
+const DONOR_TAB_STATUSES = donationStatuses.filter((status) => status !== 'received')
 
 function DonationRow({ request }: { request: DonationRequest }) {
   const receiver = request.organization?.name ?? request.requester?.fullName ?? 'Bên nhận'
@@ -100,6 +104,7 @@ export function MyDonationsPage() {
         <div className="mt-4">
           <StatusTabs
             domain="donation"
+            statuses={DONOR_TAB_STATUSES}
             value={filters.status}
             onChange={(status) => setSearchParams(toMyDonationsSearch({ status, page: 1 }))}
           />
