@@ -1,5 +1,5 @@
-import { Radio } from 'antd'
-import { MapPin, Sparkles } from 'lucide-react'
+import { Input, Radio } from 'antd'
+import { MapPin, Search, Sparkles } from 'lucide-react'
 import type { Control } from 'react-hook-form'
 
 import { FormField } from '../../../components/common'
@@ -12,6 +12,11 @@ interface DonationReceiverSectionProps {
   control: Control<DonationPostValues>
   organizations: PublicOrganization[]
   organizationsLoading: boolean
+  // Tìm tổ chức theo tên (danh sách chỉ tải một trang đầu)
+  keyword: string
+  onKeywordChange: (keyword: string) => void
+  // Tổng số tổ chức khớp từ khoá, để báo còn tổ chức chưa hiện
+  total: number | undefined
 }
 
 const HANDOVER_HINTS = {
@@ -20,7 +25,16 @@ const HANDOVER_HINTS = {
 } as const
 
 /** Bước 03–04: tổ chức mong muốn (Admin ghép khi tạo yêu cầu) và cách bàn giao */
-export function DonationReceiverSection({ control, organizations, organizationsLoading }: DonationReceiverSectionProps) {
+export function DonationReceiverSection({
+  control,
+  organizations,
+  organizationsLoading,
+  keyword,
+  onKeywordChange,
+  total,
+}: DonationReceiverSectionProps) {
+  const hiddenCount = total !== undefined ? Math.max(0, total - organizations.length) : 0
+
   return (
     <>
       <DonationPostSection
@@ -28,6 +42,24 @@ export function DonationReceiverSection({ control, organizations, organizationsL
         title="Chọn đơn vị tiếp nhận"
         subtitle="Tổ chức đã được ToyFlow xác minh. Xem nhu cầu để chọn nơi phù hợp với món đồ."
       >
+        <Input
+          value={keyword}
+          onChange={(event) => onKeywordChange(event.target.value)}
+          allowClear
+          maxLength={100}
+          prefix={<Search className="size-4 text-tf-ink-muted" aria-hidden />}
+          placeholder="Tìm tổ chức theo tên, ví dụ: Hoa Hồng"
+          aria-label="Tìm tổ chức tiếp nhận"
+          className="mb-3"
+        />
+        {hiddenCount > 0 && (
+          <p className="mb-2 text-xs text-tf-ink-muted">
+            Còn {hiddenCount} tổ chức khác — gõ tên để tìm đúng nơi bạn muốn tặng.
+          </p>
+        )}
+        {!organizationsLoading && keyword.trim() && organizations.length === 0 && (
+          <p className="mb-2 text-sm text-tf-ink-muted">Không tìm thấy tổ chức nào khớp “{keyword.trim()}”.</p>
+        )}
         <FormField control={control} name="receiver">
           {(field) => (
             <Radio.Group value={field.value} onChange={(event) => field.onChange(event.target.value)} className="w-full">

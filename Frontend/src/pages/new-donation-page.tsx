@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Form } from 'antd'
 import { ChevronRight, CircleCheck, Home } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -23,6 +23,7 @@ import {
   type DonationPostValues,
 } from '../features/donations/donation-post-schema'
 import { organizationDetailQuery, organizationListQuery } from '../features/organizations/public-queries'
+import type { PublicOrganization } from '../features/organizations/types'
 import { ListingPhotoUploader } from '../features/toy-listings/components/listing-photo-uploader'
 import { useListingPhotos } from '../features/toy-listings/hooks/use-listing-photos'
 import { getListingErrorMessage } from '../features/toy-listings/toy-listing-api'
@@ -53,9 +54,31 @@ export function NewDonationPage() {
   })
 
   const categories = useQuery(categoriesQuery)
-  const organizations = useQuery(
-    organizationListQuery({ page: 1 }),
-  )
+  // Ô tìm tổ chức: chờ người dùng ngừng gõ 300ms mới gọi API
+  const [orgKeyword, setOrgKeyword] = useState('')
+  const [orgQuery, setOrgQuery] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setOrgQuery(orgKeyword.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [orgKeyword])
+  const organizations = useQuery({
+    ...organizationListQuery({ page: 1, ...(orgQuery ? { q: orgQuery } : {}) }),
+    placeholderData: keepPreviousData,
+  })
+  // Tổ chức đã chọn vẫn hiện khi người dùng tìm tên khác: lấy lại từ các trang đã tải trong cache
+  const chosenOrganization = useMemo(() => {
+    if (!receiver || receiver === AUTO_MATCH) return undefined
+    const inCurrentPage = organizations.data?.items.find((item) => item.id === receiver)
+    if (inCurrentPage) return inCurrentPage
+    const pages = queryClient.getQueriesData<{ items: PublicOrganization[] }>({
+      queryKey: ['public-organizations', 'list'],
+    })
+    for (const [, page] of pages) {
+      const found = page?.items.find((item) => item.id === receiver)
+      if (found) return found
+    }
+    return undefined
+  }, [queryClient, receiver, organizations.data])
   // Tổ chức được chọn sẵn có thể không nằm ở trang đầu danh sách: tải riêng để vẫn hiện
   const presetOrganization = useQuery({
     ...organizationDetailQuery(presetOrganizationId ?? ''),
@@ -63,9 +86,12 @@ export function NewDonationPage() {
   })
   const organizationOptions = useMemo(() => {
     const items = organizations.data?.items ?? []
-    const preset = presetOrganization.data
-    return preset && !items.some((item) => item.id === preset.id) ? [preset, ...items] : items
-  }, [organizations.data, presetOrganization.data])
+    const pinned = [chosenOrganization, presetOrganization.data].filter(
+      (item): item is PublicOrganization => Boolean(item) && item?.id === receiver,
+    )
+    const extra = pinned.filter((item, index) => pinned.findIndex((other) => other.id === item.id) === index)
+    return [...extra.filter((item) => !items.some((other) => other.id === item.id)), ...items]
+  }, [organizations.data, presetOrganization.data, chosenOrganization, receiver])
 
   const receiverName =
     receiver === AUTO_MATCH ? null : (organizationOptions.find((item) => item.id === receiver)?.name ?? null)
@@ -190,6 +216,9 @@ export function NewDonationPage() {
               control={control}
               organizations={organizationOptions}
               organizationsLoading={organizations.isPending}
+              keyword={orgKeyword}
+              onKeywordChange={setOrgKeyword}
+              total={organizations.data?.pagination.totalItems}
             />
           </Form>
 
