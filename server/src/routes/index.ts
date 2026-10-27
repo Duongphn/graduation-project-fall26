@@ -20,9 +20,11 @@ import { createAuthRouter } from './auth.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
+import { createRentalOrderRouter } from './rental-order.routes.js';
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
 import { createUsersRouter } from './user.routes.js';
+import { createWalletRouter } from './wallet.routes.js';
 
 export function createApiRouter(container: Container): Router {
   const router = Router();
@@ -43,6 +45,9 @@ export function createApiRouter(container: Container): Router {
     authenticate,
     createIdentityVerificationRouter(container.identityVerificationService),
   );
+
+  router.use(createWalletRouter(container.walletService));
+  router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).
   router.use('/admin/categories', authenticate, adminCategoriesRouter);

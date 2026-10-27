@@ -47,7 +47,7 @@ userSchema.index(
   { email: 1 },
   {
     unique: true,
-    partialFilterExpression: { email: { $exists: true, $ne: null } },
+    partialFilterExpression: { email: { $exists: true } },
     name: 'email_unique',
   },
 );
@@ -55,7 +55,7 @@ userSchema.index(
   { googleId: 1 },
   {
     unique: true,
-    partialFilterExpression: { googleId: { $exists: true, $ne: null } },
+    partialFilterExpression: { googleId: { $exists: true } },
     name: 'google_id_unique',
   },
 );
@@ -75,7 +75,7 @@ userSchema.index(
   { idCardNumber: 1 },
   {
     unique: true,
-    partialFilterExpression: { idCardNumber: { $exists: true, $ne: null } },
+    partialFilterExpression: { idCardNumber: { $exists: true } },
     name: 'user_verified_idcard_unique',
   },
 );

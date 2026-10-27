@@ -39,4 +39,7 @@ export const env = Object.freeze({
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? '',
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
+
+  // Rental Scheduler
+  rentalSchedulerEnabled: process.env.RENTAL_SCHEDULER_ENABLED === 'true',
 });
