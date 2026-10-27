@@ -4,13 +4,11 @@ import express, { type Request, type Response } from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  identityVerificationUpload,
-  validateIdentityImageBuffer,
-} from '../src/features/identity_verifications/identity-verification-upload.js';
-import type { StoredIdentityImage } from '../src/features/identity_verifications/identity-verification.ports.js';
-import { CloudinaryIdentityStorage } from '../src/infrastructure/cloudinary/cloudinary-identity-storage.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import { identityVerificationUpload } from '../src/middlewares/upload.middleware.js';
+import { validateIdentityImageBuffer } from '../src/utils/image-validation.js';
+import type { StoredIdentityImage } from '../src/interfaces/identity-verification.ports.js';
+import { CloudinaryIdentityStorage } from '../src/integrations/cloudinary/cloudinary-identity-storage.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 
 // Sample valid image fixtures
 const VALID_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]);

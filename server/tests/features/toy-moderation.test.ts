@@ -3,14 +3,14 @@ import mongoose, { type ClientSession } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuditLog } from '../../src/features/audit_logs/audit_logs.model.js';
-import { Category } from '../../src/features/categories/categories.model.js';
-import { adminToyModerationRouter } from '../../src/features/toys/toy-moderation.routes.js';
-import { findContactDetails } from '../../src/features/toys/toy-moderation.warnings.js';
-import { Toy } from '../../src/features/toys/toys.model.js';
-import { User } from '../../src/features/users/users.model.js';
-import { domainEvents } from '../../src/shared/events/domain-events.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+import { AuditLog } from '../../src/models/audit-log.model.js';
+import { Category } from '../../src/models/category.model.js';
+import { adminToyModerationRouter } from '../../src/routes/toy-moderation.routes.js';
+import { findContactDetails } from '../../src/services/toy-moderation.warnings.js';
+import { Toy } from '../../src/models/toy.model.js';
+import { User } from '../../src/models/user.model.js';
+import { domainEvents } from '../../src/utils/domain-events.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, pause, useTestDatabase } from '../support/test-database.js';
 

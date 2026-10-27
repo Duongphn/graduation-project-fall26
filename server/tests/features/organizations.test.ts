@@ -3,14 +3,14 @@ import { Types } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { AuditLog } from '../../src/features/audit_logs/audit_logs.model.js';
-import { DonationRequest } from '../../src/features/donation_requests/donation_requests.model.js';
+import { AuditLog } from '../../src/models/audit-log.model.js';
+import { DonationRequest } from '../../src/models/donation-request.model.js';
 import {
   adminOrganizationsRouter,
   organizationsRouter,
-} from '../../src/features/organizations/index.js';
-import { Organization } from '../../src/features/organizations/organizations.model.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+} from '../../src/routes/organization.routes.js';
+import { Organization } from '../../src/models/organization.model.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { useTestDatabase } from '../support/test-database.js';
 

@@ -6,19 +6,19 @@ import mongoose, { Types } from 'mongoose';
 import request from 'supertest';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { Category } from '../../src/features/categories/categories.model.js';
-import { DonationRequest } from '../../src/features/donation_requests/donation_requests.model.js';
+import { Category } from '../../src/models/category.model.js';
+import { DonationRequest } from '../../src/models/donation-request.model.js';
+import { createDonationPostsRouter } from '../../src/routes/donation-post.routes.js';
 import {
   adminDonationRequestsRouter,
-  createDonationPostsRouter,
   donationRequestsRouter,
-  expireStaleRequests,
-} from '../../src/features/donation_requests/index.js';
-import { IdentityVerification } from '../../src/features/identity_verifications/identity_verifications.model.js';
-import { Organization } from '../../src/features/organizations/organizations.model.js';
-import { Toy } from '../../src/features/toys/toys.model.js';
-import { User } from '../../src/features/users/users.model.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+} from '../../src/routes/donation-request.routes.js';
+import { expireStaleRequests } from '../../src/services/donation-request.lifecycle.js';
+import { IdentityVerification } from '../../src/models/identity-verification.model.js';
+import { Organization } from '../../src/models/organization.model.js';
+import { Toy } from '../../src/models/toy.model.js';
+import { User } from '../../src/models/user.model.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 

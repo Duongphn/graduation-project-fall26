@@ -44,9 +44,9 @@ export interface HomeCategory extends Category {
   toyCount?: number
 }
 
-/** GET /toys — danh sách tin đang hiển thị, không cần đăng nhập */
+/** GET /toys/showcase — danh sách tin đang hiển thị, không cần đăng nhập */
 export async function fetchPublicToys(params: PublicToysParams): Promise<PublicToysPage> {
-  const { data } = await httpClient.get<PublicToysPage>('/toys', { params })
+  const { data } = await httpClient.get<PublicToysPage>('/toys/showcase', { params })
   return data
 }
 

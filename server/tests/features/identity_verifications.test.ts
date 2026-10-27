@@ -2,20 +2,23 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuditLog } from '../../src/features/audit_logs/audit_logs.model.js';
-import { adminIdentityReviewRouter } from '../../src/features/identity_verifications/index.js';
+import { AuditLog } from '../../src/models/audit-log.model.js';
+import { adminIdentityReviewRouter } from '../../src/routes/identity-review.routes.js';
 import {
   setReviewStorage,
   signDocuments,
-} from '../../src/features/identity_verifications/admin/identity-review.documents.js';
-import { identityDetailSchema } from '../../src/features/identity_verifications/admin/identity-review.schemas.js';
-import { IdentityVerification } from '../../src/features/identity_verifications/identity_verifications.model.js';
-import type { IdentityImageStorage } from '../../src/features/identity_verifications/identity-verification.ports.js';
-import { Notification } from '../../src/features/notifications/notifications.model.js';
-import { User } from '../../src/features/users/users.model.js';
-import { domainEvents } from '../../src/shared/events/domain-events.js';
-import type { IdentityReviewedEvent } from '../../src/shared/events/domain-events.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+} from '../../src/services/identity-review.documents.js';
+import { identityDetailSchema } from '../../src/validations/identity-review.validation.js';
+import { IdentityVerification } from '../../src/models/identity-verification.model.js';
+import type { IdentityImageStorage } from '../../src/interfaces/identity-verification.ports.js';
+import { DefaultIdentityVerificationEvents } from '../../src/integrations/events/identity-verification-events.js';
+import { Notification } from '../../src/models/notification.model.js';
+import { setIdentityReviewService } from '../../src/services/identity-review.service.js';
+import { IdentityVerificationService } from '../../src/services/identity-verification.service.js';
+import { User } from '../../src/models/user.model.js';
+import { domainEvents } from '../../src/utils/domain-events.js';
+import type { IdentityReviewedEvent } from '../../src/utils/domain-events.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 
@@ -38,8 +41,22 @@ const fakeStorage: IdentityImageStorage = {
   },
 };
 
-beforeAll(() => setReviewStorage(fakeStorage));
-afterAll(() => setReviewStorage(undefined));
+// Wired like container.ts does: develop's service with the storage and the in-app events.
+beforeAll(() => {
+  setReviewStorage(fakeStorage);
+  setIdentityReviewService(
+    new IdentityVerificationService(
+      undefined,
+      undefined,
+      fakeStorage,
+      new DefaultIdentityVerificationEvents(),
+    ),
+  );
+});
+afterAll(() => {
+  setReviewStorage(undefined);
+  setIdentityReviewService(undefined);
+});
 
 // testAuth stands in for develop's authenticate (x-test-user / x-test-role set req.auth).
 const app = express();

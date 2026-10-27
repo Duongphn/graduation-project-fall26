@@ -11,11 +11,11 @@ const loadApp = async (variables: Record<string, string>) => {
   vi.resetModules();
   for (const [name, value] of Object.entries(variables)) vi.stubEnv(name, value);
   const { env } = await import('../../src/config/env.js');
-  const { authenticate } = await import('../../src/shared/middleware/authenticate.js');
-  const { errorHandler } = await import('../../src/shared/middleware/error-handler.js');
-  const { uploadsRouter } = await import('../../src/features/uploads/index.js');
-  const { createDocsRouter } = await import('../../src/infrastructure/docs/openapi.js');
-  await import('../../src/features/health/index.js');
+  const { authenticate } = await import('../../src/middlewares/authenticate.js');
+  const { errorHandler } = await import('../../src/middlewares/error-handler.js');
+  const { uploadsRouter } = await import('../../src/routes/upload.routes.js');
+  const { createDocsRouter } = await import('../../src/config/openapi.js');
+  await import('../../src/routes/health.openapi.js');
 
   const app = express();
   app.use(express.json());

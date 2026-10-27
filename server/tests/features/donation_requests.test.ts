@@ -3,21 +3,21 @@ import mongoose, { type ClientSession } from 'mongoose';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { AuditLog } from '../../src/features/audit_logs/audit_logs.model.js';
-import { DonationRequest } from '../../src/features/donation_requests/donation_requests.model.js';
+import { AuditLog } from '../../src/models/audit-log.model.js';
+import { DonationRequest } from '../../src/models/donation-request.model.js';
 import {
   adminDonationRequestsRouter,
   donationRequestsRouter,
   donorProfileRouter,
-} from '../../src/features/donation_requests/index.js';
-import { Organization } from '../../src/features/organizations/organizations.model.js';
-import { Toy } from '../../src/features/toys/toys.model.js';
-import { User } from '../../src/features/users/users.model.js';
+} from '../../src/routes/donation-request.routes.js';
+import { Organization } from '../../src/models/organization.model.js';
+import { Toy } from '../../src/models/toy.model.js';
+import { User } from '../../src/models/user.model.js';
 import {
   domainEvents,
   type DonationStatusChangedEvent,
-} from '../../src/shared/events/domain-events.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+} from '../../src/utils/domain-events.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, pause, useTestDatabase } from '../support/test-database.js';
 

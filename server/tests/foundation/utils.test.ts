@@ -1,35 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildAuditLog } from '../../src/infrastructure/database/audit.js';
+import { buildAuditLog } from '../../src/repositories/audit-log.repository.js';
 import {
   buildPrivateImageUrl,
   buildStringToSign,
   createUploadSignature,
   signCloudinaryParams,
-} from '../../src/infrastructure/storage/cloudinary.js';
-import { AppError } from '../../src/shared/errors/app-error.js';
-import { domainEvents } from '../../src/shared/events/domain-events.js';
-import { assertTransition, type TransitionMap } from '../../src/shared/utils/transitions.js';
-import { reasonSchema, vietnamPhoneSchema } from '../../src/shared/http/schemas.js';
-import { ageInYears } from '../../src/shared/utils/dates.js';
+} from '../../src/utils/cloudinary-signing.js';
+import { AppError } from '../../src/utils/app-error.js';
+import { domainEvents } from '../../src/utils/domain-events.js';
+import { assertTransition, type TransitionMap } from '../../src/utils/transitions.js';
+import { reasonSchema, vietnamPhoneSchema } from '../../src/validations/common.validation.js';
+import { ageInYears } from '../../src/utils/dates.js';
 import {
   duplicateKeyFields,
   duplicateKeyIndex,
   isDuplicateKeyError,
-} from '../../src/shared/utils/mongo-errors.js';
+} from '../../src/utils/mongo-errors.js';
 import {
   maskPhone,
   normalizeVietnamPhone,
   phoneSearchDigits,
-} from '../../src/shared/utils/phone.js';
-import { maskEmail } from '../../src/shared/utils/privacy.js';
-import { pickFreeSlug, slugify } from '../../src/shared/utils/slug.js';
+} from '../../src/utils/phone.js';
+import { maskEmail } from '../../src/utils/privacy.js';
+import { pickFreeSlug, slugify } from '../../src/utils/slug.js';
 import {
   accentInsensitivePattern,
   escapeRegex,
   normalizeSearchText,
   normalizeText,
-} from '../../src/shared/utils/text.js';
+} from '../../src/utils/text.js';
 
 const credentials = { cloudName: 'demo', apiKey: 'key', apiSecret: 'abcd' };
 

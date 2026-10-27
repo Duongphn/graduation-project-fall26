@@ -3,11 +3,12 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { AuditLog as AuditLogModel } from '../../src/features/audit_logs/audit_logs.model.js';
-import { Category as CategoryModel } from '../../src/features/categories/categories.model.js';
-import { adminCategoriesRouter, categoriesRouter } from '../../src/features/categories/index.js';
-import { Toy as ToyModel } from '../../src/features/toys/toys.model.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+import { AuditLog as AuditLogModel } from '../../src/models/audit-log.model.js';
+import { Category as CategoryModel } from '../../src/models/category.model.js';
+import { adminCategoriesRouter } from '../../src/routes/category-admin.routes.js';
+import { categoriesRouter } from '../../src/routes/category.routes.js';
+import { Toy as ToyModel } from '../../src/models/toy.model.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 

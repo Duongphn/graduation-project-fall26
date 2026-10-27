@@ -2,24 +2,24 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
-import { createApp } from '../../src/app/create-app.js';
-import { conflict } from '../../src/shared/errors/http-errors.js';
-import { idParamsSchema, paginationQuerySchema } from '../../src/shared/http/schemas.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
-import { notFoundHandler } from '../../src/shared/middleware/not-found.js';
+import { createApp } from '../../src/app.js';
+import { conflict } from '../../src/utils/http-errors.js';
+import { idParamsSchema, paginationQuerySchema } from '../../src/validations/common.validation.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
+import { notFoundHandler } from '../../src/middlewares/not-found.js';
 import {
   getValidatedParams,
   getValidatedQuery,
   validateRequest,
-} from '../../src/shared/middleware/validate.js';
+} from '../../src/middlewares/validate.js';
 import {
   buildPaginationMeta,
   sendCreated,
   sendPaginated,
   sendSuccess,
   toMongoPaging,
-} from '../../src/shared/utils/response.js';
-import { z } from '../../src/shared/validation/zod.js';
+} from '../../src/utils/response.js';
+import { z } from '../../src/validations/zod.js';
 
 const buildApp = (setup: (app: express.Express) => void) => {
   const app = express();

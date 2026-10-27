@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { startIntervalJob } from '../../src/app/jobs/interval-job.js';
+import { startIntervalJob } from '../../src/jobs/interval-job.js';
 
 const silent = { info: vi.fn(), error: vi.fn() };
 

@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 
-import '../../src/shared/contracts/request-actor.js';
+import '../../src/types/request-actor.js';
 
 /**
  * Stand-in for develop's `authenticate` middleware in feature tests: the headers

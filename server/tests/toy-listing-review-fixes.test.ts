@@ -1,14 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import express from 'express';
+import { describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
-import { createApiRouter } from '../src/app/router.js';
-import {
-  createToyListingDependencies,
-  type ToyListingDependencies,
-} from '../src/app/toy-listing-dependencies.js';
-import { validateToyImage } from '../src/features/toys/toy-image-upload.js';
-import { AppError } from '../src/shared/errors/app-error.js';
+import { createApp } from '../src/app.js';
+import { createDefaultToyImageStorage } from '../src/integrations/cloudinary/default-storages.js';
+import type { ToyCatalogService } from '../src/services/toy-catalog.service.js';
+import { validateToyImage } from '../src/utils/image-validation.js';
+import { AppError } from '../src/utils/app-error.js';
 
 describe('UC04 final review fixes', () => {
   describe('validateToyImage MIME type error formatting', () => {
@@ -42,7 +39,7 @@ describe('UC04 final review fixes', () => {
   });
 
   describe('Cloudinary lazy initialization on missing credentials', () => {
-    it('does not crash during createToyListingDependencies even if credentials are empty', async () => {
+    it('does not crash when building the default toy image storage without credentials', async () => {
       const originalEnv = {
         CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
         CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
@@ -54,23 +51,21 @@ describe('UC04 final review fixes', () => {
       delete process.env.CLOUDINARY_API_SECRET;
 
       try {
-        const deps = createToyListingDependencies();
-        expect(deps).toBeDefined();
-        expect(deps.router).toBeDefined();
-        expect(deps.imageStorage).toBeDefined();
+        const imageStorage = createDefaultToyImageStorage();
+        expect(imageStorage).toBeDefined();
 
         // Calling upload should throw AppError 500 CLOUDINARY_NOT_CONFIGURED
-        await expect(deps.imageStorage.upload(Buffer.from([0x01]), 'image/jpeg')).rejects.toThrow(
+        await expect(imageStorage.upload(Buffer.from([0x01]), 'image/jpeg')).rejects.toThrow(
           'Cloudinary credentials are not configured.',
         );
 
         // Calling delete should throw AppError 500 CLOUDINARY_NOT_CONFIGURED
-        await expect(deps.imageStorage.delete(['some_id'])).rejects.toThrow(
+        await expect(imageStorage.delete(['some_id'])).rejects.toThrow(
           'Cloudinary credentials are not configured.',
         );
 
         try {
-          await deps.imageStorage.upload(Buffer.from([0x01]), 'image/jpeg');
+          await imageStorage.upload(Buffer.from([0x01]), 'image/jpeg');
         } catch (err) {
           expect(err).toBeInstanceOf(AppError);
           expect((err as AppError).statusCode).toBe(500);
@@ -90,23 +85,17 @@ describe('UC04 final review fixes', () => {
     });
   });
 
-  describe('createApiRouter dependency injection', () => {
-    it('allows injecting custom toyListingDependencies into createApiRouter', async () => {
-      const mockRouter = express.Router();
-      mockRouter.get('/test-route', (_req, res) => {
-        res.json({ injected: true });
-      });
+  describe('createApp dependency injection', () => {
+    it('createApp accepts a service override', async () => {
+      const page = { items: [], page: 1, limit: 20, total: 0 };
+      const list = vi.fn().mockResolvedValue(page);
+      const toyCatalogService = { list } as unknown as ToyCatalogService;
 
-      const customDeps = {
-        router: mockRouter,
-      } as ToyListingDependencies;
+      const res = await request(createApp({ toyCatalogService })).get('/api/v1/toys/showcase');
 
-      const app = express();
-      app.use('/api/v1', createApiRouter({ toyListingDependencies: customDeps }));
-
-      const res = await request(app).get('/api/v1/toys/test-route');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ injected: true });
+      expect(res.body).toEqual(page);
+      expect(list).toHaveBeenCalledTimes(1);
     });
   });
 

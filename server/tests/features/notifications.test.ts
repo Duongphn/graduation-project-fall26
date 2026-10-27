@@ -2,27 +2,25 @@ import express from 'express';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Notification } from '../../src/features/notifications/notifications.model.js';
-import {
-  notificationsRouter,
-  subscribeNotifications,
-} from '../../src/features/notifications/index.js';
+import { Notification } from '../../src/models/notification.model.js';
+import { notificationsRouter } from '../../src/routes/notification.routes.js';
+import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
 import {
   createTransportMailer,
   maskEmail,
   type Mailer,
   type MailMessage,
-} from '../../src/features/notifications/mailer.js';
+} from '../../src/integrations/email/notification-mailer.js';
 import {
   donationRecipients,
   renderDonationStatusChanged,
   renderToyReviewed,
-} from '../../src/features/notifications/notification-templates.js';
-import { Organization } from '../../src/features/organizations/organizations.model.js';
-import { User } from '../../src/features/users/users.model.js';
-import type { DonationStatusChangedEvent } from '../../src/shared/events/domain-events.js';
-import { domainEvents } from '../../src/shared/events/domain-events.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+} from '../../src/services/notification.templates.js';
+import { Organization } from '../../src/models/organization.model.js';
+import { User } from '../../src/models/user.model.js';
+import type { DonationStatusChangedEvent } from '../../src/utils/domain-events.js';
+import { domainEvents } from '../../src/utils/domain-events.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 
