@@ -54,6 +54,35 @@ export const myDonationsQuery = (filters: MyDonationFilters) =>
     retry: false,
   })
 
+/** Đồ chơi đang được trao (đã đồng ý / đang gửi) hoặc đã tặng xong — để "Tin đăng của tôi" gắn đúng nhãn */
+export type DonationToyState = 'giving' | 'donated'
+
+const TOY_STATE_OF: Partial<Record<DonationStatus, DonationToyState>> = {
+  accepted: 'giving',
+  shipping: 'giving',
+  completed: 'donated',
+}
+
+// Backend chưa trả trạng thái quyên góp kèm tin đăng: đọc từ các phiếu của người tặng (tối đa 100 mỗi trạng thái)
+export const donationToyStatesQuery = queryOptions({
+  queryKey: [...myDonationKeys.all, 'toy-states'],
+  queryFn: async () => {
+    const statuses = Object.keys(TOY_STATE_OF) as DonationStatus[]
+    const pages = await Promise.all(
+      statuses.map((status) => donorDonationsApi.incoming({ status, page: 1, limit: 100 })),
+    )
+    const states: Record<string, DonationToyState> = {}
+    pages.forEach((page, index) => {
+      for (const request of page.items) {
+        if (request.toy) states[request.toy.id] = TOY_STATE_OF[statuses[index]!]!
+      }
+    })
+    return states
+  },
+  staleTime: 30_000,
+  retry: false,
+})
+
 export const donationSummaryQuery = (userId: string) =>
   queryOptions({
     queryKey: [...myDonationKeys.all, 'summary', userId],
