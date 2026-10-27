@@ -10,7 +10,13 @@ export const CATALOG_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]
 export const toySearchQuery = (filters: CatalogFilters) =>
   queryOptions({
     queryKey: ['toy-search', filters],
-    queryFn: () => searchToys({ ...filters, limit: filters.limit ?? CATALOG_PAGE_SIZE }),
+    // Luôn gửi sort: GET /toys không có sort/bộ lọc tìm kiếm sẽ trả danh sách trang chủ
+    queryFn: () =>
+      searchToys({
+        ...filters,
+        sort: filters.sort ?? (filters.q ? 'relevance' : 'newest'),
+        limit: filters.limit ?? CATALOG_PAGE_SIZE,
+      }),
     staleTime: 30_000,
     retry: false,
   })

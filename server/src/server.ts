@@ -6,10 +6,14 @@ import {
   connectDatabase,
   disconnectDatabase,
 } from './config/database.js';
+import { registerEventHandlers } from './event-handlers.js';
+import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
   await connectDatabase(env.mongoDbUri);
+  registerEventHandlers();
+  const donationExpiryJob = startDonationExpiryJob();
 
   const httpServer = createServer(createApp());
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
@@ -20,6 +24,7 @@ const startServer = async (): Promise<void> => {
 
   const shutdown = async (signal: string): Promise<void> => {
     console.info(`${signal} received. Shutting down ToyFlow backend.`);
+    donationExpiryJob?.stop();
     socketServer.close();
     httpServer.close(async () => {
       await disconnectDatabase();

@@ -518,6 +518,10 @@
     @apply scale-110 fill-current;
   }
 
+  .toy-card--donate .toy-card__badge {
+    @apply text-tf-secondary;
+  }
+
   .toy-card--sell .toy-card__badge {
     @apply text-site-sale dark:text-orange-300;
   }

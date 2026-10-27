@@ -1,6 +1,11 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
-import { fetchHomeCategories, fetchPublicToys, type HomeCategory, type PublicToySort } from './home-api'
-import type { ListingType } from '../toy-listings/toy-listing-api'
+import {
+  fetchHomeCategories,
+  fetchPublicToys,
+  type HomeCategory,
+  type PublicListingType,
+  type PublicToySort,
+} from './home-api'
 
 /** Cùng một khai báo cho loader (tải trước) và hook trong section (đọc cache) */
 
@@ -26,7 +31,7 @@ export const homeCategoriesQuery = queryOptions({
 })
 
 /** Danh sách tin công khai tải theo trang (page 1, 2, …) — dùng cho nút "Xem thêm" */
-const publicToysInfiniteQuery = (listingType: ListingType, sort: PublicToySort) =>
+const publicToysInfiniteQuery = (listingType: PublicListingType, sort: PublicToySort) =>
   infiniteQueryOptions({
     queryKey: ['public-toys', listingType, sort, 'pages', HOME_TOYS_PAGE_SIZE],
     queryFn: ({ pageParam }) => fetchPublicToys({ listingType, sort, page: pageParam, limit: HOME_TOYS_PAGE_SIZE }),
@@ -41,3 +46,6 @@ export const featuredRentalsQuery = publicToysInfiniteQuery('rent', 'popular')
 
 /** Đồ cũ bán lại: tin mới nhất trước */
 export const resaleToysQuery = publicToysInfiniteQuery('sell', 'newest')
+
+/** Đồ chơi quyên góp (tặng miễn phí): tin mới nhất trước */
+export const donateToysQuery = publicToysInfiniteQuery('donate', 'newest')

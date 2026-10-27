@@ -2,7 +2,12 @@ import { createBrowserRouter, Navigate, type LoaderFunctionArgs } from 'react-ro
 import { PageLoadingFallback } from '../components/ui/page-loading-fallback'
 import { parseCatalogSearch } from '../features/toy-catalog/catalog-search-params'
 import { toyDetailQuery, toySearchQuery } from '../features/toy-catalog/toy-catalog-queries'
-import { featuredRentalsQuery, homeCategoriesQuery, resaleToysQuery } from '../features/home/home-queries'
+import {
+  donateToysQuery,
+  featuredRentalsQuery,
+  homeCategoriesQuery,
+  resaleToysQuery,
+} from '../features/home/home-queries'
 import { parseMyListingsSearch } from '../features/toy-listings/listing-display'
 import {
   categoriesQuery,
@@ -25,6 +30,27 @@ import { queryClient } from '../services/query-client'
 import { getAccessToken } from '../services/token-storage'
 import { PATHS } from './paths'
 import { RequireAuth } from './require-auth'
+import {
+  completedDonationsQuery,
+  myDonationQuery,
+  myDonationsQuery,
+  parseMyDonationsSearch,
+} from '../features/donations/donor-queries'
+import {
+  organizationDetailQuery,
+  organizationListQuery,
+  parseOrganizationSearch,
+} from '../features/organizations/public-queries'
+import { CharityOrganizationDetailPage } from '../pages/charity-organization-detail-page'
+import { CharityOrganizationsPage } from '../pages/charity-organizations-page'
+import { DonationHistoryPage } from '../pages/donation-history-page'
+import { MyDonationDetailPage } from '../pages/my-donation-detail-page'
+import { MyDonationsPage } from '../pages/my-donations-page'
+import { NewDonationPage } from '../pages/new-donation-page'
+import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
+import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
+import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
+import { adminRoute } from './router'
 
 // Lỗi vẫn được lưu trong cache query, trang tự đọc và hiển thị (vd. 401 kèm nút đăng nhập)
 const ignoreError = () => undefined
@@ -38,6 +64,7 @@ async function homeLoader() {
     queryClient.query(homeCategoriesQuery).catch(ignoreError), // GET /categories
     queryClient.infiniteQuery(featuredRentalsQuery).catch(ignoreError), // GET /toys?listingType=rent&sort=popular&page=1
     queryClient.infiniteQuery(resaleToysQuery).catch(ignoreError), // GET /toys?listingType=sell&sort=newest&page=1
+    queryClient.infiniteQuery(donateToysQuery).catch(ignoreError), // GET /toys?listingType=donate&sort=newest&page=1
   ])
   return null
 }
@@ -87,6 +114,66 @@ async function toySearchLoader({ request }: LoaderFunctionArgs) {
 
 async function toyDetailLoader({ params }: LoaderFunctionArgs) {
   await queryClient.query(toyDetailQuery(params.toyId!)).catch(ignoreError) // GET /toys/:toyId
+  return null
+}
+
+async function charityOrganizationsLoader({ request }: LoaderFunctionArgs) {
+  const filters = parseOrganizationSearch(new URL(request.url).searchParams)
+  await queryClient.query(organizationListQuery(filters)).catch(ignoreError) // GET /organizations?q=&page=
+  return null
+}
+
+async function charityOrganizationLoader({ params }: LoaderFunctionArgs) {
+  await queryClient.query(organizationDetailQuery(params.organizationId!)).catch(ignoreError) // GET /organizations/:id
+  return null
+}
+
+async function myDonationsLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const filters = parseMyDonationsSearch(new URL(request.url).searchParams)
+  await queryClient.query(myDonationsQuery(filters)).catch(ignoreError) // GET /donation-requests/incoming?status=&page=
+  return null
+}
+
+async function donationHistoryLoader() {
+  if (isGuest()) return null
+  await Promise.all([
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
+    queryClient.infiniteQuery(completedDonationsQuery).catch(ignoreError), // GET /donation-requests/incoming?status=COMPLETED
+  ])
+  return null
+}
+
+async function newDonationLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const organizationId = new URL(request.url).searchParams.get('organizationId')
+  await Promise.all([
+    queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(organizationListQuery({ page: 1 })).catch(ignoreError), // GET /organizations
+    organizationId && queryClient.query(organizationDetailQuery(organizationId)).catch(ignoreError),
+  ])
+  return null
+}
+
+async function myDonationLoader({ params }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  await Promise.all([
+    queryClient.query(myDonationQuery(params.requestId!)).catch(ignoreError), // GET /donation-requests/:id
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (biết mình có phải người tặng)
+  ])
+  return null
+}
+
+async function myRequestsLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const filters = parseMyDonationsSearch(new URL(request.url).searchParams)
+  await queryClient.query(myRequestsQuery(filters)).catch(ignoreError) // GET /donation-requests/mine?status=&page=
+  return null
+}
+
+async function myRequestLoader({ params }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  await queryClient.query(myRequestQuery(params.requestId!)).catch(ignoreError) // GET /donation-requests/:id
   return null
 }
 
@@ -149,8 +236,79 @@ export const router = createBrowserRouter([
     element: <ToyDetailPage />,
     HydrateFallback: PageLoadingFallback,
   },
-  // Chưa có trang chủ: tạm đưa mọi đường dẫn về trang đăng nhập
-  { path: '*', element: <Navigate to={PATHS.login} replace /> },
+  {
+    path: PATHS.charityOrganizations,
+    loader: charityOrganizationsLoader,
+    element: <CharityOrganizationsPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.charityOrganization,
+    loader: charityOrganizationLoader,
+    element: <CharityOrganizationDetailPage />,
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonations,
+    loader: myDonationsLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationsPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.donationHistory,
+    loader: donationHistoryLoader,
+    element: (
+      <RequireAuth>
+        <DonationHistoryPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.newDonation,
+    loader: newDonationLoader,
+    element: (
+      <RequireAuth>
+        <NewDonationPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonation,
+    loader: myDonationLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationDetailPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonationRequests,
+    loader: myRequestsLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationRequestsPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.myDonationRequest,
+    loader: myRequestLoader,
+    element: (
+      <RequireAuth>
+        <MyDonationRequestDetailPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  adminRoute,
   // Trang chưa xây (danh sách đồ, chi tiết, quyên góp…) và đường dẫn sai: đưa về trang chủ
   { path: '*', element: <Navigate to={PATHS.home} replace /> },
 ])

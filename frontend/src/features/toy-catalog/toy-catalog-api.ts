@@ -44,7 +44,9 @@ export interface ToyCard {
   createdAt: string
 }
 
-export interface ToyDetail extends Omit<ToyCard, 'primaryImage'> {
+export interface ToyDetail extends Omit<ToyCard, 'primaryImage' | 'listingType'> {
+  /** 'donate': tin quyên góp (priceOrRate 0), người khác gửi yêu cầu nhận đồ */
+  listingType: ListingType | 'donate'
   description: string
   images: ToyImage[]
   owner: { id: string; displayName: string }
