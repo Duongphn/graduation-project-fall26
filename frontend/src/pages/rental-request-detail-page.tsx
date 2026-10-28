@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router-dom'
 import { QueryErrorAlert, ReasonModal } from '../components/common'
 import { profileQuery } from '../features/profile/profile-queries'
 import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
+import { RentalCancelAction } from '../features/rentals/components/rental-cancel-action'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
@@ -199,7 +200,7 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
 
   // Các trạng thái chỉ để xem: nói rõ đơn đang ở đâu và ai làm bước tiếp theo
   let title: string
-  let text: string | null = null
+  let text: string | null
   if (order.status === 'PENDING') {
     title = isOwner ? 'Đã quá hạn phản hồi' : 'Đang chờ chủ đồ duyệt'
     text = isOwner
@@ -243,11 +244,23 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
-  } else if (order.status === 'EXPIRED') {
+  } else if (order.status === 'CANCELLED') {
+    const c = order.cancellation
+    const byMe = c ? (c.by === 'OWNER') === isOwner : false
+    const who = !c ? 'Đơn' : byMe ? 'Bạn' : c.by === 'OWNER' ? 'Chủ đồ' : 'Người thuê'
+    title = `${who} đã huỷ đơn thuê`
+    const money = !c
+      ? ''
+      : c.fee > 0
+        ? ` Người thuê được hoàn ${formatVnd(order.pricing.totalPayable - c.fee)}, phí huỷ ${formatVnd(c.fee)} chuyển cho chủ đồ.`
+        : ''
+    text = c
+      ? `Lý do: “${c.reason}” · ${formatDateTime(c.cancelledAt)}.${money} Lịch của món đồ đã được mở lại.`
+      : 'Lịch của món đồ đã được mở lại.'
+  } else {
+    // Còn lại EXPIRED: hệ thống tự huỷ vì quá hạn
     title = 'Yêu cầu đã hết hạn'
     text = 'Đơn đã tự huỷ vì quá hạn phản hồi hoặc thanh toán. Lịch của món đồ đã được mở lại.'
-  } else {
-    title = `Đơn đang ở bước “${RENTAL_STATUS_META[order.status].label}”`
   }
 
   return (
@@ -279,6 +292,9 @@ export function RentalRequestDetailPage() {
   }, [order])
 
   const pricing = order?.pricing
+  // Ước tính phần chủ đồ nhận chỉ có nghĩa khi đơn còn chạy và chưa quyết toán
+  const showOwnerEstimate =
+    isOwner && order && !order.settlement && !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(order.status)
   const ownerReceives = pricing ? pricing.rentalFee - pricing.platformFee : 0
 
   return (
@@ -339,6 +355,9 @@ export function RentalRequestDetailPage() {
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
               <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              {(isOwner || isRenter) && (
+                <RentalCancelAction order={order} role={isOwner ? 'owner' : 'renter'} now={now} />
+              )}
             </aside>
 
             <div className="rental-detail__main">
@@ -378,7 +397,7 @@ export function RentalRequestDetailPage() {
                     <dd>{formatVnd(pricing.totalPayable)}</dd>
                   </div>
                 </dl>
-                {isOwner && !order.settlement && (
+                {showOwnerEstimate && (
                   <dl className="rental-money rental-money--owner">
                     <div>
                       <dt>Tiền thuê</dt>
@@ -394,7 +413,7 @@ export function RentalRequestDetailPage() {
                     </div>
                   </dl>
                 )}
-                {isOwner && !order.settlement && (
+                {showOwnerEstimate && (
                   <p className="rental-block__note">
                     Tiền nằm trong ví ký quỹ ToyFlow cho đến khi bạn nhận lại đồ. Phí trả trễ (nếu có) được cộng thêm
                     cho bạn khi quyết toán.

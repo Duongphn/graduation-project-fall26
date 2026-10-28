@@ -7,7 +7,7 @@ import type { ToyImage } from '../toy-listings/toy-listing-api'
 
 /**
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11), POST /:id/cancel (UC14) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -74,9 +74,19 @@ export interface RentalOrder {
     autoSettled?: boolean
     disputeId?: string
   }
+  cancellation?: RentalCancellation
 }
 
 export type SettlementResult = 'GOOD' | 'DAMAGED'
+
+/** Có khi đơn bị huỷ (UC14): ai huỷ, lý do và phí huỷ người thuê bị trừ (0 khi được hoàn 100%) */
+export interface RentalCancellation {
+  by: 'RENTER' | 'OWNER'
+  userId: string
+  reason: string
+  fee: number
+  cancelledAt: string
+}
 
 /** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
 export interface RentalOrderDetail extends RentalOrder {
@@ -238,6 +248,25 @@ export const useRentalSettle = (orderId: string) =>
     successMessage: (_data, input) => SETTLE_SUCCESS[input.result],
     invalidate: [rentalKeys.all, walletKeys.me],
     invalidateOnConflict: true,
+  })
+
+/**
+ * Huỷ đơn (POST /:id/cancel, lý do 5–500 ký tự). Sau đó tải lại đơn, ví (tiền hoàn) và lịch trống của
+ * món đồ, vì đơn huỷ nhả các ngày đã giữ.
+ */
+export const useRentalCancel = (orderId: string, toyId: string | undefined, onSuccess?: () => void) =>
+  useApiMutation({
+    mutationFn: (reason: string) => apiPost<RentalOrder>(`/rentals/${orderId}/cancel`, { reason }),
+    successMessage: (order) => {
+      const fee = order.cancellation?.fee ?? 0
+      const refund = order.pricing.totalPayable - fee
+      return order.status === 'CANCELLED' && fee > 0
+        ? `Đã huỷ đơn. Hoàn ${refund.toLocaleString('vi-VN')} ₫ về ví người thuê, phí huỷ ${fee.toLocaleString('vi-VN')} ₫.`
+        : 'Đã huỷ đơn. Lịch của món đồ đã được mở lại.'
+    },
+    invalidate: [rentalKeys.all, walletKeys.me, ...(toyId ? [['toy-availability', toyId]] : [])],
+    invalidateOnConflict: true,
+    onSuccess,
   })
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) */

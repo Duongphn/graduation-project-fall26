@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import type { RentalOrder, RentalStatus } from './rental-orders-api'
+import type { RentalOrder, RentalRole, RentalStatus } from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
 export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
@@ -103,6 +103,57 @@ export const estimateLateFee = (order: Pick<RentalOrder, 'period' | 'pricing'>, 
   const lateDays = now > dueAt ? Math.ceil((now - dueAt) / DAY_MS) : 0
   const lateFee = Math.min(lateDays * order.pricing.dailyRate, order.pricing.depositAmount)
   return { lateDays, lateFee }
+}
+
+/** Tỷ lệ phí huỷ mặc định của server (cấu hình được): % tiền thuê khi người thuê huỷ đơn đã thanh toán */
+export const DEFAULT_CANCEL_FEE_RATE = 0.2
+
+/** Lý do huỷ gợi ý theo vai trò; người dùng vẫn sửa được (5–500 ký tự như server) */
+export const CANCEL_REASON_PRESETS: Record<RentalRole, readonly string[]> = {
+  renter: [
+    'Gia đình đổi kế hoạch, không còn cần thuê nữa.',
+    'Mình đã tìm được món đồ chơi khác phù hợp hơn.',
+    'Chủ đồ chưa giao đúng hẹn.',
+  ],
+  owner: [
+    'Đồ chơi bị hỏng, chưa thể cho thuê.',
+    'Mình không sắp xếp được việc giao đồ trong những ngày này.',
+    'Mình cần dùng đồ chơi trong khoảng thời gian này.',
+  ],
+}
+
+export type CancelPreview =
+  | { allowed: true; paid: boolean; fee: number; refund: number; feeWaived: boolean }
+  | { allowed: false; reason: 'shipped' | 'use-reject' | 'closed' }
+
+/**
+ * Hệ quả nếu huỷ lúc `now`, theo chính sách huỷ của server: chờ duyệt/chờ thanh toán thì chưa có tiền;
+ * đã thanh toán thì chủ đồ huỷ hoàn 100%, người thuê huỷ mất phí (miễn khi tới ngày nhận mà chưa được giao);
+ * từ lúc giao trở đi thì không huỷ được. Phí cuối cùng do server chốt.
+ */
+export const previewCancel = (order: RentalOrder, role: RentalRole, now: number): CancelPreview => {
+  switch (order.status) {
+    case 'PENDING':
+      return role === 'owner'
+        ? { allowed: false, reason: 'use-reject' }
+        : { allowed: true, paid: false, fee: 0, refund: 0, feeWaived: false }
+    case 'ACCEPTED':
+      return { allowed: true, paid: false, fee: 0, refund: 0, feeWaived: false }
+    case 'PAID': {
+      const total = order.pricing.totalPayable
+      if (role === 'owner') return { allowed: true, paid: true, fee: 0, refund: total, feeWaived: false }
+      const rentalStarted = now >= Date.parse(`${order.period.startDate}T00:00:00+07:00`)
+      const fee = rentalStarted ? 0 : Math.min(Math.round(DEFAULT_CANCEL_FEE_RATE * order.pricing.rentalFee), total)
+      return { allowed: true, paid: true, fee, refund: total - fee, feeWaived: rentalStarted }
+    }
+    case 'SHIPPING':
+    case 'IN_USE':
+    case 'RETURNING':
+    case 'DISPUTING':
+      return { allowed: false, reason: 'shipped' }
+    default:
+      return { allowed: false, reason: 'closed' }
+  }
 }
 
 /** Thời điểm hiện tại, cập nhật định kỳ để đếm ngược hạn phản hồi/thanh toán */
