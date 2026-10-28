@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { z } from 'zod'
 
-import type { PaginationParams } from '../types/api'
+import { MAX_PAGE_LIMIT, type PaginationParams } from '../types/api'
 
 const toPositiveInt = (value: string | null, fallback: number): number => {
   const parsed = Number(value)
@@ -39,7 +39,8 @@ export const useListParams = <S extends FilterSchema, SortField extends string =
   const [searchParams, setSearchParams] = useSearchParams()
 
   const page = toPositiveInt(searchParams.get('page'), 1)
-  const limit = toPositiveInt(searchParams.get('limit'), defaultLimit)
+  // Capped at the backend maximum, so ?limit=500 shows 100 rows instead of a 400 error.
+  const limit = Math.min(toPositiveInt(searchParams.get('limit'), defaultLimit), MAX_PAGE_LIMIT)
   const sortByParam = searchParams.get('sortBy')
   const sortBy = sortFields?.find((field) => field === sortByParam)
   const sortOrderParam = searchParams.get('sortOrder')
@@ -49,7 +50,9 @@ export const useListParams = <S extends FilterSchema, SortField extends string =
   const filters = useMemo(() => {
     const raw: Record<string, string | undefined> = {}
     for (const key of Object.keys(schema.shape)) raw[key] = searchParams.get(key) ?? undefined
-    return schema.parse(raw) as z.output<S>
+    // A field without .catch would throw on a broken URL: fall back to the schema defaults.
+    const parsed = schema.safeParse(raw)
+    return (parsed.success ? parsed.data : schema.parse({})) as z.output<S>
   }, [schema, searchParams])
 
   // Ready to pass to the api function (also a good part of a query key). Empty filters are left
@@ -68,7 +71,7 @@ export const useListParams = <S extends FilterSchema, SortField extends string =
   }, [page, limit, sortBy, sortOrder, filters])
 
   const update = useCallback(
-    (changes: Record<string, string | number | undefined>, resetPage: boolean) => {
+    (changes: Record<string, string | number | undefined>, resetPage: boolean, replace = false) => {
       setSearchParams((current) => {
         const next = new URLSearchParams(current)
         for (const [key, value] of Object.entries(changes)) {
@@ -77,7 +80,7 @@ export const useListParams = <S extends FilterSchema, SortField extends string =
         }
         if (resetPage) next.delete('page')
         return next
-      })
+      }, { replace })
     },
     [setSearchParams],
   )
@@ -103,5 +106,32 @@ export const useListParams = <S extends FilterSchema, SortField extends string =
   )
   const reset = useCallback(() => setSearchParams(new URLSearchParams()), [setSearchParams])
 
-  return { page, limit, sortBy, sortOrder, filters, params, setPage, setFilter, setFilters, setSort, reset }
+  return {
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+    filters,
+    params,
+    setPage,
+    setFilter,
+    setFilters,
+    setSort,
+    reset,
+    update,
+  }
+}
+
+// Goes back to the last page when the list shrank under the current page (e.g. after a delete,
+// or ?page=9 of a 2-page list): replaces the URL so Back does not return to the empty page.
+export const useClampPage = (
+  page: number,
+  totalPages: number | undefined,
+  update: (changes: Record<string, string | number | undefined>, resetPage: boolean, replace?: boolean) => void,
+) => {
+  useEffect(() => {
+    if (totalPages === undefined) return
+    const last = Math.max(1, totalPages)
+    if (page > last) update({ page: last > 1 ? last : undefined }, false, true)
+  }, [page, totalPages, update])
 }
