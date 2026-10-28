@@ -368,11 +368,11 @@
   }
 
   .hero-banner__dot::before {
-    @apply absolute top-1/2 left-1/2 h-2 w-2 -translate-1/2 rounded-full bg-white/40 transition-[width,background-color] duration-300 ease-out-quint content-[''];
+    @apply absolute top-1/2 left-1/2 h-2 w-5 -translate-1/2 rounded-full bg-white/40 [clip-path:inset(0_6px_round_4px)] transition-[clip-path,background-color] duration-300 ease-out-quint content-[''];
   }
 
   .hero-banner__dot.is-active::before {
-    @apply w-5 bg-white;
+    @apply bg-white [clip-path:inset(0_0_round_4px)];
   }
 
   .home-hero__trust {

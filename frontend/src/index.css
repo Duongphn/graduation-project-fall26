@@ -13,6 +13,7 @@
 @import './features/toy-catalog/toy-catalog.css';
 @import './features/toy-catalog/toy-search.css';
 @import './features/toy-catalog/toy-detail.css';
+@import './features/rentals/rentals.css';
 @import './layouts/site/site-layout.css';
 @import './features/home/home.css';
 @import './features/ai-chat/ai-chat.css';
@@ -29,7 +30,6 @@
   --color-brand-navy: #152152;
   --color-brand-button: #24338a;
   --color-brand-button-hover: #1c2870;
-  --color-brand-cream: #faf8f3;
 
   /*
    * Bảng màu trang tài khoản: navy sẫm làm chủ đạo, ánh đồng (brass) làm điểm nhấn,
@@ -119,7 +119,7 @@
 
 @layer base {
   body {
-    @apply bg-brand-cream font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;
+    @apply bg-tf-page font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;
   }
 
   /* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */

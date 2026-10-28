@@ -11,6 +11,8 @@ const baseToken: ThemeConfig['token'] = {
   borderRadius: 12,
   controlHeightLG: 48,
   fontSizeLG: 15,
+  // Thay đường cong nảy mặc định (overshoot 1.46) bằng ease-out-quint của site
+  motionEaseOutBack: 'cubic-bezier(0.22, 1, 0.36, 1)',
 }
 
 const formComponentToken = { verticalLabelPadding: '0 0 6px', itemMarginBottom: 20 }
