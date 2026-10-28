@@ -13,6 +13,7 @@
 @import './features/toy-catalog/toy-catalog.css';
 @import './features/toy-catalog/toy-search.css';
 @import './features/toy-catalog/toy-detail.css';
+@import './features/rentals/rentals.css';
 @import './layouts/site/site-layout.css';
 @import './features/home/home.css';
 @import './features/ai-chat/ai-chat.css';

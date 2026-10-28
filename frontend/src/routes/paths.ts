@@ -20,6 +20,8 @@ export const PATHS = {
   myDonation: '/donations/:requestId',
   myDonationRequests: '/donation-requests/mine',
   myDonationRequest: '/donation-requests/:requestId',
+  rentalRequests: '/rentals/requests',
+  rentalRequest: '/rentals/requests/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   donations: '/donations',
@@ -35,6 +37,8 @@ export const toyListingEditPath = (toyId: string) => PATHS.editListing.replace('
 
 export const charityOrganizationPath = (organizationId: string) =>
   PATHS.charityOrganization.replace(':organizationId', organizationId)
+
+export const rentalRequestPath = (orderId: string) => PATHS.rentalRequest.replace(':orderId', orderId)
 
 export const myDonationRequestPath = (requestId: string) =>
   PATHS.myDonationRequest.replace(':requestId', requestId)
