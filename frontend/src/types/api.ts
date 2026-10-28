@@ -26,6 +26,9 @@ export interface ApiErrorBody {
   error?: { code: string; message: string; details?: unknown }
 }
 
+// The backend's largest page (MAX_PAGE_LIMIT in server/src/validations/common.validation.ts).
+export const MAX_PAGE_LIMIT = 100
+
 export interface PaginationParams {
   page?: number
   limit?: number

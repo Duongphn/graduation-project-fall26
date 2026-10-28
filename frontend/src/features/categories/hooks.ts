@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query'
 
 import { useApiMutation } from '../../hooks/useApiMutation'
 import type { WithMessage } from '../../types/api'
@@ -46,9 +46,16 @@ const useCategoryMutation = <TVariables, TData>(
   useApiMutation<WithMessage<TData>, TVariables>({
     mutationFn,
     successMessage: (result) => result.message ?? fallbackMessage,
+    mutationKey: categoryKeys.all,
     invalidate: [categoryKeys.all],
+    // A 404/409/422 (another Admin changed the list) also refetches, next to the backend message.
+    refetchOnStale: true,
     ...(onError ? { onError } : {}),
   })
+
+// True while any category change (create, edit, hide, show, delete, reorder) is running.
+export const useCategoryMutationPending = () =>
+  useIsMutating({ mutationKey: categoryKeys.all }) > 0
 
 export const useCreateCategory = (onError?: (error: unknown) => boolean) =>
   useCategoryMutation(categoriesApi.create, 'Đã thêm danh mục.', onError)
