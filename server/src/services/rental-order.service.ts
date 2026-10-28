@@ -1,6 +1,7 @@
-import mongoose, { type HydratedDocument, Types } from 'mongoose';
+import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+import { type LedgerEntry } from '../interfaces/wallet.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
 import { type IToy } from '../models/toy.model.js';
 import { withTransaction } from '../repositories/transaction.js';
@@ -34,6 +35,8 @@ import {
 } from '../validations/rental-order.validation.js';
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
+import { type RentalCancelActor } from '../types/order-cancel.types.js';
+import { decideRentalCancel } from './rental-cancel-policy.js';
 import { RentalOrderCore } from './rental-order-core.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
@@ -317,6 +320,89 @@ export class RentalOrderService extends RentalOrderCore {
     );
 
     return toRentalOrderDto(updated);
+  }
+
+  /** UC14: Renter/Owner hủy đơn theo chính sách trạng thái; đơn PAID được hoàn tiền từ escrow. */
+  public async cancel(
+    actor: RequestActor,
+    orderId: string,
+    reason: string,
+  ): Promise<RentalOrderDto> {
+    const order = await this.loadForParty(actor, orderId, 'any');
+    const by: RentalCancelActor = order.renterId.toString() === actor.userId ? 'RENTER' : 'OWNER';
+    const now = this.clock.now();
+    const decision = decideRentalCancel(order, by, now, await this.settings.getRentalSettings());
+    if (!decision.allowed) {
+      throw new AppError(409, decision.code, decision.message);
+    }
+
+    const isPaid = order.status === 'PAID';
+    const refundEntries = isPaid ? await this.cancelRefundEntries(order, decision) : [];
+
+    const updated = await this.transition({
+      orderId,
+      from: order.status,
+      to: 'CANCELLED',
+      changedBy: actor.userId,
+      note: `cancel:${by}: ${reason}`,
+      set: {
+        cancellation: {
+          by,
+          userId: new Types.ObjectId(actor.userId),
+          reason,
+          fee: decision.fee,
+          cancelledAt: now,
+        },
+      },
+      ...(isPaid
+        ? {
+            inTransaction: async (_doc: RentalOrderDoc, session: ClientSession) => {
+              await this.ledger.post(
+                `rental:${orderId}:cancel`,
+                { kind: 'rental_order', id: orderId },
+                refundEntries,
+                session,
+                'Hoàn tiền hủy đơn thuê',
+              );
+            },
+          }
+        : {}),
+    });
+
+    const actorLabel = by === 'RENTER' ? 'Người thuê' : 'Chủ đồ chơi';
+    const moneyNotice = isPaid
+      ? `. Hoàn ${decision.refund.toLocaleString('vi-VN')}đ, phí hủy ${decision.fee.toLocaleString('vi-VN')}đ.`
+      : '.';
+    const title = 'Đơn thuê đã bị hủy';
+    const body = `${actorLabel} đã hủy đơn thuê: ${reason}${moneyNotice}`;
+
+    await Promise.all([
+      this.notifyParty(updated, 'renter', title, body),
+      this.notifyParty(updated, 'owner', title, body),
+    ]);
+
+    return toRentalOrderDto(updated);
+  }
+
+  /**
+   * Bút toán hủy đơn PAID: escrow −(R+D); renter +refund; owner +fee (bỏ dòng 0 đồng).
+   * Tạo ví trước khi mở transaction, giống pay.
+   */
+  private async cancelRefundEntries(
+    order: RentalOrderDoc,
+    split: { fee: number; refund: number },
+  ): Promise<LedgerEntry[]> {
+    const [escrowWallet, renterWallet, ownerWallet] = await Promise.all([
+      this.ledger.getOrCreateSystemWallet('escrow'),
+      this.ledger.getOrCreateUserWallet(order.renterId.toString()),
+      split.fee > 0 ? this.ledger.getOrCreateUserWallet(order.ownerId.toString()) : undefined,
+    ]);
+
+    return [
+      { walletId: escrowWallet.id, amount: -order.pricing.totalPayable },
+      { walletId: renterWallet.id, amount: split.refund },
+      ...(ownerWallet ? [{ walletId: ownerWallet.id, amount: split.fee }] : []),
+    ].filter((entry) => entry.amount !== 0);
   }
 
   public async get(actor: RequestActor, orderId: string): Promise<RentalOrderDetailDto> {

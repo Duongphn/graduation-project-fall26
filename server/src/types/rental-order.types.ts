@@ -1,5 +1,6 @@
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+import { type RentalCancelActor } from './order-cancel.types.js';
 
 export interface RentalSettings {
   ownerResponseHours: number;
@@ -8,6 +9,7 @@ export interface RentalSettings {
   settlementHours: number;
   returnReminderHours: number;
   platformFeeRate: number;
+  cancelFeeRate: number;
   lateFeeMultiplier: number;
   minTrustScore: number;
   maxDays: number;
@@ -21,6 +23,7 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   settlementHours: 72,
   returnReminderHours: 24,
   platformFeeRate: 0.1,
+  cancelFeeRate: 0.2,
   lateFeeMultiplier: 1.0,
   minTrustScore: 30,
   maxDays: 30,
@@ -58,6 +61,13 @@ export interface RentalOrderDto {
   status: RentalOrderStatus;
   timer?: { kind: RentalTimerKind; dueAt: Date } | undefined;
   rejectionReason?: string | undefined;
+  cancellation?: {
+    by: RentalCancelActor;
+    userId: string;
+    reason: string;
+    fee: number;
+    cancelledAt: Date;
+  } | undefined;
   handover?: {
     ownerPhotos: ToyImage[];
     shippedAt?: Date | undefined;

@@ -18,6 +18,16 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
     status: doc.status,
     timer: doc.timer?.kind && doc.timer.dueAt ? { kind: doc.timer.kind, dueAt: doc.timer.dueAt } : undefined,
     rejectionReason: doc.rejectionReason ?? undefined,
+    cancellation:
+      doc.cancellation && doc.cancellation.cancelledAt
+        ? {
+            by: doc.cancellation.by,
+            userId: doc.cancellation.userId.toString(),
+            reason: doc.cancellation.reason,
+            fee: doc.cancellation.fee,
+            cancelledAt: doc.cancellation.cancelledAt,
+          }
+        : undefined,
     handover:
       doc.handover &&
       (doc.handover.shippedAt ||
