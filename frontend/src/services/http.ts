@@ -48,6 +48,10 @@ export const apiGetPage = <T>(url: string, params?: PaginationParams & object): 
 export const apiPost = <T>(url: string, body?: unknown): Promise<T> =>
   call(async () => (await httpClient.post<ApiResponse<T>>(url, body)).data.data)
 
+// Multipart upload (photos…): longer timeout than the 15s default since files go through the API.
+export const apiPostForm = <T>(url: string, form: FormData, timeout = 60_000): Promise<T> =>
+  call(async () => (await httpClient.post<ApiResponse<T>>(url, form, { timeout })).data.data)
+
 export const apiPatch = <T>(url: string, body?: unknown): Promise<T> =>
   call(async () => (await httpClient.patch<ApiResponse<T>>(url, body)).data.data)
 

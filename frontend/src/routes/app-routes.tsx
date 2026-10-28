@@ -49,6 +49,8 @@ import { MyDonationsPage } from '../pages/my-donations-page'
 import { NewDonationPage } from '../pages/new-donation-page'
 import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
 import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
+import { RentalRequestDetailPage } from '../pages/rental-request-detail-page'
+import { RentalOrdersListPage } from '../pages/rental-requests-page'
 import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
 import { adminRoute } from './router'
 
@@ -307,6 +309,38 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.rentalRequests,
+    element: (
+      <RequireAuth>
+        <RentalOrdersListPage role="owner" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.myRentals,
+    element: (
+      <RequireAuth>
+        <RentalOrdersListPage role="renter" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.myRental,
+    element: (
+      <RequireAuth>
+        <RentalRequestDetailPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.rentalRequest,
+    element: (
+      <RequireAuth>
+        <RentalRequestDetailPage />
+      </RequireAuth>
+    ),
   },
   adminRoute,
   // Trang chưa xây (danh sách đồ, chi tiết, quyên góp…) và đường dẫn sai: đưa về trang chủ
