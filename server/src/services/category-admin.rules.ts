@@ -1,6 +1,6 @@
 import type { AuditAction } from '../repositories/audit-log.repository.js';
 import { type AppError } from '../utils/app-error.js';
-import { conflict, notFound } from '../utils/http-errors.js';
+import { conflict, notFound, unprocessable } from '../utils/http-errors.js';
 import type { TransitionMap } from '../utils/transitions.js';
 import type { CategoryStatus } from '../validations/category-admin.validation.js';
 
@@ -15,6 +15,18 @@ export const visibilityTransitions: TransitionMap<CategoryStatus> = {
 const NAME_TAKEN_MESSAGE = 'Tên danh mục đã tồn tại.';
 
 export const categoryNotFound = () => notFound('CATEGORY_NOT_FOUND', 'Không tìm thấy danh mục.');
+
+/** Reorder named ids that do not exist (any more). */
+export const categoriesNotFound = (count: number) =>
+  notFound('CATEGORY_NOT_FOUND', `Không tìm thấy ${count} danh mục.`);
+
+/** Reorder must name every category: a stale or partial list would move the others silently. */
+export const reorderIncomplete = (missingCount: number) =>
+  unprocessable(
+    'REORDER_INCOMPLETE',
+    `Danh sách thứ tự thiếu ${missingCount} danh mục. Vui lòng tải lại và thử lại.`,
+    { missingCount },
+  );
 
 export const categoryNameTaken = () =>
   conflict('CATEGORY_NAME_TAKEN', NAME_TAKEN_MESSAGE, [

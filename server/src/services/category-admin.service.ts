@@ -6,7 +6,6 @@ import {
   type AuditAction,
 } from '../repositories/audit-log.repository.js';
 import { withTransaction } from '../utils/transaction.js';
-import { notFound } from '../utils/http-errors.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { duplicateKeyFields, isDuplicateKeyError } from '../utils/mongo-errors.js';
 import { toSkipLimit } from '../utils/response.js';
@@ -16,12 +15,14 @@ import { assertTransition } from '../utils/transitions.js';
 import { toAdminCategory } from './category-admin.mapper.js';
 import { categoriesRepository as repo, type CategoryRecord } from '../repositories/category-admin.repository.js';
 import {
+  categoriesNotFound,
   categoryInUse,
   categoryNameTaken,
   categoryNotFound,
   categoryStatusChanged,
   visibilityChanges,
   visibilityTransitions,
+  reorderIncomplete,
 } from './category-admin.rules.js';
 import type {
   AdminCategoryListQuery,
@@ -84,7 +85,7 @@ export const createCategory = async (
   input: CreateCategoryBody,
   context: AdminContext,
 ): Promise<AdminCategoryView> => {
-  for (let attempt = 1; ; attempt += 1) {
+  for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt += 1) {
     try {
       const created = await withTransaction(async (session) => {
         if (await repo.existsByName(input.name, undefined, session)) throw categoryNameTaken();
@@ -110,6 +111,8 @@ export const createCategory = async (
       return rethrowNameTaken(error);
     }
   }
+  // Unreachable: the last attempt returns or rethrows above.
+  throw new Error('Category create retries exhausted.');
 };
 
 // The slug is NOT regenerated on rename: it is the stable public key of the category (filter
@@ -184,8 +187,8 @@ export const deleteCategory = async (id: string, context: AdminContext): Promise
   });
 };
 
-// displayOrder = 1, 2, 3... in the given order. Categories left out keep their relative order
-// after the listed ones, so a slightly stale list still gives a complete, gap-free order.
+// displayOrder = 1, 2, 3... in the given order. The list must name every category (422
+// REORDER_INCOMPLETE otherwise), so a stale client cannot move the categories it did not see.
 export const reorderCategories = async (
   input: ReorderCategoriesBody,
   context: AdminContext,
@@ -195,13 +198,12 @@ export const reorderCategories = async (
     const byId = new Map(all.map((category) => [String(category._id), category]));
     const missing = input.ids.filter((id) => !byId.has(id));
     if (missing.length > 0) {
-      throw notFound('CATEGORY_NOT_FOUND', `Không tìm thấy ${missing.length} danh mục.`);
+      throw categoriesNotFound(missing.length);
     }
-    const listed = new Set(input.ids);
-    const ordered = [
-      ...input.ids.map((id) => byId.get(id) as CategoryRecord),
-      ...all.filter((category) => !listed.has(String(category._id))),
-    ];
+    if (input.ids.length < all.length) {
+      throw reorderIncomplete(all.length - input.ids.length);
+    }
+    const ordered = input.ids.map((id) => byId.get(id) as CategoryRecord);
     const changes = ordered
       .map((category, index) => ({
         id: category._id,

@@ -13,6 +13,7 @@
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "jobs:expire-donations": "tsx src/jobs/expire-donations.ts",
+    "db:seed-categories": "tsx src/jobs/seed-categories.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

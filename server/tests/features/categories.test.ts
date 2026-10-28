@@ -4,7 +4,13 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AuditLog as AuditLogModel } from '../../src/models/audit-log.model.js';
+import {
+  CATEGORIES_SEEDED_KEY,
+  defaultCategories,
+} from '../../src/constants/default-categories.js';
 import { Category as CategoryModel } from '../../src/models/category.model.js';
+import { SystemSetting } from '../../src/models/system-setting.model.js';
+import { seedDefaultCategories } from '../../src/services/category-seed.service.js';
 import { adminCategoriesRouter } from '../../src/routes/category-admin.routes.js';
 import { categoriesRouter } from '../../src/routes/category.routes.js';
 import { Toy as ToyModel } from '../../src/models/toy.model.js';
@@ -234,11 +240,11 @@ describe('delete', () => {
 });
 
 describe('reorder', () => {
-  it('numbers the given ids first and keeps the others after them', async () => {
+  it('numbers the ids in the given order', async () => {
     const a = await createCategory('A gỗ');
     const b = await createCategory('B nhựa');
     const c = await createCategory('C vải');
-    const response = await patch('/reorder', { ids: [c.id, a.id] });
+    const response = await patch('/reorder', { ids: [c.id, a.id, b.id] });
     expect(response.status).toBe(200);
     const order = (await get()).body.data.map((item: { id: string; displayOrder: number }) => [
       item.id,
@@ -254,8 +260,77 @@ describe('reorder', () => {
     expect(audit?.target_id).toBeUndefined();
   });
 
+  it('answers 404 for an unknown id and changes nothing', async () => {
+    const a = await createCategory('Có thật');
+    const response = await patch('/reorder', { ids: [a.id, newId().toString()] });
+    expect(response.status).toBe(404);
+    expect(response.body.error).toMatchObject({
+      code: 'CATEGORY_NOT_FOUND',
+      message: 'Không tìm thấy 1 danh mục.',
+    });
+    expect(await AuditLogModel.countDocuments({ action: 'category.reorder' })).toBe(0);
+  });
+
+  it('answers 422 REORDER_INCOMPLETE for a partial list and changes nothing', async () => {
+    const a = await createCategory('Một');
+    const b = await createCategory('Hai');
+    await createCategory('Ba');
+    const response = await patch('/reorder', { ids: [b.id, a.id] });
+    expect(response.status).toBe(422);
+    expect(response.body.error).toMatchObject({
+      code: 'REORDER_INCOMPLETE',
+      details: { missingCount: 1 },
+    });
+    const order = (await get()).body.data.map((item: { id: string }) => item.id);
+    expect(order.slice(0, 2)).toEqual([a.id, b.id]);
+    expect(await AuditLogModel.countDocuments({ action: 'category.reorder' })).toBe(0);
+  });
+
   it('rejects duplicate ids', async () => {
     const a = await createCategory('Một');
     expect((await patch('/reorder', { ids: [a.id, a.id.toUpperCase()] })).status).toBe(400);
+  });
+});
+
+describe('default categories seed', () => {
+  beforeEach(async () => {
+    await SystemSetting.deleteMany({ key: CATEGORIES_SEEDED_KEY });
+  });
+
+  it('fills an empty collection once and is safe to run again', async () => {
+    expect((await seedDefaultCategories()).inserted).toBe(defaultCategories.length);
+    expect((await seedDefaultCategories()).inserted).toBe(0);
+    const seeded = await CategoryModel.find().sort({ displayOrder: 1 }).lean();
+    expect(seeded.length).toBe(defaultCategories.length);
+    expect(seeded.length).toBeGreaterThanOrEqual(10);
+    expect(new Set(seeded.map((category) => category.slug)).size).toBe(seeded.length);
+    expect(seeded.every((category) => category.status === 'active')).toBe(true);
+    expect(seeded.map((category) => category.displayOrder)).toEqual(
+      seeded.map((_category, index) => index + 1),
+    );
+  });
+
+  it('never brings back a deleted category nor undoes a rename', async () => {
+    await seedDefaultCategories();
+    const [first, second] = await CategoryModel.find().sort({ displayOrder: 1 });
+    await CategoryModel.deleteOne({ _id: first?._id });
+    await CategoryModel.updateOne({ _id: second?._id }, { name: 'Tên mới' });
+    await seedDefaultCategories();
+    expect(await CategoryModel.countDocuments()).toBe(defaultCategories.length - 1);
+    expect((await CategoryModel.findById(second?._id).lean())?.name).toBe('Tên mới');
+  });
+
+  it('does not reseed after the Admin deleted every category', async () => {
+    await seedDefaultCategories();
+    await CategoryModel.deleteMany({});
+    await seedDefaultCategories();
+    expect(await CategoryModel.countDocuments()).toBe(0);
+  });
+
+  it('only marks a database that already has categories', async () => {
+    await createCategory('Có sẵn');
+    expect((await seedDefaultCategories()).inserted).toBe(0);
+    expect(await CategoryModel.countDocuments()).toBe(1);
+    expect(await SystemSetting.exists({ key: CATEGORIES_SEEDED_KEY })).not.toBeNull();
   });
 });
