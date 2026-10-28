@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router-dom'
 import { QueryErrorAlert, ReasonModal } from '../components/common'
 import { profileQuery } from '../features/profile/profile-queries'
 import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
+import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
 import {
   rentalDetailQuery,
   rentalHistoryQuery,
@@ -77,11 +78,15 @@ function RenterCard({ renter }: { renter: RentalOrderDetail['renter'] }) {
 interface DecisionPanelProps {
   order: RentalOrderDetail
   isOwner: boolean
+  isRenter: boolean
   now: number
 }
 
-/** Việc tiếp theo của chủ đồ theo trạng thái đơn; chỉ PENDING còn hạn mới có nút quyết định */
-function DecisionPanel({ order, isOwner, now }: DecisionPanelProps) {
+/**
+ * Việc tiếp theo theo trạng thái đơn và vai trò người xem: chủ đồ duyệt khi PENDING còn hạn,
+ * người thuê thanh toán khi ACCEPTED còn hạn; các trạng thái khác chỉ để xem.
+ */
+function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
   const [rejectOpen, setRejectOpen] = useState(false)
   const { accept, reject } = useOwnerRentalDecision(order.id, order.toyId)
   const busy = accept.isPending || reject.isPending
@@ -128,6 +133,10 @@ function DecisionPanel({ order, isOwner, now }: DecisionPanelProps) {
     )
   }
 
+  if (order.status === 'ACCEPTED' && isRenter && remaining) {
+    return <RentalPayPanel order={order} remaining={remaining} />
+  }
+
   // Các trạng thái chỉ để xem: nói rõ đơn đang ở đâu và ai làm bước tiếp theo
   let title: string
   let text: string | null = null
@@ -139,11 +148,16 @@ function DecisionPanel({ order, isOwner, now }: DecisionPanelProps) {
         ? `Chủ đồ phản hồi trước ${formatDateTime(order.timer.dueAt)}.`
         : null
   } else if (order.status === 'ACCEPTED') {
-    title = 'Đang chờ người thuê thanh toán'
+    title = isRenter ? 'Đã quá hạn thanh toán' : 'Đang chờ người thuê thanh toán'
     text =
       order.timer && remaining
         ? `Hạn thanh toán ${formatDateTime(order.timer.dueAt)} (${remaining}). Quá hạn, đơn tự huỷ và lịch được mở lại.`
         : 'Đã quá hạn thanh toán, đơn sẽ được hệ thống tự huỷ.'
+  } else if (order.status === 'PAID') {
+    title = 'Đã thanh toán vào ví ký quỹ'
+    text = isRenter
+      ? 'Tiền thuê và tiền cọc đang được ToyFlow giữ. Chủ đồ sẽ giao đồ chơi kèm ảnh tình trạng; bạn xác nhận khi nhận được.'
+      : 'Người thuê đã thanh toán, tiền đang được ToyFlow giữ trong ví ký quỹ. Hãy giao đồ chơi kèm ảnh tình trạng.'
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
@@ -172,9 +186,14 @@ export function RentalRequestDetailPage() {
   const toy = useQuery({ ...toyDetailQuery(order?.toyId ?? ''), enabled: Boolean(order) })
   const now = useNow()
   const isOwner = Boolean(order && profile.data && order.ownerId === profile.data.id)
+  const isRenter = Boolean(order && profile.data && order.renterId === profile.data.id)
+  // Breadcrumb quay về đúng danh sách của vai trò người xem
+  const backTo = isRenter
+    ? { to: PATHS.myRentals, label: 'Đơn thuê của tôi' }
+    : { to: PATHS.rentalRequests, label: 'Yêu cầu thuê nhận được' }
 
   useEffect(() => {
-    document.title = `${order ? `Yêu cầu thuê ${order.code}` : 'Yêu cầu thuê'} | ToyFlow`
+    document.title = `${order ? `Đơn thuê ${order.code}` : 'Đơn thuê'} | ToyFlow`
   }, [order])
 
   const pricing = order?.pricing
@@ -188,7 +207,7 @@ export function RentalRequestDetailPage() {
             <Home aria-hidden /> Trang chủ
           </Link>
           <ChevronRight aria-hidden />
-          <Link to={PATHS.rentalRequests}>Yêu cầu thuê nhận được</Link>
+          <Link to={backTo.to}>{backTo.label}</Link>
           {order && (
             <>
               <ChevronRight aria-hidden />
@@ -208,8 +227,8 @@ export function RentalRequestDetailPage() {
         {detail.isError && (
           <div className="rental-detail-error">
             <QueryErrorAlert error={detail.error} onRetry={() => void detail.refetch()} />
-            <Link to={PATHS.rentalRequests} className="rental-btn rental-btn--ghost">
-              <ArrowLeft aria-hidden /> Về danh sách yêu cầu
+            <Link to={backTo.to} className="rental-btn rental-btn--ghost">
+              <ArrowLeft aria-hidden /> Về {backTo.label.toLowerCase()}
             </Link>
           </div>
         )}
@@ -237,7 +256,7 @@ export function RentalRequestDetailPage() {
 
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
-              <DecisionPanel order={order} isOwner={isOwner} now={now} />
+              <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
             </aside>
 
             <div className="rental-detail__main">

@@ -1,4 +1,4 @@
-import { Gift, HandHeart, Heart, LogOut, Package, Plus, ReceiptText, UserRound } from 'lucide-react'
+import { CalendarCheck, Gift, HandHeart, Heart, LogOut, Package, Plus, ReceiptText, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PATHS } from '../../routes/paths'
 import { logout } from '../../features/auth/auth-api'
@@ -28,6 +28,9 @@ export function AccountMenu() {
           </Link>
           <Link to={PATHS.myDonationRequests} className="account-menu__link" onClick={close}>
             <Gift aria-hidden /> Yêu cầu nhận đồ của tôi
+          </Link>
+          <Link to={PATHS.myRentals} className="account-menu__link" onClick={close}>
+            <CalendarCheck aria-hidden /> Đơn thuê của tôi
           </Link>
           <Link to={PATHS.rentalRequests} className="account-menu__link" onClick={close}>
             <ReceiptText aria-hidden /> Yêu cầu thuê nhận được

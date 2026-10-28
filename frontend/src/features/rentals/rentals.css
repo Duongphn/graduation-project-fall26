@@ -934,6 +934,152 @@
     margin-top: 20px;
   }
 
+  /* ---------- Thanh toán bằng ví (UC08) ---------- */
+  .rental-pay {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--rp-rule);
+    border-top: 3px solid var(--rp-brass);
+    border-radius: 10px;
+    background: var(--rp-paper);
+  }
+
+  /* Bảng đối chiếu: số dư − số cần trả = còn lại / còn thiếu, như một dòng sổ quỹ */
+  .rental-pay__ledger {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border-radius: 8px;
+    background: var(--rp-sunken);
+  }
+
+  .rental-pay__ledger > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  .rental-pay__ledger dt {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--rp-muted);
+  }
+
+  .rental-pay__ledger dt svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+
+  .rental-pay__ledger dd {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .rental-pay__ledger > .rental-pay__result {
+    margin-top: 2px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rp-rule-strong);
+  }
+
+  .rental-pay__result dt {
+    font-weight: 600;
+    color: var(--rp-ink);
+  }
+
+  .rental-pay__result dd {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .rental-pay__result.is-ok dd {
+    color: var(--rp-green);
+  }
+
+  .rental-pay__result.is-short dt,
+  .rental-pay__result.is-short dd {
+    color: var(--rp-red);
+  }
+
+  .rental-pay__skeleton {
+    width: 96px;
+  }
+
+  .rental-pay__retry {
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    color: var(--rp-navy);
+  }
+
+  /* Gợi ý nạp ví khi thiếu tiền */
+  .rental-pay__topup {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--rp-red);
+    border-radius: 6px;
+    background: var(--rp-red-soft);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--rp-ink);
+  }
+
+  .rental-pay__topup strong {
+    font-variant-numeric: tabular-nums;
+    color: var(--rp-red);
+  }
+
+  .rental-pay__topup-note {
+    font-size: 13px;
+    color: var(--rp-muted);
+  }
+
+  .rental-pay__topup .rental-btn {
+    min-height: 40px;
+    margin-top: 2px;
+  }
+
+  .rental-pay__submit {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .rental-pay__escrow {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--rp-muted);
+  }
+
+  .rental-pay__escrow svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    color: var(--rp-green);
+  }
+
+  @media (min-width: 640px) {
+    .rental-pay {
+      padding: 20px;
+    }
+  }
+
   /* ---------- Hover ---------- */
   @media (hover: hover) {
     .rental-crumbs a:hover,
@@ -960,6 +1106,10 @@
       transform: translateY(-2px);
       background: var(--rp-navy-hover);
       box-shadow: 0 6px 16px rgb(20 40 75 / 0.18);
+    }
+
+    .rental-pay__retry:hover {
+      color: var(--rp-navy-hover);
     }
 
     .rental-btn--ghost:hover:not(:disabled) {

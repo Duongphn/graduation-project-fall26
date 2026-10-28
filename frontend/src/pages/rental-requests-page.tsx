@@ -7,16 +7,17 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { QueryErrorAlert } from '../components/common'
 import { RentalPeriod, RentalStatusBadge, RentalToyImage, RentalToyTitle } from '../features/rentals/components/rental-parts'
 import {
-  ownerRentalsQuery,
+  rentalListQuery,
   RENTAL_REQUESTS_PAGE_SIZE,
   RENTAL_STATUSES,
   type RentalOrder,
+  type RentalRole,
   type RentalStatus,
 } from '../features/rentals/rental-orders-api'
-import { formatRemaining, OWNER_STATUS_FILTERS, RENTAL_STATUS_META, useNow } from '../features/rentals/rental-display'
+import { formatRemaining, OWNER_STATUS_FILTERS, RENTAL_STATUS_META, RENTER_STATUS_FILTERS, useNow } from '../features/rentals/rental-display'
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { SiteLayout } from '../layouts/site/site-layout'
-import { PATHS, rentalRequestPath } from '../routes/paths'
+import { myRentalPath, PATHS, rentalRequestPath } from '../routes/paths'
 
 const parseStatus = (value: string | null): RentalStatus | undefined =>
   RENTAL_STATUSES.find((status) => status === value)
@@ -26,14 +27,47 @@ const parsePage = (value: string | null) => {
   return Number.isInteger(page) && page > 0 ? page : 1
 }
 
-/** Một yêu cầu thuê: ảnh + tên đồ chơi, khoảng ngày, tiền, và hạn phải làm gì tiếp theo */
-function RequestRow({ order, now }: { order: RentalOrder; now: number }) {
+/** Khác biệt giữa trang của chủ đồ và của người thuê: tiêu đề, bộ lọc, đơn nào cần làm ngay */
+const ROLE_VIEW = {
+  owner: {
+    title: 'Yêu cầu thuê nhận được',
+    eyebrow: 'Cho thuê đồ chơi',
+    lead: 'Xem từng yêu cầu cùng điểm tin cậy của người thuê, rồi chấp nhận hoặc từ chối trước hạn phản hồi. Quá hạn, yêu cầu sẽ tự huỷ và lịch được mở lại.',
+    filters: OWNER_STATUS_FILTERS,
+    detailPath: rentalRequestPath,
+    emptyText: 'Khi có người đặt thuê đồ chơi của bạn, yêu cầu sẽ hiện ở đây để bạn duyệt.',
+    emptyAction: { to: PATHS.myListings, label: 'Xem tin đăng của tôi' },
+    actionStatus: 'PENDING',
+    actionText: 'Cần phản hồi',
+    waitStatus: 'ACCEPTED',
+    waitText: 'Người thuê thanh toán',
+    moneyLabel: 'Người thuê trả',
+  },
+  renter: {
+    title: 'Đơn thuê của tôi',
+    eyebrow: 'Thuê đồ chơi',
+    lead: 'Theo dõi các yêu cầu thuê bạn đã gửi. Khi chủ đồ chấp nhận, hãy thanh toán bằng ví ToyFlow trước hạn để giữ lịch thuê.',
+    filters: RENTER_STATUS_FILTERS,
+    detailPath: myRentalPath,
+    emptyText: 'Chọn một món đồ chơi cho thuê, chọn ngày rồi gửi yêu cầu: đơn sẽ hiện ở đây.',
+    emptyAction: { to: PATHS.toys, label: 'Tìm đồ chơi để thuê' },
+    actionStatus: 'ACCEPTED',
+    actionText: 'Cần thanh toán',
+    waitStatus: 'PENDING',
+    waitText: 'Chủ đồ phản hồi',
+    moneyLabel: 'Tổng thanh toán',
+  },
+} satisfies Record<RentalRole, { actionStatus: RentalStatus; waitStatus: RentalStatus } & Record<string, unknown>>
+
+/** Một đơn thuê: ảnh + tên đồ chơi, khoảng ngày, tiền, và hạn phải làm gì tiếp theo */
+function RequestRow({ order, now, role }: { order: RentalOrder; now: number; role: RentalRole }) {
+  const view = ROLE_VIEW[role]
   const remaining = order.timer ? formatRemaining(order.timer.dueAt, now) : null
-  const needsAction = order.status === 'PENDING' && remaining
+  const needsAction = order.status === view.actionStatus && remaining
 
   return (
     <li>
-      <Link to={rentalRequestPath(order.id)} className={`rental-row ${needsAction ? 'rental-row--action' : ''}`}>
+      <Link to={view.detailPath(order.id)} className={`rental-row ${needsAction ? 'rental-row--action' : ''}`}>
         <RentalToyImage toyId={order.toyId} className="rental-row__thumb" />
         <span className="rental-row__main">
           <span className="rental-row__meta">
@@ -43,11 +77,11 @@ function RequestRow({ order, now }: { order: RentalOrder; now: number }) {
           <RentalToyTitle toyId={order.toyId} className="rental-row__title" />
           {needsAction ? (
             <span className="rental-row__due">
-              <Clock aria-hidden /> Cần phản hồi, {remaining}
+              <Clock aria-hidden /> {view.actionText}, {remaining}
             </span>
-          ) : order.status === 'ACCEPTED' && remaining ? (
+          ) : order.status === view.waitStatus && remaining ? (
             <span className="rental-row__due rental-row__due--quiet">
-              <Clock aria-hidden /> Người thuê thanh toán, {remaining}
+              <Clock aria-hidden /> {view.waitText}, {remaining}
             </span>
           ) : null}
         </span>
@@ -55,7 +89,7 @@ function RequestRow({ order, now }: { order: RentalOrder; now: number }) {
           <RentalPeriod period={order.period} />
         </span>
         <span className="rental-row__money">
-          <small>Người thuê trả</small>
+          <small>{view.moneyLabel}</small>
           <strong>{formatVnd(order.pricing.totalPayable)}</strong>
         </span>
         <ChevronRight className="rental-row__chevron" aria-hidden />
@@ -64,19 +98,23 @@ function RequestRow({ order, now }: { order: RentalOrder; now: number }) {
   )
 }
 
-/** Chủ đồ xem các yêu cầu thuê nhận được và mở từng đơn để duyệt (UC07) */
-export function RentalRequestsPage() {
+/**
+ * Danh sách đơn thuê theo vai trò: chủ đồ duyệt yêu cầu nhận được (UC07),
+ * người thuê theo dõi đơn đã gửi và vào thanh toán (UC08).
+ */
+export function RentalOrdersListPage({ role }: { role: RentalRole }) {
+  const view = ROLE_VIEW[role]
   const [searchParams, setSearchParams] = useSearchParams()
   const status = parseStatus(searchParams.get('status'))
   const page = parsePage(searchParams.get('page'))
-  const list = useQuery(ownerRentalsQuery({ status, page }))
+  const list = useQuery(rentalListQuery(role, { status, page }))
   const now = useNow()
   const items = list.data?.items ?? []
   const total = list.data?.total ?? 0
 
   useEffect(() => {
-    document.title = 'Yêu cầu thuê nhận được | ToyFlow'
-  }, [])
+    document.title = `${view.title} | ToyFlow`
+  }, [view.title])
 
   const setFilter = (next: { status?: RentalStatus; page?: number }) => {
     const params = new URLSearchParams()
@@ -93,16 +131,13 @@ export function RentalRequestsPage() {
             <Home aria-hidden /> Trang chủ
           </Link>
           <ChevronRight aria-hidden />
-          <span aria-current="page">Yêu cầu thuê nhận được</span>
+          <span aria-current="page">{view.title}</span>
         </nav>
 
         <header className="rental-page__head">
-          <p className="rental-page__eyebrow">Cho thuê đồ chơi</p>
-          <h1 className="rental-page__title">Yêu cầu thuê nhận được</h1>
-          <p className="rental-page__lead">
-            Xem từng yêu cầu cùng điểm tin cậy của người thuê, rồi chấp nhận hoặc từ chối trước hạn phản hồi. Quá hạn,
-            yêu cầu sẽ tự huỷ và lịch được mở lại.
-          </p>
+          <p className="rental-page__eyebrow">{view.eyebrow}</p>
+          <h1 className="rental-page__title">{view.title}</h1>
+          <p className="rental-page__lead">{view.lead}</p>
         </header>
 
         <div className="rental-filter" role="tablist" aria-label="Lọc theo trạng thái">
@@ -115,7 +150,7 @@ export function RentalRequestsPage() {
           >
             Tất cả
           </button>
-          {OWNER_STATUS_FILTERS.map((option) => (
+          {view.filters.map((option) => (
             <button
               key={option}
               type="button"
@@ -129,7 +164,7 @@ export function RentalRequestsPage() {
           ))}
         </div>
 
-        <section aria-label="Danh sách yêu cầu thuê" aria-busy={list.isFetching} className="rental-list">
+        <section aria-label={view.title} aria-busy={list.isFetching} className="rental-list">
           {list.isPending &&
             Array.from({ length: 3 }, (_, index) => <span key={index} aria-hidden className="rental-row-skeleton" />)}
 
@@ -138,13 +173,11 @@ export function RentalRequestsPage() {
           {list.isSuccess && items.length === 0 && (
             <div className="rental-empty">
               <p className="rental-empty__title">
-                {status ? `Không có yêu cầu nào ở trạng thái “${RENTAL_STATUS_META[status].label}”.` : 'Chưa có yêu cầu thuê nào.'}
+                {status ? `Không có đơn nào ở trạng thái “${RENTAL_STATUS_META[status].label}”.` : 'Chưa có đơn thuê nào.'}
               </p>
-              <p className="rental-empty__text">
-                Khi có người đặt thuê đồ chơi của bạn, yêu cầu sẽ hiện ở đây để bạn duyệt.
-              </p>
-              <Link to={PATHS.myListings} className="rental-btn rental-btn--ghost">
-                Xem tin đăng của tôi
+              <p className="rental-empty__text">{view.emptyText}</p>
+              <Link to={view.emptyAction.to} className="rental-btn rental-btn--ghost">
+                {view.emptyAction.label}
               </Link>
             </div>
           )}
@@ -152,7 +185,7 @@ export function RentalRequestsPage() {
           {items.length > 0 && (
             <ul className={`rental-list__items ${list.isPlaceholderData ? 'is-stale' : ''}`}>
               {items.map((order) => (
-                <RequestRow key={order.id} order={order} now={now} />
+                <RequestRow key={order.id} order={order} now={now} role={role} />
               ))}
             </ul>
           )}

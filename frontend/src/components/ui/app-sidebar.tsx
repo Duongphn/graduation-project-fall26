@@ -67,7 +67,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: Gift,
     to: PATHS.myDonationRequests,
   },
-  { key: "rentals", label: "Đơn đặt thuê", icon: ReceiptText, to: PATHS.rentalRequests },
+  { key: "rentals", label: "Đơn đặt thuê", icon: ReceiptText, to: PATHS.myRentals },
   { key: "wallet", label: "Ví ToyFlow", icon: Wallet },
   { key: "favorites", label: "Danh sách yêu thích", icon: Heart },
   { key: "reviews", label: "Đánh giá nhận được", icon: Star },

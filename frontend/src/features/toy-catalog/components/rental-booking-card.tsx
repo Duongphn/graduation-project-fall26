@@ -4,7 +4,7 @@ import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Log
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useIsSignedIn } from '../../../hooks/use-is-signed-in'
-import { PATHS } from '../../../routes/paths'
+import { myRentalPath, PATHS } from '../../../routes/paths'
 import { ApiError, getErrorMessage } from '../../../services/api-error'
 import { getApiErrorMessage } from '../../../services/http-client'
 import { profileQuery } from '../../profile/profile-queries'
@@ -385,6 +385,9 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
                 ? `Lịch đã được giữ cho bạn. Chủ đồ phản hồi trước ${deadlineLabel.format(new Date(created.timer.dueAt))}, quá hạn yêu cầu sẽ tự huỷ.`
                 : 'Lịch đã được giữ cho bạn trong lúc chờ chủ đồ phản hồi.'}
             </p>
+            <Link to={myRentalPath(created.id)} className="rent-ticket__submit">
+              Xem đơn thuê
+            </Link>
             <button type="button" className="rent-ticket__ghost-btn" onClick={() => setCreated(null)}>
               Đặt thêm khoảng ngày khác
             </button>

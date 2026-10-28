@@ -28,6 +28,18 @@ export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'EXPIRED',
 ]
 
+/** Bộ lọc của người thuê: việc cần làm (thanh toán, nhận đồ) trước, kết cục sau */
+export const RENTER_STATUS_FILTERS: readonly RentalStatus[] = [
+  'PENDING',
+  'ACCEPTED',
+  'PAID',
+  'SHIPPING',
+  'IN_USE',
+  'COMPLETED',
+  'REJECTED',
+  'EXPIRED',
+]
+
 /** Lý do từ chối gợi ý — chủ đồ vẫn sửa được (5–500 ký tự như server) */
 export const OWNER_REJECT_REASON_PRESETS = [
   'Đồ chơi đang cần sửa chữa, chưa cho thuê được.',

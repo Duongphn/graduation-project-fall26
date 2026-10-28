@@ -1,9 +1,13 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { useApiMutation } from '../../hooks/useApiMutation'
+import { ApiError } from '../../services/api-error'
 import { apiGet, apiPost } from '../../services/http'
 import type { RentalPricing } from '../toy-catalog/rental-request-api'
 
-/** GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07) — server/docs/api/rentals.md */
+/**
+ * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08)
+ * và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ */
 
 export const RENTAL_STATUSES = [
   'PENDING',
@@ -60,6 +64,8 @@ export interface RentalHistoryEntry {
   occurredAt: string
 }
 
+export type RentalRole = 'owner' | 'renter'
+
 export interface RentalListFilters {
   status?: RentalStatus
   page: number
@@ -76,17 +82,17 @@ export const RENTAL_REQUESTS_PAGE_SIZE = 10
 
 export const rentalKeys = {
   all: ['rentals'] as const,
-  ownerList: (filters: RentalListFilters) => ['rentals', 'owner', filters] as const,
+  list: (role: RentalRole, filters: RentalListFilters) => ['rentals', role, filters] as const,
   detail: (orderId: string) => ['rentals', 'detail', orderId] as const,
   history: (orderId: string) => ['rentals', 'history', orderId] as const,
 }
 
-export const ownerRentalsQuery = (filters: RentalListFilters) =>
+export const rentalListQuery = (role: RentalRole, filters: RentalListFilters) =>
   queryOptions({
-    queryKey: rentalKeys.ownerList(filters),
+    queryKey: rentalKeys.list(role, filters),
     queryFn: () =>
       apiGet<RentalListPage>('/rentals', {
-        role: 'owner',
+        role,
         status: filters.status,
         page: filters.page,
         limit: RENTAL_REQUESTS_PAGE_SIZE,
@@ -132,3 +138,44 @@ export const useOwnerRentalDecision = (orderId: string, toyId: string | undefine
 
   return { accept, reject }
 }
+
+/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
+export interface WalletSummary {
+  balance: number
+  currency: string
+}
+
+export const walletKeys = { me: ['wallet', 'me'] as const }
+
+export const myWalletQuery = queryOptions({
+  queryKey: walletKeys.me,
+  queryFn: () => apiGet<WalletSummary>('/wallets/me'),
+  staleTime: 10_000,
+  retry: false,
+})
+
+/** details của lỗi 409 INSUFFICIENT_BALANCE khi thanh toán */
+export interface InsufficientBalance {
+  required: number
+  balance: number
+  shortfall: number
+}
+
+/**
+ * Người thuê trả tiền thuê + cọc từ ví vào ký quỹ (POST /rentals/:id/pay). Ví không đủ tiền thì
+ * không báo lỗi chung mà trả số tiền còn thiếu để khung thanh toán gợi ý nạp ví.
+ */
+export const useRentalPayment = (orderId: string, onInsufficient: (details: InsufficientBalance) => void) =>
+  useApiMutation({
+    mutationFn: () => apiPost<RentalOrder>(`/rentals/${orderId}/pay`),
+    successMessage: 'Đã thanh toán. Tiền thuê và tiền cọc đang được giữ trong ví ký quỹ ToyFlow.',
+    invalidate: [rentalKeys.all, walletKeys.me],
+    invalidateOnConflict: true,
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'INSUFFICIENT_BALANCE') {
+        onInsufficient(error.details as InsufficientBalance)
+        return true
+      }
+      return false
+    },
+  })

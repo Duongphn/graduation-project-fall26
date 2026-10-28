@@ -22,6 +22,8 @@ export const PATHS = {
   myDonationRequest: '/donation-requests/:requestId',
   rentalRequests: '/rentals/requests',
   rentalRequest: '/rentals/requests/:orderId',
+  myRentals: '/rentals/mine',
+  myRental: '/rentals/mine/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   donations: '/donations',
@@ -37,6 +39,8 @@ export const toyListingEditPath = (toyId: string) => PATHS.editListing.replace('
 
 export const charityOrganizationPath = (organizationId: string) =>
   PATHS.charityOrganization.replace(':organizationId', organizationId)
+
+export const myRentalPath = (orderId: string) => PATHS.myRental.replace(':orderId', orderId)
 
 export const rentalRequestPath = (orderId: string) => PATHS.rentalRequest.replace(':orderId', orderId)
 
