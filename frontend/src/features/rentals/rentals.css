@@ -1517,6 +1517,164 @@
     }
   }
 
+  /* ---------- Quyết toán (UC11) ---------- */
+  .rental-btn--danger {
+    background: var(--rp-red);
+    color: #ffffff;
+  }
+
+  .rental-handover.rental-settle--damaged {
+    border-top-color: var(--rp-red);
+  }
+
+  /* Hai lựa chọn tình trạng như hai ô đánh dấu trên phiếu kiểm hàng */
+  .rental-settle__choices {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .rental-settle__choice {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--rp-rule-strong);
+    border-radius: 8px;
+    background: var(--rp-paper);
+    cursor: pointer;
+    transition:
+      border-color 200ms var(--rp-ease),
+      background-color 200ms var(--rp-ease);
+  }
+
+  .rental-settle__choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .rental-settle__choice svg {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    color: var(--rp-muted);
+  }
+
+  .rental-settle__choice span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .rental-settle__choice strong {
+    font-size: 14px;
+  }
+
+  .rental-settle__choice small {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--rp-muted);
+  }
+
+  .rental-settle__choice:has(input:focus-visible) {
+    outline: 2px solid var(--rp-navy);
+    outline-offset: 2px;
+  }
+
+  .rental-settle__choice--good:has(input:checked) {
+    border-color: var(--rp-green);
+    background: var(--rp-green-soft);
+  }
+
+  .rental-settle__choice--good:has(input:checked) svg {
+    color: var(--rp-green);
+  }
+
+  .rental-settle__choice--damaged:has(input:checked) {
+    border-color: var(--rp-red);
+    background: var(--rp-red-soft);
+  }
+
+  .rental-settle__choice--damaged:has(input:checked) svg {
+    color: var(--rp-red);
+  }
+
+  .rental-settle__choices:disabled .rental-settle__choice {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  /* Chia tiền: phần chủ đồ là tổng chính, phần hoàn cọc tách bằng gạch đứt */
+  .rental-settle__split {
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--rp-sunken);
+  }
+
+  .rental-settle__split > .rental-money__total dd {
+    font-size: 18px;
+    color: var(--rp-green);
+  }
+
+  .rental-settle__split > .rental-settle__refund {
+    padding-top: 8px;
+    border-top: 1px dashed var(--rp-rule-strong);
+  }
+
+  .rental-settle__refund dt {
+    font-weight: 600;
+    color: var(--rp-ink);
+  }
+
+  .rental-settle__record-split {
+    max-width: 440px;
+  }
+
+  .rental-settle__verdict {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .rental-settle__verdict svg {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+  }
+
+  .rental-settle__verdict.is-good svg {
+    color: var(--rp-green);
+  }
+
+  .rental-settle__verdict.is-damaged svg {
+    color: var(--rp-red);
+  }
+
+  .rental-settle__verdict span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .rental-settle__verdict strong {
+    font-size: 15px;
+  }
+
+  .rental-settle__verdict time {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--rp-muted);
+  }
+
   /* ---------- Hover ---------- */
   @media (hover: hover) {
     .rental-crumbs a:hover,
@@ -1537,6 +1695,15 @@
     .rental-row:hover .rental-row__chevron {
       transform: translateX(3px);
       color: var(--rp-navy);
+    }
+
+    .rental-btn--danger:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgb(150 30 30 / 0.2);
+    }
+
+    .rental-settle__choice:not(:has(input:checked)):hover {
+      border-color: var(--rp-navy);
     }
 
     .rental-btn--primary:hover:not(:disabled) {

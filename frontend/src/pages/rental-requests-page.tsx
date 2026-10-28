@@ -50,7 +50,7 @@ const ROLE_VIEW: Record<RentalRole, RoleView> = {
     detailPath: rentalRequestPath,
     emptyText: 'Khi có người đặt thuê đồ chơi của bạn, yêu cầu sẽ hiện ở đây để bạn duyệt.',
     emptyAction: { to: PATHS.myListings, label: 'Xem tin đăng của tôi' },
-    actions: { PENDING: 'Cần phản hồi', PAID: 'Cần giao đồ' },
+    actions: { PENDING: 'Cần phản hồi', PAID: 'Cần giao đồ', RETURNING: 'Cần kiểm tra đồ trả' },
     waits: { ACCEPTED: 'Người thuê thanh toán', SHIPPING: 'Người thuê xác nhận nhận đồ' },
     moneyLabel: 'Người thuê trả',
   },

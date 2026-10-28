@@ -7,7 +7,7 @@ import type { ToyImage } from '../toy-listings/toy-listing-api'
 
 /**
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -64,7 +64,19 @@ export interface RentalOrder {
     lateDays: number
     lateFee: number
   }
+  /** Kết quả chủ đồ kiểm tra đồ trả: GOOD → Hoàn tất, DAMAGED → Đang khiếu nại (cọc giữ nguyên) */
+  settlement?: {
+    result: SettlementResult
+    evidencePhotos?: ToyImage[]
+    description?: string
+    settledAt: string
+    /** true khi hết hạn kiểm tra mà chủ đồ chưa báo, hệ thống tự quyết toán là Tốt */
+    autoSettled?: boolean
+    disputeId?: string
+  }
 }
+
+export type SettlementResult = 'GOOD' | 'DAMAGED'
 
 /** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
 export interface RentalOrderDetail extends RentalOrder {
@@ -195,6 +207,36 @@ export const useRentalReturn = (orderId: string) =>
     },
     successMessage: 'Đã gửi yêu cầu trả đồ. Chủ đồ sẽ kiểm tra tình trạng rồi quyết toán tiền cọc.',
     invalidate: [rentalKeys.all],
+    invalidateOnConflict: true,
+  })
+
+/** Mô tả hư hỏng: 10–1000 ký tự như server */
+export const DAMAGE_DESCRIPTION_MIN = 10
+export const DAMAGE_DESCRIPTION_MAX = 1000
+
+export type SettleInput = { result: 'GOOD' } | { result: 'DAMAGED'; photos: File[]; description: string }
+
+const SETTLE_SUCCESS: Record<SettlementResult, string> = {
+  GOOD: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
+  DAMAGED: 'Đã báo hư hỏng và mở khiếu nại. Tiền cọc được giữ nguyên cho đến khi ToyFlow giải quyết.',
+}
+
+/**
+ * Chủ đồ quyết toán đơn đang trả (RETURNING): GOOD gửi JSON; DAMAGED gửi multipart với 1–10 ảnh bằng
+ * chứng (`photos`) và mô tả. Sau đó tải lại đơn và ví (tiền thuê vừa vào ví khi GOOD).
+ */
+export const useRentalSettle = (orderId: string) =>
+  useApiMutation({
+    mutationFn: (input: SettleInput) => {
+      if (input.result === 'GOOD') return apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' })
+      const form = new FormData()
+      form.append('result', 'DAMAGED')
+      form.append('description', input.description.trim())
+      input.photos.forEach((file) => form.append('photos', file))
+      return apiPostForm<RentalOrder>(`/rentals/${orderId}/settle`, form)
+    },
+    successMessage: (_data, input) => SETTLE_SUCCESS[input.result],
+    invalidate: [rentalKeys.all, walletKeys.me],
     invalidateOnConflict: true,
   })
 

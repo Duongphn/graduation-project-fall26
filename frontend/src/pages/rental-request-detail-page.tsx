@@ -9,6 +9,7 @@ import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/ren
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
+import { RentalSettlePanel, RentalSettlementRecord } from '../features/rentals/components/rental-settle-panel'
 import {
   rentalDetailQuery,
   rentalHistoryQuery,
@@ -89,7 +90,8 @@ interface DecisionPanelProps {
 /**
  * Việc tiếp theo theo trạng thái đơn và vai trò người xem: chủ đồ duyệt khi PENDING còn hạn,
  * người thuê thanh toán khi ACCEPTED còn hạn, chủ đồ giao khi PAID, người thuê xác nhận nhận khi
- * SHIPPING còn hạn (UC09), người thuê gửi trả khi IN_USE (UC10); các trạng thái khác chỉ để xem.
+ * SHIPPING còn hạn (UC09), người thuê gửi trả khi IN_USE (UC10), chủ đồ quyết toán khi RETURNING (UC11);
+ * các trạng thái khác chỉ để xem.
  */
 function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -152,6 +154,10 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
 
   if (order.status === 'IN_USE' && isRenter) {
     return <RentalReturnPanel order={order} now={now} />
+  }
+
+  if (order.status === 'RETURNING' && isOwner) {
+    return <RentalSettlePanel order={order} remaining={remaining} />
   }
 
   if (order.status === 'IN_USE') {
@@ -221,10 +227,19 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
   } else if (order.status === 'RETURNING') {
     const lateFee = order.returnInfo?.lateFee ?? 0
     const deadline = order.timer && remaining ? `trước ${formatDateTime(order.timer.dueAt)} (${remaining})` : 'trong thời hạn kiểm tra'
-    title = isOwner ? 'Người thuê đã gửi trả đồ chơi' : 'Đang chờ chủ đồ kiểm tra'
+    title = 'Đang chờ chủ đồ kiểm tra'
+    text = `Chủ đồ kiểm tra tình trạng ${deadline}. Nếu đồ còn tốt, bạn được hoàn ${formatVnd(order.pricing.depositAmount - lateFee)} tiền cọc${lateFee > 0 ? ` (đã trừ ${formatVnd(lateFee)} phí trả trễ)` : ''}.`
+  } else if (order.status === 'COMPLETED') {
+    const refund = order.pricing.depositAmount - (order.returnInfo?.lateFee ?? 0)
+    title = 'Đơn thuê đã hoàn tất'
     text = isOwner
-      ? `Khi nhận lại, đối chiếu đồ chơi với ảnh lúc giao và lúc trả ${deadline}. Quá hạn mà không báo hư hỏng, đơn được quyết toán là đồ còn tốt.`
-      : `Chủ đồ kiểm tra tình trạng ${deadline}. Nếu đồ còn tốt, bạn được hoàn ${formatVnd(order.pricing.depositAmount - lateFee)} tiền cọc${lateFee > 0 ? ` (đã trừ ${formatVnd(lateFee)} phí trả trễ)` : ''}.`
+      ? 'Tiền thuê sau phí nền tảng (cộng phí trả trễ nếu có) đã vào ví của bạn. Xem chi tiết ở mục Quyết toán.'
+      : `${formatVnd(refund)} tiền cọc đã được hoàn vào ví của bạn. Cảm ơn bạn đã giữ gìn đồ chơi.`
+  } else if (order.status === 'DISPUTING') {
+    title = isOwner ? 'Đã mở khiếu nại hư hỏng' : 'Chủ đồ báo đồ chơi bị hư hỏng'
+    text = isOwner
+      ? 'Quản trị viên ToyFlow sẽ xem ảnh lúc giao, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền cọc.'
+      : 'Tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp lúc nhận và lúc trả là căn cứ bảo vệ bạn.'
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
@@ -341,6 +356,7 @@ export function RentalRequestDetailPage() {
 
               <RentalHandoverRecord order={order} />
               <RentalReturnRecord order={order} isOwner={isOwner} />
+              <RentalSettlementRecord order={order} isOwner={isOwner} />
 
               <section className="rental-block" aria-labelledby="money-title">
                 <h2 id="money-title" className="rental-section-title">
@@ -362,7 +378,7 @@ export function RentalRequestDetailPage() {
                     <dd>{formatVnd(pricing.totalPayable)}</dd>
                   </div>
                 </dl>
-                {isOwner && (
+                {isOwner && !order.settlement && (
                   <dl className="rental-money rental-money--owner">
                     <div>
                       <dt>Tiền thuê</dt>
@@ -378,7 +394,7 @@ export function RentalRequestDetailPage() {
                     </div>
                   </dl>
                 )}
-                {isOwner && (
+                {isOwner && !order.settlement && (
                   <p className="rental-block__note">
                     Tiền nằm trong ví ký quỹ ToyFlow cho đến khi bạn nhận lại đồ. Phí trả trễ (nếu có) được cộng thêm
                     cho bạn khi quyết toán.
