@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import type { RentalStatus } from './rental-orders-api'
+import type { RentalOrder, RentalStatus } from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
 export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
@@ -24,6 +24,7 @@ export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'PAID',
   'SHIPPING',
   'IN_USE',
+  'RETURNING',
   'COMPLETED',
   'REJECTED',
   'EXPIRED',
@@ -36,6 +37,7 @@ export const RENTER_STATUS_FILTERS: readonly RentalStatus[] = [
   'PAID',
   'SHIPPING',
   'IN_USE',
+  'RETURNING',
   'COMPLETED',
   'REJECTED',
   'EXPIRED',
@@ -83,11 +85,24 @@ export const formatRemaining = (dueAt: string, now: number): string | null => {
 }
 
 /** Hạn trả là hết ngày endDate: "còn 3 ngày" / "trả trong hôm nay" / "trễ 2 ngày" */
-export const describeReturnDue = (endDate: string, now: number): { text: string; late: boolean } => {
+export const describeReturnDue = (endDate: string, now: number): { text: string; late: boolean; today: boolean } => {
   const daysLeft = dayjs(endDate).startOf('day').diff(dayjs(now).startOf('day'), 'day')
-  if (daysLeft > 0) return { text: `còn ${daysLeft} ngày`, late: false }
-  if (daysLeft === 0) return { text: 'trả trong hôm nay', late: false }
-  return { text: `trễ ${-daysLeft} ngày`, late: true }
+  if (daysLeft > 0) return { text: `còn ${daysLeft} ngày`, late: false, today: false }
+  if (daysLeft === 0) return { text: 'trả trong hôm nay', late: false, today: true }
+  return { text: `trễ ${-daysLeft} ngày`, late: true, today: false }
+}
+
+const DAY_MS = 86_400_000
+
+/**
+ * Phí trả trễ tạm tính nếu gửi trả lúc `now`, theo cách server chốt: hạn là 00:00 (giờ VN) sau ngày trả,
+ * mỗi ngày trễ (làm tròn lên) tính bằng một ngày thuê, tối đa bằng tiền cọc. Con số cuối do server tính.
+ */
+export const estimateLateFee = (order: Pick<RentalOrder, 'period' | 'pricing'>, now: number) => {
+  const dueAt = Date.parse(`${order.period.endDate}T00:00:00+07:00`) + DAY_MS
+  const lateDays = now > dueAt ? Math.ceil((now - dueAt) / DAY_MS) : 0
+  const lateFee = Math.min(lateDays * order.pricing.dailyRate, order.pricing.depositAmount)
+  return { lateDays, lateFee }
 }
 
 /** Thời điểm hiện tại, cập nhật định kỳ để đếm ngược hạn phản hồi/thanh toán */

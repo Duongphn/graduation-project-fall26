@@ -8,6 +8,7 @@ import { profileQuery } from '../features/profile/profile-queries'
 import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
+import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
 import {
   rentalDetailQuery,
   rentalHistoryQuery,
@@ -16,6 +17,7 @@ import {
 } from '../features/rentals/rental-orders-api'
 import {
   describeReturnDue,
+  estimateLateFee,
   formatDateTime,
   formatFullDate,
   formatRemaining,
@@ -87,7 +89,7 @@ interface DecisionPanelProps {
 /**
  * Việc tiếp theo theo trạng thái đơn và vai trò người xem: chủ đồ duyệt khi PENDING còn hạn,
  * người thuê thanh toán khi ACCEPTED còn hạn, chủ đồ giao khi PAID, người thuê xác nhận nhận khi
- * SHIPPING còn hạn (UC09); các trạng thái khác chỉ để xem.
+ * SHIPPING còn hạn (UC09), người thuê gửi trả khi IN_USE (UC10); các trạng thái khác chỉ để xem.
  */
 function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -148,12 +150,20 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
     return <RentalHandoverPanel order={order} step="receive" remaining={remaining} />
   }
 
+  if (order.status === 'IN_USE' && isRenter) {
+    return <RentalReturnPanel order={order} now={now} />
+  }
+
   if (order.status === 'IN_USE') {
     const due = describeReturnDue(order.period.endDate, now)
+    const { lateDays, lateFee } = estimateLateFee(order, now)
     return (
-      <section className="rental-decision rental-decision--info rental-decision--go" aria-labelledby="decision-title">
+      <section
+        className={`rental-decision rental-decision--info rental-decision--${due.late ? 'alert' : 'go'}`}
+        aria-labelledby="decision-title"
+      >
         <h2 id="decision-title" className="rental-decision__title">
-          {isRenter ? 'Đồ chơi đang ở chỗ bạn' : 'Người thuê đang sử dụng đồ chơi'}
+          {due.late ? 'Người thuê đã quá hạn trả' : 'Người thuê đang sử dụng đồ chơi'}
         </h2>
         <dl className="rental-term">
           {order.rentalStartedAt && (
@@ -171,8 +181,8 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
           </div>
         </dl>
         <p className="rental-decision__text">
-          {isRenter
-            ? 'Giữ gìn đồ chơi như lúc nhận và gửi trả trước hạn. Trả trễ sẽ bị tính phí trễ hạn.'
+          {due.late
+            ? `Hệ thống đã nhắc người thuê. Phí trả trễ đang là ${formatVnd(lateFee)} (${lateDays} ngày), trừ vào tiền cọc và cộng cho bạn khi quyết toán.`
             : order.handover?.autoConfirmed
               ? 'Người thuê không xác nhận trước hạn nên hệ thống đã tự xác nhận nhận hàng. Bạn sẽ được báo khi người thuê gửi trả đồ.'
               : 'Bạn sẽ được báo khi người thuê gửi trả đồ.'}
@@ -208,6 +218,13 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
         ? `Người thuê kiểm tra và xác nhận trước ${formatDateTime(order.timer.dueAt)} (${remaining}). Quá hạn, hệ thống tự xác nhận và bắt đầu tính thời gian thuê.`
         : 'Đã quá hạn xác nhận, hệ thống sẽ tự xác nhận và bắt đầu tính thời gian thuê.'
       : 'Đã quá hạn xác nhận nhận hàng, hệ thống sẽ tự chuyển đơn sang “Đang thuê”.'
+  } else if (order.status === 'RETURNING') {
+    const lateFee = order.returnInfo?.lateFee ?? 0
+    const deadline = order.timer && remaining ? `trước ${formatDateTime(order.timer.dueAt)} (${remaining})` : 'trong thời hạn kiểm tra'
+    title = isOwner ? 'Người thuê đã gửi trả đồ chơi' : 'Đang chờ chủ đồ kiểm tra'
+    text = isOwner
+      ? `Khi nhận lại, đối chiếu đồ chơi với ảnh lúc giao và lúc trả ${deadline}. Quá hạn mà không báo hư hỏng, đơn được quyết toán là đồ còn tốt.`
+      : `Chủ đồ kiểm tra tình trạng ${deadline}. Nếu đồ còn tốt, bạn được hoàn ${formatVnd(order.pricing.depositAmount - lateFee)} tiền cọc${lateFee > 0 ? ` (đã trừ ${formatVnd(lateFee)} phí trả trễ)` : ''}.`
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
@@ -323,6 +340,7 @@ export function RentalRequestDetailPage() {
               </section>
 
               <RentalHandoverRecord order={order} />
+              <RentalReturnRecord order={order} isOwner={isOwner} />
 
               <section className="rental-block" aria-labelledby="money-title">
                 <h2 id="money-title" className="rental-section-title">

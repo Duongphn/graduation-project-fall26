@@ -14,7 +14,7 @@ import {
   type RentalRole,
   type RentalStatus,
 } from '../features/rentals/rental-orders-api'
-import { formatRemaining, OWNER_STATUS_FILTERS, RENTAL_STATUS_META, RENTER_STATUS_FILTERS, useNow } from '../features/rentals/rental-display'
+import { describeReturnDue, formatRemaining, OWNER_STATUS_FILTERS, RENTAL_STATUS_META, RENTER_STATUS_FILTERS, useNow } from '../features/rentals/rental-display'
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { SiteLayout } from '../layouts/site/site-layout'
 import { myRentalPath, PATHS, rentalRequestPath } from '../routes/paths'
@@ -45,7 +45,7 @@ interface RoleView {
 const ROLE_VIEW: Record<RentalRole, RoleView> = {
   owner: {
     title: 'Yêu cầu thuê nhận được',
-    lead: 'Duyệt yêu cầu dựa trên điểm tin cậy của người thuê trước hạn phản hồi. Khi người thuê đã thanh toán, chụp ảnh tình trạng rồi xác nhận giao đồ.',
+    lead: 'Duyệt yêu cầu dựa trên điểm tin cậy của người thuê. Khi người thuê đã thanh toán, chụp ảnh tình trạng rồi xác nhận giao đồ; khi nhận lại, đối chiếu ảnh trước khi quyết toán cọc.',
     filters: OWNER_STATUS_FILTERS,
     detailPath: rentalRequestPath,
     emptyText: 'Khi có người đặt thuê đồ chơi của bạn, yêu cầu sẽ hiện ở đây để bạn duyệt.',
@@ -56,19 +56,34 @@ const ROLE_VIEW: Record<RentalRole, RoleView> = {
   },
   renter: {
     title: 'Đơn thuê của tôi',
-    lead: 'Thanh toán bằng ví ToyFlow khi chủ đồ chấp nhận. Khi nhận được đồ, chụp ảnh tình trạng rồi xác nhận để bắt đầu tính thời gian thuê.',
+    lead: 'Thanh toán bằng ví ToyFlow khi chủ đồ chấp nhận, chụp ảnh tình trạng lúc nhận và lúc trả. Trả trễ hạn bị tính phí theo ngày, trừ vào tiền cọc.',
     filters: RENTER_STATUS_FILTERS,
     detailPath: myRentalPath,
     emptyText: 'Chọn một món đồ chơi cho thuê, chọn ngày rồi gửi yêu cầu: đơn sẽ hiện ở đây.',
     emptyAction: { to: PATHS.toys, label: 'Tìm đồ chơi để thuê' },
     actions: { ACCEPTED: 'Cần thanh toán', SHIPPING: 'Cần xác nhận nhận đồ' },
-    waits: { PENDING: 'Chủ đồ phản hồi' },
+    waits: { PENDING: 'Chủ đồ phản hồi', RETURNING: 'Chủ đồ kiểm tra đồ trả' },
     moneyLabel: 'Tổng thanh toán',
   },
 }
 
 /** Bước không có hạn chót: chủ đồ giao đồ sau khi người thuê trả tiền */
 const UNTIMED_ACTIONS: readonly RentalStatus[] = ['PAID']
+
+/**
+ * Đơn đang thuê đếm theo hạn trả (hết ngày endDate) chứ không theo timer nhắc: người thuê thấy vạch đồng từ
+ * ngày cuối, cả hai bên thấy chữ đỏ khi đã trễ (phí trễ đang cộng dồn vào cọc).
+ */
+function ReturnDueLine({ order, now, role }: { order: RentalOrder; now: number; role: RentalRole }) {
+  const due = describeReturnDue(order.period.endDate, now)
+  const label = role === 'renter' ? (due.late ? 'Quá hạn trả' : 'Hạn trả') : 'Người thuê trả đồ'
+  const tone = due.late ? 'rental-row__due--late' : due.today && role === 'renter' ? '' : 'rental-row__due--quiet'
+  return (
+    <span className={`rental-row__due ${tone}`}>
+      <Clock aria-hidden /> {label}, {due.text}
+    </span>
+  )
+}
 
 /** Một đơn thuê: ảnh + tên đồ chơi, khoảng ngày, tiền, và hạn phải làm gì tiếp theo */
 function RequestRow({ order, now, role }: { order: RentalOrder; now: number; role: RentalRole }) {
@@ -77,7 +92,12 @@ function RequestRow({ order, now, role }: { order: RentalOrder; now: number; rol
   const untimed = UNTIMED_ACTIONS.includes(order.status)
   const actionText = view.actions[order.status]
   const waitText = view.waits[order.status]
-  const needsAction = Boolean(actionText && (untimed || remaining))
+  const inUse = order.status === 'IN_USE'
+  const returnDue = inUse ? describeReturnDue(order.period.endDate, now) : null
+  // Người thuê cần trả đồ từ ngày cuối của kỳ thuê
+  const needsAction =
+    Boolean(actionText && (untimed || remaining)) ||
+    (role === 'renter' && Boolean(returnDue && (returnDue.late || returnDue.today)))
 
   return (
     <li>
@@ -89,7 +109,9 @@ function RequestRow({ order, now, role }: { order: RentalOrder; now: number; rol
             <RentalStatusBadge status={order.status} />
           </span>
           <RentalToyTitle toyId={order.toyId} className="rental-row__title" />
-          {needsAction ? (
+          {inUse ? (
+            <ReturnDueLine order={order} now={now} role={role} />
+          ) : needsAction ? (
             <span className="rental-row__due">
               <Clock aria-hidden /> {actionText}
               {!untimed && remaining && `, ${remaining}`}

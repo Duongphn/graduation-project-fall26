@@ -7,7 +7,7 @@ import type { ToyImage } from '../toy-listings/toy-listing-api'
 
 /**
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -56,6 +56,14 @@ export interface RentalOrder {
   }
   /** Mốc bắt đầu tính thời gian thuê (lúc người thuê xác nhận đã nhận) */
   rentalStartedAt?: string
+  /** Có từ khi người thuê gửi trả: ảnh, ghi chú và phí trả trễ server đã chốt (trừ vào cọc) */
+  returnInfo?: {
+    photos: ToyImage[]
+    note?: string
+    requestedAt: string
+    lateDays: number
+    lateFee: number
+  }
 }
 
 /** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
@@ -171,6 +179,23 @@ export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess
     invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
     onSuccess,
+  })
+
+/** Ghi chú khi trả đồ: không bắt buộc, tối đa 500 ký tự như server */
+export const RETURN_NOTE_MAX = 500
+
+/** Người thuê gửi trả (IN_USE → RETURNING): 1–10 ảnh tình trạng + ghi chú; server tính phí trả trễ */
+export const useRentalReturn = (orderId: string) =>
+  useApiMutation({
+    mutationFn: ({ photos, note }: { photos: File[]; note: string }) => {
+      const form = new FormData()
+      photos.forEach((file) => form.append('photos', file))
+      if (note.trim()) form.append('note', note.trim())
+      return apiPostForm<RentalOrder>(`/rentals/${orderId}/return`, form)
+    },
+    successMessage: 'Đã gửi yêu cầu trả đồ. Chủ đồ sẽ kiểm tra tình trạng rồi quyết toán tiền cọc.',
+    invalidate: [rentalKeys.all],
+    invalidateOnConflict: true,
   })
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) */
