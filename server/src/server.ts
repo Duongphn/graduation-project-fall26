@@ -7,9 +7,9 @@ import {
   disconnectDatabase,
 } from './config/database.js';
 import { createContainer } from './container.js';
-import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
+import { startOrderTimersJob } from './jobs/order-timers.job.js';
 import { createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
@@ -18,14 +18,10 @@ const startServer = async (): Promise<void> => {
   const donationExpiryJob = startDonationExpiryJob();
 
   const container = createContainer();
+  const orderTimersJob = startOrderTimersJob([container.rentalTimerService]);
+
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
-
-  let stopScheduler: (() => void) | undefined;
-  if (env.rentalSchedulerEnabled) {
-    stopScheduler = startRentalScheduler(container.rentalTimerService);
-    console.info('Rental scheduler started.');
-  }
 
   httpServer.listen(env.port, () => {
     console.info(`ToyFlow backend is listening on port ${env.port}.`);
@@ -33,9 +29,7 @@ const startServer = async (): Promise<void> => {
 
   const shutdown = async (signal: string): Promise<void> => {
     console.info(`${signal} received. Shutting down ToyFlow backend.`);
-    if (stopScheduler) {
-      stopScheduler();
-    }
+    orderTimersJob?.stop();
     donationExpiryJob?.stop();
     socketServer.close();
     httpServer.close(async () => {

@@ -5,6 +5,10 @@ import {
   rentalTimerKinds,
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
+import {
+  type RentalCancelActor,
+  rentalCancelActors,
+} from '../types/order-cancel.types.js';
 import { type RentalPricing } from '../types/rental-order.types.js';
 
 export interface RentalPhoto {
@@ -29,6 +33,13 @@ export interface IRentalOrder {
     dueAt: Date;
   };
   rejectionReason?: string;
+  cancellation?: {
+    by: RentalCancelActor;
+    userId: Types.ObjectId;
+    reason: string;
+    fee: number;
+    cancelledAt: Date;
+  };
   handover?: {
     ownerPhotos: RentalPhoto[];
     shippedAt?: Date;
@@ -102,6 +113,13 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       dueAt: { type: Date },
     },
     rejectionReason: { type: String },
+    cancellation: {
+      by: { type: String, enum: rentalCancelActors },
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      reason: { type: String },
+      fee: { type: Number },
+      cancelledAt: { type: Date },
+    },
     handover: {
       ownerPhotos: { type: [photoSchema], default: [] },
       shippedAt: { type: Date },

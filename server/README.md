@@ -57,6 +57,19 @@ npm run dev
 
 Default health endpoint: `GET /api/v1/health`. Home page showcase: `GET /api/v1/toys/showcase`; search: `GET /api/v1/toys` (Atlas Search).
 
+## Background jobs
+
+ToyFlow runs background interval jobs started in `server.ts`:
+- **Donation expiry job**: runs every 5 minutes (`DONATION_EXPIRY_JOB_ENABLED`, `DONATION_EXPIRY_JOB_INTERVAL_MINUTES`).
+- **Shared order timers job**: runs every 1 minute (`ORDER_TIMERS_JOB_ENABLED`, `ORDER_TIMERS_JOB_INTERVAL_MINUTES`). `RENTAL_SCHEDULER_ENABLED=false` is also recognized as an alias to disable this job.
+
+### Adding an order timer source (UC12/UC13)
+
+When implementing timers for another order flow (e.g. resale/purchase in UC12/UC13):
+1. Implement the `DueTimerSource` interface from `src/interfaces/order-timer.ports.ts` (`name: string`, `runDue(now: Date): Promise<{ processed: number; failed: number }>`).
+2. Pass the new service instance into `startOrderTimersJob([container.rentalTimerService, newPurchaseTimerSource])` in `src/server.ts`.
+3. Read timing durations from `SystemSetting` using `SystemSettingService.getNumbers(PURCHASE_TIMING_PREFIX, DEFAULT_PURCHASE_TIMINGS)`.
+
 ## Commands
 
 ```bash
