@@ -67,26 +67,7 @@
     margin-top: 20px;
   }
 
-  .rental-page__eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--rp-brass-text);
-  }
-
-  .rental-page__eyebrow::before {
-    content: '';
-    width: 24px;
-    height: 2px;
-    background: var(--rp-brass);
-  }
-
   .rental-page__title {
-    margin-top: 8px;
     font-size: clamp(26px, 4vw, 34px);
     font-weight: 700;
     line-height: 1.2;
@@ -94,7 +75,9 @@
   }
 
   .rental-page__lead {
+    max-width: 60ch;
     margin-top: 10px;
+    text-wrap: pretty;
     font-size: 15px;
     line-height: 1.7;
     color: var(--rp-muted);
@@ -1080,6 +1063,356 @@
     }
   }
 
+  /* ---------- Bàn giao (UC09) ---------- */
+  .rental-handover {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--rp-rule);
+    border-top: 3px solid var(--rp-brass);
+    border-radius: 10px;
+    background: var(--rp-paper);
+  }
+
+  /* Hai mốc giao → nhận như cuống vé: số tròn nhỏ, nối bằng gạch đứt */
+  .rental-handover__steps {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rp-muted);
+  }
+
+  .rental-handover__steps li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .rental-handover__steps li:first-child::after {
+    content: '';
+    flex: 1;
+    min-width: 12px;
+    border-top: 1px dashed var(--rp-rule-strong);
+  }
+
+  .rental-handover__steps span {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--rp-rule-strong);
+    border-radius: 50%;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rental-handover__steps .is-current {
+    color: var(--rp-ink);
+  }
+
+  .rental-handover__steps .is-current span {
+    border-color: var(--rp-navy);
+    background: var(--rp-navy);
+    color: #ffffff;
+  }
+
+  .rental-handover__steps .is-done span {
+    border-color: var(--rp-green);
+    background: var(--rp-green-soft);
+    color: var(--rp-green);
+  }
+
+  /* Ảnh của chủ đồ để người thuê đối chiếu */
+  .rental-handover__reference {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--rp-sunken);
+  }
+
+  .rental-handover__reference figcaption {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rp-ink);
+  }
+
+  .rental-handover__reference time {
+    font-weight: 400;
+    color: var(--rp-muted);
+  }
+
+  .rental-handover__submit {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  /* ---------- Chọn ảnh tình trạng ---------- */
+  .rental-photos {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rental-photos__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .rental-photos__label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .rental-photos__count {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--rp-muted);
+  }
+
+  .rental-photos__drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 22px 16px;
+    border: 1px dashed var(--rp-rule-strong);
+    border-radius: 8px;
+    background: var(--rp-sunken);
+    text-align: center;
+    cursor: pointer;
+    transition:
+      border-color 220ms var(--rp-ease),
+      background-color 220ms var(--rp-ease);
+  }
+
+  .rental-photos__drop svg {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+    color: var(--rp-navy);
+  }
+
+  .rental-photos__drop-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rp-ink);
+  }
+
+  .rental-photos__drop-hint {
+    font-size: 12px;
+    color: var(--rp-muted);
+  }
+
+  .rental-photos__drop.is-dragging {
+    border-style: solid;
+    border-color: var(--rp-navy);
+    background: var(--rp-navy-soft);
+  }
+
+  .rental-photos__drop.is-invalid {
+    border-color: var(--rp-red);
+  }
+
+  .rental-photos__drop.is-disabled,
+  .rental-photos__add.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  /* Ô chọn file ẩn: khi focus bằng bàn phím, viền hiện ở vùng bấm tương ứng */
+  .rental-photos input:focus-visible + .rental-photos__drop,
+  .rental-photos input:focus-visible + .rental-photos__grid .rental-photos__add {
+    outline: 2px solid var(--rp-navy);
+    outline-offset: 2px;
+  }
+
+  .rental-photos__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 8px;
+  }
+
+  .rental-photos__tile {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 6px;
+    background: var(--rp-sunken);
+  }
+
+  .rental-photos__tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .rental-photos__remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgb(15 23 42 / 0.72);
+    color: #ffffff;
+    transition: background-color 200ms var(--rp-ease);
+  }
+
+  .rental-photos__remove svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .rental-photos__add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    aspect-ratio: 1;
+    border: 1px dashed var(--rp-rule-strong);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--rp-navy);
+    cursor: pointer;
+    transition:
+      border-color 220ms var(--rp-ease),
+      background-color 220ms var(--rp-ease);
+  }
+
+  .rental-photos__add svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .rental-photos__errors {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--rp-red);
+  }
+
+  /* ---------- Hồ sơ bàn giao: lúc giao | lúc nhận ---------- */
+  .rental-handover-record {
+    display: grid;
+    gap: 16px;
+  }
+
+  .rental-handover-record__side {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .rental-handover-record__side + .rental-handover-record__side {
+    padding-top: 16px;
+    border-top: 1px dashed var(--rp-rule-strong);
+  }
+
+  .rental-handover-record__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .rental-handover-record__label svg {
+    width: 16px;
+    height: 16px;
+    color: var(--rp-navy);
+  }
+
+  .rental-handover-record__time {
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--rp-muted);
+  }
+
+  .rental-handover-record__empty {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--rp-muted);
+  }
+
+  /* ---------- Đang thuê: mốc bắt đầu + hạn trả ---------- */
+  .rental-term {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--rp-sunken);
+  }
+
+  .rental-term > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    font-size: 14px;
+  }
+
+  .rental-term dt {
+    color: var(--rp-muted);
+  }
+
+  .rental-term dd {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 4px 8px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rental-term__due {
+    font-size: 12px;
+    color: var(--rp-green);
+  }
+
+  .rental-term__due.is-late {
+    color: var(--rp-red);
+  }
+
+  @media (min-width: 640px) {
+    .rental-handover {
+      padding: 20px;
+    }
+
+    /* Hai phía đặt cạnh nhau để đối chiếu, ngăn bằng gạch đứt dọc */
+    .rental-handover-record {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 24px;
+    }
+
+    .rental-handover-record__side + .rental-handover-record__side {
+      padding-top: 0;
+      padding-left: 24px;
+      border-top: 0;
+      border-left: 1px dashed var(--rp-rule-strong);
+    }
+  }
+
   /* ---------- Hover ---------- */
   @media (hover: hover) {
     .rental-crumbs a:hover,
@@ -1110,6 +1443,16 @@
 
     .rental-pay__retry:hover {
       color: var(--rp-navy-hover);
+    }
+
+    .rental-photos__drop:not(.is-disabled):hover,
+    .rental-photos__add:not(.is-disabled):hover {
+      border-color: var(--rp-navy);
+      background: var(--rp-navy-soft);
+    }
+
+    .rental-photos__remove:hover:not(:disabled) {
+      background: var(--rp-red);
     }
 
     .rental-btn--ghost:hover:not(:disabled) {

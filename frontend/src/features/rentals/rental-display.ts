@@ -22,6 +22,7 @@ export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'PENDING',
   'ACCEPTED',
   'PAID',
+  'SHIPPING',
   'IN_USE',
   'COMPLETED',
   'REJECTED',
@@ -79,6 +80,14 @@ export const formatRemaining = (dueAt: string, now: number): string | null => {
   if (days > 0) return `còn ${days} ngày ${hours} giờ`
   if (hours > 0) return `còn ${hours} giờ ${mins} phút`
   return `còn ${Math.max(mins, 1)} phút`
+}
+
+/** Hạn trả là hết ngày endDate: "còn 3 ngày" / "trả trong hôm nay" / "trễ 2 ngày" */
+export const describeReturnDue = (endDate: string, now: number): { text: string; late: boolean } => {
+  const daysLeft = dayjs(endDate).startOf('day').diff(dayjs(now).startOf('day'), 'day')
+  if (daysLeft > 0) return { text: `còn ${daysLeft} ngày`, late: false }
+  if (daysLeft === 0) return { text: 'trả trong hôm nay', late: false }
+  return { text: `trễ ${-daysLeft} ngày`, late: true }
 }
 
 /** Thời điểm hiện tại, cập nhật định kỳ để đếm ngược hạn phản hồi/thanh toán */

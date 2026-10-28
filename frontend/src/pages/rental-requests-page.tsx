@@ -27,43 +27,57 @@ const parsePage = (value: string | null) => {
   return Number.isInteger(page) && page > 0 ? page : 1
 }
 
+interface RoleView {
+  title: string
+  lead: string
+  filters: readonly RentalStatus[]
+  detailPath: (orderId: string) => string
+  emptyText: string
+  emptyAction: { to: string; label: string }
+  /** Trạng thái người xem phải làm gì đó (vạch đồng trên hàng) */
+  actions: Partial<Record<RentalStatus, string>>
+  /** Trạng thái đang chờ bên kia, kèm đếm ngược */
+  waits: Partial<Record<RentalStatus, string>>
+  moneyLabel: string
+}
+
 /** Khác biệt giữa trang của chủ đồ và của người thuê: tiêu đề, bộ lọc, đơn nào cần làm ngay */
-const ROLE_VIEW = {
+const ROLE_VIEW: Record<RentalRole, RoleView> = {
   owner: {
     title: 'Yêu cầu thuê nhận được',
-    eyebrow: 'Cho thuê đồ chơi',
-    lead: 'Xem từng yêu cầu cùng điểm tin cậy của người thuê, rồi chấp nhận hoặc từ chối trước hạn phản hồi. Quá hạn, yêu cầu sẽ tự huỷ và lịch được mở lại.',
+    lead: 'Duyệt yêu cầu dựa trên điểm tin cậy của người thuê trước hạn phản hồi. Khi người thuê đã thanh toán, chụp ảnh tình trạng rồi xác nhận giao đồ.',
     filters: OWNER_STATUS_FILTERS,
     detailPath: rentalRequestPath,
     emptyText: 'Khi có người đặt thuê đồ chơi của bạn, yêu cầu sẽ hiện ở đây để bạn duyệt.',
     emptyAction: { to: PATHS.myListings, label: 'Xem tin đăng của tôi' },
-    actionStatus: 'PENDING',
-    actionText: 'Cần phản hồi',
-    waitStatus: 'ACCEPTED',
-    waitText: 'Người thuê thanh toán',
+    actions: { PENDING: 'Cần phản hồi', PAID: 'Cần giao đồ' },
+    waits: { ACCEPTED: 'Người thuê thanh toán', SHIPPING: 'Người thuê xác nhận nhận đồ' },
     moneyLabel: 'Người thuê trả',
   },
   renter: {
     title: 'Đơn thuê của tôi',
-    eyebrow: 'Thuê đồ chơi',
-    lead: 'Theo dõi các yêu cầu thuê bạn đã gửi. Khi chủ đồ chấp nhận, hãy thanh toán bằng ví ToyFlow trước hạn để giữ lịch thuê.',
+    lead: 'Thanh toán bằng ví ToyFlow khi chủ đồ chấp nhận. Khi nhận được đồ, chụp ảnh tình trạng rồi xác nhận để bắt đầu tính thời gian thuê.',
     filters: RENTER_STATUS_FILTERS,
     detailPath: myRentalPath,
     emptyText: 'Chọn một món đồ chơi cho thuê, chọn ngày rồi gửi yêu cầu: đơn sẽ hiện ở đây.',
     emptyAction: { to: PATHS.toys, label: 'Tìm đồ chơi để thuê' },
-    actionStatus: 'ACCEPTED',
-    actionText: 'Cần thanh toán',
-    waitStatus: 'PENDING',
-    waitText: 'Chủ đồ phản hồi',
+    actions: { ACCEPTED: 'Cần thanh toán', SHIPPING: 'Cần xác nhận nhận đồ' },
+    waits: { PENDING: 'Chủ đồ phản hồi' },
     moneyLabel: 'Tổng thanh toán',
   },
-} satisfies Record<RentalRole, { actionStatus: RentalStatus; waitStatus: RentalStatus } & Record<string, unknown>>
+}
+
+/** Bước không có hạn chót: chủ đồ giao đồ sau khi người thuê trả tiền */
+const UNTIMED_ACTIONS: readonly RentalStatus[] = ['PAID']
 
 /** Một đơn thuê: ảnh + tên đồ chơi, khoảng ngày, tiền, và hạn phải làm gì tiếp theo */
 function RequestRow({ order, now, role }: { order: RentalOrder; now: number; role: RentalRole }) {
   const view = ROLE_VIEW[role]
   const remaining = order.timer ? formatRemaining(order.timer.dueAt, now) : null
-  const needsAction = order.status === view.actionStatus && remaining
+  const untimed = UNTIMED_ACTIONS.includes(order.status)
+  const actionText = view.actions[order.status]
+  const waitText = view.waits[order.status]
+  const needsAction = Boolean(actionText && (untimed || remaining))
 
   return (
     <li>
@@ -77,11 +91,12 @@ function RequestRow({ order, now, role }: { order: RentalOrder; now: number; rol
           <RentalToyTitle toyId={order.toyId} className="rental-row__title" />
           {needsAction ? (
             <span className="rental-row__due">
-              <Clock aria-hidden /> {view.actionText}, {remaining}
+              <Clock aria-hidden /> {actionText}
+              {!untimed && remaining && `, ${remaining}`}
             </span>
-          ) : order.status === view.waitStatus && remaining ? (
+          ) : waitText && remaining ? (
             <span className="rental-row__due rental-row__due--quiet">
-              <Clock aria-hidden /> {view.waitText}, {remaining}
+              <Clock aria-hidden /> {waitText}, {remaining}
             </span>
           ) : null}
         </span>
@@ -100,7 +115,7 @@ function RequestRow({ order, now, role }: { order: RentalOrder; now: number; rol
 
 /**
  * Danh sách đơn thuê theo vai trò: chủ đồ duyệt yêu cầu nhận được (UC07),
- * người thuê theo dõi đơn đã gửi và vào thanh toán (UC08).
+ * người thuê theo dõi đơn đã gửi và vào thanh toán (UC08); hai bên bàn giao đồ chơi (UC09).
  */
 export function RentalOrdersListPage({ role }: { role: RentalRole }) {
   const view = ROLE_VIEW[role]
@@ -135,7 +150,6 @@ export function RentalOrdersListPage({ role }: { role: RentalRole }) {
         </nav>
 
         <header className="rental-page__head">
-          <p className="rental-page__eyebrow">{view.eyebrow}</p>
           <h1 className="rental-page__title">{view.title}</h1>
           <p className="rental-page__lead">{view.lead}</p>
         </header>

@@ -1,12 +1,13 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { useApiMutation } from '../../hooks/useApiMutation'
 import { ApiError } from '../../services/api-error'
-import { apiGet, apiPost } from '../../services/http'
+import { apiGet, apiPost, apiPostForm } from '../../services/http'
 import type { RentalPricing } from '../toy-catalog/rental-request-api'
+import type { ToyImage } from '../toy-listings/toy-listing-api'
 
 /**
- * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08)
- * và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
+ * POST /:id/ship, /:id/receive (UC09) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -44,6 +45,17 @@ export interface RentalOrder {
   status: RentalStatus
   timer?: { kind: RentalTimerKind; dueAt: string }
   rejectionReason?: string
+  /** Có từ khi chủ đồ giao: ảnh tình trạng hai phía và thời điểm giao/nhận */
+  handover?: {
+    ownerPhotos: ToyImage[]
+    shippedAt?: string
+    renterPhotos: ToyImage[]
+    receivedAt?: string
+    /** true khi hết hạn xác nhận và hệ thống tự chuyển sang Đang thuê */
+    autoConfirmed?: boolean
+  }
+  /** Mốc bắt đầu tính thời gian thuê (lúc người thuê xác nhận đã nhận) */
+  rentalStartedAt?: string
 }
 
 /** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
@@ -138,6 +150,28 @@ export const useOwnerRentalDecision = (orderId: string, toyId: string | undefine
 
   return { accept, reject }
 }
+
+/** Bước bàn giao: chủ đồ gửi (PAID → SHIPPING) hoặc người thuê nhận (SHIPPING → IN_USE) */
+export type HandoverStep = 'ship' | 'receive'
+
+const HANDOVER_SUCCESS: Record<HandoverStep, string> = {
+  ship: 'Đã xác nhận giao đồ chơi. Người thuê sẽ được báo để kiểm tra và xác nhận.',
+  receive: 'Đã xác nhận nhận đồ chơi. Thời gian thuê bắt đầu tính từ bây giờ.',
+}
+
+/** Gửi ảnh tình trạng (multipart, trường `photos`, 1–10 ảnh) kèm xác nhận giao/nhận */
+export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess?: () => void) =>
+  useApiMutation({
+    mutationFn: (photos: File[]) => {
+      const form = new FormData()
+      photos.forEach((file) => form.append('photos', file))
+      return apiPostForm<RentalOrder>(`/rentals/${orderId}/${step}`, form)
+    },
+    successMessage: HANDOVER_SUCCESS[step],
+    invalidate: [rentalKeys.all],
+    invalidateOnConflict: true,
+    onSuccess,
+  })
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) */
 export interface WalletSummary {
