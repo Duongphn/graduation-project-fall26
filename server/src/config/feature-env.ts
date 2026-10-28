@@ -25,5 +25,12 @@ export const featureEnv = Object.freeze({
       enabled: env.nodeEnv !== 'test' && process.env.DONATION_EXPIRY_JOB_ENABLED !== 'false',
       intervalMinutes: positiveNumber('DONATION_EXPIRY_JOB_INTERVAL_MINUTES', 5),
     },
+    orderTimers: {
+      enabled:
+        env.nodeEnv !== 'test' &&
+        process.env.ORDER_TIMERS_JOB_ENABLED !== 'false' &&
+        process.env.RENTAL_SCHEDULER_ENABLED !== 'false',
+      intervalMinutes: positiveNumber('ORDER_TIMERS_JOB_INTERVAL_MINUTES', 1),
+    },
   },
 });
