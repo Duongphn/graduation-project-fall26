@@ -114,6 +114,7 @@ export function ToyListingEditorPage() {
           listing={listing}
           categories={categoriesResult.data ?? []}
           categoriesLoading={categoriesResult.isPending}
+          categoriesLoaded={categoriesResult.isSuccess}
           onSaved={handleSaved}
         />
       )}
