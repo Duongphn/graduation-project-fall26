@@ -10,6 +10,7 @@ import { AuditLog as AuditLogModel } from '../../src/models/audit-log.model.js';
 import { Category as CategoryModel } from '../../src/models/category.model.js';
 import { IdentityVerification } from '../../src/models/identity-verification.model.js';
 import { Toy as ToyModel } from '../../src/models/toy.model.js';
+import { categoriesRepository } from '../../src/repositories/category-admin.repository.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 
 // The real container, toy service, ports and routers on the test database, behind develop's JWT
@@ -332,7 +333,9 @@ describe('category hide/delete racing a toy save', () => {
     };
     const response = await postToy(categoryId);
     expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
     expect(await ToyModel.countDocuments()).toBe(0);
+    expect(deletedImages).toHaveLength(1);
   });
 
   it('conflicts with an uncommitted hide, is retried after the commit and then refused', async () => {
@@ -368,17 +371,34 @@ describe('category hide/delete racing a toy save', () => {
 
   it('rejects a hide or delete that runs while the toy transaction holds the category', async () => {
     const categoryId = await createCategory('Đang được giữ');
-    const touch = CategoryModel.findOneAndUpdate.bind(CategoryModel) as (
-      ...args: unknown[]
-    ) => Promise<unknown>;
+    // The errors of the delete's lockForDelete tries; the first one releases the toy transaction.
+    const lockForDelete = categoriesRepository.lockForDelete;
+    const deleteErrors: string[] = [];
+    let releaseToy = () => {};
+    const deleteHitTheToy = new Promise<void>((resolve) => {
+      releaseToy = resolve;
+    });
+    vi.spyOn(categoriesRepository, 'lockForDelete').mockImplementation(async (id, session) => {
+      try {
+        return await lockForDelete(id, session);
+      } catch (error) {
+        deleteErrors.push(String((error as { codeName?: string }).codeName));
+        releaseToy();
+        throw error;
+      }
+    });
     let hideError: unknown;
     let pendingDelete: Promise<request.Response> | undefined;
-    // Sync point: right after the toy transaction touched (write-locked) the category and before
-    // it commits, a concurrent hide transaction and an Admin delete start.
-    vi.spyOn(CategoryModel, 'findOneAndUpdate').mockImplementationOnce((async (
+    // Sync point: the toy transaction has touched the category and is about to insert the toy. A
+    // hide transaction and an Admin delete start now, and the toy transaction stays open until
+    // the delete has run into it. Should the delete finish without a conflict, the toy goes on
+    // and the asserts below fail instead of the test hanging.
+    const toyPrototype = ToyModel.prototype as { save: (...args: unknown[]) => Promise<unknown> };
+    const save = toyPrototype.save;
+    vi.spyOn(toyPrototype, 'save').mockImplementationOnce(async function (
+      this: unknown,
       ...args: unknown[]
-    ) => {
-      const held = await touch(...args);
+    ) {
       const session = await mongoose.startSession();
       session.startTransaction();
       try {
@@ -390,13 +410,16 @@ describe('category hide/delete racing a toy save', () => {
         await session.endSession();
       }
       pendingDelete = startRequest(deleteCategory(categoryId));
-      return held;
-    }) as never);
+      await Promise.race([deleteHitTheToy, pendingDelete]);
+      return save.apply(this, args);
+    });
 
     const created = await postToy(categoryId);
     expect(created.status).toBe(201);
     expect(String((hideError as { codeName?: string })?.codeName)).toBe('WriteConflict');
     const deleted = await pendingDelete;
+    // The delete ran into the open toy transaction, was retried after its commit and saw the toy.
+    expect(deleteErrors[0]).toBe('WriteConflict');
     expect(deleted?.status).toBe(409);
     expect(deleted?.body.error.code).toBe('CATEGORY_IN_USE');
     const category = await CategoryModel.findById(categoryId).lean();
