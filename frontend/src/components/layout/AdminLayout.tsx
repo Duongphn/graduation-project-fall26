@@ -1,6 +1,6 @@
 import { ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
 import { useState } from 'react'
-import { Outlet, useLocation, useNavigate, useNavigation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigation } from 'react-router-dom'
 
 import { adminMenuItems } from '../../routes/admin-menu'
 import { antdTheme } from '../../styles/theme'
@@ -8,7 +8,6 @@ import { antdTheme } from '../../styles/theme'
 // Admin area shell: dark sidebar menu + content. Desktop-first (R01 LI-01).
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false)
-  const navigate = useNavigate()
   const navigation = useNavigation()
   const location = useLocation()
 
@@ -32,11 +31,11 @@ export function AdminLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[selected]}
+          // Real links: open in a new tab works and screen readers announce links.
           items={adminMenuItems.map((item) => ({
             key: item.key,
             icon: item.icon,
-            label: item.label,
-            onClick: () => navigate(item.path),
+            label: <Link to={item.path}>{item.label}</Link>,
           }))}
         />
       </Layout.Sider>
