@@ -29,6 +29,8 @@ export interface ToyListingDto {
   id: string;
   ownerId: string;
   categoryId: string;
+  /** Category name, also when the category is hidden (empty string if it no longer exists). */
+  categoryName: string;
   title: string;
   description: string;
   condition: string;
@@ -60,6 +62,8 @@ export interface ToyListingPorts {
   ): Promise<{ result: T; categoryName: string } | null>;
   hasUnfinishedOrder(toyId: string): Promise<boolean>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
+  /** Names of the given categories, whatever their status (hidden included). */
+  getCategoryNames(categoryIds: string[]): Promise<Map<string, string>>;
 }
 
 /** Lưu ảnh tin đăng; bản thật là integrations/cloudinary/cloudinary-image-storage.ts */

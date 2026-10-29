@@ -123,6 +123,10 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
         : null,
     hasUnfinishedOrder: async () => state.unfinishedOrder,
     getSoldToyIds: async (toyIds) => new Set(toyIds.filter((id) => state.soldIds.has(id))),
+    getCategoryNames: async (categoryIds) =>
+      new Map(
+        categoryIds.filter((id) => id === CATEGORY_ID).map((id) => [id, CATEGORY_NAME] as const),
+      ),
   };
 
   return { ports, state };
@@ -294,6 +298,8 @@ describe('POST /api/v1/toys', () => {
 
     expect(listing).toMatchObject({
       ownerId: ctx.actor1.userId,
+      categoryId: CATEGORY_ID,
+      categoryName: CATEGORY_NAME,
       title: 'Wooden Train',
       listingType: 'rent',
       priceOrRate: 12,
@@ -407,6 +413,7 @@ describe('GET /api/v1/toys/mine', () => {
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(2);
     expect(res.body.items).toHaveLength(2);
+    expect(res.body.items[0].categoryName).toBe(CATEGORY_NAME);
     expect(res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId)).toBe(
       true,
     );
@@ -468,6 +475,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Updated Train');
+    expect(res.body.categoryName).toBe(CATEGORY_NAME);
     expect(res.body.priceOrRate).toBe(15);
     expect(res.body.status).toBe('pending');
   });
@@ -546,6 +554,7 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('hidden');
+    expect(res.body.categoryName).toBe(CATEGORY_NAME);
   });
 
   it('returns 409 when an unfinished order exists', async () => {

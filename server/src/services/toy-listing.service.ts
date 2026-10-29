@@ -41,11 +41,14 @@ export class ToyListingService {
   private mapToDto(
     doc: IToy & { _id: mongoose.Types.ObjectId | string },
     derivedStatus: ListingFilterStatus,
+    categoryNames: Map<string, string>,
   ): ToyListingDto {
+    const categoryId = doc.categoryId.toString();
     return {
       id: doc._id.toString(),
       ownerId: doc.ownerId.toString(),
-      categoryId: doc.categoryId.toString(),
+      categoryId,
+      categoryName: categoryNames.get(categoryId) ?? '',
       title: doc.title,
       description: doc.description,
       condition: doc.condition,
@@ -148,7 +151,12 @@ export class ToyListingService {
       if (!touched) {
         throw categoryNotAvailable();
       }
-      return this.mapToDto(touched.result, 'pending');
+      const saved = touched.result;
+      return this.mapToDto(
+        saved,
+        'pending',
+        new Map([[saved.categoryId.toString(), touched.categoryName]]),
+      );
     } catch (dbError) {
       if (uploadedAssets.length > 0) {
         try {
@@ -207,7 +215,12 @@ export class ToyListingService {
     const total = matchedToys.length;
     const startIndex = (page - 1) * limit;
     const paginated = matchedToys.slice(startIndex, startIndex + limit);
-    const items = paginated.map(({ toy, derivedStatus }) => this.mapToDto(toy, derivedStatus));
+    const categoryNames = await this.ports.getCategoryNames([
+      ...new Set(paginated.map(({ toy }) => toy.categoryId.toString())),
+    ]);
+    const items = paginated.map(({ toy, derivedStatus }) =>
+      this.mapToDto(toy, derivedStatus, categoryNames),
+    );
 
     return { items, page, limit, total };
   }
@@ -339,6 +352,8 @@ export class ToyListingService {
       listing.images = [...remainingImages, ...newUploadedAssets];
 
       let saved: typeof listing;
+      // Set when the category changed: the touch write already returned the new category's name.
+      let touchedCategoryName: string | undefined;
       if (categoryChanged) {
         const touched = await this.ports.saveWithActiveCategory(newCategoryId, (session) =>
           listing.save({ session }),
@@ -347,6 +362,7 @@ export class ToyListingService {
           throw categoryNotAvailable();
         }
         saved = touched.result;
+        touchedCategoryName = touched.categoryName;
       } else {
         saved = await listing.save();
       }
@@ -361,7 +377,11 @@ export class ToyListingService {
 
       const soldSet = await this.ports.getSoldToyIds([toyId]);
       const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-      return this.mapToDto(saved, derivedStatus);
+      const categoryNames =
+        touchedCategoryName !== undefined
+          ? new Map([[saved.categoryId.toString(), touchedCategoryName]])
+          : await this.ports.getCategoryNames([saved.categoryId.toString()]);
+      return this.mapToDto(saved, derivedStatus, categoryNames);
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
         try {
@@ -400,7 +420,8 @@ export class ToyListingService {
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-    return this.mapToDto(saved, derivedStatus);
+    const categoryNames = await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, derivedStatus, categoryNames);
   }
 
   public async delete(actor: RequestActor, toyId: string): Promise<void> {

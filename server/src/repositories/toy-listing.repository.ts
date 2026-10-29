@@ -102,5 +102,15 @@ export function createToyListingPorts(): ToyListingPorts {
 
       return soldToyIds;
     },
+
+    // Any status: a listing keeps showing the name of a category an Admin hid later.
+    async getCategoryNames(categoryIds: string[]): Promise<Map<string, string>> {
+      const validIds = categoryIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+      if (validIds.length === 0) {
+        return new Map<string, string>();
+      }
+      const categories = await Category.find({ _id: { $in: validIds } }, { name: 1 }).lean();
+      return new Map(categories.map((category) => [category._id.toString(), category.name]));
+    },
   };
 }
