@@ -134,6 +134,7 @@ const LISTING_ERROR_MESSAGES: Record<string, string> = {
   CATEGORY_NOT_FOUND: 'Danh mục đã chọn không còn hoạt động. Vui lòng chọn danh mục khác.',
   INVALID_IMAGE_FORMAT: 'Có ảnh không đúng định dạng JPG, PNG hoặc WebP. Vui lòng chọn ảnh khác.',
   ORDER_IN_PROGRESS: 'Tin đang có đơn thuê hoặc mua chưa hoàn tất, chưa thể sửa, ẩn hoặc xoá.',
+  LISTING_CHANGED: 'Tin đăng vừa được thay đổi ở nơi khác. Vui lòng tải lại trang rồi thử lại.',
   CLOUDINARY_NOT_CONFIGURED:'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau.',
 }
 

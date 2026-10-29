@@ -149,4 +149,17 @@ describe('ToyListingEditorPage', () => {
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(2))
     expect((patch.mock.calls[1]?.[1] as FormData).has('categoryId')).toBe(false)
   })
+
+  it('asks the owner to reload when another save changed the listing meanwhile', async () => {
+    patch.mockRejectedValueOnce(
+      httpError(409, 'LISTING_CHANGED', 'The listing was changed in the meantime. Reload it and try again.'),
+    )
+    const { user } = renderEditor(toyListingEditPath(saved.id), saved)
+
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+
+    expect(
+      await screen.findByText('Tin đăng vừa được thay đổi ở nơi khác. Vui lòng tải lại trang rồi thử lại.'),
+    ).toBeInTheDocument()
+  })
 })
