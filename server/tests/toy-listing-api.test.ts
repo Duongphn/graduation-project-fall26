@@ -104,6 +104,8 @@ interface PortState {
   categoryExists: boolean;
   unfinishedOrder: boolean;
   soldIds: Set<string>;
+  /** Makes getSoldToyIds fail, like a database error after the toy was saved. */
+  soldLookupFails?: boolean;
 }
 
 function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state: PortState } {
@@ -122,7 +124,10 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
         ? { result: await save({} as ClientSession), categoryName: CATEGORY_NAME }
         : null,
     hasUnfinishedOrder: async () => state.unfinishedOrder,
-    getSoldToyIds: async (toyIds) => new Set(toyIds.filter((id) => state.soldIds.has(id))),
+    getSoldToyIds: async (toyIds) => {
+      if (state.soldLookupFails) throw new Error('Lookup of completed orders failed.');
+      return new Set(toyIds.filter((id) => state.soldIds.has(id)));
+    },
     getCategoryNames: async (categoryIds) =>
       new Map(
         categoryIds.filter((id) => id === CATEGORY_ID).map((id) => [id, CATEGORY_NAME] as const),
@@ -526,6 +531,24 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     expect(res.body.images).toHaveLength(1);
     expect(res.body.images[0].publicId).not.toBe(oldPublicId);
     expect(ctx.deletions).toContainEqual([oldPublicId]);
+  });
+
+  it('keeps the new image when a read after the saved edit fails', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    ctx.state.soldLookupFails = true;
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .field('title', 'Saved Before The Read')
+      .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
+
+    expect(res.status).toBe(500);
+    const stored = ctx.store.find((toy) => toy._id.toString() === listing.id);
+    expect(stored?.title).toBe('Saved Before The Read');
+    expect(stored?.images).toHaveLength(2);
+    // The stored toy uses the new upload, so it must not be deleted.
+    expect(ctx.deletions).toEqual([]);
   });
 
   it('returns 409 and uploads nothing when an unfinished order exists', async () => {

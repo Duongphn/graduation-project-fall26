@@ -350,10 +350,10 @@ export class ToyListingService {
       toy.images = [...remainingImages, ...newUploadedAssets];
     };
 
+    let saved: typeof listing;
+    // Set when the category changed: the touch write already returned the new category's name.
+    let touchedCategoryName: string | undefined;
     try {
-      let saved: typeof listing;
-      // Set when the category changed: the touch write already returned the new category's name.
-      let touchedCategoryName: string | undefined;
       if (categoryChanged) {
         const touched = await this.ports.saveWithActiveCategory(newCategoryId, async (session) => {
           // Re-read and edit the toy on every run of the callback: withTransaction runs it again
@@ -375,24 +375,6 @@ export class ToyListingService {
         applyEdit(listing);
         saved = await listing.save();
       }
-
-      // Deleted only now: the stored toy no longer uses them (with a category change, the
-      // transaction has committed).
-      if (toDelete.length > 0) {
-        try {
-          await this.imageStorage.delete(toDelete);
-        } catch {
-          // Cleanup failure does not fail the DB update
-        }
-      }
-
-      const soldSet = await this.ports.getSoldToyIds([toyId]);
-      const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-      const categoryNames =
-        touchedCategoryName !== undefined
-          ? new Map([[saved.categoryId.toString(), touchedCategoryName]])
-          : await this.ports.getCategoryNames([saved.categoryId.toString()]);
-      return this.mapToDto(saved, derivedStatus, categoryNames);
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
         try {
@@ -403,6 +385,25 @@ export class ToyListingService {
       }
       throw dbError;
     }
+
+    // The edit is stored from here on, with the new images: a failure below must not delete them.
+    // The removed images are deleted only now, as the stored toy no longer uses them (with a
+    // category change, the transaction has committed).
+    if (toDelete.length > 0) {
+      try {
+        await this.imageStorage.delete(toDelete);
+      } catch {
+        // Cleanup failure does not fail the DB update
+      }
+    }
+
+    const soldSet = await this.ports.getSoldToyIds([toyId]);
+    const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
+    const categoryNames =
+      touchedCategoryName !== undefined
+        ? new Map([[saved.categoryId.toString(), touchedCategoryName]])
+        : await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, derivedStatus, categoryNames);
   }
 
   public async hide(actor: RequestActor, toyId: string): Promise<ToyListingDto> {
