@@ -15,6 +15,9 @@ export const adminRoute: RouteObject = {
     const url = new URL(request.url)
     return redirect(`${PATHS.login}?redirect=${encodeURIComponent(url.pathname + url.search)}`)
   },
+  // Re-check on every admin navigation (e.g. after logging out in another tab): by default a
+  // parent loader does not run again when only the child page changes.
+  shouldRevalidate: () => true,
   element: <AdminLayout />,
   // Shown while the first lazy page of a direct visit loads.
   hydrateFallbackElement: <Skeleton active className="p-6" />,
