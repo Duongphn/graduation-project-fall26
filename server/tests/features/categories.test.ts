@@ -141,7 +141,11 @@ describe('create and edit', () => {
     expect(renamed.body.message).toBe('Đã cập nhật danh mục.');
     expect(renamed.body.data).toMatchObject({ name: 'Sách vải', slug: 'sach' });
     expect(renamed.body.data.description).toBeUndefined();
-    expect((await patch(`/${category.id}`, { name: 'BÓNG' })).status).toBe(409);
+    const clash = await patch(`/${category.id}`, { name: 'BÓNG' });
+    expect(clash.status).toBe(409);
+    expect(clash.body.error.code).toBe('CATEGORY_NAME_TAKEN');
+    // Only the successful rename is audited; the refused one rolls back with its transaction.
+    expect(await AuditLogModel.countDocuments({ action: 'category.update' })).toBe(1);
   });
 });
 
