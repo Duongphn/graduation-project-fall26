@@ -1,35 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildAuditLog } from '../../src/infrastructure/database/audit.js';
+import { buildAuditLog } from '../../src/repositories/audit-log.repository.js';
 import {
   buildPrivateImageUrl,
   buildStringToSign,
   createUploadSignature,
   signCloudinaryParams,
-} from '../../src/infrastructure/storage/cloudinary.js';
-import { assertTransition, toyTransitions } from '../../src/shared/domain/transitions.js';
-import { AppError } from '../../src/shared/errors/app-error.js';
-import { domainEvents } from '../../src/shared/events/domain-events.js';
-import { reasonSchema, vietnamPhoneSchema } from '../../src/shared/http/schemas.js';
-import { ageInYears } from '../../src/shared/utils/dates.js';
+} from '../../src/utils/cloudinary-signing.js';
+import { AppError } from '../../src/utils/app-error.js';
+import { domainEvents } from '../../src/utils/domain-events.js';
+import { assertTransition, type TransitionMap } from '../../src/utils/transitions.js';
+import { reasonSchema, vietnamPhoneSchema } from '../../src/validations/common.validation.js';
+import { ageInYears } from '../../src/utils/dates.js';
 import {
   duplicateKeyFields,
   duplicateKeyIndex,
   isDuplicateKeyError,
-} from '../../src/shared/utils/mongo-errors.js';
+} from '../../src/utils/mongo-errors.js';
 import {
   maskPhone,
   normalizeVietnamPhone,
   phoneSearchDigits,
-} from '../../src/shared/utils/phone.js';
-import { maskEmail } from '../../src/shared/utils/privacy.js';
-import { pickFreeSlug, slugify } from '../../src/shared/utils/slug.js';
+} from '../../src/utils/phone.js';
+import { maskEmail } from '../../src/utils/privacy.js';
+import { pickFreeSlug, slugify } from '../../src/utils/slug.js';
 import {
   accentInsensitivePattern,
   escapeRegex,
   normalizeSearchText,
   normalizeText,
-} from '../../src/shared/utils/text.js';
+} from '../../src/utils/text.js';
 
 const credentials = { cloudName: 'demo', apiKey: 'key', apiSecret: 'abcd' };
 
@@ -144,9 +144,14 @@ describe('mongo errors', () => {
 
 describe('transitions', () => {
   it('rejects an invalid transition with a 409 AppError', () => {
-    expect(() => assertTransition(toyTransitions, 'PENDING_REVIEW', 'ACTIVE')).not.toThrow();
+    const toyTransitions: TransitionMap<'pending' | 'active' | 'hidden'> = {
+      pending: ['active', 'hidden'],
+      active: ['hidden'],
+      hidden: ['active'],
+    };
+    expect(() => assertTransition(toyTransitions, 'pending', 'active')).not.toThrow();
     try {
-      assertTransition(toyTransitions, 'SOLD', 'ACTIVE');
+      assertTransition(toyTransitions, 'active', 'pending');
       expect.unreachable();
     } catch (error) {
       expect(error).toBeInstanceOf(AppError);
@@ -216,15 +221,14 @@ describe('audit and events', () => {
   it('builds an audit document with an optional target id', () => {
     const actorId = '67098e1b34e12c001a123456';
     const log = buildAuditLog({
-      actorType: 'ADMIN',
       actorId,
       action: 'category.reorder',
       target: { kind: 'CATEGORY' },
-      meta: { order: [] },
     });
-    expect(log.actorId?.toString()).toBe(actorId);
-    expect(log.target).toEqual({ kind: 'CATEGORY' });
-    expect(log).not.toHaveProperty('ipAddress');
+    expect(log.actor_id?.toString()).toBe(actorId);
+    expect(log.target_type).toBe('CATEGORY');
+    expect(log).not.toHaveProperty('target_id');
+    expect(log).not.toHaveProperty('ip_address');
   });
 
   it('delivers events and isolates failing handlers', async () => {
@@ -239,7 +243,7 @@ describe('audit and events', () => {
       toyId: 't',
       ownerId: 'o',
       toyTitle: 'Lego',
-      decision: 'ACTIVE',
+      decision: 'approved',
       reviewedBy: 'a',
     } as const;
 

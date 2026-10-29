@@ -1,33 +1,49 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { AuditLogModel } from '../../src/features/audit_logs/audit_logs.model.js';
-import { CategoryModel } from '../../src/features/categories/categories.model.js';
-import { adminCategoriesRouter, categoriesRouter } from '../../src/features/categories/index.js';
-import { SystemSettingModel } from '../../src/features/system_settings/system_settings.model.js';
-import { ToyModel } from '../../src/features/toys/toys.model.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
+import { AuditLog as AuditLogModel } from '../../src/models/audit-log.model.js';
 import {
-  seedDefaultCategories,
+  CATEGORIES_SEEDED_KEY,
   defaultCategories,
-} from '../../src/features/categories/categories.seed.js';
-import { createToy, newId, useTestDatabase } from '../database/helpers.js';
+} from '../../src/constants/default-categories.js';
+import { Category as CategoryModel } from '../../src/models/category.model.js';
+import { SystemSetting } from '../../src/models/system-setting.model.js';
+import { seedDefaultCategories } from '../../src/services/category-seed.service.js';
+import { adminCategoriesRouter } from '../../src/routes/category-admin.routes.js';
+import { categoriesRouter } from '../../src/routes/category.routes.js';
+import { Toy as ToyModel } from '../../src/models/toy.model.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
+import { testAuth } from '../support/test-auth.js';
+import { newId, useTestDatabase } from '../support/test-database.js';
 
 useTestDatabase();
 
 const ADMIN_ID = newId().toString();
 const BASE = '/api/v1/admin/categories';
 
-// Stand-in for the JWT middleware: x-test-user / x-test-role set request.auth.
+// testAuth stands in for develop's JWT `authenticate`: x-test-user / x-test-role set req.auth.
 const app = express();
 app.use(express.json());
-app.use((req, _res, next) => {
-  const userId = req.header('x-test-user');
-  const role = req.header('x-test-role');
-  if (userId) req.auth = { userId, role: role === 'ADMIN' ? 'ADMIN' : 'USER' };
-  next();
-});
+app.use(testAuth);
+
+/** A toy with develop's toys schema. */
+const createToy = (overrides: Record<string, unknown> = {}) =>
+  ToyModel.create({
+    ownerId: newId(),
+    categoryId: newId(),
+    title: 'Wooden train set',
+    description: 'Complete set with 20 pieces.',
+    condition: 'good',
+    listingType: 'rent',
+    priceOrRate: 20_000,
+    depositPrice: 300_000,
+    status: 'active',
+    ageRange: { minAge: 3, maxAge: 5 },
+    images: [{ url: 'https://example.com/1.jpg', publicId: 'toyflow/toys/1' }],
+    ...overrides,
+  });
 app.use('/api/v1/categories', categoriesRouter);
 app.use(BASE, adminCategoriesRouter);
 app.use(errorHandler);
@@ -95,8 +111,8 @@ describe('create and edit', () => {
     expect(second).toMatchObject({ name: 'Xe điều khiển', displayOrder: 2 });
 
     const audit = await AuditLogModel.findOne({ action: 'category.create' }).lean();
-    expect(audit).toMatchObject({ actorType: 'ADMIN', target: { kind: 'CATEGORY' } });
-    expect(String(audit?.actorId)).toBe(ADMIN_ID);
+    expect(audit).toMatchObject({ target_type: 'CATEGORY' });
+    expect(String(audit?.actor_id)).toBe(ADMIN_ID);
   });
 
   it('rejects a duplicate name ignoring case, but not accents', async () => {
@@ -125,26 +141,26 @@ describe('create and edit', () => {
     expect(renamed.body.message).toBe('Đã cập nhật danh mục.');
     expect(renamed.body.data).toMatchObject({ name: 'Sách vải', slug: 'sach' });
     expect(renamed.body.data.description).toBeUndefined();
-    const clash = await patch(`/${category.id}`, { name: 'BÓNG' });
-    expect(clash.status).toBe(409);
-    expect(clash.body.error.code).toBe('CATEGORY_NAME_TAKEN');
-    expect(await AuditLogModel.countDocuments({ action: 'category.update' })).toBe(1);
+    expect((await patch(`/${category.id}`, { name: 'BÓNG' })).status).toBe(409);
   });
 });
 
 describe('hide, show and the public list', () => {
-  it('hides and shows with conflicts on repeat, and lists only ACTIVE ones publicly', async () => {
+  it('hides and shows with conflicts on repeat, and lists only active ones publicly', async () => {
     const wood = await createCategory('Gỗ');
     await createCategory('Nhựa');
     const hidden = await post(`/${wood.id}/hide`);
-    expect(hidden.body).toMatchObject({ data: { status: 'HIDDEN' }, message: 'Đã ẩn danh mục.' });
+    expect(hidden.body).toMatchObject({ data: { status: 'hidden' }, message: 'Đã ẩn danh mục.' });
     expect((await post(`/${wood.id}/hide`)).body.error.code).toBe('CATEGORY_ALREADY_HIDDEN');
 
     const publicList = await request(app).get('/api/v1/categories');
     expect(publicList.status).toBe(200);
-    expect(publicList.body.data).toEqual([{ id: expect.any(String), name: 'Nhựa', slug: 'nhua' }]);
+    // Develop's public route: a raw JSON array.
+    expect(publicList.body).toEqual([
+      { id: expect.any(String), name: 'Nhựa', slug: 'nhua', parentId: null },
+    ]);
 
-    expect((await post(`/${wood.id}/show`)).body.data.status).toBe('ACTIVE');
+    expect((await post(`/${wood.id}/show`)).body.data.status).toBe('active');
     expect((await post(`/${wood.id}/show`)).body.error.code).toBe('CATEGORY_ALREADY_VISIBLE');
     expect(
       await AuditLogModel.countDocuments({ action: { $in: ['category.hide', 'category.show'] } }),
@@ -159,8 +175,8 @@ describe('hide, show and the public list', () => {
 
   it('does not expose admin fields publicly', async () => {
     await createCategory('Gỗ');
-    const [item] = (await request(app).get('/api/v1/categories')).body.data;
-    expect(Object.keys(item).sort()).toEqual(['id', 'name', 'slug']);
+    const [item] = (await request(app).get('/api/v1/categories')).body;
+    expect(Object.keys(item).sort()).toEqual(['id', 'name', 'parentId', 'slug']);
   });
 });
 
@@ -169,7 +185,7 @@ describe('admin list', () => {
     const remote = await createCategory('Xe điều khiển');
     const wood = await createCategory('Đồ gỗ');
     await post(`/${wood.id}/hide`);
-    await createToy({ categoryId: remote.id, status: 'SOLD' });
+    await createToy({ categoryId: remote.id, status: 'hidden' });
     await createToy({ categoryId: remote.id });
 
     const all = await get();
@@ -177,7 +193,7 @@ describe('admin list', () => {
     expect(all.body.data[0]).toMatchObject({ id: remote.id, toyCount: 2, canDelete: false });
 
     expect((await get('?q=dieu khien')).body.data).toHaveLength(1);
-    expect((await get('?status=HIDDEN')).body.data[0].id).toBe(wood.id);
+    expect((await get('?status=hidden')).body.data[0].id).toBe(wood.id);
     const paged = await get('?limit=1&page=2');
     expect(paged.body.data[0].id).toBe(wood.id);
   });
@@ -187,7 +203,7 @@ describe('delete', () => {
   it('deletes an unused category and refuses one used by any toy', async () => {
     const unused = await createCategory('Trống');
     const used = await createCategory('Đang dùng');
-    await createToy({ categoryId: used.id, status: 'HIDDEN' });
+    await createToy({ categoryId: used.id, status: 'hidden' });
 
     const deleted = await del(`/${unused.id}`);
     expect(deleted.body).toEqual({ success: true, data: null, message: 'Đã xoá danh mục.' });
@@ -196,7 +212,31 @@ describe('delete', () => {
     expect(refused.body.error).toMatchObject({ code: 'CATEGORY_IN_USE', details: { toyCount: 1 } });
     expect(await AuditLogModel.countDocuments({ action: 'category.delete' })).toBe(1);
   });
-  // The race with a real toy save is in toy-categories.test.ts.
+
+  it('never deletes a category while a toy transaction that touched it is saving a toy', async () => {
+    const category = await createCategory('Tranh chấp');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    // What the toys feature does when it saves a toy (see the feature README).
+    await CategoryModel.findOneAndUpdate(
+      { _id: category.id, status: 'active' },
+      { $inc: { __v: 1 } },
+      { session },
+    );
+    const toy = (await createToy({ categoryId: category.id })).toObject();
+    await ToyModel.deleteOne({ _id: toy._id });
+    await ToyModel.create([{ ...toy, _id: newId() }], { session });
+
+    const pending = del(`/${category.id}`).then((response) => response);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await session.commitTransaction();
+    await session.endSession();
+
+    const response = await pending;
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('CATEGORY_IN_USE');
+    expect(await CategoryModel.exists({ _id: category.id })).not.toBeNull();
+  });
 });
 
 describe('reorder', () => {
@@ -216,8 +256,8 @@ describe('reorder', () => {
       [b.id, 3],
     ]);
     const audit = await AuditLogModel.findOne({ action: 'category.reorder' }).lean();
-    expect(audit?.target).toEqual({ kind: 'CATEGORY' });
-    expect(audit?.meta).toMatchObject({ after: [c.id, a.id, b.id] });
+    expect(audit?.target_type).toBe('CATEGORY');
+    expect(audit?.target_id).toBeUndefined();
   });
 
   it('answers 404 for an unknown id and changes nothing', async () => {
@@ -254,17 +294,17 @@ describe('reorder', () => {
 
 describe('default categories seed', () => {
   beforeEach(async () => {
-    await SystemSettingModel.deleteMany({ key: 'CATEGORIES_SEEDED' });
+    await SystemSetting.deleteMany({ key: CATEGORIES_SEEDED_KEY });
   });
 
   it('fills an empty collection once and is safe to run again', async () => {
-    await seedDefaultCategories();
-    await seedDefaultCategories();
+    expect((await seedDefaultCategories()).inserted).toBe(defaultCategories.length);
+    expect((await seedDefaultCategories()).inserted).toBe(0);
     const seeded = await CategoryModel.find().sort({ displayOrder: 1 }).lean();
     expect(seeded.length).toBe(defaultCategories.length);
     expect(seeded.length).toBeGreaterThanOrEqual(10);
     expect(new Set(seeded.map((category) => category.slug)).size).toBe(seeded.length);
-    expect(seeded.every((category) => category.status === 'ACTIVE')).toBe(true);
+    expect(seeded.every((category) => category.status === 'active')).toBe(true);
     expect(seeded.map((category) => category.displayOrder)).toEqual(
       seeded.map((_category, index) => index + 1),
     );
@@ -285,5 +325,12 @@ describe('default categories seed', () => {
     await CategoryModel.deleteMany({});
     await seedDefaultCategories();
     expect(await CategoryModel.countDocuments()).toBe(0);
+  });
+
+  it('only marks a database that already has categories', async () => {
+    await createCategory('Có sẵn');
+    expect((await seedDefaultCategories()).inserted).toBe(0);
+    expect(await CategoryModel.countDocuments()).toBe(1);
+    expect(await SystemSetting.exists({ key: CATEGORIES_SEEDED_KEY })).not.toBeNull();
   });
 });

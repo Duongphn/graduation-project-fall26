@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
-import { createApp } from '../src/app/create-app.js';
+import { createApp } from '../src/app.js';
 
 describe('health endpoint', () => {
   it('returns the service status', async () => {

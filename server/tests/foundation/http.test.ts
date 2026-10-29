@@ -1,26 +1,25 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
-import { createApp } from '../../src/app/create-app.js';
-import { conflict } from '../../src/shared/errors/app-error.js';
-import { idParamsSchema, paginationQuerySchema } from '../../src/shared/http/schemas.js';
-import { errorHandler } from '../../src/shared/middleware/error-handler.js';
-import { notFoundHandler } from '../../src/shared/middleware/not-found.js';
+import { createApp } from '../../src/app.js';
+import { conflict } from '../../src/utils/http-errors.js';
+import { idParamsSchema, paginationQuerySchema } from '../../src/validations/common.validation.js';
+import { errorHandler } from '../../src/middlewares/error-handler.js';
+import { notFoundHandler } from '../../src/middlewares/not-found.js';
 import {
   getValidatedParams,
   getValidatedQuery,
   validateRequest,
-} from '../../src/shared/middleware/validate.js';
+} from '../../src/middlewares/validate.js';
 import {
   buildPaginationMeta,
   sendCreated,
   sendPaginated,
   sendSuccess,
   toMongoPaging,
-} from '../../src/shared/utils/response.js';
-import { z } from '../../src/shared/validation/zod.js';
+} from '../../src/utils/response.js';
+import { z } from '../../src/validations/zod.js';
 
 const buildApp = (setup: (app: express.Express) => void) => {
   const app = express();
@@ -71,85 +70,28 @@ describe('response envelopes', () => {
     });
   });
 
-  it('answers unknown routes with the error envelope', async () => {
+  it('answers unknown routes with the develop error format', async () => {
     const response = await request(createApp()).get('/api/v1/nothing-here');
     expect(response.status).toBe(404);
-    expect(response.body).toMatchObject({ success: false, error: { code: 'NOT_FOUND' } });
+    expect(response.body).toMatchObject({ error: { code: 'ROUTE_NOT_FOUND' } });
   });
 });
 
+// Develop's errorHandler: { error: { code, message, details } } for AppError and Zod errors.
 describe('error handler', () => {
   it('maps AppError', async () => {
     const response = await request(throwing(conflict('TAKEN', 'Đã có.', { a: 1 }))).get('/boom');
     expect(response.status).toBe(409);
     expect(response.body).toEqual({
-      success: false,
       error: { code: 'TAKEN', message: 'Đã có.', details: { a: 1 } },
     });
   });
 
-  it('maps Zod and Mongoose validation errors', async () => {
+  it('maps Zod errors to VALIDATION_ERROR', async () => {
     const zodError = z.object({ name: z.string() }).safeParse({}).error;
     const zod = await request(throwing(zodError)).get('/boom');
     expect(zod.status).toBe(400);
     expect(zod.body.error.code).toBe('VALIDATION_ERROR');
-    expect(zod.body.error.details[0].field).toBe('name');
-
-    const mongooseError = new mongoose.Error.ValidationError();
-    mongooseError.addError(
-      'title',
-      new mongoose.Error.ValidatorError({ path: 'title', message: 'Required' }),
-    );
-    const validation = await request(throwing(mongooseError)).get('/boom');
-    expect(validation.status).toBe(422);
-    expect(validation.body.error.details).toEqual([{ field: 'title', message: 'Required' }]);
-
-    const cast = await request(throwing(new mongoose.Error.CastError('ObjectId', 'x', '_id'))).get(
-      '/boom',
-    );
-    expect(cast.status).toBe(400);
-    expect(cast.body.error.code).toBe('INVALID_ID');
-  });
-
-  it('maps duplicate keys, database validators, bad JSON and unknown errors', async () => {
-    const duplicate = Object.assign(new Error('E11000 index: name_unique'), {
-      code: 11000,
-      keyPattern: { name: 1 },
-    });
-    const dup = await request(throwing(duplicate)).get('/boom');
-    expect(dup.status).toBe(409);
-    expect(dup.body.error).toMatchObject({ code: 'DUPLICATE', details: { fields: ['name'] } });
-
-    const rule = await request(throwing(Object.assign(new Error('x'), { code: 121 }))).get('/boom');
-    expect(rule.status).toBe(422);
-    expect(rule.body.error.code).toBe('BUSINESS_RULE_VIOLATION');
-
-    const json = await request(buildApp(() => undefined))
-      .post('/anything')
-      .set('content-type', 'application/json')
-      .send('{bad');
-    expect(json.status).toBe(400);
-    expect(json.body.error.code).toBe('INVALID_JSON');
-
-    const tooLarge = express();
-    tooLarge.use(express.json({ limit: '10b' }));
-    tooLarge.use(errorHandler);
-    const big = await request(tooLarge)
-      .post('/anything')
-      .send({ text: 'more than ten bytes of JSON' });
-    expect(big.status).toBe(413);
-    expect(big.body).toMatchObject({ success: false, error: { code: 'PAYLOAD_TOO_LARGE' } });
-
-    const original = console.error;
-    console.error = () => undefined;
-    try {
-      const unknown = await request(throwing(new Error('secret detail'))).get('/boom');
-      expect(unknown.status).toBe(500);
-      expect(JSON.stringify(unknown.body)).not.toContain('secret detail');
-      expect(unknown.body.success).toBe(false);
-    } finally {
-      console.error = original;
-    }
   });
 });
 

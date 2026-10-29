@@ -1,18 +1,19 @@
 import express from 'express';
-import mongoose, { type ClientSession, type Model } from 'mongoose';
+import jwt from 'jsonwebtoken';
+import mongoose, { type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { RequestActor } from '../src/shared/contracts/request-actor.js';
-import type { IToy } from '../src/features/toys/toys.model.js';
-import type { ToyListingDto, ToyListingPorts } from '../src/features/toys/toy-listing.ports.js';
-import { ToyListingService } from '../src/features/toys/toy-listing.service.js';
-import { createToyListingRouter } from '../src/features/toys/toy-listing.routes.js';
-import type { ToyImageStorage } from '../src/infrastructure/cloudinary/cloudinary-image-storage.js';
-import { errorHandler } from '../src/shared/middleware/error-handler.js';
+import { env } from '../src/config/env.js';
+import type { RequestActor } from '../src/types/request-actor.js';
+import type { IToy } from '../src/models/toy.model.js';
+import type { ToyListingDto, ToyListingPorts } from '../src/interfaces/toy-listing.ports.js';
+import { ToyListingService } from '../src/services/toy-listing.service.js';
+import { createToyListingRouter } from '../src/routes/toy-listing.routes.js';
+import type { ToyImageStorage } from '../src/interfaces/toy-listing.ports.js';
+import { errorHandler } from '../src/middlewares/error-handler.js';
 
 const CATEGORY_ID = '64b000000000000000000001';
-const CATEGORY_NAME = 'Đồ chơi STEM';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -115,16 +116,8 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
   const ports: ToyListingPorts = {
     isVerifiedUser: async () => state.verified,
     categoryExists: async () => state.categoryExists,
-    saveWithActiveCategory: async (_categoryId, save) =>
-      state.categoryExists
-        ? { result: await save({} as ClientSession), categoryName: CATEGORY_NAME }
-        : null,
     hasUnfinishedOrder: async () => state.unfinishedOrder,
     getSoldToyIds: async (toyIds) => new Set(toyIds.filter((id) => state.soldIds.has(id))),
-    getCategoryNames: async (categoryIds) =>
-      new Map(
-        categoryIds.filter((id) => id === CATEGORY_ID).map((id) => [id, CATEGORY_NAME] as const),
-      ),
   };
 
   return { ports, state };
@@ -166,9 +159,15 @@ function setup(options: PortOptions = {}) {
 
   const app = express();
   app.use(express.json());
+  // Ký JWT thật cho actor hiện tại để request đi qua middleware authenticate của router
   app.use((req, _res, next) => {
     if (currentActor) {
-      req.auth = { userId: currentActor.userId, role: 'USER' };
+      const token = jwt.sign(
+        { userId: currentActor.userId, role: currentActor.actorType },
+        env.jwtAccessSecret,
+        { expiresIn: '1h' },
+      );
+      req.headers.authorization = `Bearer ${token}`;
     }
     next();
   });
@@ -282,7 +281,7 @@ describe('POST /api/v1/toys', () => {
     const res = await postListing(ctx, rentFields());
 
     expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('UNAUTHENTICATED');
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('creates a rental listing with 201 and pending status', async () => {
@@ -290,8 +289,6 @@ describe('POST /api/v1/toys', () => {
 
     expect(listing).toMatchObject({
       ownerId: ctx.actor1.userId,
-      categoryId: CATEGORY_ID,
-      categoryName: CATEGORY_NAME,
       title: 'Wooden Train',
       listingType: 'rent',
       priceOrRate: 12,
@@ -405,10 +402,9 @@ describe('GET /api/v1/toys/mine', () => {
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(2);
     expect(res.body.items).toHaveLength(2);
-    expect(res.body.items[0].categoryName).toBe(CATEGORY_NAME);
-    expect(
-      res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId),
-    ).toBe(true);
+    expect(res.body.items.every((item: { ownerId: string }) => item.ownerId === ctx.actor1.userId)).toBe(
+      true,
+    );
   });
 
   it('paginates results', async () => {
@@ -467,7 +463,6 @@ describe('PATCH /api/v1/toys/:toyId', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Updated Train');
-    expect(res.body.categoryName).toBe(CATEGORY_NAME);
     expect(res.body.priceOrRate).toBe(15);
     expect(res.body.status).toBe('pending');
   });
@@ -546,7 +541,6 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('hidden');
-    expect(res.body.categoryName).toBe(CATEGORY_NAME);
   });
 
   it('returns 409 when an unfinished order exists', async () => {

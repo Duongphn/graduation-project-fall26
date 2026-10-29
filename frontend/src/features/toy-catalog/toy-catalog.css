@@ -1,0 +1,106 @@
+@layer components {
+  /* Token --pl-* và hiệu ứng reveal nằm ở layouts/public/public-layout.css */
+
+  .dark .public-layout {
+    color-scheme: dark;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html:has(.public-layout) {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* ---------- Skeleton ---------- */
+
+  .skeleton-block,
+  .skeleton-line {
+    background: var(--pl-sunken);
+    animation: skeleton-breathe 1.4s ease-in-out infinite alternate;
+  }
+
+  .skeleton-line {
+    display: block;
+    height: 12px;
+    margin-top: 10px;
+    border-radius: var(--radius-sm);
+  }
+
+  .skeleton-line--lg {
+    height: 20px;
+  }
+
+  .skeleton-line--xl {
+    height: 36px;
+  }
+
+  @keyframes skeleton-breathe {
+    to {
+      opacity: 0.5;
+    }
+  }
+
+  /* ---------- Trạng thái rỗng / lỗi ---------- */
+
+  .catalog-empty {
+    display: grid;
+    justify-items: start;
+    gap: 16px;
+    max-width: 640px;
+    padding-block: 56px 24px;
+  }
+
+  .catalog-empty__title {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+    font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--pl-ink);
+  }
+
+  .catalog-empty__text {
+    max-width: 52ch;
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--pl-muted);
+  }
+
+  .catalog-empty__list {
+    width: 100%;
+    margin-top: 8px;
+    border-top: 1px solid var(--pl-rule);
+  }
+
+  .catalog-empty__action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    min-height: 60px;
+    border-bottom: 1px solid var(--pl-rule);
+    font-size: 17px;
+    text-align: left;
+    color: var(--pl-ink);
+    transition: color var(--dur-fast) var(--ease-out-quint);
+  }
+
+
+  @media (hover: hover) {
+    .catalog-empty__action:hover {
+      color: var(--pl-navy);
+    }
+
+    .catalog-empty__action:hover .pl-btn__arrow {
+      transform: translateX(2px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-block,
+    .skeleton-line {
+      animation: none;
+    }
+  }
+}

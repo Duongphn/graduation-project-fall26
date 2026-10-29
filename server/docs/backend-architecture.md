@@ -8,17 +8,57 @@
 4. Report 2 technology, plan and quality controls.
 5. General architecture guidance.
 
-## Dependency direction
+## Folder structure
 
-The structure adapts the Bulletproof React principle `shared -> features -> app` to the backend:
+The backend uses a layered MVC structure. Files are named `<singular-kebab-name>.<layer>.ts`.
 
 ```text
-config/shared/infrastructure -> features -> app
+src/
+  server.ts        entry point: connect MongoDB, start HTTP + Socket.IO
+  app.ts           createApp(overrides?): Express app and global middleware
+  container.ts     createContainer(overrides?): builds adapters and services
+  config/          env.ts, database.ts
+  routes/          index.ts mounts every router; <x>.routes.ts maps paths to controllers
+  controllers/     read the request, call a service, write the response
+  services/        business rules; throw AppError
+  repositories/    MongoDB queries that are not a single model call (Atlas Search, aggregates, ports)
+  models/          one Mongoose model per collection; index.ts re-exports all (see models.md)
+  validations/     request validation and parsing
+  middlewares/     authenticate, require-actor, require-admin, upload, error-handler, not-found
+  interfaces/      ports: what services need from the outside (storage, mailer, events, queries)
+  integrations/    port implementations: Cloudinary, email, events
+  types/           shared types and DTOs
+  constants/       status catalogs
+  sockets/         Socket.IO server
+  utils/           AppError, image validation
 ```
 
-The `app` layer is the only composition root. Feature-to-feature imports are prohibited. A feature that needs another capability depends on a shared port or publishes a domain event; the `app` layer wires the implementation.
+## Dependency direction
 
-The one exception is data access: a repository may read and write another feature's model file, never its service, controller or repository (`src/features/README.md`, rule 6).
+```text
+routes → controllers → services → repositories / models
+                          │
+                          ▼
+                     interfaces  ◄── implemented by integrations
+```
+
+`container.ts` is the only module that imports both services and integrations. Tests replace adapters or whole services through `createApp(overrides)`.
+
+ESLint (`no-restricted-imports` in `eslint.config.mjs`) enforces the boundaries:
+
+- `services/` must not import `integrations/`, `controllers/` or `routes/`.
+- `controllers/` must not import `models/`, `repositories/` or `integrations/`.
+- `routes/` must not import `models/` or `repositories/`.
+- `models/` must not import `services/`, `controllers/`, `routes/`, `repositories/`, `integrations/` or `middlewares/`.
+
+## Adding a module
+
+1. Model in `models/` and export it from `models/index.ts`.
+2. Ports in `interfaces/` for anything outside MongoDB; queries beyond simple model calls in `repositories/`.
+3. Service in `services/`, receiving ports through its constructor.
+4. Validation in `validations/`, controller in `controllers/`, router factory `create<X>Router(service)` in `routes/`.
+5. Build the service in `container.ts` (with an override for tests) and mount the router in `routes/index.ts`.
+6. Tests in `tests/` using `createApp({ ...overrides })` or the router factory directly.
 
 ## Workflow mapping
 
@@ -37,7 +77,7 @@ Trust  ratings + chat + notifications
 - No delivery-provider integration, delivery fee, tracking code or platform-operated delivery.
 - AI is advisory; Admin makes final moderation and dispute decisions.
 - Payments and deposits are records around an external service boundary, not an approved licensed wallet.
-- Exact status-transition permissions and timer rules remain `[NEEDS CONFIRMATION]`; the scaffold defines status catalogs but deliberately does not implement transition automation.
+- Rental flow (UC06–UC11) status transitions and timers are fully specified and implemented (see `docs/superpowers/specs/2026-10-27-uc06-uc11-rental-flow-backend-design.md` and `docs/api/rentals.md`). Automated timers run via an in-process scheduler (`RentalTimerService`). Multi-document database operations require a MongoDB replica set (`withTransaction`).
 
 ## First implementation order
 

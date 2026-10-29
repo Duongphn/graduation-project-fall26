@@ -1,0 +1,1300 @@
+@layer components {
+  /*
+   * Trang chi tiết đồ chơi (/toys/:toyId), trong AccountLayout như trang Tìm đồ chơi.
+   * Khối nội dung dùng .tf-card / .tf-pill / .tf-btn của trang đăng tin; token --pl-* từ .catalog-page.
+   */
+
+  /* ---------- Bố cục: 1 cột → ảnh + nội dung bên trái, thông tin + đặt thuê bên phải (từ 1280px) ---------- */
+  .toy-detail__layout {
+    display: grid;
+    gap: 20px;
+  }
+
+  .toy-detail__main,
+  .toy-detail__side {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  .toy-detail__main {
+    animation: var(--animate-rise-in);
+  }
+
+  .toy-detail__side {
+    animation: var(--animate-rise-in);
+    animation-delay: 60ms;
+  }
+
+  /*
+   * Màn hẹp: tách cột trái ra (display: contents) để chen cột phải ngay sau ảnh —
+   * người xem cần thấy tên, giá và lịch trước bảng thông số.
+   */
+  @media (max-width: 1279px) {
+    .toy-detail__main {
+      display: contents;
+    }
+
+    .toy-gallery {
+      order: 1;
+    }
+
+    .toy-detail__side {
+      order: 2;
+    }
+
+    .toy-detail__main > .tf-card {
+      order: 3;
+    }
+  }
+
+  .toy-detail__skeleton-media {
+    aspect-ratio: 4 / 3;
+    max-height: min(440px, 60vh);
+    border-radius: var(--radius-lg);
+  }
+
+  /* ---------- Gallery ---------- */
+  /* Khung ảnh không cao quá ~440px dù cột rộng: ảnh là phụ, lịch và giá bên phải vẫn phải lọt màn hình */
+  .toy-gallery__viewport {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    max-height: min(440px, 60vh);
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--pl-rule);
+    border-radius: var(--radius-lg);
+    background: var(--tint-0);
+  }
+
+  .toy-gallery__viewport--empty {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--pl-muted);
+  }
+
+  .toy-gallery__viewport--empty > svg {
+    width: 56px;
+    height: 56px;
+    color: color-mix(in srgb, var(--pl-navy) 40%, transparent);
+  }
+
+  .toy-gallery__track {
+    display: flex;
+    height: 100%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .toy-gallery__track::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* contain: không cắt mép ảnh đồ chơi khi khung bị giới hạn chiều cao; phần thừa là nền pastel */
+  .toy-gallery__track img {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    scroll-snap-align: start;
+  }
+
+  .toy-detail__badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--pl-navy-soft);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--pl-navy);
+  }
+
+  .toy-detail__badge--sell {
+    background: var(--pl-sell-soft);
+    color: var(--pl-sell);
+  }
+
+  .toy-gallery__arrow {
+    position: absolute;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--pl-rule);
+    border-radius: 50%;
+    background: var(--pl-paper);
+    color: var(--pl-ink);
+    transform: translateY(-50%);
+    transition:
+      opacity var(--dur-fast) var(--ease-out-quint),
+      border-color var(--dur-fast) var(--ease-out-quint),
+      color var(--dur-fast) var(--ease-out-quint);
+  }
+
+  .toy-gallery__arrow--prev {
+    left: 12px;
+  }
+
+  .toy-gallery__arrow--next {
+    right: 12px;
+  }
+
+  .toy-gallery__arrow svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .toy-gallery__arrow:disabled {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .toy-gallery__counter {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--pl-paper);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-ink);
+  }
+
+  .toy-gallery__thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 72px);
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .toy-gallery__thumb {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    background: var(--tint-0);
+    opacity: 0.75;
+    transition:
+      border-color var(--dur-fast) var(--ease-out-quint),
+      opacity var(--dur-fast) var(--ease-out-quint);
+  }
+
+  .toy-gallery__thumb[aria-current='true'] {
+    border-color: var(--pl-navy);
+    opacity: 1;
+  }
+
+  .toy-gallery__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* ---------- Thông số: bảng 2 cột (từ 640px) ---------- */
+  .toy-specs {
+    display: grid;
+    column-gap: 32px;
+  }
+
+  .toy-specs > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 10px;
+    border-bottom: 1px solid var(--pl-rule);
+    font-size: 14px;
+  }
+
+  .toy-specs dt {
+    color: var(--pl-muted);
+  }
+
+  .toy-specs dd {
+    font-weight: 600;
+    text-align: right;
+    color: var(--pl-ink);
+  }
+
+  /* ---------- Tab mô tả ---------- */
+  .detail-tabs__list {
+    margin: -4px -4px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--pl-rule);
+  }
+
+  .toy-description {
+    font-size: 15px;
+    line-height: 1.7;
+    white-space: pre-line;
+    color: var(--pl-ink);
+  }
+
+  /* ---------- Cột phải: tiêu đề, chủ đồ chơi, đặt thuê ---------- */
+  .toy-detail__head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .toy-detail__title {
+    font-size: clamp(1.5rem, 1.3rem + 0.6vw, 1.75rem);
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    color: var(--pl-ink);
+  }
+
+  .toy-detail__actions {
+    display: flex;
+    gap: 16px;
+  }
+
+  .toy-detail__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--pl-muted);
+  }
+
+  .toy-detail__action:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .toy-detail__action svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .owner-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .owner-card__avatar {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--pl-navy-soft);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--pl-navy);
+  }
+
+  .owner-card__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .owner-card__name {
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--pl-ink);
+  }
+
+  .owner-card__chat {
+    margin-left: auto;
+  }
+
+  .booking-card {
+    gap: 14px;
+  }
+
+  .booking-card__price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 14px;
+    color: var(--pl-muted);
+  }
+
+  .booking-card__price strong {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-navy);
+  }
+
+  .booking-card__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--pl-muted);
+  }
+
+  .booking-card__row strong {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-ink);
+  }
+
+  .booking-card__note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--pl-muted);
+  }
+
+  .booking-card__note {
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--pl-sell-soft);
+    color: var(--pl-sell);
+  }
+
+  .booking-card__note svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+  }
+
+  /*
+   * ---------- Thẻ đặt thuê dạng "vé thuê" (UC06) ----------
+   * Riêng cho RentalBookingCard; BuyCard và thẻ quyên góp vẫn dùng .booking-card.
+   * Đầu vé là giá, thân vé là lịch + ngày, đường xé vé tách phần tiền phía dưới.
+   */
+  .rent-ticket {
+    --rt-pad: 16px;
+    --rt-ease: var(--ease-out-quint);
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--pl-rule);
+    border-radius: 10px;
+    background: var(--pl-paper);
+    box-shadow: 0 1px 2px rgb(20 40 75 / 0.04);
+  }
+
+  .rent-ticket__head {
+    display: grid;
+    gap: 2px;
+    padding: var(--rt-pad);
+    border-bottom: 1px solid var(--pl-rule);
+    /* Vạch đồng mảnh ở mép trên: điểm nhấn duy nhất của thẻ */
+    background: linear-gradient(var(--pl-accent), var(--pl-accent)) top left / 40px 2px no-repeat;
+  }
+
+  .rent-ticket__eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pl-accent-text);
+  }
+
+  .rent-ticket__price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 6px;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__price strong {
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-navy);
+  }
+
+  .rent-ticket__price span {
+    font-size: 15px;
+  }
+
+  .rent-ticket__deposit {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 12px;
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__deposit strong {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-ink);
+  }
+
+  .rent-ticket__body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: var(--rt-pad);
+  }
+
+  .rent-ticket__section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+  }
+
+  .rent-ticket__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--pl-ink);
+  }
+
+  .rent-ticket__caption {
+    font-size: 12px;
+    color: var(--pl-muted);
+  }
+
+  /* ---------- Lịch ---------- */
+  .rent-cal {
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--pl-sunken);
+  }
+
+  .rent-cal__nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .rent-cal__month {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--pl-ink);
+  }
+
+  .rent-cal__month span {
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-muted);
+  }
+
+  .rent-cal__step {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    color: var(--pl-ink);
+    transition:
+      background-color 200ms var(--rt-ease),
+      color 200ms var(--rt-ease),
+      transform 200ms var(--rt-ease);
+  }
+
+  .rent-cal__step:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+
+  .rent-cal__step:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+  }
+
+  .rent-cal__step svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .rent-cal__grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    row-gap: 4px;
+    margin-top: 6px;
+    transition: opacity 280ms var(--rt-ease);
+  }
+
+  .rent-cal__grid.is-loading {
+    opacity: 0.45;
+  }
+
+  .rent-cal__weekday {
+    padding-block: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    color: var(--pl-muted);
+  }
+
+  /* Ô chứa ngày: vẽ dải nền liền mạch cho khoảng đã chọn */
+  .rent-cal__cell {
+    min-width: 0;
+  }
+
+  .rent-cal__cell.is-in-range {
+    background: var(--pl-navy-soft);
+  }
+
+  .rent-cal__cell.is-span-start {
+    background: linear-gradient(to right, transparent 50%, var(--pl-navy-soft) 50%);
+  }
+
+  .rent-cal__cell.is-span-end {
+    background: linear-gradient(to left, transparent 50%, var(--pl-navy-soft) 50%);
+  }
+
+  .rent-cal__day {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 40px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-ink);
+    transition:
+      background-color 200ms var(--rt-ease),
+      color 200ms var(--rt-ease),
+      box-shadow 200ms var(--rt-ease),
+      transform 200ms var(--rt-ease);
+  }
+
+  .rent-cal__day.is-free {
+    background: var(--pl-paper);
+  }
+
+  .rent-cal__day:disabled {
+    cursor: default;
+  }
+
+  .rent-cal__day.is-past,
+  .rent-cal__day.is-outside {
+    color: var(--pl-muted);
+    opacity: 0.4;
+  }
+
+  /* Ngày đã có người thuê: sọc chéo + gạch ngang, không chỉ dựa vào màu */
+  .rent-cal__day.is-booked,
+  .rent-cal__swatch.is-booked {
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent 0 4px,
+      color-mix(in srgb, var(--pl-rule-strong) 55%, transparent) 4px 5.5px
+    );
+    color: var(--pl-muted);
+    text-decoration: line-through;
+  }
+
+  .rent-cal__day.is-today {
+    box-shadow: inset 0 0 0 1.5px var(--pl-accent);
+  }
+
+  .rent-cal__day.is-in-range {
+    background: transparent;
+    color: var(--pl-navy);
+    font-weight: 600;
+  }
+
+  .rent-cal__day.is-selected,
+  .rent-cal__swatch.is-selected {
+    background: var(--pl-navy);
+    color: var(--pl-on-navy);
+    font-weight: 600;
+  }
+
+  .rent-cal__day:focus-visible,
+  .rent-cal__step:focus-visible {
+    outline: 2px solid var(--pl-navy);
+    outline-offset: 2px;
+  }
+
+  .rent-cal__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 10px;
+    padding-inline: 2px;
+    font-size: 12px;
+    color: var(--pl-muted);
+  }
+
+  .rent-cal__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .rent-cal__swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  .rent-cal__swatch.is-free {
+    border: 1px solid var(--pl-rule-strong);
+    background: var(--pl-paper);
+  }
+
+  .rent-cal__swatch.is-booked {
+    border: 1px solid var(--pl-rule-strong);
+  }
+
+  .rent-cal__error {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+    padding: 16px 4px;
+    font-size: 14px;
+    color: var(--color-tf-error);
+  }
+
+  /* ---------- Cuống vé: ngày nhận ── n ngày ── ngày trả ---------- */
+  .rent-ticket__dates {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rent-ticket__date {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--pl-rule);
+    border-radius: 8px;
+    transition:
+      border-color 220ms var(--rt-ease),
+      background-color 220ms var(--rt-ease);
+  }
+
+  .rent-ticket__date--end {
+    text-align: right;
+  }
+
+  .rent-ticket__date strong {
+    overflow: hidden;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-ink);
+  }
+
+  .rent-ticket__date strong.is-empty {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__date small {
+    overflow: hidden;
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__date.is-set {
+    border-color: color-mix(in srgb, var(--pl-navy) 40%, transparent);
+    background: color-mix(in srgb, var(--pl-navy-soft) 45%, var(--pl-paper));
+  }
+
+  /* Nối hai ô ngày bằng nét đứt; có số ngày khi đã chọn đủ */
+  .rent-ticket__span {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    height: 24px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__span::before {
+    content: '';
+    position: absolute;
+    inset: 50% 0 auto;
+    border-top: 1px dashed var(--pl-rule-strong);
+  }
+
+  .rent-ticket__span.is-set {
+    padding-inline: 8px;
+    border-radius: 999px;
+    background: var(--pl-navy-soft);
+    color: var(--pl-navy);
+  }
+
+  .rent-ticket__span.is-set::before {
+    display: none;
+  }
+
+  /* ---------- Mã giảm giá (đang khoá) ---------- */
+  .rent-ticket__voucher {
+    display: flex;
+    gap: 8px;
+  }
+
+  .rent-ticket__voucher-input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    padding-inline: 12px;
+    border: 1px dashed var(--pl-rule-strong);
+    border-radius: 8px;
+    background: transparent;
+    /* ≥ 16px để iOS không tự phóng to khi chạm vào ô nhập */
+    font-size: 16px;
+    color: var(--pl-ink);
+  }
+
+  .rent-ticket__voucher-input:disabled {
+    cursor: not-allowed;
+  }
+
+  .rent-ticket__voucher-input::placeholder {
+    font-size: 14px;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__ghost-btn {
+    flex: none;
+    height: 44px;
+    padding-inline: 16px;
+    border: 1px solid var(--pl-rule-strong);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pl-navy);
+    transition:
+      background-color 200ms var(--rt-ease),
+      border-color 200ms var(--rt-ease),
+      transform 200ms var(--rt-ease);
+  }
+
+  .rent-ticket__ghost-btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .rent-ticket__ghost-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .rent-ticket__ghost-btn:focus-visible {
+    outline: 2px solid var(--pl-navy);
+    outline-offset: 2px;
+  }
+
+  /* ---------- Đường xé vé: nét đứt + hai khuyết tròn ở mép ---------- */
+  .rent-ticket__perforation {
+    position: relative;
+    height: 0;
+    margin-inline: var(--rt-pad);
+    border-top: 1.5px dashed var(--pl-rule-strong);
+  }
+
+  .rent-ticket__perforation::before,
+  .rent-ticket__perforation::after {
+    content: '';
+    position: absolute;
+    top: -9px;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--pl-rule);
+    border-radius: 50%;
+    background: var(--pl-bg);
+  }
+
+  /* Chỉ giữ nửa trong của hình tròn để thành vết khuyết */
+  .rent-ticket__perforation::before {
+    left: calc(-1 * var(--rt-pad) - 10px);
+    clip-path: inset(0 0 0 50%);
+  }
+
+  .rent-ticket__perforation::after {
+    right: calc(-1 * var(--rt-pad) - 10px);
+    clip-path: inset(0 50% 0 0);
+  }
+
+  /* ---------- Phần tiền ---------- */
+  .rent-ticket__foot {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: var(--rt-pad);
+  }
+
+  .rent-ticket__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rent-ticket__summary > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  .rent-ticket__summary dt {
+    min-width: 0;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__summary dd {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--pl-ink);
+  }
+
+  .rent-ticket__summary > .rent-ticket__total {
+    align-items: baseline;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--pl-rule);
+  }
+
+  .rent-ticket__total dt {
+    font-weight: 600;
+    color: var(--pl-ink);
+  }
+
+  .rent-ticket__summary .rent-ticket__total dd {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--pl-navy);
+  }
+
+  .rent-ticket__hint,
+  .rent-ticket__note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__hint {
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--pl-sunken);
+  }
+
+  .rent-ticket__hint svg,
+  .rent-ticket__note svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+  }
+
+  .rent-ticket__note svg {
+    color: var(--pl-sell);
+  }
+
+  .rent-ticket__submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 48px;
+    padding-inline: 20px;
+    border-radius: 8px;
+    background: var(--pl-navy);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--pl-on-navy);
+    transition:
+      background-color 220ms var(--rt-ease),
+      box-shadow 220ms var(--rt-ease),
+      transform 220ms var(--rt-ease);
+  }
+
+  .rent-ticket__submit:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .rent-ticket__submit:focus-visible {
+    outline: 2px solid var(--pl-navy);
+    outline-offset: 3px;
+  }
+
+  .rent-ticket__submit:disabled {
+    cursor: not-allowed;
+    background: color-mix(in srgb, var(--pl-navy) 38%, var(--pl-paper));
+  }
+
+  /* Nút "Đăng nhập để đặt thuê" là link nhưng trông như nút chính */
+  a.rent-ticket__submit {
+    gap: 8px;
+    text-decoration: none;
+  }
+
+  a.rent-ticket__submit svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Đang chờ server báo giá: số tạm tính mờ đi, không nhảy bố cục */
+  .rent-ticket__summary {
+    transition: opacity 220ms var(--rt-ease);
+  }
+
+  .rent-ticket__summary.is-loading {
+    opacity: 0.55;
+  }
+
+  .rent-ticket__fee dt {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .rent-ticket__fee small {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--pl-muted);
+  }
+
+  .rent-ticket__summary .rent-ticket__fee dd {
+    font-weight: 500;
+    color: var(--pl-muted);
+  }
+
+  /* Lỗi từ server: chưa xác thực, trùng lịch, tự thuê tin của mình… */
+  .rent-ticket__alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-left: 3px solid var(--color-tf-error);
+    border-radius: 6px;
+    background: var(--color-tf-error-container);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--color-tf-error);
+  }
+
+  .rent-ticket__alert > svg {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+  }
+
+  .rent-ticket__alert > div {
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .rent-ticket__alert-link {
+    font-weight: 600;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    color: var(--pl-navy);
+    transition: color 200ms var(--rt-ease);
+  }
+
+  .rent-ticket__alert-link:focus-visible {
+    outline: 2px solid var(--pl-navy);
+    outline-offset: 2px;
+  }
+
+  /* Đã gửi yêu cầu: đơn PENDING */
+  .rent-ticket__success {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    animation: var(--animate-rise-in);
+  }
+
+  .rent-ticket__success-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--pl-sell);
+  }
+
+  .rent-ticket__success-title svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .rent-ticket__success .rent-ticket__ghost-btn {
+    align-self: stretch;
+  }
+
+  @media (hover: hover) {
+    .rent-cal__step:hover:not(:disabled) {
+      background: var(--pl-paper);
+      color: var(--pl-navy);
+    }
+
+    .rent-cal__day.is-free:not(.is-selected, .is-in-range):hover {
+      transform: translateY(-2px);
+      box-shadow:
+        inset 0 0 0 1px var(--pl-navy),
+        0 3px 8px rgb(20 40 75 / 0.12);
+      color: var(--pl-navy);
+    }
+
+    .rent-ticket__ghost-btn:hover:not(:disabled) {
+      border-color: var(--pl-navy);
+      background: var(--pl-navy-soft);
+    }
+
+    .rent-ticket__alert-link:hover {
+      color: var(--pl-navy-hover);
+    }
+
+    .rent-ticket__submit:hover:not(:disabled) {
+      transform: translateY(-2px);
+      background: var(--pl-navy-hover);
+      box-shadow: 0 6px 16px rgb(20 40 75 / 0.18);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rent-ticket *,
+    .rent-ticket *::before,
+    .rent-ticket *::after {
+      transition-duration: 0ms !important;
+    }
+  }
+
+  /* Màn rất hẹp (≤ 359px): ô ngày gọn lại, mã giảm giá xuống dòng */
+  @media (max-width: 359px) {
+    .rent-ticket {
+      --rt-pad: 14px;
+    }
+
+    .rent-cal {
+      padding: 6px;
+    }
+
+    .rent-cal__day {
+      height: 36px;
+      font-size: 13px;
+    }
+
+    .rent-ticket__dates {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .rent-ticket__span {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: center;
+    }
+
+    .rent-ticket__span:not(.is-set) {
+      display: none;
+    }
+
+    .rent-ticket__voucher {
+      flex-wrap: wrap;
+    }
+
+    .rent-ticket__ghost-btn {
+      flex: 1;
+    }
+  }
+
+  /* Tablet: thẻ nằm dưới nội dung, trải rộng — chia lịch và phần ngày/tiền thành hai cột */
+  @media (min-width: 640px) {
+    .rent-ticket {
+      --rt-pad: 20px;
+    }
+
+    .rent-cal__day {
+      height: 42px;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1279px) {
+    .rent-ticket__body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+      grid-template-areas:
+        'head  head'
+        'cal   dates'
+        'cal   voucher';
+      align-items: start;
+      column-gap: 24px;
+    }
+
+    .rent-ticket__section-head {
+      grid-area: head;
+    }
+
+    .rent-cal {
+      grid-area: cal;
+    }
+
+    .rent-ticket__dates {
+      grid-area: dates;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .rent-ticket__date--end {
+      text-align: left;
+    }
+
+    .rent-ticket__span {
+      justify-self: start;
+      margin-left: 12px;
+    }
+
+    .rent-ticket__span:not(.is-set) {
+      width: 1px;
+      min-width: 0;
+      height: 16px;
+    }
+
+    .rent-ticket__span:not(.is-set)::before {
+      inset: 0 auto 0 0;
+      border-top: 0;
+      border-left: 1px dashed var(--pl-rule-strong);
+    }
+
+    .rent-ticket__voucher {
+      grid-area: voucher;
+      align-self: end;
+    }
+  }
+
+  /* ---------- Đồ chơi cùng danh mục ---------- */
+  .similar-toys {
+    margin-top: 40px;
+  }
+
+  .similar-toys__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ---------- Thanh giá cố định (khi thẻ đặt thuê nằm dưới cùng) ---------- */
+  .toy-detail:has(.toy-detail__bar) {
+    padding-bottom: 72px;
+  }
+
+  .toy-detail__bar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--pl-rule);
+    background: var(--pl-paper);
+  }
+
+  .toy-detail__bar-price {
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--pl-navy);
+  }
+
+  .toy-detail__bar-price span {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--pl-muted);
+  }
+
+  #dat-thue {
+    scroll-margin-top: 80px;
+  }
+
+  /* ---------- Hover ---------- */
+  @media (hover: hover) {
+    .toy-gallery__arrow:hover {
+      border-color: var(--pl-navy);
+      color: var(--pl-navy);
+    }
+
+    .toy-gallery__thumb:hover {
+      opacity: 1;
+    }
+  }
+
+  /* ---------- Breakpoint ---------- */
+  @media (min-width: 640px) {
+    .toy-specs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Từ 1024px sidebar điều hướng (w-72 = 18rem) chiếm bên trái: thanh dưới bắt đầu sau nó */
+  @media (min-width: 1024px) {
+    .toy-detail__bar {
+      left: 18rem;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .toy-detail__layout {
+      grid-template-columns: minmax(0, 1fr) 400px;
+      align-items: start;
+      gap: 24px;
+    }
+
+    .toy-detail:has(.toy-detail__bar) {
+      padding-bottom: 0;
+    }
+
+    .toy-detail__bar {
+      display: none;
+    }
+  }
+}

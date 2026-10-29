@@ -1,0 +1,135 @@
+/* Thứ tự layer: style của Ant Design nằm dưới utilities để class Tailwind ghi đè được */
+@layer theme, base, antd, components, utilities;
+
+@import 'tailwindcss';
+@import './styles/components.css';
+@import './features/auth/auth.css';
+@import './layouts/account/account-layout.css';
+@import './features/toy-listings/toy-listing.css';
+@import './features/toy-listings/my-listings.css';
+@import './features/profile/profile.css';
+@import './features/profile/identity-verification.css';
+@import './layouts/public/public-layout.css';
+@import './features/toy-catalog/toy-catalog.css';
+@import './features/toy-catalog/toy-search.css';
+@import './features/toy-catalog/toy-detail.css';
+@import './features/rentals/rentals.css';
+@import './layouts/site/site-layout.css';
+@import './features/home/home.css';
+@import './features/ai-chat/ai-chat.css';
+
+/* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Be Vietnam Pro: thiết kế riêng cho tiếng Việt — dấu thanh không chồng lên nhau, không lệch dòng */
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif;
+  /* Playfair Display: serif tương phản cao cho tiêu đề, có bộ glyph tiếng Việt đầy đủ */
+  --font-display: 'Playfair Display', ui-serif, Georgia, serif;
+
+  --color-brand-navy: #152152;
+  --color-brand-button: #24338a;
+  --color-brand-button-hover: #1c2870;
+
+  /*
+   * Bảng màu trang tài khoản: navy sẫm làm chủ đạo, ánh đồng (brass) làm điểm nhấn,
+   * nền tím nhạt của thiết kế gốc (ToyFlow Replay). Độ tương phản chữ/nền đều ≥ 4.5:1.
+   */
+  --color-tf-page: #faf8ff;
+  --color-tf-surface-low: #f2f3ff;
+  --color-tf-surface: #eaedff;
+  --color-tf-surface-high: #e2e7ff;
+  --color-tf-ink: #12171f;
+  --color-tf-ink-muted: #565c68;
+  --color-tf-outline: #c4c5d5;
+  --color-tf-primary: #14284b;
+  --color-tf-primary-container: #20396a;
+  --color-tf-primary-fixed: #e4e8f0;
+  --color-tf-accent: #a8854f;
+  --color-tf-secondary: #2c6a52;
+  --color-tf-secondary-container: #dcebe3;
+  --color-tf-tertiary: #7d5f2a;
+  --color-tf-tertiary-fixed: #f2e9d8;
+  --color-tf-error: #b3261e;
+  --color-tf-error-container: #fbe5e2;
+
+  /*
+   * Trang công khai (trang chủ, header/footer site): nền hero xanh navy, nút xanh dương,
+   * điểm nhấn hổ phách cho chữ nổi bật, xanh lá cho khu quyên góp.
+   */
+  --color-site-page: #faf8ff;
+  --color-site-hero: #14284b;
+  --color-site-hero-deep: #20396a;
+  --color-site-hero-accent: #e4e8f0;
+  --color-site-primary: #14284b;
+  --color-site-primary-hover: #20396a;
+  --color-site-ink: #12171f;
+  --color-site-muted: #565c68; /* chữ phụ: ≥ 4.5:1 trên nền trang và nền xám nhạt */
+  --color-site-line: #eaedff;
+  /* Chữ nhấn trên nền sáng: ≥ 3:1 với chữ tiêu đề lớn (WCAG AA); bản sáng chỉ dùng trên nền tối / làm nền nút */
+  --color-site-highlight: #a8854f;
+  --color-site-highlight-bright: #a8854f;
+  /* Giá đồ bán lại, nhãn "Bán lại": ≥ 4.5:1 trên nền trắng (chữ thường) */
+  --color-site-sale: #7d5f2a;
+  --color-site-night: #14284b;
+  --color-site-donate: #2c6a52;
+
+  /* Một đường cong chuyển động dùng chung: khởi động nhanh, dừng êm */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-rise-in: rise-in 520ms var(--ease-out-quint) both;
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Bề mặt dark mode: xám trung tính hơi ám xanh tím, không dùng slate (quá xanh) */
+  --color-night-950: #15161e;
+  --color-night-900: #1c1d27;
+  --color-night-800: #262733;
+  --color-night-700: #3a3b47;
+}
+
+/* Màu của khu quản trị và trang quyên góp: giá trị nằm trong src/styles/palette.ts và được ghi
+   thành biến --tf-* lúc khởi động (applyCssVariables). Ví dụ: bg-primary, text-muted. */
+@theme inline {
+  --color-primary: var(--tf-primary);
+  --color-primary-hover: var(--tf-primary-hover);
+  --color-primary-soft: var(--tf-primary-soft);
+  --color-secondary: var(--tf-secondary);
+  --color-secondary-soft: var(--tf-secondary-soft);
+  --color-success: var(--tf-success);
+  --color-warning: var(--tf-warning);
+  --color-danger: var(--tf-danger);
+  --color-info: var(--tf-info);
+  --color-text: var(--tf-text);
+  --color-muted: var(--tf-text-muted);
+  --color-border: var(--tf-border);
+  --color-surface: var(--tf-surface);
+  --color-background: var(--tf-background);
+  --color-sidebar: var(--tf-sidebar);
+}
+
+@layer base {
+  body {
+    @apply bg-tf-page font-sans text-slate-900 antialiased dark:bg-night-950 dark:text-slate-100;
+  }
+
+  /* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
