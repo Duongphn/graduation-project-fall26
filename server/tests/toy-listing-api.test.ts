@@ -1,6 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import mongoose, { type Model } from 'mongoose';
+import mongoose, { type ClientSession, type Model } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,6 +14,7 @@ import type { ToyImageStorage } from '../src/interfaces/toy-listing.ports.js';
 import { errorHandler } from '../src/middlewares/error-handler.js';
 
 const CATEGORY_ID = '64b000000000000000000001';
+const CATEGORY_NAME = 'Đồ chơi STEM';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -116,6 +117,10 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
   const ports: ToyListingPorts = {
     isVerifiedUser: async () => state.verified,
     categoryExists: async () => state.categoryExists,
+    saveWithActiveCategory: async (_categoryId, save) =>
+      state.categoryExists
+        ? { result: await save({} as ClientSession), categoryName: CATEGORY_NAME }
+        : null,
     hasUnfinishedOrder: async () => state.unfinishedOrder,
     getSoldToyIds: async (toyIds) => new Set(toyIds.filter((id) => state.soldIds.has(id))),
   };

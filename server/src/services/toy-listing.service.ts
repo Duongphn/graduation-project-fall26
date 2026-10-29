@@ -140,8 +140,15 @@ export class ToyListingService {
         quantity: 1,
       });
 
-      const saved = await newToy.save();
-      return this.mapToDto(saved, 'pending');
+      // The check above ran before the uploads; the touch write re-checks the category atomically.
+      const touched = await this.ports.saveWithActiveCategory(
+        validatedInput.categoryId,
+        (session) => newToy.save({ session }),
+      );
+      if (!touched) {
+        throw categoryNotAvailable();
+      }
+      return this.mapToDto(touched.result, 'pending');
     } catch (dbError) {
       if (uploadedAssets.length > 0) {
         try {
@@ -331,7 +338,18 @@ export class ToyListingService {
 
       listing.images = [...remainingImages, ...newUploadedAssets];
 
-      const saved = await listing.save();
+      let saved: typeof listing;
+      if (categoryChanged) {
+        const touched = await this.ports.saveWithActiveCategory(newCategoryId, (session) =>
+          listing.save({ session }),
+        );
+        if (!touched) {
+          throw categoryNotAvailable();
+        }
+        saved = touched.result;
+      } else {
+        saved = await listing.save();
+      }
 
       if (toDelete.length > 0) {
         try {

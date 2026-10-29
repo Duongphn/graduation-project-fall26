@@ -1,3 +1,5 @@
+import type { ClientSession } from 'mongoose';
+
 export type ListingType = 'rent' | 'sell';
 
 export type StoredListingStatus = 'pending' | 'active' | 'hidden';
@@ -46,6 +48,16 @@ export interface ToyListingDto {
 export interface ToyListingPorts {
   isVerifiedUser(userId: string): Promise<boolean>;
   categoryExists(categoryId: string): Promise<boolean>;
+  /**
+   * Runs `save` in a transaction that first touches the category (conditional write on
+   * `{ _id, status: active }`), so a concurrent hide or delete of the category write-conflicts
+   * with the toy save. Resolves null, without calling `save`, when the category is missing or not
+   * active; otherwise the save result and the category name read by the same write.
+   */
+  saveWithActiveCategory<T>(
+    categoryId: string,
+    save: (session: ClientSession) => Promise<T>,
+  ): Promise<{ result: T; categoryName: string } | null>;
   hasUnfinishedOrder(toyId: string): Promise<boolean>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
 }
