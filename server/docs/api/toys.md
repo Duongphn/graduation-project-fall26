@@ -135,13 +135,19 @@ These endpoints do not require authentication (`request.auth`).
 
 ### Owner Listing Management Endpoints (UC04)
 
-These endpoints require an authenticated user actor (`request.auth`).
+These endpoints require an authenticated user actor (`request.auth`). An Admin account gets `403 FORBIDDEN`: Admin accounts cannot own or manage toy listings.
 
 - `POST /api/v1/toys`: Create a pending toy listing (multipart form data with up to 10 images).
 - `GET /api/v1/toys/mine`: List owner's listings (supports `status` filter: `pending`, `active`, `hidden`, `sold`).
 - `PATCH /api/v1/toys/:toyId`: Edit an owned listing and add/remove images.
 - `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
+
+Category rules:
+
+- Listing responses carry `categoryId` and `categoryName`; the name is also given for a category an Admin has hidden (`GET /categories` lists only active ones), and is `""` if the category no longer exists.
+- Create, and an edit that changes `categoryId`, need an active category (`400 CATEGORY_NOT_FOUND` otherwise). An edit that resends the toy's current `categoryId` is accepted even if an Admin hid that category after the toy was posted.
+- The toy is saved in a transaction that first writes its category (`$inc __v` while the category is active), so an Admin hide or delete running at the same time conflicts with the save: either the toy is refused, or the delete sees it (`409 CATEGORY_IN_USE`). This needs a MongoDB replica set, like the other transactions.
 
 ---
 
