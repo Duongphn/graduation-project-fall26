@@ -5,11 +5,12 @@ import type { WithMessage } from '../../types/api'
 import { categoriesApi } from './api'
 import type { CategoryListParams } from './types'
 
+// Root key ['categories'] is shared with toy-listings' categoriesQuery (GET /categories), so every
+// category change here also refreshes the post form's category list.
 export const categoryKeys = {
   all: ['categories'] as const,
   adminList: (params: CategoryListParams) => [...categoryKeys.all, 'admin-list', params] as const,
   adminOptions: () => [...categoryKeys.all, 'admin-options'] as const,
-  publicList: () => [...categoryKeys.all, 'public'] as const,
 }
 
 export const useAdminCategories = (params: CategoryListParams) =>
@@ -17,14 +18,6 @@ export const useAdminCategories = (params: CategoryListParams) =>
     queryKey: categoryKeys.adminList(params),
     queryFn: () => categoriesApi.listAdmin(params),
     placeholderData: keepPreviousData,
-  })
-
-// For post forms and search filters in other features.
-export const usePublicCategories = () =>
-  useQuery({
-    queryKey: categoryKeys.publicList(),
-    queryFn: categoriesApi.listPublic,
-    staleTime: 300_000,
   })
 
 // Options of Admin category filters (hidden ones included). Under categoryKeys.all, so creating,
