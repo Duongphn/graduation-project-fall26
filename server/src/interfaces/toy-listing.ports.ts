@@ -57,7 +57,8 @@ export interface ToyListingPorts {
    * active; otherwise the save result and the category name read by the same write.
    * `save` can run more than once: the transaction is run again after a write conflict or a
    * transient commit error. So it must build its write on every call (a new document, or the toy
-   * re-read with `session`), never save a document built or saved outside it.
+   * re-read with `session`), never save a document built or saved outside it. A re-read toy must
+   * not have changed since it was first read (same `__v`), or the edit is refused.
    */
   saveWithActiveCategory<T>(
     categoryId: string,

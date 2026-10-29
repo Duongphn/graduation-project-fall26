@@ -303,6 +303,66 @@ describe('a commit that fails once with a transient error', () => {
   });
 });
 
+describe('another edit of the same toy saved during the upload', () => {
+  // The other edit (a second tab) replaced the image and bumped __v, as every images change does,
+  // while this PATCH uploaded its new image. This PATCH's images come from the toy before that.
+  const replaceImagesDuringUpload = (toyId: string) => {
+    duringUpload = async () => {
+      await ToyModel.updateOne(
+        { _id: toyId },
+        {
+          $set: { images: [{ url: 'https://cdn.test/other.jpg', publicId: 'other/2' }] },
+          $inc: { __v: 1 },
+        },
+      );
+    };
+  };
+
+  it('refuses an edit that changes the category with 409 LISTING_CHANGED', async () => {
+    const from = await createCategory('Trước khi sửa');
+    const to = await createCategory('Sau khi sửa');
+    const toy = (await postToy(from)).body as { id: string };
+    replaceImagesDuringUpload(toy.id);
+
+    const response = await request(app)
+      .patch(`/api/v1/toys/${toy.id}`)
+      .set('Authorization', OWNER)
+      .field('title', 'Tàu gỗ (mới)')
+      .field('categoryId', to)
+      .attach('images', JPEG, { filename: 'new.jpg', contentType: 'image/jpeg' });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('LISTING_CHANGED');
+    // The other edit is kept; this one, category touch included, is not stored.
+    const stored = await ToyModel.findById(toy.id).lean();
+    expect(stored?.title).toBe('Tàu gỗ');
+    expect(String(stored?.categoryId)).toBe(from);
+    expect(stored?.images.map((image) => image.publicId)).toEqual(['other/2']);
+    expect((await CategoryModel.findById(to).lean())?.__v).toBe(0);
+    // Only this edit's own upload is deleted.
+    expect(deletedImages).toEqual([`toyflow/toys/${uploads}`]);
+  });
+
+  it('refuses an edit that keeps the category with the same 409', async () => {
+    const categoryId = await createCategory('Giữ danh mục');
+    const toy = (await postToy(categoryId)).body as { id: string };
+    replaceImagesDuringUpload(toy.id);
+
+    const response = await request(app)
+      .patch(`/api/v1/toys/${toy.id}`)
+      .set('Authorization', OWNER)
+      .field('title', 'Tàu gỗ (mới)')
+      .attach('images', JPEG, { filename: 'new.jpg', contentType: 'image/jpeg' });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe('LISTING_CHANGED');
+    const stored = await ToyModel.findById(toy.id).lean();
+    expect(stored?.title).toBe('Tàu gỗ');
+    expect(stored?.images.map((image) => image.publicId)).toEqual(['other/2']);
+    expect(deletedImages).toEqual([`toyflow/toys/${uploads}`]);
+  });
+});
+
 describe('toy listings and admin accounts', () => {
   it('refuses an Admin account creating a listing with 403 FORBIDDEN', async () => {
     const categoryId = await createCategory('Admin không đăng');

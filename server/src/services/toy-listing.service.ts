@@ -21,6 +21,14 @@ import {
 const categoryNotAvailable = () =>
   new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
 
+// Another save changed the toy after this request read it; the edit was computed from that read.
+const listingChanged = () =>
+  new AppError(
+    409,
+    'LISTING_CHANGED',
+    'The listing was changed in the meantime. Reload it and try again.',
+  );
+
 export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
@@ -363,6 +371,12 @@ export class ToyListingService {
           if (!toy) {
             throw new AppError(404, 'NOT_FOUND', 'Listing not found');
           }
+          // The edit, its images in particular, was computed from `listing`: refuse it when another
+          // save changed the toy since (every images change bumps __v), as the version check of
+          // `listing.save()` does on the other path.
+          if (toy.__v !== listing.__v) {
+            throw listingChanged();
+          }
           applyEdit(toy);
           return toy.save({ session });
         });
@@ -373,7 +387,13 @@ export class ToyListingService {
         touchedCategoryName = touched.categoryName;
       } else {
         applyEdit(listing);
-        saved = await listing.save();
+        try {
+          saved = await listing.save();
+        } catch (saveError) {
+          // Mongoose's version check failed: this edit sets the images, and another save changed
+          // them since `listing` was read.
+          throw saveError instanceof mongoose.Error.VersionError ? listingChanged() : saveError;
+        }
       }
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
