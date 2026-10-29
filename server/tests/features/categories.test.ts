@@ -1,5 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -216,31 +215,8 @@ describe('delete', () => {
     expect(refused.body.error).toMatchObject({ code: 'CATEGORY_IN_USE', details: { toyCount: 1 } });
     expect(await AuditLogModel.countDocuments({ action: 'category.delete' })).toBe(1);
   });
-
-  it('never deletes a category while a toy transaction that touched it is saving a toy', async () => {
-    const category = await createCategory('Tranh chấp');
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    // What the toys feature does when it saves a toy (see the feature README).
-    await CategoryModel.findOneAndUpdate(
-      { _id: category.id, status: 'active' },
-      { $inc: { __v: 1 } },
-      { session },
-    );
-    const toy = (await createToy({ categoryId: category.id })).toObject();
-    await ToyModel.deleteOne({ _id: toy._id });
-    await ToyModel.create([{ ...toy, _id: newId() }], { session });
-
-    const pending = del(`/${category.id}`).then((response) => response);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await session.commitTransaction();
-    await session.endSession();
-
-    const response = await pending;
-    expect(response.status).toBe(409);
-    expect(response.body.error.code).toBe('CATEGORY_IN_USE');
-    expect(await CategoryModel.exists({ _id: category.id })).not.toBeNull();
-  });
+  // The race with a real toy save ("Category rules" in docs/api/toys.md) is in
+  // toy-categories.test.ts.
 });
 
 describe('reorder', () => {
