@@ -65,6 +65,18 @@ const postToy = (categoryId: string) =>
 const patchToy = (toyId: string, body: object) =>
   request(app).patch(`/api/v1/toys/${toyId}`).set('Authorization', OWNER).send(body);
 
+// POST /donation-posts saves a 'donate' toy under the same category rules.
+const postDonation = (categoryId: string) =>
+  request(app)
+    .post('/api/v1/donation-posts')
+    .set('Authorization', OWNER)
+    .field('title', 'Gấu bông')
+    .field('description', 'Gấu bông còn mới, đã giặt sạch')
+    .field('condition', 'like_new')
+    .field('categoryId', categoryId)
+    .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }))
+    .attach('images', JPEG, { filename: 'gau.jpg', contentType: 'image/jpeg' });
+
 const deleteCategory = (id: string) =>
   request(app).delete(`/api/v1/admin/categories/${id}`).set('Authorization', ADMIN);
 
@@ -275,6 +287,19 @@ describe('a commit that fails once with a transient error', () => {
     // The image the edit removed is deleted; the new upload, which the toy now uses, is kept.
     expect(deletedImages).toEqual([removed]);
   });
+
+  it('still creates a donation post', async () => {
+    const categoryId = await createCategory('Quyên góp lúc lỗi commit');
+    const commits = failNextCommitOnce();
+
+    const response = await postDonation(categoryId);
+    expect(commits).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(201);
+    const stored = await ToyModel.find({}).lean();
+    expect(stored.map((toy) => String(toy._id))).toEqual([response.body.data.id]);
+    expect(stored[0]?.listingType).toBe('donate');
+    expect(deletedImages).toEqual([]);
+  });
 });
 
 describe('toy listings and admin accounts', () => {
@@ -377,6 +402,38 @@ describe('category hide/delete racing a toy save', () => {
     const category = await CategoryModel.findById(categoryId).lean();
     expect(category?.status).toBe('active');
     expect(await ToyModel.countDocuments({ categoryId })).toBe(1);
+  });
+
+  it('touches the category of a donation post', async () => {
+    const categoryId = await createCategory('Gấu bông');
+    const response = await postDonation(categoryId);
+    expect(response.status).toBe(201);
+    expect(response.body.data).toMatchObject({ listingType: 'donate', categoryId });
+    expect((await CategoryModel.findById(categoryId).lean())?.__v).toBe(1);
+  });
+
+  it('refuses a donation post whose category is hidden during the upload', async () => {
+    const categoryId = await createCategory('Ẩn khi đang tải ảnh');
+    duringUpload = async () => {
+      await CategoryModel.updateOne({ _id: categoryId }, { status: 'hidden' });
+    };
+    const response = await postDonation(categoryId);
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
+    expect(await ToyModel.countDocuments()).toBe(0);
+    expect(deletedImages).toHaveLength(1);
+  });
+
+  it('never leaves a donation post on a category deleted during the upload', async () => {
+    const categoryId = await createCategory('Xoá khi đang tải ảnh');
+    duringUpload = async () => {
+      expect((await deleteCategory(categoryId)).status).toBe(200);
+    };
+    const response = await postDonation(categoryId);
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
+    expect(await ToyModel.countDocuments()).toBe(0);
+    expect(deletedImages).toHaveLength(1);
   });
 
   it('either the delete sees the toy or the toy sees the category gone, when both run at once', async () => {

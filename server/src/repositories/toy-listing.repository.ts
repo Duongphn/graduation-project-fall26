@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { type ClientSession } from 'mongoose';
 
 import type { ToyListingPorts } from '../interfaces/toy-listing.ports.js';
 import Category from '../models/category.model.js';
@@ -11,6 +11,35 @@ const TERMINAL_ORDER_STATUS_REGEX = /^(completed|rejected|cancell?ed|expired)$/i
 const VERIFIED_STATUS_REGEX = /^verified$/i;
 const ACTIVE_STATUS_REGEX = /^active$/i;
 const COMPLETED_STATUS_REGEX = /^completed$/i;
+
+/**
+ * ToyListingPorts.saveWithActiveCategory (see the port), also used by POST /donation-posts: every
+ * toy save that needs an active category goes through it ("Category rules" in docs/api/toys.md).
+ * A touch write instead of a read: the Admin hide (changeStatus) and delete (lockForDelete) of a
+ * category write the same document in their own transaction, so the two conflict and
+ * withTransaction retries the loser with fresh data. Timestamps off: a toy save is not an edit of
+ * the category (the Admin list shows its updatedAt). Each retry calls `save` again, so `save`
+ * builds its write inside.
+ */
+export async function saveWithActiveCategory<T>(
+  categoryId: string,
+  save: (session: ClientSession) => Promise<T>,
+): Promise<{ result: T; categoryName: string } | null> {
+  if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+    return null;
+  }
+  return withTransaction(async (session) => {
+    const category = await Category.findOneAndUpdate(
+      { _id: categoryId, status: { $regex: ACTIVE_STATUS_REGEX } },
+      { $inc: { __v: 1 } },
+      { session, timestamps: false, projection: { name: 1 } },
+    );
+    if (!category) {
+      return null;
+    }
+    return { result: await save(session), categoryName: category.name };
+  });
+}
 
 /** Truy vấn ngoài collection toys mà ToyListingService cần (xác minh, danh mục, đơn hàng) */
 export function createToyListingPorts(): ToyListingPorts {
@@ -37,27 +66,7 @@ export function createToyListingPorts(): ToyListingPorts {
       return Boolean(record);
     },
 
-    // A touch write instead of a read: the Admin hide (changeStatus) and delete (lockForDelete)
-    // of a category write the same document in their own transaction, so the two conflict and
-    // withTransaction retries the loser with fresh data. Timestamps off: a toy save is not an
-    // edit of the category (the Admin list shows its updatedAt). Each retry calls `save` again,
-    // so `save` builds its write inside (see the port).
-    async saveWithActiveCategory(categoryId, save) {
-      if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-        return null;
-      }
-      return withTransaction(async (session) => {
-        const category = await Category.findOneAndUpdate(
-          { _id: categoryId, status: { $regex: ACTIVE_STATUS_REGEX } },
-          { $inc: { __v: 1 } },
-          { session, timestamps: false, projection: { name: 1 } },
-        );
-        if (!category) {
-          return null;
-        }
-        return { result: await save(session), categoryName: category.name };
-      });
-    },
+    saveWithActiveCategory,
 
     async hasUnfinishedOrder(toyId: string): Promise<boolean> {
       if (!mongoose.Types.ObjectId.isValid(toyId)) {

@@ -4,6 +4,7 @@ import type { ToyImageStorage } from '../interfaces/toy-listing.ports.js';
 import { Category } from '../models/category.model.js';
 import { IdentityVerification } from '../models/identity-verification.model.js';
 import { Toy } from '../models/toy.model.js';
+import { saveWithActiveCategory } from '../repositories/toy-listing.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
 import { validateCreateToyListingInput } from '../validations/toy-listing.validation.js';
@@ -12,7 +13,9 @@ import { validateCreateToyListingInput } from '../validations/toy-listing.valida
 // rent/sell listings, so donation posts are created here with develop's toys model
 // (listingType 'donate', priceOrRate 0) and go through Admin moderation like any listing
 // (status 'pending'). Same checks as develop's listing: verified identity, active category,
-// 1-10 images (JPEG/PNG/WebP, develop's toyImageUpload middleware).
+// 1-10 images (JPEG/PNG/WebP, develop's toyImageUpload middleware). Like POST /toys, the toy is
+// saved in the transaction that touches its category, so an Admin hide or delete during the
+// upload cannot leave the post on that category ("Category rules" in docs/api/toys.md).
 
 const isVerifiedUser = async (userId: string) =>
   (await IdentityVerification.exists({ userId, status: { $regex: /^verified$/i } })) !== null;
@@ -20,6 +23,9 @@ const isVerifiedUser = async (userId: string) =>
 const isActiveCategory = async (categoryId: string) =>
   mongoose.Types.ObjectId.isValid(categoryId) &&
   (await Category.exists({ _id: categoryId, status: { $regex: /^active$/i } })) !== null;
+
+const categoryNotAvailable = () =>
+  new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
 
 export const createDonationPost = async (
   imageStorage: ToyImageStorage,
@@ -38,7 +44,7 @@ export const createDonationPost = async (
   // the price fields do not apply to a donation.
   const input = validateCreateToyListingInput({ ...body, listingType: 'sell', priceOrRate: 1 });
   if (!(await isActiveCategory(input.categoryId))) {
-    throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+    throw categoryNotAvailable();
   }
   if (files.length === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', 'At least one image is required.');
@@ -52,20 +58,27 @@ export const createDonationPost = async (
   };
   try {
     for (const file of files) uploaded.push(await imageStorage.upload(file.buffer, file.mimetype));
-    const toy = await Toy.create({
-      ownerId: new mongoose.Types.ObjectId(userId),
-      categoryId: new mongoose.Types.ObjectId(input.categoryId),
-      title: input.title,
-      description: input.description,
-      condition: input.condition,
-      listingType: 'donate' as unknown as 'sell',
-      priceOrRate: 0,
-      status: 'pending',
-      moderation: { submittedAt: new Date() },
-      ageRange: input.ageRange,
-      images: uploaded,
-      quantity: 1,
-    });
+    // The check above ran before the uploads; the touch write re-checks the category atomically.
+    // A new document on every run of the callback, which runs again after a transient commit
+    // error.
+    const touched = await saveWithActiveCategory(input.categoryId, (session) =>
+      new Toy({
+        ownerId: new mongoose.Types.ObjectId(userId),
+        categoryId: new mongoose.Types.ObjectId(input.categoryId),
+        title: input.title,
+        description: input.description,
+        condition: input.condition,
+        listingType: 'donate' as unknown as 'sell',
+        priceOrRate: 0,
+        status: 'pending',
+        moderation: { submittedAt: new Date() },
+        ageRange: input.ageRange,
+        images: uploaded,
+        quantity: 1,
+      }).save({ session }),
+    );
+    if (!touched) throw categoryNotAvailable();
+    const toy = touched.result;
     return {
       id: String(toy._id),
       ownerId: userId,
