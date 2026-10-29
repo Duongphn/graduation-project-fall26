@@ -41,7 +41,8 @@ function parseCategoryId(val: unknown): string {
       'categoryId must be a valid 24-character hexadecimal ObjectId.',
     );
   }
-  return val.trim();
+  // Lower-case like ObjectId#toString() so string comparisons with stored ids are exact.
+  return val.trim().toLowerCase();
 }
 
 function parseAgeRange(raw: unknown): ToyAgeRange {

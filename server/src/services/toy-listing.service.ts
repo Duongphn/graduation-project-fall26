@@ -18,6 +18,9 @@ import {
   validateUpdateToyListingInput,
 } from '../validations/toy-listing.validation.js';
 
+const categoryNotAvailable = () =>
+  new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+
 export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
@@ -88,7 +91,7 @@ export class ToyListingService {
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
-      throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+      throw categoryNotAvailable();
     }
 
     if (!files || files.length === 0) {
@@ -232,10 +235,15 @@ export class ToyListingService {
 
     const validatedInput = validateUpdateToyListingInput(input);
 
-    if (validatedInput.categoryId) {
-      const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
+    // Only a new category must be active: a toy keeps a category an Admin hid later (RQ-02).
+    const newCategoryId = validatedInput.categoryId;
+    const categoryChanged =
+      newCategoryId !== undefined &&
+      !new mongoose.Types.ObjectId(newCategoryId).equals(listing.categoryId);
+    if (categoryChanged) {
+      const categoryExists = await this.ports.categoryExists(newCategoryId);
       if (!categoryExists) {
-        throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+        throw categoryNotAvailable();
       }
     }
 
@@ -304,8 +312,8 @@ export class ToyListingService {
       if (validatedInput.description !== undefined)
         listing.description = validatedInput.description;
       if (validatedInput.condition !== undefined) listing.condition = validatedInput.condition;
-      if (validatedInput.categoryId !== undefined) {
-        listing.categoryId = new mongoose.Types.ObjectId(validatedInput.categoryId);
+      if (categoryChanged) {
+        listing.categoryId = new mongoose.Types.ObjectId(newCategoryId);
       }
       if (validatedInput.ageRange !== undefined) listing.ageRange = validatedInput.ageRange;
       if (validatedInput.listingType !== undefined)
