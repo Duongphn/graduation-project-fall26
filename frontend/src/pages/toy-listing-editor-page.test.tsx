@@ -113,9 +113,9 @@ describe('ToyListingEditorPage', () => {
     await waitFor(() => expect(router.state.location.state).toBeNull())
   })
 
-  it('reloads the categories when the server says the chosen one is no longer active', async () => {
+  it('reloads the categories and clears the choice when the server says the chosen one is no longer active', async () => {
     // An Admin hid "Xe điều khiển" after the page loaded the categories.
-    patch.mockRejectedValue(httpError(400, 'CATEGORY_NOT_FOUND', 'Category not found.'))
+    patch.mockRejectedValueOnce(httpError(400, 'CATEGORY_NOT_FOUND', 'Category not found.'))
     get.mockResolvedValue({ data: [WOOD] })
     const { user } = renderEditor(toyListingEditPath(saved.id), saved)
 
@@ -128,5 +128,25 @@ describe('ToyListingEditorPage', () => {
     expect((patch.mock.calls[0]?.[1] as FormData).get('categoryId')).toBe(CARS.id)
     await waitFor(() => expect(screen.queryByRole('option', { name: 'Xe điều khiển' })).not.toBeInTheDocument())
     expect(get).toHaveBeenCalledWith('/categories')
+
+    // The select is empty again instead of showing a category the owner did not pick, and says why.
+    expect(categorySelect()).toHaveValue('')
+    expect(categorySelect()).toHaveDisplayValue('Chọn danh mục')
+    expect(categorySelect()).toHaveAccessibleDescription(
+      'Danh mục vừa chọn không còn hoạt động, vui lòng chọn danh mục khác',
+    )
+
+    // Saving again cannot resend the removed category: the empty select stops the save.
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+    expect(await screen.findByText('Vui lòng chọn danh mục')).toBeInTheDocument()
+    expect(patch).toHaveBeenCalledTimes(1)
+
+    // Once a category is picked, the save goes out. Back on the toy's own category, nothing is sent
+    // for it. (The request is left pending: only what it sends matters here.)
+    patch.mockReturnValueOnce(new Promise(() => {}))
+    await user.selectOptions(categorySelect(), 'Đồ chơi gỗ')
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(2))
+    expect((patch.mock.calls[1]?.[1] as FormData).has('categoryId')).toBe(false)
   })
 })

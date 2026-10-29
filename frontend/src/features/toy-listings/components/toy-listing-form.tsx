@@ -22,6 +22,9 @@ import {
 import { categoriesQuery } from '../toy-listing-queries'
 import { EMPTY_LISTING_VALUES, listingSchema, MIN_IMAGES, type ListingFormValues } from '../toy-listing-schema'
 
+/** Lỗi ở ô Danh mục khi máy chủ báo danh mục vừa chọn đã bị ẩn hoặc xoá (CATEGORY_NOT_FOUND) */
+const CATEGORY_GONE_ERROR = 'Danh mục vừa chọn không còn hoạt động, vui lòng chọn danh mục khác'
+
 /** Đưa tin đăng từ backend về giá trị form */
 function toSavedValues(listing?: ToyListing): Partial<ListingFormValues> {
   if (!listing) return EMPTY_LISTING_VALUES
@@ -65,7 +68,7 @@ export function ToyListingForm({
     defaultValues: toSavedValues(listing),
     mode: 'onTouched',
   })
-  const { handleSubmit, reset } = form
+  const { handleSubmit, reset, setError, setValue } = form
   const photos = useListingPhotos(listing?.images ?? [])
   const [submitAttempted, setSubmitAttempted] = useState(false)
 
@@ -81,8 +84,12 @@ export function ToyListingForm({
           })
         : createToyListing({ values, newImages: photos.newFiles }),
     onError: (error) => {
-      // Danh mục vừa bị ẩn/xoá: tải lại danh sách để ô chọn không còn danh mục đó
+      // Danh mục vừa bị ẩn/xoá: tải lại danh sách để ô chọn không còn danh mục đó, và bỏ chọn nó.
+      // Nếu không, trình duyệt hiện một danh mục khác trong khi form vẫn giữ danh mục cũ và lần
+      // lưu sau lại gửi đúng danh mục đó.
       if (getApiErrorCode(error) === 'CATEGORY_NOT_FOUND') {
+        setValue('categoryId', '')
+        setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
         void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
       }
     },
