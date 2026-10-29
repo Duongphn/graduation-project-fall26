@@ -598,3 +598,30 @@ describe('DELETE /api/v1/toys/:toyId', () => {
     expect(ctx.store).toHaveLength(1);
   });
 });
+
+describe('ToyListingService actor policy', () => {
+  // Over HTTP requireActor answers first; the service keeps the same policy for direct callers.
+  it('refuses an Admin account with 403 FORBIDDEN and a missing or invalid actor with 401', async () => {
+    const admin: RequestActor = {
+      userId: new mongoose.Types.ObjectId().toString(),
+      actorType: 'ADMIN',
+    };
+    await expect(ctx.service.listMine(admin, { page: 1, limit: 20 })).rejects.toMatchObject({
+      statusCode: 403,
+      code: 'FORBIDDEN',
+      message: 'Admin accounts cannot manage toy listings.',
+    });
+    await expect(
+      ctx.service.hide(admin, new mongoose.Types.ObjectId().toString()),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+
+    const invalid: RequestActor = { userId: 'not-an-id', actorType: 'ADMIN' };
+    await expect(ctx.service.listMine(invalid, { page: 1, limit: 20 })).rejects.toMatchObject({
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+    });
+    await expect(
+      ctx.service.listMine(undefined as unknown as RequestActor, { page: 1, limit: 20 }),
+    ).rejects.toMatchObject({ statusCode: 401, code: 'UNAUTHORIZED' });
+  });
+});

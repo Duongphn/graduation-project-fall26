@@ -26,13 +26,12 @@ export class ToyListingService {
   ) {}
 
   private assertActor(actor: RequestActor): void {
-    if (
-      !actor ||
-      !actor.userId ||
-      actor.actorType !== 'USER' ||
-      !mongoose.Types.ObjectId.isValid(actor.userId)
-    ) {
+    if (!actor || !actor.userId || !mongoose.Types.ObjectId.isValid(actor.userId)) {
       throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+    }
+    // Policy: toy listings belong to member accounts; an Admin account may not own or edit them.
+    if (actor.actorType !== 'USER') {
+      throw new AppError(403, 'FORBIDDEN', 'Admin accounts cannot manage toy listings.');
     }
   }
 
