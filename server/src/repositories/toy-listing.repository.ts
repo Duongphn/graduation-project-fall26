@@ -40,7 +40,8 @@ export function createToyListingPorts(): ToyListingPorts {
     // A touch write instead of a read: the Admin hide (changeStatus) and delete (lockForDelete)
     // of a category write the same document in their own transaction, so the two conflict and
     // withTransaction retries the loser with fresh data. Timestamps off: a toy save is not an
-    // edit of the category (the Admin list shows its updatedAt).
+    // edit of the category (the Admin list shows its updatedAt). Each retry calls `save` again,
+    // so `save` builds its write inside (see the port).
     async saveWithActiveCategory(categoryId, save) {
       if (!mongoose.Types.ObjectId.isValid(categoryId)) {
         return null;

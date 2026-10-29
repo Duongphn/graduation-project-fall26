@@ -90,6 +90,32 @@ const startRequest = <T>(test: PromiseLike<T>): Promise<T> =>
     test.then(resolve, reject);
   });
 
+/**
+ * Makes the next commit fail once, like a commit right after a failover (NoSuchTransaction,
+ * labelled TransientTransactionError): the driver's withTransaction then runs the whole callback
+ * again. Returns the spy, which counts the commits.
+ */
+const failNextCommitOnce = () => {
+  const { prototype } = mongoose.mongo.ClientSession;
+  const commit = prototype.commitTransaction;
+  let failed = false;
+  return vi.spyOn(prototype, 'commitTransaction').mockImplementation(async function (
+    this: mongoose.mongo.ClientSession,
+    ...args: Parameters<typeof commit>
+  ) {
+    if (failed) return commit.apply(this, args);
+    failed = true;
+    await this.abortTransaction();
+    const error = new mongoose.mongo.MongoServerError({
+      message: 'Transaction has been aborted.',
+      code: 251,
+      codeName: 'NoSuchTransaction',
+    });
+    error.addErrorLabel('TransientTransactionError');
+    throw error;
+  });
+};
+
 beforeEach(async () => {
   duringUpload = undefined;
   deletedImages.length = 0;
@@ -192,6 +218,62 @@ describe('toy create and update with categories', () => {
       ]),
     );
     expect(names).toEqual({ [hidden]: 'Bị ẩn sau', [gone]: '' });
+  });
+});
+
+describe('a commit that fails once with a transient error', () => {
+  // withTransaction runs the save callback again, so the toy write must be rebuilt on every run.
+  it('still creates the toy', async () => {
+    const categoryId = await createCategory('Lỗi lúc commit');
+    const commits = failNextCommitOnce();
+
+    const response = await postToy(categoryId);
+    expect(commits).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(201);
+    const stored = await ToyModel.find({}).lean();
+    expect(stored.map((toy) => String(toy._id))).toEqual([response.body.id]);
+    expect(stored[0]?.title).toBe('Tàu gỗ');
+    expect(stored[0]?.images.map((image) => image.publicId)).toEqual(
+      response.body.images.map((image: { publicId: string }) => image.publicId),
+    );
+    expect(stored[0]?.images).toHaveLength(1);
+    expect(deletedImages).toEqual([]);
+    // Only the touch of the second run was committed.
+    expect((await CategoryModel.findById(categoryId).lean())?.__v).toBe(1);
+  });
+
+  it('stores an edit that changes the category and deletes only the image it removed', async () => {
+    const from = await createCategory('Danh mục cũ');
+    const to = await createCategory('Danh mục mới');
+    const toy = (await postToy(from)).body as { id: string; images: { publicId: string }[] };
+    const removed = toy.images[0]?.publicId;
+    const commits = failNextCommitOnce();
+
+    const response = await request(app)
+      .patch(`/api/v1/toys/${toy.id}`)
+      .set('Authorization', OWNER)
+      .field('title', 'Tàu gỗ (đổi danh mục)')
+      .field('categoryId', to)
+      .field('removeImagePublicIds', JSON.stringify([removed]))
+      .attach('images', JPEG, { filename: 'new.jpg', contentType: 'image/jpeg' });
+
+    expect(commits).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      title: 'Tàu gỗ (đổi danh mục)',
+      categoryId: to,
+      categoryName: 'Danh mục mới',
+    });
+    const stored = await ToyModel.findById(toy.id).lean();
+    expect(stored?.title).toBe('Tàu gỗ (đổi danh mục)');
+    expect(String(stored?.categoryId)).toBe(to);
+    const storedImages = stored?.images.map((image) => image.publicId);
+    expect(storedImages).toEqual(
+      response.body.images.map((image: { publicId: string }) => image.publicId),
+    );
+    expect(storedImages).not.toContain(removed);
+    // The image the edit removed is deleted; the new upload, which the toy now uses, is kept.
+    expect(deletedImages).toEqual([removed]);
   });
 });
 

@@ -1,5 +1,5 @@
 import 'multer';
-import mongoose, { type Model } from 'mongoose';
+import mongoose, { type HydratedDocument, type Model } from 'mongoose';
 import type { RequestActor } from '../types/request-actor.js';
 import { AppError } from '../utils/app-error.js';
 import type { ToyImageStorage } from '../interfaces/toy-listing.ports.js';
@@ -126,27 +126,28 @@ export class ToyListingService {
     }
 
     try {
-      const newToy = new this.toyModel({
-        ownerId: new mongoose.Types.ObjectId(actor.userId),
-        categoryId: new mongoose.Types.ObjectId(validatedInput.categoryId),
-        title: validatedInput.title,
-        description: validatedInput.description,
-        condition: validatedInput.condition,
-        listingType: validatedInput.listingType,
-        priceOrRate: validatedInput.priceOrRate,
-        ...(validatedInput.listingType === 'rent' && validatedInput.depositPrice !== undefined
-          ? { depositPrice: validatedInput.depositPrice }
-          : {}),
-        status: 'pending',
-        ageRange: validatedInput.ageRange,
-        images: uploadedAssets,
-        quantity: 1,
-      });
-
       // The check above ran before the uploads; the touch write re-checks the category atomically.
+      // A new document on every run of the callback: withTransaction runs it again when the commit
+      // fails with a transient error, and a document saved by an earlier run inserts nothing.
       const touched = await this.ports.saveWithActiveCategory(
         validatedInput.categoryId,
-        (session) => newToy.save({ session }),
+        (session) =>
+          new this.toyModel({
+            ownerId: new mongoose.Types.ObjectId(actor.userId),
+            categoryId: new mongoose.Types.ObjectId(validatedInput.categoryId),
+            title: validatedInput.title,
+            description: validatedInput.description,
+            condition: validatedInput.condition,
+            listingType: validatedInput.listingType,
+            priceOrRate: validatedInput.priceOrRate,
+            ...(validatedInput.listingType === 'rent' && validatedInput.depositPrice !== undefined
+              ? { depositPrice: validatedInput.depositPrice }
+              : {}),
+            status: 'pending',
+            ageRange: validatedInput.ageRange,
+            images: uploadedAssets,
+            quantity: 1,
+          }).save({ session }),
       );
       if (!touched) {
         throw categoryNotAvailable();
@@ -327,46 +328,56 @@ export class ToyListingService {
       throw uploadError;
     }
 
-    try {
-      if (validatedInput.title !== undefined) listing.title = validatedInput.title;
-      if (validatedInput.description !== undefined)
-        listing.description = validatedInput.description;
-      if (validatedInput.condition !== undefined) listing.condition = validatedInput.condition;
+    const applyEdit = (toy: HydratedDocument<IToy>): void => {
+      if (validatedInput.title !== undefined) toy.title = validatedInput.title;
+      if (validatedInput.description !== undefined) toy.description = validatedInput.description;
+      if (validatedInput.condition !== undefined) toy.condition = validatedInput.condition;
       if (categoryChanged) {
-        listing.categoryId = new mongoose.Types.ObjectId(newCategoryId);
+        toy.categoryId = new mongoose.Types.ObjectId(newCategoryId);
       }
-      if (validatedInput.ageRange !== undefined) listing.ageRange = validatedInput.ageRange;
-      if (validatedInput.listingType !== undefined)
-        listing.listingType = validatedInput.listingType;
-      if (validatedInput.priceOrRate !== undefined)
-        listing.priceOrRate = validatedInput.priceOrRate;
+      if (validatedInput.ageRange !== undefined) toy.ageRange = validatedInput.ageRange;
+      if (validatedInput.listingType !== undefined) toy.listingType = validatedInput.listingType;
+      if (validatedInput.priceOrRate !== undefined) toy.priceOrRate = validatedInput.priceOrRate;
 
       if (effectiveListingType === 'rent') {
         if (validatedInput.depositPrice !== undefined) {
-          listing.depositPrice = validatedInput.depositPrice;
+          toy.depositPrice = validatedInput.depositPrice;
         }
       } else {
-        listing.depositPrice = undefined;
+        toy.depositPrice = undefined;
       }
 
-      listing.images = [...remainingImages, ...newUploadedAssets];
+      toy.images = [...remainingImages, ...newUploadedAssets];
+    };
 
+    try {
       let saved: typeof listing;
       // Set when the category changed: the touch write already returned the new category's name.
       let touchedCategoryName: string | undefined;
       if (categoryChanged) {
-        const touched = await this.ports.saveWithActiveCategory(newCategoryId, (session) =>
-          listing.save({ session }),
-        );
+        const touched = await this.ports.saveWithActiveCategory(newCategoryId, async (session) => {
+          // Re-read and edit the toy on every run of the callback: withTransaction runs it again
+          // when the commit fails with a transient error, and a document saved by an earlier run
+          // has no change left to write.
+          const toy = await this.toyModel.findById(toyId, null, { session });
+          if (!toy) {
+            throw new AppError(404, 'NOT_FOUND', 'Listing not found');
+          }
+          applyEdit(toy);
+          return toy.save({ session });
+        });
         if (!touched) {
           throw categoryNotAvailable();
         }
         saved = touched.result;
         touchedCategoryName = touched.categoryName;
       } else {
+        applyEdit(listing);
         saved = await listing.save();
       }
 
+      // Deleted only now: the stored toy no longer uses them (with a category change, the
+      // transaction has committed).
       if (toDelete.length > 0) {
         try {
           await this.imageStorage.delete(toDelete);

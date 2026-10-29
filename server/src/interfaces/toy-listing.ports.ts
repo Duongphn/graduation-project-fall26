@@ -55,6 +55,9 @@ export interface ToyListingPorts {
    * `{ _id, status: active }`), so a concurrent hide or delete of the category write-conflicts
    * with the toy save. Resolves null, without calling `save`, when the category is missing or not
    * active; otherwise the save result and the category name read by the same write.
+   * `save` can run more than once: the transaction is run again after a write conflict or a
+   * transient commit error. So it must build its write on every call (a new document, or the toy
+   * re-read with `session`), never save a document built or saved outside it.
    */
   saveWithActiveCategory<T>(
     categoryId: string,
