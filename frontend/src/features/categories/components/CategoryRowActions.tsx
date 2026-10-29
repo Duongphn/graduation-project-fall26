@@ -70,8 +70,9 @@ export function CategoryRowActions({ category, onEdit }: CategoryRowActionsProps
         </Popconfirm>
       ) : (
         <Tooltip title={IN_USE_HINT}>
-          {/* A disabled button gets no mouse events; the span keeps the tooltip working. */}
-          <span>
+          {/* A disabled button gets no mouse events; the span keeps the tooltip working and is
+              focusable with the reason as its name, for keyboard and screen reader users. */}
+          <span tabIndex={0} role="note" aria-label={`Xoá: ${IN_USE_HINT}`}>
             <Button size="small" danger icon={<DeleteOutlined />} disabled>
               Xoá
             </Button>
