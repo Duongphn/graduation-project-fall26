@@ -50,6 +50,8 @@ const audit = (
     session,
   );
 
+// Counted after the commit, outside the transaction: the count is display-only (toyCount and
+// canDelete in the Admin list); delete re-counts inside its own transaction.
 const withToyCount = async (category: CategoryRecord): Promise<AdminCategoryView> => {
   const counts = await repo.countToys([category._id]);
   return toAdminCategory(category, counts.get(String(category._id)) ?? 0);

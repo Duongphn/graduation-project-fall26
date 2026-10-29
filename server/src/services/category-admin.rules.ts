@@ -50,18 +50,16 @@ export const categoryStatusChanged = () =>
 /** What hide (to hidden) and show (to active) do. */
 export const visibilityChanges = {
   hidden: {
-    from: 'active',
     action: 'category.hide',
     message: 'Đã ẩn danh mục.',
     alreadyThere: () => conflict('CATEGORY_ALREADY_HIDDEN', 'Danh mục này đã được ẩn từ trước.'),
   },
   active: {
-    from: 'hidden',
     action: 'category.show',
     message: 'Đã hiện lại danh mục.',
     alreadyThere: () => conflict('CATEGORY_ALREADY_VISIBLE', 'Danh mục này đang được hiển thị.'),
   },
 } as const satisfies Record<
   CategoryStatus,
-  { from: CategoryStatus; action: AuditAction; message: string; alreadyThere: () => AppError }
+  { action: AuditAction; message: string; alreadyThere: () => AppError }
 >;
