@@ -147,7 +147,7 @@ Category rules:
 
 - Listing responses carry `categoryId` and `categoryName`; the name is also given for a category an Admin has hidden (`GET /categories` lists only active ones), and is `""` if the category no longer exists.
 - Create, and an edit that changes `categoryId`, need an active category (`400 CATEGORY_NOT_FOUND` otherwise). An edit that resends the toy's current `categoryId` is accepted even if an Admin hid that category after the toy was posted.
-- The toy is saved in a transaction that first writes its category (`$inc __v` while the category is active), so an Admin hide or delete running at the same time conflicts with the save: either the toy is refused, or the delete sees it (`409 CATEGORY_IN_USE`). This needs a MongoDB replica set, like the other transactions.
+- Create (`POST /toys`, and `POST /donation-posts` for a donation post) and an edit that changes `categoryId` save the toy in a transaction that first writes its category (`$inc __v` while the category is active). An Admin hide or delete running at the same time therefore conflicts with the save: either the toy is refused (`400 CATEGORY_NOT_FOUND`), or the delete sees it (`409 CATEGORY_IN_USE`). Other edits do not write the category and save the toy without a transaction. Like every transaction, this needs a MongoDB replica set.
 
 ---
 

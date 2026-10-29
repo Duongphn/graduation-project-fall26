@@ -175,10 +175,10 @@ export const changeCategoryVisibility = async (
 };
 
 // Hard delete only when no toy points to the category; otherwise the Admin hides it.
-// Race with a toy being saved: the category document is written first (lockForDelete), and the
-// toys feature writes the same document when it saves a toy (saveWithActiveCategory), so the two
-// transactions conflict and the loser retries with fresh data. See "Category rules" in
-// docs/api/toys.md.
+// Race with a toy being saved: the category document is written first (lockForDelete), and every
+// toy save that sets a category (toy listings and donation posts, saveWithActiveCategory) writes
+// the same document, so the two transactions conflict and the loser retries with fresh data. See
+// "Category rules" in docs/api/toys.md.
 export const deleteCategory = async (id: string, context: AdminContext): Promise<void> => {
   await withTransaction(async (session) => {
     const category = await repo.lockForDelete(id, session);

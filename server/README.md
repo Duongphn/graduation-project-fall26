@@ -51,7 +51,7 @@ copy .env.example .env
 npm run dev
 ```
 
-> **Note**: The rental order and wallet features use MongoDB multi-document transactions (`withTransaction`), which require MongoDB to run as a replica set.
+> **Note**: The rental order, wallet and toy posting features use MongoDB multi-document transactions (`withTransaction`), which require MongoDB to run as a replica set.
 > - For local development: start `mongod --replSet rs0` and run `rs.initiate()` in `mongosh`.
 > - Automated Vitest tests use an in-memory replica set (`mongodb-memory-server`) automatically without needing a local mongod daemon.
 
