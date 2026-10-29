@@ -24,7 +24,7 @@ export function AdminLayout() {
       <Layout.Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} width={240}>
         <div className="flex h-16 items-center justify-center">
           <Typography.Text strong className="!text-lg !text-white">
-            {collapsed ? 'TF' : 'ToyFlow Admin'}
+            {collapsed ? 'TF' : 'Quản trị ToyFlow'}
           </Typography.Text>
         </div>
         <Menu

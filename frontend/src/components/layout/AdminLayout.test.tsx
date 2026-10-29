@@ -29,6 +29,7 @@ describe('AdminLayout', () => {
   it('shows every menu entry as a link to its page', async () => {
     renderAt(adminPaths.categories)
     expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+    expect(screen.getByText('Quản trị ToyFlow')).toBeInTheDocument()
 
     for (const item of adminMenuItems) {
       expect(screen.getByRole('link', { name: item.label })).toHaveAttribute('href', item.path)

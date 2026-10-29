@@ -25,7 +25,7 @@ export const adminRoute: RouteObject = {
     {
       index: true,
       element: (
-        <Result status="info" title="ToyFlow Admin" subTitle="Chọn chức năng ở menu bên trái." />
+        <Result status="info" title="Quản trị ToyFlow" subTitle="Chọn chức năng ở menu bên trái." />
       ),
     },
     ...adminRoutes,
