@@ -161,8 +161,9 @@ export const categoriesRepository = {
 
   /**
    * Writes to the category document inside the transaction (bumps __v) and returns it, or null
-   * when it does not exist. A toy transaction that touched the same category (see README) now
-   * write-conflicts with this one, so a toy can never be saved on a deleted category.
+   * when it does not exist. A toy transaction that touched the same category (see "Category
+   * rules" in docs/api/toys.md) now write-conflicts with this one, so a toy can never be saved
+   * on a deleted category.
    */
   lockForDelete(id: string, session: ClientSession): Promise<CategoryRecord | null> {
     return Category.findOneAndUpdate({ _id: id }, { $inc: { __v: 1 } }, { new: true, session })
