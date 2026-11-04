@@ -70,6 +70,33 @@ describe('Wallet & Ledger APIs (/api/v1/wallets)', () => {
       expect(res.body.data.balance).toBe(1500000);
       expect(mockWalletService.getMyWallet).toHaveBeenCalledWith(validUserId);
     });
+
+    it('returns availableBalance and holdingBalance for authenticated USER', async () => {
+      const token = createToken({ userId: validUserId, role: 'USER' });
+      const walletDto: WalletDto = {
+        id: new mongoose.Types.ObjectId().toString(),
+        userId: validUserId,
+        ownerType: 'user',
+        balance: 1500000,
+        availableBalance: 1500000,
+        holdingBalance: 400000,
+        currency: 'VND',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      mockWalletService.getMyWallet!.mockResolvedValue(walletDto);
+
+      const res = await request(app)
+        .get('/api/v1/wallets/me')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.availableBalance).toBe(1500000);
+      expect(res.body.data.holdingBalance).toBe(400000);
+    });
   });
 
   describe('GET /api/v1/wallets/me/transactions', () => {
@@ -109,6 +136,50 @@ describe('Wallet & Ledger APIs (/api/v1/wallets)', () => {
         page: 1,
         limit: 10,
       });
+    });
+
+    it('supports filtering transactions by type, kind, and date range', async () => {
+      const token = createToken({ userId: validUserId, role: 'USER' });
+      mockWalletService.getMyTransactions!.mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      });
+
+      const res = await request(app)
+        .get(
+          '/api/v1/wallets/me/transactions?page=1&limit=20&type=credit&kind=payment&startDate=2026-11-01&endDate=2026-11-30',
+        )
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockWalletService.getMyTransactions).toHaveBeenCalledWith(
+        validUserId,
+        expect.objectContaining({
+          page: 1,
+          limit: 20,
+          type: 'credit',
+          kind: 'payment',
+        }),
+      );
+    });
+
+    it('rejects startDate later than endDate with 400 VALIDATION_ERROR', async () => {
+      const token = createToken({ userId: validUserId, role: 'USER' });
+
+      const res = await request(app)
+        .get(
+          '/api/v1/wallets/me/transactions?startDate=2026-12-01&endDate=2026-11-01',
+        )
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
 
     it('rejects invalid pagination parameters with 400 VALIDATION_ERROR', async () => {

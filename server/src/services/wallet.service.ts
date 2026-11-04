@@ -16,12 +16,14 @@ export class WalletService {
     private readonly transactionRepository: WalletTransactionRepository = new WalletTransactionRepository(),
   ) {}
 
-  private mapWalletToDto(wallet: IWallet): WalletDto {
+  private mapWalletToDto(wallet: IWallet, holdingBalance = 0): WalletDto {
     return {
       id: wallet._id.toString(),
       userId: wallet.userId ? wallet.userId.toString() : null,
       ownerType: wallet.ownerType,
       balance: wallet.balance,
+      availableBalance: wallet.balance,
+      holdingBalance,
       currency: wallet.currency,
       status: wallet.status,
       createdAt: wallet.createdAt ? wallet.createdAt.toISOString() : new Date().toISOString(),
@@ -65,12 +67,20 @@ export class WalletService {
     }
 
     const wallet = await this.walletRepository.getOrCreateUserWallet(userId);
-    return this.mapWalletToDto(wallet);
+    const holdingBalance = await this.walletRepository.calculateHoldingBalance(userId);
+    return this.mapWalletToDto(wallet, holdingBalance);
   }
 
   public async getMyTransactions(
     userId: string,
-    query: { page?: number | undefined; limit?: number | undefined } = {},
+    query: {
+      page?: number | undefined;
+      limit?: number | undefined;
+      type?: 'credit' | 'debit' | 'all' | undefined;
+      kind?: string | undefined;
+      startDate?: Date | undefined;
+      endDate?: Date | undefined;
+    } = {},
   ): Promise<PaginatedTransactionsDto> {
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       throw new AppError(400, 'INVALID_USER_ID', 'Invalid user ID.');
@@ -83,9 +93,15 @@ export class WalletService {
     const { items, total } = await this.transactionRepository.listByWalletId(wallet._id, {
       page,
       limit,
+      type: query.type,
+      kind: query.kind,
+      startDate: query.startDate,
+      endDate: query.endDate,
     });
 
     const totalPages = Math.ceil(total / limit) || 1;
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
 
     return {
       items: items.map((item) => this.mapTransactionToDto(item)),
@@ -93,6 +109,8 @@ export class WalletService {
       page,
       limit,
       totalPages,
+      hasNextPage,
+      hasPrevPage,
     };
   }
 

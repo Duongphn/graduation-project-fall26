@@ -16,6 +16,22 @@ export const transactionListQuerySchema = z.object({
     .refine((val) => Number.isInteger(val) && val >= 1 && val <= 100, {
       message: 'limit must be between 1 and 100.',
     }),
+  type: z.enum(['all', 'credit', 'debit']).optional(),
+  kind: z.string().trim().optional(),
+  startDate: z
+    .string()
+    .optional()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: 'startDate must be a valid date.',
+    })
+    .transform((val) => (val ? new Date(val) : undefined)),
+  endDate: z
+    .string()
+    .optional()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: 'endDate must be a valid date.',
+    })
+    .transform((val) => (val ? new Date(val) : undefined)),
 });
 
 export const systemWalletParamSchema = z.object({
@@ -24,7 +40,14 @@ export const systemWalletParamSchema = z.object({
   }),
 });
 
-export type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;
+export interface TransactionListQuery {
+  page: number;
+  limit: number;
+  type?: 'all' | 'credit' | 'debit' | undefined;
+  kind?: string | undefined;
+  startDate?: Date | undefined;
+  endDate?: Date | undefined;
+}
 
 export function validateTransactionListQuery(query: unknown): TransactionListQuery {
   const result = transactionListQuerySchema.safeParse(query);
@@ -33,7 +56,22 @@ export function validateTransactionListQuery(query: unknown): TransactionListQue
       Object.values(result.error.flatten().fieldErrors).flat()[0] || 'Invalid query parameters.';
     throw new AppError(400, 'VALIDATION_ERROR', firstErrorMessage);
   }
-  return result.data;
+
+  const data = result.data;
+  if (data.startDate && data.endDate && data.startDate > data.endDate) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'startDate cannot be after endDate.');
+  }
+
+  const cleaned: TransactionListQuery = {
+    page: data.page,
+    limit: data.limit,
+  };
+  if (data.type !== undefined) cleaned.type = data.type;
+  if (data.kind !== undefined && data.kind !== '') cleaned.kind = data.kind;
+  if (data.startDate !== undefined) cleaned.startDate = data.startDate;
+  if (data.endDate !== undefined) cleaned.endDate = data.endDate;
+
+  return cleaned;
 }
 
 export function validateSystemWalletParam(params: unknown): {

@@ -1,5 +1,8 @@
 import mongoose, { type ClientSession, type Model, type Types } from 'mongoose';
 import Wallet, { type IWallet, type WalletOwnerType } from '../models/wallet.model.js';
+import { RentalOrder } from '../models/rental-order.model.js';
+import { PurchaseOrder } from '../models/purchase-order.model.js';
+import { WithdrawalRequest } from '../models/withdrawal-request.model.js';
 
 export interface AtomicBalanceUpdateResult {
   wallet: IWallet;
@@ -168,5 +171,83 @@ export class WalletRepository {
       previousBalance,
       newBalance,
     };
+  }
+
+  /**
+   * Tính số dư đang tạm giữ (Holding/Escrow) của người dùng:
+   * 1. Tiền cọc các đơn thuê đang diễn ra (với vai trò người thuê)
+   * 2. Tiền thuê chờ hoàn tất các đơn đang cho thuê (với vai trò chủ đồ)
+   * 3. Tiền bán đồ chờ giao hàng hoàn tất (với vai trò người bán)
+   * 4. Các yêu cầu rút tiền đang chờ duyệt
+   */
+  public async calculateHoldingBalance(
+    userId: string | Types.ObjectId,
+    session?: ClientSession,
+  ): Promise<number> {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId.toString())) {
+      return 0;
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId.toString());
+    const activeRentalStatuses = [
+      'PAID',
+      'SHIPPING',
+      'IN_USE',
+      'RETURNING',
+      'DISPUTING',
+      'paid',
+      'shipping',
+      'in_use',
+      'returning',
+      'disputing',
+    ];
+    const activePurchaseStatuses = [
+      'PAID',
+      'SHIPPING',
+      'DISPUTING',
+      'paid',
+      'shipping',
+      'disputing',
+    ];
+
+    const renterDepositsAgg = RentalOrder.aggregate<{ total?: number }>([
+      { $match: { renterId: userObjectId, status: { $in: activeRentalStatuses } } },
+      { $group: { _id: null, total: { $sum: '$depositAmount' } } },
+    ]);
+    if (session) renterDepositsAgg.session(session);
+
+    const ownerRentalFeesAgg = RentalOrder.aggregate<{ total?: number }>([
+      { $match: { ownerId: userObjectId, status: { $in: activeRentalStatuses } } },
+      { $group: { _id: null, total: { $sum: '$rentalFee' } } },
+    ]);
+    if (session) ownerRentalFeesAgg.session(session);
+
+    const sellerPurchaseEarningsAgg = PurchaseOrder.aggregate<{ total?: number }>([
+      { $match: { sellerId: userObjectId, status: { $in: activePurchaseStatuses } } },
+      { $group: { _id: null, total: { $sum: '$price' } } },
+    ]);
+    if (session) sellerPurchaseEarningsAgg.session(session);
+
+    const pendingWithdrawalsAgg = WithdrawalRequest.aggregate<{ total?: number }>([
+      { $match: { userId: userObjectId, status: { $in: ['pending', 'PENDING'] } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    if (session) pendingWithdrawalsAgg.session(session);
+
+    const [renterDeposits, ownerRentalFees, sellerPurchaseEarnings, pendingWithdrawals] =
+      await Promise.all([
+        renterDepositsAgg.exec(),
+        ownerRentalFeesAgg.exec(),
+        sellerPurchaseEarningsAgg.exec(),
+        pendingWithdrawalsAgg.exec(),
+      ]);
+
+    const totalHolding =
+      (renterDeposits[0]?.total ?? 0) +
+      (ownerRentalFees[0]?.total ?? 0) +
+      (sellerPurchaseEarnings[0]?.total ?? 0) +
+      (pendingWithdrawals[0]?.total ?? 0);
+
+    return totalHolding;
   }
 }

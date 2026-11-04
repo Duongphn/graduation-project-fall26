@@ -6,6 +6,10 @@ import WalletTransaction, {
 export interface ListTransactionsOptions {
   page?: number | undefined;
   limit?: number | undefined;
+  type?: 'credit' | 'debit' | 'all' | undefined;
+  kind?: string | undefined;
+  startDate?: Date | undefined;
+  endDate?: Date | undefined;
 }
 
 export class WalletTransactionRepository {
@@ -51,7 +55,28 @@ export class WalletTransactionRepository {
     const limit = Math.max(1, Math.min(100, options.limit ?? 20));
     const skip = (page - 1) * limit;
 
-    const queryFilter = { walletId: new mongoose.Types.ObjectId(walletId.toString()) };
+    const queryFilter: Record<string, unknown> = {
+      walletId: new mongoose.Types.ObjectId(walletId.toString()),
+    };
+
+    if (options.type && options.type !== 'all') {
+      queryFilter.type = options.type;
+    }
+
+    if (options.kind && options.kind !== 'all') {
+      queryFilter['reference.kind'] = options.kind;
+    }
+
+    if (options.startDate || options.endDate) {
+      const dateFilter: Record<string, Date> = {};
+      if (options.startDate) {
+        dateFilter.$gte = options.startDate;
+      }
+      if (options.endDate) {
+        dateFilter.$lte = options.endDate;
+      }
+      queryFilter.createdAt = dateFilter;
+    }
 
     const [items, total] = await Promise.all([
       this.transactionModel

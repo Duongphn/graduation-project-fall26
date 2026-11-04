@@ -7,6 +7,8 @@ export interface WalletDto {
   userId: string | null;
   ownerType: WalletOwnerType;
   balance: number;
+  availableBalance?: number | undefined;
+  holdingBalance?: number | undefined;
   currency: string;
   status: WalletStatus;
   createdAt: string;
@@ -38,6 +40,8 @@ export interface PaginatedTransactionsDto {
   page: number;
   limit: number;
   totalPages: number;
+  hasNextPage?: boolean | undefined;
+  hasPrevPage?: boolean | undefined;
 }
 
 export interface ReferenceInput {
