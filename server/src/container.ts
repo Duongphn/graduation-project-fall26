@@ -24,9 +24,13 @@ import {
 } from './repositories/toy-catalog.repository.js';
 import { createToyListingPorts } from './repositories/toy-listing.repository.js';
 import { IdentityVerificationService } from './services/identity-verification.service.js';
+import { LedgerService } from './services/ledger.service.js';
 import { ToyCatalogService } from './services/toy-catalog.service.js';
 import { ToyListingService } from './services/toy-listing.service.js';
 import { UsersService } from './services/user.service.js';
+import { WalletService } from './services/wallet.service.js';
+import { WalletRepository } from './repositories/wallet.repository.js';
+import { WalletTransactionRepository } from './repositories/wallet-transaction.repository.js';
 import type { ToyCatalogPorts, ToyCatalogRepository } from './types/toy-catalog.types.js';
 
 /** Thay thế adapter hoặc cả service — dùng trong test để không gọi Cloudinary/MongoDB thật */
@@ -45,6 +49,8 @@ export interface ContainerOverrides {
   identityVerificationService?: IdentityVerificationService;
   toyListingService?: ToyListingService;
   toyCatalogService?: ToyCatalogService;
+  walletService?: WalletService;
+  ledgerService?: LedgerService;
 }
 
 export interface Container {
@@ -53,6 +59,8 @@ export interface Container {
   identityVerificationService: IdentityVerificationService;
   toyListingService: ToyListingService;
   toyCatalogService: ToyCatalogService;
+  walletService: WalletService;
+  ledgerService: LedgerService;
 }
 
 /**
@@ -92,11 +100,20 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       overrides.toyCatalogPorts ?? createToyCatalogPorts(),
     );
 
+  const walletRepo = new WalletRepository();
+  const txRepo = new WalletTransactionRepository();
+
+  const ledgerService = overrides.ledgerService ?? new LedgerService(walletRepo, txRepo);
+  const walletService = overrides.walletService ?? new WalletService(walletRepo, txRepo);
+
   return {
     authService,
     usersService,
     identityVerificationService,
     toyListingService,
     toyCatalogService,
+    walletService,
+    ledgerService,
   };
 }
+

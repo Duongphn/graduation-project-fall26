@@ -26,8 +26,9 @@ Every MongoDB collection has one Mongoose model in `src/models/<name>.model.ts`,
 | `user.model.ts` | `User` | auth, users, identity verification, toy catalog | API: `docs/api/users.md`. |
 | `violation-report.model.ts` | `ViolationReport` | — | Scaffold. |
 | `voucher.model.ts` | `Voucher` | — | Scaffold. |
-| `wallet.model.ts` | `Wallet` | — | Scaffold. |
-| `wallet-transaction.model.ts` | `WalletTransaction` | — | Scaffold. |
+| `wallet.model.ts` | `Wallet` | wallet, ledger | User wallets and system wallets (escrow, platform fee). |
+| `wallet-transaction.model.ts` | `WalletTransaction` | wallet, ledger | Immutable double-entry ledger statement with idempotency keys. |
 | `withdrawal-request.model.ts` | `WithdrawalRequest` | — | Scaffold. |
+
 
 "Scaffold" means the schema exists but no service reads or writes it yet.

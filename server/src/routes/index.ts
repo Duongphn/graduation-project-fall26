@@ -8,6 +8,7 @@ import { createIdentityVerificationRouter } from './identity-verification.routes
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
 import { createUsersRouter } from './user.routes.js';
+import { createWalletRouter } from './wallet.routes.js';
 
 export function createApiRouter(container: Container): Router {
   const router = Router();
@@ -28,6 +29,8 @@ export function createApiRouter(container: Container): Router {
     authenticate,
     createIdentityVerificationRouter(container.identityVerificationService),
   );
+  router.use('/wallets', authenticate, createWalletRouter(container.walletService));
 
   return router;
 }
+

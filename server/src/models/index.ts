@@ -19,6 +19,12 @@ export { Toy, type IToy } from './toy.model.js';
 export { User, type IUser } from './user.model.js';
 export { ViolationReport } from './violation-report.model.js';
 export { Voucher } from './voucher.model.js';
-export { Wallet } from './wallet.model.js';
-export { WalletTransaction } from './wallet-transaction.model.js';
+export { Wallet, type IWallet, type WalletOwnerType, type WalletStatus } from './wallet.model.js';
+export {
+  WalletTransaction,
+  type IWalletTransaction,
+  type WalletTransactionType,
+  type IWalletTransactionReference,
+} from './wallet-transaction.model.js';
 export { WithdrawalRequest } from './withdrawal-request.model.js';
+
