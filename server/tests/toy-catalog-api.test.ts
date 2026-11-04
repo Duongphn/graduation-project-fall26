@@ -183,8 +183,8 @@ describe('UC05 Toy Catalog API', () => {
   });
 
   describe('GET /api/v1/toys/:toyId/availability (calendar)', () => {
-    const validFrom = '2026-11-01';
-    const validTo = '2026-11-30';
+    const validFrom = '2026-12-01';
+    const validTo = '2026-12-30';
 
     it('returns 200 with occupied periods', async () => {
       const res = await request(app).get(
@@ -525,7 +525,7 @@ describe('API router mount order', () => {
     const detail = await request(app).get(`/api/v1/toys/${SAMPLE_TOY_ID}`);
     const availability = await request(app)
       .get(`/api/v1/toys/${SAMPLE_TOY_ID}/availability`)
-      .query({ from: '2026-11-01', to: '2026-11-30' });
+      .query({ from: '2026-12-01', to: '2026-12-30' });
 
     expect(detail.status).toBe(200);
     expect(detail.body.id).toBe(SAMPLE_TOY_ID);

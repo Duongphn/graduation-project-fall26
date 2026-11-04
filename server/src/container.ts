@@ -31,6 +31,11 @@ import { UsersService } from './services/user.service.js';
 import { WalletService } from './services/wallet.service.js';
 import { WalletRepository } from './repositories/wallet.repository.js';
 import { WalletTransactionRepository } from './repositories/wallet-transaction.repository.js';
+import { PaymentRepository } from './repositories/payment.repository.js';
+import { PaymentService } from './services/payment.service.js';
+import { PaymentController } from './controllers/payment.controller.js';
+import { VNPayClient } from './integrations/vnpay/vnpay-client.js';
+import type { VNPayPaymentGateway } from './interfaces/payment.ports.js';
 import type { ToyCatalogPorts, ToyCatalogRepository } from './types/toy-catalog.types.js';
 
 /** Thay thế adapter hoặc cả service — dùng trong test để không gọi Cloudinary/MongoDB thật */
@@ -51,6 +56,9 @@ export interface ContainerOverrides {
   toyCatalogService?: ToyCatalogService;
   walletService?: WalletService;
   ledgerService?: LedgerService;
+  paymentService?: PaymentService;
+  paymentController?: PaymentController;
+  vnpayGateway?: VNPayPaymentGateway;
 }
 
 export interface Container {
@@ -61,6 +69,8 @@ export interface Container {
   toyCatalogService: ToyCatalogService;
   walletService: WalletService;
   ledgerService: LedgerService;
+  paymentService: PaymentService;
+  paymentController: PaymentController;
 }
 
 /**
@@ -105,6 +115,13 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
 
   const ledgerService = overrides.ledgerService ?? new LedgerService(walletRepo, txRepo);
   const walletService = overrides.walletService ?? new WalletService(walletRepo, txRepo);
+  const paymentRepo = new PaymentRepository();
+  const vnpayGateway = overrides.vnpayGateway ?? new VNPayClient();
+  const paymentService =
+    overrides.paymentService ??
+    new PaymentService(paymentRepo, walletRepo, ledgerService, vnpayGateway);
+  const paymentController =
+    overrides.paymentController ?? new PaymentController(paymentService);
 
   return {
     authService,
@@ -114,6 +131,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     toyCatalogService,
     walletService,
     ledgerService,
+    paymentService,
+    paymentController,
   };
 }
 

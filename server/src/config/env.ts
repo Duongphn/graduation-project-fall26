@@ -39,4 +39,12 @@ export const env = Object.freeze({
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? '',
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
+
+  // VNPay Sandbox
+  vnpayTmnCode: process.env.VNPAY_TMN_CODE ?? '',
+  vnpayHashSecret: process.env.VNPAY_HASH_SECRET ?? '',
+  vnpayUrl: process.env.VNPAY_URL ?? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+  vnpayApiUrl: process.env.VNPAY_API_URL ?? 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction',
+  vnpayReturnUrl: process.env.VNPAY_RETURN_URL ?? 'http://localhost:5173/wallet/topup/result',
+  vnpayIpnUrl: process.env.VNPAY_IPN_URL ?? '',
 });
