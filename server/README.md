@@ -74,11 +74,7 @@ Configure it in `.env` (the API key stays on the server, never in the frontend):
 
 Flow: feature flag, sign-in and validation, FAQ (no Gemini), daily limit, Gemini call 1 (filters, skipped when `filtersFromButtons`), MongoDB search with relaxed filters (price, then category), Gemini call 2 (advice), server-side check of the picked ids. Every question writes one `AiRequest` (status, tokens, latency, model).
 
-Try the prompts against the real Gemini and print token counts (needs `GEMINI_API_KEY`, no database):
-
-```bash
-npm run ai:try-prompts
-```
+Real token usage per question is in the `AiRequest` logs (`token_usage`: input, output, thoughts, calls).
 
 Example request:
 
@@ -100,5 +96,4 @@ npm run typecheck
 npm test
 npm run build
 npm run lint
-npm run ai:try-prompts
 ```

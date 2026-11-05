@@ -14,7 +14,6 @@
     "start": "node dist/server.js",
     "jobs:expire-donations": "tsx src/jobs/expire-donations.ts",
     "db:seed-categories": "tsx src/jobs/seed-categories.ts",
-    "ai:try-prompts": "tsx src/jobs/try-advisor-prompts.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
