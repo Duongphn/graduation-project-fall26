@@ -1,32 +1,74 @@
 import { isAxiosError } from 'axios'
-import { getApiErrorMessage, httpClient } from '../../services/http-client'
+import { getApiErrorMessage, httpClient, type ApiResponse } from '../../services/http-client'
 
 /**
- * Trợ lý AI tư vấn chọn đồ chơi. Endpoint dự kiến của backend (chưa có): POST /ai/advisor.
- * AI chỉ gợi ý — không thay người dùng đặt thuê/mua (xem server/docs/backend-architecture.md).
+ * Trợ lý AI tư vấn chọn đồ chơi: POST /ai/advisor. Server gọi Gemini; frontend không gọi AI trực tiếp
+ * và không giữ API key. AI chỉ gợi ý, phụ huynh tự quyết định thuê/mua (server/docs/backend-architecture.md).
  */
+
+export type AdvisorListingType = 'any' | 'rent' | 'sell' | 'donate'
+
+/** Bộ lọc server trả về sau mỗi lượt; giữ lại và gửi kèm lượt sau để Robo nhớ ngữ cảnh */
+export interface AdvisorFilters {
+  /** Tuổi của bé (năm); null khi chưa biết */
+  ageYears: number | null
+  /** Slug danh mục, hoặc 'any' */
+  category: string
+  listingType: AdvisorListingType
+  /** Giá tối đa (VND), với tin thuê là giá mỗi ngày; null: không giới hạn */
+  maxPrice: number | null
+  /** Khu vực phụ huynh nhắc tới (server chưa lọc theo khu vực) */
+  area: string
+}
+
+export interface AdvisorHistoryItem {
+  role: 'user' | 'assistant'
+  text: string
+}
 
 export interface AdvisorRequest {
   message: string
-  /** Các lượt trước để AI hiểu ngữ cảnh hội thoại */
-  history: { role: 'user' | 'assistant'; text: string }[]
+  filters?: AdvisorFilters
+  /** Chỉ 2 tin gần nhất, mỗi tin tối đa 300 ký tự (tiết kiệm token) */
+  history: AdvisorHistoryItem[]
+  /** true: bộ lọc chọn bằng nút, server bỏ qua bước AI trích bộ lọc */
+  filtersFromButtons: boolean
 }
+
+export interface AdvisorToy {
+  id: string
+  name: string
+  listingType: 'rent' | 'sell' | 'donate'
+  /** Tin thuê: giá mỗi ngày */
+  priceOrRate: number
+  condition: string
+  /** Ảnh bìa; chuỗi rỗng khi tin không có ảnh */
+  image: string
+  reason: string
+}
+
+export type AdvisorSource = 'ai' | 'faq' | 'fallback' | 'no_result' | 'off_topic'
 
 export interface AdvisorResponse {
   reply: string
+  toys: AdvisorToy[]
+  filters: AdvisorFilters
+  source: AdvisorSource
 }
 
 export async function askAdvisor(payload: AdvisorRequest): Promise<AdvisorResponse> {
-  const { data } = await httpClient.post<AdvisorResponse>('/ai/advisor', payload, { timeout: 30_000 })
-  return data
+  // Server có thể gọi Gemini 2 lần (mỗi lần tối đa 8 giây): chờ lâu hơn timeout mặc định
+  const { data } = await httpClient.post<ApiResponse<AdvisorResponse>>('/ai/advisor', payload, {
+    timeout: 30_000,
+  })
+  return data.data
 }
 
-/** 404/501/503 = backend chưa có hoặc đang tắt tính năng AI */
-const UNAVAILABLE_STATUSES = new Set([404, 501, 503])
-
 export function getAdvisorErrorMessage(error: unknown): string {
-  if (isAxiosError(error) && error.response && UNAVAILABLE_STATUSES.has(error.response.status)) {
-    return 'Trợ lý AI đang được hoàn thiện nên chưa trả lời được. Bạn quay lại sau nhé!'
-  }
+  const status = isAxiosError(error) ? error.response?.status : undefined
+  if (status === 401) return 'Bạn cần đăng nhập để trò chuyện với Robo.'
+  if (status === 503) return 'Trợ lý AI đang tạm tắt. Bạn vẫn có thể tự tìm đồ chơi trong mục Thuê đồ chơi nhé!'
+  if (status === 404) return 'Trợ lý AI chưa sẵn sàng. Bạn quay lại sau nhé!'
+  // 429 (hết lượt hôm nay), 400…: dùng thông báo tiếng Việt của server
   return getApiErrorMessage(error)
 }
