@@ -90,7 +90,12 @@ export class GeminiAdvisorClient implements AdvisorLlm {
     if (!this.options.apiKey) {
       throw new Error('GEMINI_API_KEY chưa được cấu hình.');
     }
-    this.models = new GoogleGenAI({ apiKey: this.options.apiKey }).models;
+    this.models = new GoogleGenAI({
+      apiKey: this.options.apiKey,
+      // Không để SDK tự thử lại (mặc định 5 lần, chờ 1-2-4-8 giây khi gặp 429/5xx): lỗi như
+      // 503 "high demand" phải về ngay để chuyển sang fallback, và log ghi đúng lỗi thật.
+      httpOptions: { retryOptions: { attempts: 1 } },
+    }).models;
     return this.models;
   }
 }
