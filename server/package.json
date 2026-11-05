@@ -14,6 +14,7 @@
     "start": "node dist/server.js",
     "jobs:expire-donations": "tsx src/jobs/expire-donations.ts",
     "db:seed-categories": "tsx src/jobs/seed-categories.ts",
+    "ai:try-prompts": "tsx src/jobs/try-advisor-prompts.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",
+    "@google/genai": "^2.32.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
