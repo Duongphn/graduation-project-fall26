@@ -6,7 +6,8 @@ import { getApiErrorMessage, httpClient, type ApiResponse } from '../../services
  * và không giữ API key. AI chỉ gợi ý, phụ huynh tự quyết định thuê/mua (server/docs/backend-architecture.md).
  */
 
-export type AdvisorListingType = 'any' | 'rent' | 'sell' | 'donate'
+/** Trợ lý chỉ gợi ý tin cho thuê hoặc đang bán, không gợi ý đồ tặng */
+export type AdvisorListingType = 'any' | 'rent' | 'sell'
 
 /** Bộ lọc server trả về sau mỗi lượt; giữ lại và gửi kèm lượt sau để Robo nhớ ngữ cảnh */
 export interface AdvisorFilters {
@@ -38,7 +39,7 @@ export interface AdvisorRequest {
 export interface AdvisorToy {
   id: string
   name: string
-  listingType: 'rent' | 'sell' | 'donate'
+  listingType: 'rent' | 'sell'
   /** Tin thuê: giá mỗi ngày */
   priceOrRate: number
   condition: string

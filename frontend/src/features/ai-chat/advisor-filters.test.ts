@@ -45,9 +45,8 @@ describe('describeFilters', () => {
 })
 
 describe('advisorPriceLabel', () => {
-  it('shows rent per day, sale price and free donations', () => {
+  it('shows rent per day and the sale price', () => {
     expect(nbsp(advisorPriceLabel({ listingType: 'rent', priceOrRate: 40_000 }))).toBe('40.000 ₫/ngày')
     expect(nbsp(advisorPriceLabel({ listingType: 'sell', priceOrRate: 120_000 }))).toBe('120.000 ₫')
-    expect(advisorPriceLabel({ listingType: 'donate', priceOrRate: 0 })).toBe('Miễn phí (tặng)')
   })
 })

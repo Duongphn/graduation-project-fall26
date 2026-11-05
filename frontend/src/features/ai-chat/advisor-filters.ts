@@ -24,7 +24,6 @@ export const ADVISOR_LISTING_OPTIONS: {
   { value: 'any', label: 'Tất cả' },
   { value: 'rent', label: 'Thuê' },
   { value: 'sell', label: 'Mua' },
-  { value: 'donate', label: 'Nhận tặng' },
 ]
 
 export const ADVISOR_PRICE_OPTIONS: { value: number | null; label: string }[] = [
@@ -67,8 +66,7 @@ export function describeFilters(filters: AdvisorFilters, categories: readonly { 
   return parts.length > 0 ? `Lọc: ${parts.join(' · ')}` : 'Lọc: tất cả đồ chơi'
 }
 
-/** Giá trên thẻ gợi ý: tin thuê tính theo ngày, tin tặng miễn phí */
+/** Giá trên thẻ gợi ý: tin thuê tính theo ngày */
 export function advisorPriceLabel(toy: Pick<AdvisorToy, 'listingType' | 'priceOrRate'>): string {
-  if (toy.listingType === 'donate') return 'Miễn phí (tặng)'
   return toy.listingType === 'rent' ? `${formatVnd(toy.priceOrRate)}/ngày` : formatVnd(toy.priceOrRate)
 }
