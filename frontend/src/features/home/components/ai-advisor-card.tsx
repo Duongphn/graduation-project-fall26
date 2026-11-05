@@ -1,6 +1,13 @@
-import { RotateCcw, SendHorizontal, Sparkles } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { RotateCcw, SendHorizontal, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { useIsSignedIn } from '../../../hooks/use-is-signed-in'
+import { PATHS } from '../../../routes/paths'
+import { EMPTY_ADVISOR_FILTERS } from '../../ai-chat/advisor-filters'
 import { AI_CHAT_CONTENT, AI_CHAT_MAX_LENGTH } from '../../ai-chat/ai-chat-content'
+import type { AdvisorFilters } from '../../ai-chat/ai-chat-api'
+import { AdvisorFilterPanel } from '../../ai-chat/components/advisor-filter-panel'
+import { AdvisorToyList } from '../../ai-chat/components/advisor-toy-card'
 import { RobotMascot } from '../../ai-chat/components/robot-mascot'
 import { useAdvisorChat } from '../../ai-chat/hooks/use-advisor-chat'
 import { AI_ADVISOR_ANCHOR_ID, AI_ADVISOR_CONTENT } from '../home-content'
@@ -13,8 +20,10 @@ import { AI_ADVISOR_ANCHOR_ID, AI_ADVISOR_CONTENT } from '../home-content'
  */
 export function AiAdvisorCard() {
   const chat = useAdvisorChat()
+  const isSignedIn = useIsSignedIn()
   const inputId = useId()
   const [draft, setDraft] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const isChatting = chat.messages.length > 0
@@ -40,7 +49,13 @@ export function AiAdvisorCard() {
   const restart = () => {
     chat.reset()
     setDraft('')
+    setShowFilters(false)
     inputRef.current?.focus()
+  }
+
+  const applyFilters = (filters: AdvisorFilters, label: string) => {
+    chat.applyFilters(filters, label)
+    setShowFilters(false)
   }
 
   return (
@@ -106,12 +121,12 @@ export function AiAdvisorCard() {
         >
           <p className="ai-bubble ai-bubble--assistant">{AI_CHAT_CONTENT.greeting}</p>
           {chat.messages.map((message) => (
-            <p
-              key={message.id}
-              className={`ai-bubble ai-bubble--${message.role} ${message.isError ? 'ai-bubble--error' : ''}`}
-            >
-              {message.text}
-            </p>
+            <Fragment key={message.id}>
+              <p className={`ai-bubble ai-bubble--${message.role} ${message.isError ? 'ai-bubble--error' : ''}`}>
+                {message.text}
+              </p>
+              {message.toys && message.toys.length > 0 && <AdvisorToyList toys={message.toys} />}
+            </Fragment>
           ))}
           {chat.isPending && (
             <p className="ai-bubble ai-bubble--assistant">
@@ -128,10 +143,30 @@ export function AiAdvisorCard() {
 
       {/* Đáy thẻ: thanh chat (ô nhập + nút mũi tên gửi) — dùng chung cho màn giới thiệu và khi đang chat */}
       <form className="ai-advisor__form" onSubmit={handleSubmit}>
+        {showFilters && (
+          <AdvisorFilterPanel
+            initial={chat.filters ?? EMPTY_ADVISOR_FILTERS}
+            disabled={chat.isPending}
+            onApply={applyFilters}
+            onClose={() => setShowFilters(false)}
+          />
+        )}
         <label htmlFor={inputId} className="sr-only">
           {isChatting ? AI_CHAT_CONTENT.inputLabel : AI_ADVISOR_CONTENT.inputLabel}
         </label>
         <div className="ai-advisor__field">
+          <button
+            type="button"
+            aria-label={AI_CHAT_CONTENT.filterToggleLabel}
+            aria-expanded={showFilters}
+            title={AI_CHAT_CONTENT.filterToggleLabel}
+            onClick={() => setShowFilters((open) => !open)}
+            className={`grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
+              showFilters ? 'bg-white/25 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <SlidersHorizontal className="size-[18px]" aria-hidden />
+          </button>
           <input
             ref={inputRef}
             id={inputId}
@@ -152,6 +187,17 @@ export function AiAdvisorCard() {
             <SendHorizontal aria-hidden />
           </button>
         </div>
+        {!isSignedIn && (
+          <p className="text-center text-xs text-white/80">
+            {AI_CHAT_CONTENT.loginHint}{' '}
+            <Link
+              to={`${PATHS.login}?redirect=${encodeURIComponent(PATHS.home)}`}
+              className="font-semibold text-site-highlight-bright underline-offset-2 hover:underline"
+            >
+              {AI_CHAT_CONTENT.loginLink}
+            </Link>
+          </p>
+        )}
         <p className="ai-advisor__disclaimer">{AI_CHAT_CONTENT.disclaimer}</p>
       </form>
     </aside>
