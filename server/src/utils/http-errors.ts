@@ -20,3 +20,9 @@ export const conflict = (code: string, message: string, details?: unknown): AppE
 
 export const unprocessable = (code: string, message: string, details?: unknown): AppError =>
   new AppError(422, code, message, details);
+
+export const tooManyRequests = (code: string, message: string): AppError =>
+  new AppError(429, code, message);
+
+export const serviceUnavailable = (code: string, message: string): AppError =>
+  new AppError(503, code, message);
