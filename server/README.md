@@ -69,7 +69,7 @@ Configure it in `.env` (the API key stays on the server, never in the frontend):
 | `AI_ADVISOR_ENABLED` | `false` | `false`: the endpoint returns `503`, nothing else is affected |
 | `GEMINI_API_KEY` | (empty) | Without a key every question falls back to plain search results |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model name (needs `thinkingLevel` support) |
-| `GEMINI_TIMEOUT_MS` | `8000` | Slower calls fall back to plain search results |
+| `GEMINI_TIMEOUT_MS` | (empty) | Empty: wait until Gemini answers or fails. A number of ms: slower calls fall back to plain search results |
 | `AI_ADVISOR_DAILY_LIMIT` | `20` | Questions per user per day (Vietnam time); FAQ answers are not counted |
 
 Flow: feature flag, sign-in and validation, FAQ (no Gemini), daily limit, Gemini call 1 (filters, skipped when `filtersFromButtons`), MongoDB search with relaxed filters (price, then category), Gemini call 2 (advice), server-side check of the picked ids. Every question writes one `AiRequest` (status, tokens, latency, model).

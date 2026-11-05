@@ -25,11 +25,12 @@ export interface GeminiModels {
 export interface GeminiClientOptions {
   apiKey: string;
   modelName: string;
-  timeoutMs: number;
+  /** null: không tự cắt, chờ tới khi Gemini trả lời hoặc báo lỗi. */
+  timeoutMs: number | null;
   models?: GeminiModels;
 }
 
-/** Bọc SDK @google/genai: JSON theo schema, suy nghĩ mức LOW, timeout, đọc usageMetadata. */
+/** Bọc SDK @google/genai: JSON theo schema, suy nghĩ mức LOW, timeout tuỳ chọn, đọc usageMetadata. */
 export class GeminiAdvisorClient implements AdvisorLlm {
   private models: GeminiModels | null;
 
@@ -46,31 +47,33 @@ export class GeminiAdvisorClient implements AdvisorLlm {
     const { timeoutMs } = this.options;
     const controller = new AbortController();
     let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new Error(`Gemini không phản hồi sau ${timeoutMs} ms.`));
-      }, timeoutMs);
+    const call = models.generateContent({
+      model: this.options.modelName,
+      contents: request.prompt,
+      config: {
+        systemInstruction: request.systemInstruction,
+        // Tối ưu token (mục 8.4): trả JSON theo schema, không có lời dẫn thừa.
+        responseMimeType: 'application/json',
+        responseJsonSchema: request.responseJsonSchema,
+        // Tối ưu token (mục 8.5, 8.6): suy nghĩ mức thấp, trần tổng token đầu ra.
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        maxOutputTokens: request.maxOutputTokens,
+        abortSignal: controller.signal,
+      },
     });
+    // Chỉ tự cắt khi GEMINI_TIMEOUT_MS có giá trị; mặc định chờ tới khi Gemini trả lời hoặc báo lỗi.
+    const timeout =
+      timeoutMs === null
+        ? null
+        : new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => {
+              controller.abort();
+              reject(new Error(`Gemini không phản hồi sau ${timeoutMs} ms.`));
+            }, timeoutMs);
+          });
 
     try {
-      const response = await Promise.race([
-        models.generateContent({
-          model: this.options.modelName,
-          contents: request.prompt,
-          config: {
-            systemInstruction: request.systemInstruction,
-            // Tối ưu token (mục 8.4): trả JSON theo schema, không có lời dẫn thừa.
-            responseMimeType: 'application/json',
-            responseJsonSchema: request.responseJsonSchema,
-            // Tối ưu token (mục 8.5, 8.6): suy nghĩ mức thấp, trần tổng token đầu ra.
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-            maxOutputTokens: request.maxOutputTokens,
-            abortSignal: controller.signal,
-          },
-        }),
-        timeout,
-      ]);
+      const response = await (timeout ? Promise.race([call, timeout]) : call);
       const usage = response.usageMetadata;
       return {
         text: response.text ?? '',

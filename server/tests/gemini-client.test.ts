@@ -71,6 +71,21 @@ describe('GeminiAdvisorClient', () => {
     expect(signal?.aborted).toBe(true);
   });
 
+  it('waits for a slow answer when no timeout is set', async () => {
+    const models: GeminiModels = {
+      generateContent: () =>
+        new Promise((resolve) => setTimeout(() => resolve({ text: '{"ok":true}' }), 50)),
+    };
+    const client = new GeminiAdvisorClient({
+      apiKey: '',
+      modelName: 'gemini-x',
+      timeoutMs: null,
+      models,
+    });
+
+    await expect(client.generateJson(REQUEST)).resolves.toMatchObject({ text: '{"ok":true}' });
+  });
+
   it('refuses to call Gemini without an API key', async () => {
     const client = new GeminiAdvisorClient({ apiKey: '', modelName: 'gemini-x', timeoutMs: 1_000 });
 

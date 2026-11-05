@@ -58,9 +58,9 @@ export interface AdvisorResponse {
 }
 
 export async function askAdvisor(payload: AdvisorRequest): Promise<AdvisorResponse> {
-  // Server có thể gọi Gemini 2 lần (mỗi lần tối đa 8 giây): chờ lâu hơn timeout mặc định
+  // Server gọi Gemini tới 2 lần và không giới hạn thời gian chờ: bỏ timeout mặc định 15 giây của httpClient
   const { data } = await httpClient.post<ApiResponse<AdvisorResponse>>('/ai/advisor', payload, {
-    timeout: 30_000,
+    timeout: 0,
   })
   return data.data
 }
