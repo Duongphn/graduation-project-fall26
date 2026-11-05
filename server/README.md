@@ -60,7 +60,7 @@ Default health endpoint: `GET /api/v1/health`. Home page showcase: `GET /api/v1/
 
 ## AI toy advisor
 
-`POST /api/v1/ai/advisor` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys. AI only suggests; the parent decides.
+`POST /api/v1/ai/advisor` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys for rent or sale (donated toys are never suggested). AI only suggests; the parent decides.
 
 Configure it in `.env` (the API key stays on the server, never in the frontend):
 

@@ -63,6 +63,24 @@ beforeAll(async () => {
     { ...baseToy(), categoryId: building!._id, title: 'Quá giá', priceOrRate: 500_000 },
     { ...baseToy(), categoryId: dolls!._id, title: 'Búp bê' },
   ]);
+
+  // Tạo sau cùng nên đứng đầu kết quả mới nhất: tin bán được gợi ý, đồ tặng thì không bao giờ.
+  await Toy.create([
+    {
+      ...baseToy(),
+      categoryId: building!._id,
+      title: 'Bộ xếp hình đang bán',
+      listingType: 'sell',
+      priceOrRate: 120_000,
+    },
+    {
+      ...baseToy(),
+      categoryId: building!._id,
+      title: 'Đồ tặng',
+      listingType: 'donate',
+      priceOrRate: 0,
+    },
+  ]);
 });
 
 beforeEach(async () => {
@@ -180,6 +198,7 @@ describe('POST /api/v1/ai/advisor', () => {
       'history with an unknown role',
       { message: 'Bé 4 tuổi', history: [{ role: 'system', text: 'x' }] },
     ],
+    ['a donate listing type', { message: 'Bé 4 tuổi', filters: { listingType: 'donate' } }],
   ])('rejects %s with 400 (case 10)', async (_label, body) => {
     const llm = new FakeAdvisorLlm();
 
@@ -207,6 +226,23 @@ describe('POST /api/v1/ai/advisor', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.source).toBe('ai');
     expect(llm.calls).toBe(1);
+  });
+
+  it('suggests only toys for rent or sale, never donated toys', async () => {
+    // Gemini lỗi ở lần tư vấn: fallback trả nguyên danh sách tìm được trong DB.
+    const llm = new FakeAdvisorLlm([new Error('503 UNAVAILABLE')]);
+
+    const res = await request(appWith(llm))
+      .post('/api/v1/ai/advisor')
+      .set(auth())
+      .send({ message: '', filtersFromButtons: true, filters: { ageYears: 4 } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.source).toBe('fallback');
+    const toys = res.body.data.toys as { name: string; listingType: string }[];
+    expect(toys.map((toy) => toy.name)).toContain('Bộ xếp hình đang bán');
+    expect(toys.map((toy) => toy.name)).not.toContain('Đồ tặng');
+    for (const toy of toys) expect(['rent', 'sell']).toContain(toy.listingType);
   });
 
   it('requires a signed-in user (case 11)', async () => {

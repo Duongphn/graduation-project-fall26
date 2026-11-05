@@ -1,6 +1,7 @@
-import type { AdvisorSource } from '../constants/ai-advisor.js';
+import type { ADVISOR_LISTING_TYPES, AdvisorSource } from '../constants/ai-advisor.js';
 
-export type AdvisorToyListingType = 'rent' | 'sell' | 'donate';
+/** Chỉ tin cho thuê hoặc đang bán (constants/ai-advisor.ts). */
+export type AdvisorToyListingType = (typeof ADVISOR_LISTING_TYPES)[number];
 export type AdvisorListingType = 'any' | AdvisorToyListingType;
 
 /** Giá trị "không lọc" của category và listingType. */

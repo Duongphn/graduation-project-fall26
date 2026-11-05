@@ -40,12 +40,12 @@ const MAX_AGE = 18;
 const MAX_PRICE = 1_000_000_000;
 const AREA_CHARS = 60;
 const INTRO_CHARS = 400;
-const LISTING_TYPES: readonly AdvisorListingType[] = ['any', 'rent', 'sell', 'donate'];
+const LISTING_TYPES: readonly AdvisorListingType[] = ['any', 'rent', 'sell'];
 const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 const REPLIES = Object.freeze({
   offTopic:
-    'Mình là Robo, chỉ tư vấn chọn đồ chơi trên ToyFlow. Bạn cho mình biết bé mấy tuổi, thích gì, muốn thuê, mua hay nhận tặng và mức giá nhé!',
+    'Mình là Robo, chỉ tư vấn chọn đồ chơi trên ToyFlow. Bạn cho mình biết bé mấy tuổi, thích gì, muốn thuê hay mua và mức giá nhé!',
   noResult:
     'Hiện chưa có đồ chơi nào phù hợp trên ToyFlow. Bạn thử đổi độ tuổi, loại đồ chơi, hình thức hoặc mức giá nhé.',
   aiBusy: 'Trợ lý AI đang bận, mình gửi bạn các món phù hợp với bộ lọc hiện tại.',
@@ -66,7 +66,6 @@ const RELAXATION_REPLIES: Record<AdvisorRelaxation, string | null> = {
 const LISTING_LABELS: Record<AdvisorToy['listingType'], string> = {
   rent: 'cho thuê',
   sell: 'đang bán',
-  donate: 'tặng miễn phí',
 };
 
 export const DEFAULT_ADVISOR_FILTERS: AdvisorFilters = Object.freeze({

@@ -1,10 +1,11 @@
-import { ADVISOR_SOURCES } from '../constants/ai-advisor.js';
+import { ADVISOR_LISTING_TYPES, ADVISOR_SOURCES } from '../constants/ai-advisor.js';
 import { objectIdSchema } from './common.validation.js';
 import { z } from './zod.js';
 
 export const ADVISOR_MESSAGE_MAX = 500;
 
-const listingTypeSchema = z.enum(['any', 'rent', 'sell', 'donate']).openapi({ example: 'rent' });
+// Trợ lý chỉ gợi ý tin cho thuê hoặc đang bán (không có 'donate').
+const listingTypeSchema = z.enum(['any', ...ADVISOR_LISTING_TYPES]).openapi({ example: 'rent' });
 
 const ageYearsSchema = z
   .number()
@@ -19,14 +20,10 @@ const maxPriceSchema = z.number().min(0).max(1_000_000_000).nullable().openapi({
   example: 150000,
 });
 
-const categorySchema = z
-  .string()
-  .trim()
-  .max(80)
-  .openapi({
-    description: "Slug danh mục đang hoạt động, hoặc 'any'.",
-    example: 'lap-rap-xep-hinh',
-  });
+const categorySchema = z.string().trim().max(80).openapi({
+  description: "Slug danh mục đang hoạt động, hoặc 'any'.",
+  example: 'lap-rap-xep-hinh',
+});
 
 const areaSchema = z
   .string()
@@ -89,7 +86,7 @@ const advisorToySchema = z
   .object({
     id: objectIdSchema,
     name: z.string().openapi({ example: 'Bộ xếp hình Duplo 60 chi tiết' }),
-    listingType: z.enum(['rent', 'sell', 'donate']),
+    listingType: z.enum(ADVISOR_LISTING_TYPES),
     priceOrRate: z
       .number()
       .openapi({ description: 'Tin thuê: giá mỗi ngày (VND).', example: 40000 }),

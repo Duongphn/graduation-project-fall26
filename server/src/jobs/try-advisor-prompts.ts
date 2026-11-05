@@ -48,7 +48,7 @@ const SAMPLE_TOYS: AdvisorToyRecord[] = [
   ['Bộ lắp ráp gỗ thành phố', 'rent', 35_000],
   ['Xếp hình nam châm 48 miếng', 'rent', 50_000],
   ['Tháp xếp chồng cầu vồng', 'sell', 120_000],
-  ['Bộ khối gỗ chữ cái', 'donate', 0],
+  ['Bộ khối gỗ chữ cái', 'sell', 90_000],
 ].map(([title, listingType, priceOrRate], index) => ({
   id: `66a0000000000000000000a${index}`,
   title: String(title),

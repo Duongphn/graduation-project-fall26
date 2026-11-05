@@ -1,5 +1,6 @@
 import mongoose, { type FilterQuery, type Types } from 'mongoose';
 
+import { ADVISOR_LISTING_TYPES } from '../constants/ai-advisor.js';
 import type { AdvisorCatalogPort, AdvisorUsageLogPort } from '../interfaces/ai-advisor.ports.js';
 import { AiRequest } from '../models/ai-request.model.js';
 import { Category } from '../models/category.model.js';
@@ -51,14 +52,15 @@ export class MongoAiAdvisorRepository implements AdvisorCatalogPort, AdvisorUsag
   }
 
   public async searchToys(query: AdvisorToyQuery): Promise<AdvisorToyRecord[]> {
-    // BR-01: tin đã được Admin duyệt (active), chưa bán, không phải tin của người hỏi.
+    // BR-01: tin đã được Admin duyệt (active), chưa bán, không phải tin của người hỏi;
+    // chỉ tin cho thuê hoặc đang bán, không gợi ý đồ tặng.
     const soldIds = await this.catalogPorts.getSoldToyIds();
     const filter: FilterQuery<IToy> = {
       status: 'active',
       ownerId: { $ne: toObjectId(query.excludeOwnerId) },
     };
     if (soldIds.length > 0) filter._id = { $nin: soldIds.map(toObjectId) };
-    if (query.listingType) filter.listingType = query.listingType;
+    filter.listingType = query.listingType ?? { $in: [...ADVISOR_LISTING_TYPES] };
     if (query.categoryId) filter.categoryId = toObjectId(query.categoryId);
     if (query.ageYears !== null) {
       filter['ageRange.minAge'] = { $lte: query.ageYears };
