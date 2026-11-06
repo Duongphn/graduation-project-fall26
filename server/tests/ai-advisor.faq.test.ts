@@ -40,6 +40,23 @@ const FAQ_QUESTIONS: Array<[string, FaqTopic]> = [
   ['Tôi muốn tặng đồ chơi cũ cho trẻ em khó khăn', 'donate'],
   ['Quên mật khẩu thì làm sao?', 'account'],
   ['Robo là ai, mỗi ngày hỏi được bao nhiêu lần?', 'ai_advisor'],
+  // Cách hỏi khác của cùng các chủ đề (bộ câu gửi cho người test thủ công).
+  ['Khi nào tôi được trả lại tiền cọc?', 'deposit'],
+  ['Thuê 3 ngày thì tính tiền thế nào?', 'fees'],
+  ['Lỡ trả muộn một hôm có sao không?', 'late_return'],
+  ['Đồ chơi bị vỡ khi bé chơi thì xử lý ra sao?', 'damage'],
+  ['Ví của tôi hết tiền, nạp tiền ở đâu?', 'payment'],
+  ['Đã thanh toán rồi có huỷ được không?', 'cancel'],
+  ['Bên cho thuê có ship đồ đến nhà không?', 'handover'],
+  ['Muốn thuê thêm vài ngày nữa được không?', 'extend'],
+  ['Đồ chơi đang bán thì đặt mua ở đâu?', 'buy'],
+  ['Tôi muốn cho thuê đồ chơi của con mình thì làm sao?', 'listing'],
+  ['Sao tin của tôi mãi chưa được duyệt?', 'listing_review'],
+  ['Có cần xác thực CCCD mới thuê được không?', 'verification'],
+  ['Đồ chơi cho thuê có được vệ sinh sạch không?', 'safety'],
+  ['Tôi muốn quyên góp đồ chơi cho mái ấm', 'donate'],
+  ['Không nhận được mã OTP khi đăng ký', 'account'],
+  ['Bạn là ai vậy?', 'ai_advisor'],
 ];
 
 // Câu tìm đồ chơi: phải để Gemini tư vấn, không được khớp nhầm FAQ.
@@ -52,6 +69,10 @@ const SEARCH_QUESTIONS = [
   'Đồ chơi an toàn cho trẻ sơ sinh',
   'Tìm đồ trẻ sơ sinh giá rẻ',
   'Đồ chơi chất lượng tốt cho bé trai',
+  'Có đồ chơi nấu ăn cho bé gái không?',
+  'Bé nhà mình thích âm nhạc, gợi ý giúp với',
+  'Có bộ lego nào cho thuê không?',
+  'Có đồ chơi giáo dục nào giao được không?',
 ];
 
 describe('advisor FAQ', () => {

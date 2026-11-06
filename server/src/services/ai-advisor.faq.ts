@@ -1,4 +1,4 @@
-// Câu hỏi thường gặp trả lời ngay, không gọi Gemini và không tính lượt (US-03, BR-08, mục 8.7).
+// Câu hỏi thường gặp trả lời ngay, không gọi Gemini.
 // Nội dung bám theo luồng thật trong code (rental-*.ts, toy-listing.service.ts, donation, auth,
 // trang chi tiết đồ chơi); không ghi con số Admin cấu hình được (tỷ lệ phí, hệ số trễ hạn,
 // số giờ chờ, số ngày thuê tối đa).
@@ -92,12 +92,33 @@ export const ADVISOR_FAQ: readonly FaqEntry[] = [
       'phi nen tang',
       'tinh phi',
       'mat phi',
-      'tinh tien thue',
+      'tinh tien',
       'tien thue tinh',
       'hoa hong',
     ],
     answer:
       'Tiền thuê = số ngày thuê × giá thuê mỗi ngày ghi trên tin (tính cả ngày nhận và ngày trả). Bạn thanh toán tiền thuê và tiền cọc qua ví ToyFlow, không phải trả thêm phí dịch vụ: phí nền tảng được trừ vào phần tiền chủ đồ chơi nhận.',
+  },
+  // Đứng trước 'payment': "Đã thanh toán rồi có huỷ được không?" là câu hỏi về huỷ đơn.
+  {
+    topic: 'cancel',
+    keywords: [
+      'huy don',
+      'huy thue',
+      'huy yeu cau',
+      'huy duoc',
+      'muon huy',
+      'khong muon thue nua',
+      'doi y',
+      'chua xac nhan',
+      'chua dong y',
+      'don bi tu choi',
+      'yeu cau bi tu choi',
+      'tu choi don',
+      'tu choi yeu cau',
+    ],
+    answer:
+      'Sau khi bạn gửi yêu cầu thuê, chủ đồ chơi có thời hạn để đồng ý hoặc từ chối; quá hạn không phản hồi thì yêu cầu tự hết hạn và bạn chưa bị trừ tiền. Sau khi chủ đồng ý, nếu bạn không thanh toán trong thời hạn thì đơn cũng tự hết hạn. Hiện ứng dụng chưa có nút để người thuê tự huỷ đơn, kể cả đơn đã thanh toán.',
   },
   {
     topic: 'payment',
@@ -113,24 +134,6 @@ export const ADVISOR_FAQ: readonly FaqEntry[] = [
     ],
     answer:
       'Đơn thuê được thanh toán bằng số dư ví ToyFlow (tiền thuê cộng tiền cọc), trong thời hạn quy định sau khi chủ đồ chơi đồng ý; quá hạn chưa thanh toán thì yêu cầu thuê tự hết hạn. Hiện ToyFlow chưa mở nạp ví trực tuyến: quản trị viên ToyFlow nạp tiền vào ví giúp bạn. Tiền cọc được hoàn cũng trả về ví.',
-  },
-  {
-    topic: 'cancel',
-    keywords: [
-      'huy don',
-      'huy thue',
-      'huy yeu cau',
-      'khong muon thue nua',
-      'doi y',
-      'chua xac nhan',
-      'chua dong y',
-      'don bi tu choi',
-      'yeu cau bi tu choi',
-      'tu choi don',
-      'tu choi yeu cau',
-    ],
-    answer:
-      'Sau khi bạn gửi yêu cầu thuê, chủ đồ chơi có thời hạn để đồng ý hoặc từ chối; quá hạn không phản hồi thì yêu cầu tự hết hạn và bạn chưa bị trừ tiền. Sau khi chủ đồng ý, nếu bạn không thanh toán trong thời hạn thì đơn cũng tự hết hạn. Hiện ứng dụng chưa có nút để người thuê tự huỷ đơn, kể cả đơn đã thanh toán.',
   },
   {
     topic: 'donate',
@@ -153,8 +156,8 @@ export const ADVISOR_FAQ: readonly FaqEntry[] = [
       'giao hang',
       'giao nhan',
       'van chuyen',
-      'phi ship',
-      'ship hang',
+      'ship',
+      'giao den',
       'giao tan nha',
       'gap truc tiep',
       'nhan duoc do',
