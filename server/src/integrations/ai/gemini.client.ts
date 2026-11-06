@@ -5,6 +5,7 @@ import type {
   LlmJsonRequest,
   LlmJsonResult,
 } from '../../interfaces/ai-advisor.ports.js';
+import type { RequestLimiter } from './request-limiter.js';
 
 interface GeminiResponseLike {
   text?: string | undefined;
@@ -27,6 +28,8 @@ export interface GeminiClientOptions {
   modelName: string;
   /** null: không tự cắt, chờ tới khi Gemini trả lời hoặc báo lỗi. */
   timeoutMs: number | null;
+  /** Giới hạn số request mỗi phút kèm hàng chờ; null: không giới hạn. */
+  limiter?: RequestLimiter | null;
   models?: GeminiModels;
 }
 
@@ -44,6 +47,8 @@ export class GeminiAdvisorClient implements AdvisorLlm {
 
   public async generateJson(request: LlmJsonRequest): Promise<LlmJsonResult> {
     const models = this.getModels();
+    // Đủ lượt trong phút này thì xếp hàng (tối đa 30 giây); hàng quá dài thì ném lỗi → fallback.
+    await this.options.limiter?.acquire();
     const { timeoutMs } = this.options;
     const controller = new AbortController();
     let timer: NodeJS.Timeout | undefined;

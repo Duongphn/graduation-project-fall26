@@ -84,6 +84,7 @@ const SETTINGS: AiAdvisorSettings = {
   enabled: true,
   modelName: 'fake-gemini',
   timeoutMs: 8_000,
+  requestsPerMinute: null,
   dailyLimit: 20,
 };
 

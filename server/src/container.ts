@@ -1,5 +1,6 @@
-import { type AiAdvisorSettings, aiConfig } from './config/ai.config.js';
+import { type AiAdvisorSettings, aiConfig, GEMINI_QUEUE_MAX_WAIT_MS } from './config/ai.config.js';
 import { GeminiAdvisorClient } from './integrations/ai/gemini.client.js';
+import { RequestLimiter } from './integrations/ai/request-limiter.js';
 import type { AdvisorLlm } from './interfaces/ai-advisor.ports.js';
 import { MongoAiAdvisorRepository } from './repositories/ai-advisor.repository.js';
 import { AiAdvisorService } from './services/ai-advisor.service.js';
@@ -216,6 +217,15 @@ function createAiAdvisorService(overrides: ContainerOverrides, clock: Clock): Ai
         apiKey: aiConfig.geminiApiKey,
         modelName: settings.modelName,
         timeoutMs: settings.timeoutMs,
+        // Một hàng chờ chung cho cả server: giới hạn của Google tính trên cả key, không theo người dùng.
+        limiter:
+          settings.requestsPerMinute === null
+            ? null
+            : new RequestLimiter({
+                maxRequests: settings.requestsPerMinute,
+                windowMs: 60_000,
+                maxWaitMs: GEMINI_QUEUE_MAX_WAIT_MS,
+              }),
       }),
     catalog: repository,
     usageLog: repository,

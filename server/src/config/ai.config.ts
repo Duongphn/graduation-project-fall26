@@ -20,12 +20,24 @@ const optionalTimeout = (name: string): number | null => {
   return positiveInteger(name, 0);
 };
 
+/** 0: không giới hạn (null); để trống: mặc định 15 request/phút như gói miễn phí của Gemini. */
+const requestsPerMinute = (): number | null => {
+  const raw = process.env.GEMINI_RPM?.trim();
+  if (raw === '0') return null;
+  return positiveInteger('GEMINI_RPM', 15);
+};
+
+/** Request vượt giới hạn mỗi phút xếp hàng chờ tối đa chừng này, quá thì trả kết quả tìm kiếm thường. */
+export const GEMINI_QUEUE_MAX_WAIT_MS = 30_000;
+
 /** Cấu hình service dùng; test thay từng phần qua ContainerOverrides.aiAdvisorSettings. */
 export interface AiAdvisorSettings {
   enabled: boolean;
   modelName: string;
   /** Thời gian chờ mỗi lần gọi Gemini (ms); null: chờ tới khi Gemini trả lời hoặc báo lỗi. */
   timeoutMs: number | null;
+  /** Số request tối đa gửi lên Gemini mỗi phút (cả hệ thống); null: không giới hạn. */
+  requestsPerMinute: number | null;
   dailyLimit: number;
 }
 
@@ -36,6 +48,7 @@ const advisor: AiAdvisorSettings = Object.freeze({
   enabled: env.nodeEnv !== 'test' && process.env.AI_ADVISOR_ENABLED === 'true',
   modelName: process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL,
   timeoutMs: optionalTimeout('GEMINI_TIMEOUT_MS'),
+  requestsPerMinute: requestsPerMinute(),
   dailyLimit: positiveInteger('AI_ADVISOR_DAILY_LIMIT', 20),
 });
 
