@@ -2,6 +2,11 @@
   @apply focus-visible:ring-2 focus-visible:ring-brand-button focus-visible:outline-none dark:focus-visible:ring-indigo-300;
 }
 
+/* Khung nội dung căn giữa của site công khai (trang chủ, header/footer, trang quyên góp, đơn thuê…) */
+@utility home-container {
+  @apply mx-auto w-full max-w-[1300px] px-4 sm:px-6 2xl:max-w-[1536px];
+}
+
 @layer components {
   .text-link {
     @apply rounded font-bold text-brand-button hover:underline focus-ring dark:text-indigo-300;

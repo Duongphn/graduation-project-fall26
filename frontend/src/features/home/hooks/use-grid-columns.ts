@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Số cột của `.toy-grid` theo chiều rộng màn hình — PHẢI khớp home.css:
+ * Số cột của lưới đồ chơi theo chiều rộng màn hình — PHẢI khớp TOY_GRID (home-styles.ts):
  * `grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5` (md 768px, lg 1024px, xl 1280px).
  */
 const COLUMN_BREAKPOINTS: { query: string; columns: number }[] = [

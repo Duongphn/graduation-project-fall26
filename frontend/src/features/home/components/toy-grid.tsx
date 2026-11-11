@@ -5,6 +5,7 @@ import type { PublicListingType } from '../home-api'
 import type { featuredRentalsQuery } from '../home-queries'
 import { useCategoryLookup } from '../hooks/use-category-lookup'
 import { useToyShowcase } from '../hooks/use-toy-showcase'
+import { homeButton, TOY_GRID } from '../home-styles'
 import { EmptyState } from './empty-state'
 import { ToyCard, ToyCardSkeleton } from './toy-card'
 import { ToyGridEmpty, type ToyGridEmptyContent } from './toy-grid-empty'
@@ -29,13 +30,13 @@ export function ToyGrid({ query: queryOptions, listingType, empty }: ToyGridProp
   useEffect(() => {
     const index = pendingFocusIndex.current
     if (index === null || items.length <= index) return
-    gridRef.current?.querySelectorAll<HTMLAnchorElement>('.toy-card__link')[index]?.focus()
+    gridRef.current?.querySelectorAll<HTMLAnchorElement>('[data-toy-link]')[index]?.focus()
     pendingFocusIndex.current = null
   }, [items.length])
 
   if (query.isPending) {
     return (
-      <div className="toy-grid" aria-busy="true">
+      <div className={TOY_GRID} aria-busy="true">
         {Array.from({ length: placeholderCount }, (_, index) => (
           <ToyCardSkeleton key={index} />
         ))}
@@ -51,7 +52,7 @@ export function ToyGrid({ query: queryOptions, listingType, empty }: ToyGridProp
         title="Chưa tải được danh sách đồ chơi"
         description={getApiErrorMessage(query.error)}
         action={
-          <button type="button" className="home-button home-button--outline" onClick={() => void query.refetch()}>
+          <button type="button" className={homeButton('outline')} onClick={() => void query.refetch()}>
             Thử lại
           </button>
         }
@@ -70,20 +71,20 @@ export function ToyGrid({ query: queryOptions, listingType, empty }: ToyGridProp
 
   return (
     <>
-      <div ref={gridRef} className="toy-grid">
+      <div ref={gridRef} className={TOY_GRID}>
         {items.map((toy) => (
           <ToyCard key={toy.id} toy={toy} category={categoryById.get(toy.categoryId)} />
         ))}
       </div>
 
-      <div className="toy-grid__footer">
-        <p className="toy-grid__count" aria-live="polite">
+      <div className="mt-5 flex flex-col items-center gap-3">
+        <p className="text-xs text-site-muted dark:text-slate-400" aria-live="polite">
           Đang xem {items.length} / {total} đồ chơi
         </p>
         {hasMore && (
           <button
             type="button"
-            className="home-button home-button--outline toy-grid__more"
+            className={`${homeButton('outline', 'pill')} min-w-48 disabled:cursor-wait disabled:opacity-70`}
             onClick={handleShowMore}
             disabled={isLoadingMore}
           >

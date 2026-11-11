@@ -135,7 +135,10 @@ function HeaderSearchForm({ onSubmitted }: { onSubmitted: () => void }) {
         // Mở hộp tìm kiếm là để gõ ngay
         autoFocus
       />
-      <button type="submit" className="home-button home-button--primary home-button--small">
+      <button
+        type="submit"
+        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-site-primary px-4 py-2 text-sm font-semibold whitespace-nowrap text-white transition-[background-color,color,box-shadow,transform] duration-200 ease-out-quint hover:bg-site-primary-hover hover:shadow-[0_8px_20px_-10px_rgb(20_40_75/0.8)] focus-ring active:scale-[0.98]"
+      >
         Tìm
       </button>
     </form>

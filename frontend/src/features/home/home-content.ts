@@ -55,7 +55,7 @@ import { AGE_OPTIONS } from '../toy-listings/toy-listing-schema'
  * Dữ liệu động (đồ chơi, danh mục) luôn lấy từ API — không đặt ở đây.
  */
 
-/** Bảng màu nhấn dùng chung cho icon, ô ảnh chờ và thẻ — mỗi tone có class BEM tương ứng trong home.css */
+/** Bảng màu nhấn dùng chung cho icon, ô ảnh chờ và thẻ — class Tailwind của mỗi tone ở TONE_CLASSES (home-styles.ts) */
 export type Tone =
   | 'rose'
   | 'orange'
@@ -148,7 +148,7 @@ export const TRUST_POINTS: IconText[] = [
 
 export interface HeroBannerSlide {
   id: string
-  /** Tông màu nền của slide — có class `hero-banner__slide--{tone}` trong home.css */
+  /** Tông màu nền của slide — class Tailwind ở SLIDE_TONES (hero-banner-carousel.tsx) */
   tone: 'sky' | 'orange' | 'emerald'
   icon: LucideIcon
   eyebrow: string
