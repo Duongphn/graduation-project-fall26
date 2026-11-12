@@ -1,3 +1,9 @@
+import { type AiAdvisorSettings, aiConfig, GEMINI_QUEUE_MAX_WAIT_MS } from './config/ai.config.js';
+import { GeminiAdvisorClient } from './integrations/ai/gemini.client.js';
+import { RequestLimiter } from './integrations/ai/request-limiter.js';
+import type { AdvisorLlm } from './interfaces/ai-advisor.ports.js';
+import { MongoAiAdvisorRepository } from './repositories/ai-advisor.repository.js';
+import { AiAssistanceService } from './services/ai-assistance.service.js';
 import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/mailer.js';
 import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
@@ -80,6 +86,10 @@ export interface ContainerOverrides {
   rentalOrderService?: RentalOrderService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
+  // Trợ lý AI: bản giả của Gemini và cấu hình (bật/tắt, giới hạn lượt) cho test.
+  advisorLlm?: AdvisorLlm;
+  aiAdvisorSettings?: Partial<AiAdvisorSettings>;
+  aiAssistanceService?: AiAssistanceService;
 }
 
 export interface Container {
@@ -95,6 +105,7 @@ export interface Container {
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
+  aiAssistanceService: AiAssistanceService;
 }
 
 /**
@@ -175,6 +186,10 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       clock,
     );
 
+  // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
+  const aiAssistanceService =
+    overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
+
   return {
     toyImageStorage,
     authService,
@@ -187,5 +202,38 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,
+    aiAssistanceService,
   };
+}
+
+function createAiAssistanceService(
+  overrides: ContainerOverrides,
+  clock: Clock,
+): AiAssistanceService {
+  const settings = { ...aiConfig.advisor, ...overrides.aiAdvisorSettings };
+  const repository = new MongoAiAdvisorRepository(
+    overrides.toyCatalogPorts ?? createToyCatalogPorts(),
+  );
+  return new AiAssistanceService({
+    llm:
+      overrides.advisorLlm ??
+      new GeminiAdvisorClient({
+        apiKey: aiConfig.geminiApiKey,
+        modelName: settings.modelName,
+        timeoutMs: settings.timeoutMs,
+        // Một hàng chờ chung cho cả server: giới hạn của Google tính trên cả key, không theo người dùng.
+        limiter:
+          settings.requestsPerMinute === null
+            ? null
+            : new RequestLimiter({
+                maxRequests: settings.requestsPerMinute,
+                windowMs: 60_000,
+                maxWaitMs: GEMINI_QUEUE_MAX_WAIT_MS,
+              }),
+      }),
+    catalog: repository,
+    usageLog: repository,
+    settings,
+    clock,
+  });
 }

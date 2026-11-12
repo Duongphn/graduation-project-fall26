@@ -3,6 +3,7 @@ import type { Container } from '../container.js';
 import { featureEnv } from '../config/feature-env.js';
 import { createDocsRouter } from '../config/openapi.js';
 import { authenticate } from '../middlewares/authenticate.js';
+import { createAiRouter } from './ai.routes.js';
 import { adminCategoriesRouter } from './category-admin.routes.js';
 import { createDonationPostsRouter } from './donation-post.routes.js';
 import {
@@ -65,6 +66,8 @@ export function createApiRouter(container: Container): Router {
   );
   router.use('/donors', donorProfileRouter);
   router.use('/uploads', authenticate, uploadsRouter);
+  // Trợ lý AI: router tự kiểm tra cờ tính năng trước khi xác thực (tắt thì 503).
+  router.use('/ai', createAiRouter(container.aiAssistanceService));
 
   // Swagger UI and the OpenAPI JSON of the documented routes (never in production).
   if (featureEnv.docsEnabled) {
