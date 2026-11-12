@@ -1047,3 +1047,58 @@
     }
   }
 }
+
+/*
+ * Các rule dưới đây trước nằm trong features/home/home.css (trang chủ dùng chung tên class .toy-card)
+ * và vẫn áp lên thẻ ở trang tìm kiếm. Trang chủ đã chuyển sang Tailwind và bỏ home.css; giữ lại
+ * đúng các rule này để thẻ ở trang tìm kiếm không đổi giao diện.
+ */
+@layer components {
+  .toy-card {
+    @apply relative flex flex-col gap-3 rounded-2xl border border-site-line bg-white p-2.5 transition-[border-color,box-shadow,transform] duration-300 ease-out-quint dark:border-night-700 dark:bg-night-900;
+  }
+
+  .toy-card:not(.toy-card--skeleton):hover {
+    @apply -translate-y-0.5 border-site-primary/30 shadow-[0_18px_36px_-26px_rgb(18_23_31/0.55)];
+  }
+
+  .toy-card:focus-within {
+    @apply ring-2 ring-site-primary;
+  }
+
+  .toy-card__media {
+    @apply relative aspect-[4/3] overflow-hidden rounded-xl;
+  }
+
+  .toy-card__badge {
+    @apply absolute top-2 left-2 rounded-md bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-tf-primary shadow-sm dark:bg-night-900/90 dark:text-sky-300;
+  }
+
+  .toy-card--sell .toy-card__badge {
+    @apply text-site-sale dark:text-orange-300;
+  }
+
+  .toy-card__body {
+    @apply flex flex-1 flex-col gap-1 px-1;
+  }
+
+  .toy-card__title {
+    @apply line-clamp-2 text-sm leading-5 font-medium text-site-ink dark:text-white;
+  }
+
+  .toy-card__link {
+    @apply focus:outline-none;
+  }
+
+  .toy-card__link::after {
+    @apply absolute inset-0 rounded-2xl content-[''];
+  }
+
+  .toy-card__price {
+    @apply mt-1 text-base font-bold text-site-primary dark:text-indigo-300 tabular-nums;
+  }
+
+  .toy-card--sell .toy-card__price {
+    @apply text-site-sale dark:text-orange-300;
+  }
+}

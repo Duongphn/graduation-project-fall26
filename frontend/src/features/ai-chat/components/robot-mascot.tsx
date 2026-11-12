@@ -9,13 +9,14 @@ interface RobotMascotProps {
 
 /**
  * Robot trợ lý vẽ bằng SVG: ngủ (mắt nhắm, thở chậm), thức (mắt tròn, chớp mắt), vui (mắt cười, nhún nhảy).
- * Hiệu ứng nằm trong ai-chat.css và tự tắt khi người dùng bật "giảm chuyển động".
+ * Hiệu ứng: animation khai báo trong @theme của index.css, tự tắt khi người dùng bật "giảm chuyển động".
  */
 export function RobotMascot({ mood, className = '' }: RobotMascotProps) {
   const gradientId = useId()
+  const isSleeping = mood === 'sleeping'
 
   return (
-    <svg viewBox="0 0 64 64" className={`robot robot--${mood} ${className}`} aria-hidden focusable="false">
+    <svg viewBox="0 0 64 64" className={className} aria-hidden focusable="false">
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#ffffff" />
@@ -23,10 +24,19 @@ export function RobotMascot({ mood, className = '' }: RobotMascotProps) {
         </linearGradient>
       </defs>
 
-      <g className="robot__body">
+      <g
+        className={`origin-[50%_90%] [transform-box:fill-box] ${
+          isSleeping ? 'animate-robot-breathe' : mood === 'happy' ? 'animate-robot-bounce' : ''
+        }`}
+      >
         {/* Ăng-ten */}
         <line x1="32" y1="13" x2="32" y2="6" stroke="#9db7f5" strokeWidth="2.5" strokeLinecap="round" />
-        <circle className="robot__antenna" cx="32" cy="5" r="3.5" />
+        <circle
+          className={isSleeping ? 'fill-[#64748b]' : `fill-[#fbbf24] ${mood === 'happy' ? 'animate-robot-glow' : ''}`}
+          cx="32"
+          cy="5"
+          r="3.5"
+        />
 
         {/* Tai */}
         <rect x="5" y="25" width="6" height="12" rx="3" fill="#9db7f5" />
@@ -37,10 +47,10 @@ export function RobotMascot({ mood, className = '' }: RobotMascotProps) {
         <rect x="15" y="19" width="34" height="23" rx="10" fill="#1e3a8a" />
 
         {/* Má hồng (thức / vui) */}
-        <circle className="robot__cheek" cx="19.5" cy="36" r="2.4" />
-        <circle className="robot__cheek" cx="44.5" cy="36" r="2.4" />
+        <circle className={`fill-[#fda4af] ${isSleeping ? 'opacity-0' : 'opacity-75'}`} cx="19.5" cy="36" r="2.4" />
+        <circle className={`fill-[#fda4af] ${isSleeping ? 'opacity-0' : 'opacity-75'}`} cx="44.5" cy="36" r="2.4" />
 
-        {mood === 'sleeping' && (
+        {isSleeping && (
           <g stroke="#93c5fd" strokeWidth="2.4" strokeLinecap="round" fill="none">
             <path d="M21 29.5q3.5 2.6 7 0" />
             <path d="M36 29.5q3.5 2.6 7 0" />
@@ -50,7 +60,7 @@ export function RobotMascot({ mood, className = '' }: RobotMascotProps) {
 
         {mood === 'awake' && (
           <>
-            <g className="robot__eyes" fill="#7dd3fc">
+            <g className="origin-center animate-robot-blink [transform-box:fill-box]" fill="#7dd3fc">
               <circle cx="24.5" cy="29" r="3.6" />
               <circle cx="39.5" cy="29" r="3.6" />
             </g>

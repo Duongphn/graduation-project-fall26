@@ -10,6 +10,9 @@ export const AI_CHAT_CONTENT = {
   thinking: 'Robo đang trả lời…',
   restartLabel: 'Bắt đầu lại',
   disclaimer: 'AI chỉ gợi ý, bạn tự quyết định khi thuê hoặc mua.',
+  filterToggleLabel: 'Lọc nhanh theo độ tuổi, loại đồ chơi, hình thức, mức giá',
+  loginHint: 'Đăng nhập để Robo gợi ý đồ chơi có thật trên ToyFlow.',
+  loginLink: 'Đăng nhập',
 }
 
 /** Giới hạn độ dài câu hỏi gửi lên AI */

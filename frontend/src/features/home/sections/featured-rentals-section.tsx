@@ -6,7 +6,7 @@ import { featuredRentalsQuery } from '../home-queries'
 
 export function FeaturedRentalsSection() {
   return (
-    <section className="home-container home-section" aria-labelledby="home-rentals-title">
+    <section className="home-container mt-6 sm:mt-8" aria-labelledby="home-rentals-title">
       <SectionHeader
         id="home-rentals-title"
         title="Đồ cho thuê"

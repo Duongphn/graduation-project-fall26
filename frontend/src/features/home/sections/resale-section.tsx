@@ -6,7 +6,7 @@ import { resaleToysQuery } from '../home-queries'
 
 export function ResaleSection() {
   return (
-    <section className="home-container home-section" aria-labelledby="home-resale-title">
+    <section className="home-container mt-6 sm:mt-8" aria-labelledby="home-resale-title">
       <SectionHeader
         id="home-resale-title"
         title="Đồ cũ bán lại"

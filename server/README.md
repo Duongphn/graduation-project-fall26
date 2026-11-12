@@ -39,6 +39,7 @@ Requests flow `routes → controllers → services → repositories / models`. S
 | BF-04 Donation | `donations`, `order-status-history` | Scaffold |
 | BF-05 Dispute and Deposit Settlement | `disputes`, `payments`, `ai-assistance` | Disputes opened on return condition DAMAGED (UC11) |
 | Trust and communication | `ratings`, `chat`, `notifications` | In-app notifications integrated |
+| AI toy advisor | `ai` (`POST /api/v1/ai/advisor`) | Implemented: Gemini suggestions, FAQ, fallback, usage logs |
 
 `Shipping` is an order status only. ToyFlow does not operate delivery, select delivery providers, calculate delivery fees or manage tracking codes.
 
@@ -56,6 +57,37 @@ npm run dev
 > - Automated Vitest tests use an in-memory replica set (`mongodb-memory-server`) automatically without needing a local mongod daemon.
 
 Default health endpoint: `GET /api/v1/health`. Home page showcase: `GET /api/v1/toys/showcase`; search: `GET /api/v1/toys` (Atlas Search).
+
+## AI toy advisor
+
+`POST /api/v1/ai/advisor` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys for rent or sale (donated toys are never suggested). AI only suggests; the parent decides.
+
+Configure it in `.env` (the API key stays on the server, never in the frontend):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AI_ADVISOR_ENABLED` | `false` | `false`: the endpoint returns `503`, nothing else is affected |
+| `GEMINI_API_KEY` | (empty) | Without a key every question falls back to plain search results |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model name (needs `thinkingLevel` support) |
+| `GEMINI_TIMEOUT_MS` | (empty) | Empty: wait until Gemini answers or fails. A number of ms: slower calls fall back to plain search results |
+| `GEMINI_RPM` | `15` | Requests per minute sent to Gemini by the whole server (the key's quota). Extra requests queue up to 30 s, then fall back to plain search results. `0`: no limit |
+| `AI_ADVISOR_DAILY_LIMIT` | `20` | Questions per user per day (Vietnam time); FAQ answers are not counted |
+
+Flow: feature flag, sign-in and validation, FAQ (no Gemini), daily limit, Gemini call 1 (filters, skipped when `filtersFromButtons`), MongoDB search with relaxed filters (price, then category), Gemini call 2 (advice), server-side check of the picked ids. Every question writes one `AiRequest` (status, tokens, latency, model).
+
+Real token usage per question is in the `AiRequest` logs (`token_usage`: input, output, thoughts, calls).
+
+Example request:
+
+```http
+POST /api/v1/ai/advisor
+Authorization: Bearer <access token>
+Content-Type: application/json
+
+{ "message": "Bé 4 tuổi thích xếp hình, muốn thuê dưới 150k", "history": [], "filtersFromButtons": false }
+```
+
+The response `data.filters` is the conversation context: send it back as `filters` on the next question.
 
 ## Commands
 

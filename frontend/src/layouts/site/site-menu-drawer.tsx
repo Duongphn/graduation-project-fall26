@@ -27,7 +27,7 @@ export function SiteMenuDrawer({ open, onClose }: SiteMenuDrawerProps) {
         {categories.isPending && (
           <div className="site-menu__list" aria-busy="true">
             {Array.from({ length: SKELETON_COUNT }, (_, index) => (
-              <span key={index} className="site-menu__skeleton home-skeleton" aria-hidden />
+              <span key={index} className="site-menu__skeleton animate-pulse rounded-2xl bg-tf-surface/70 dark:bg-night-800" aria-hidden />
             ))}
           </div>
         )}
@@ -54,7 +54,7 @@ export function SiteMenuDrawer({ open, onClose }: SiteMenuDrawerProps) {
           </ul>
         )}
 
-        <Link to={browseToysPath()} className="home-link site-menu__all" onClick={onClose}>
+        <Link to={browseToysPath()} className="site-menu__all inline-flex shrink-0 items-center gap-1 rounded text-sm font-semibold text-site-primary hover:underline focus-ring dark:text-indigo-300 [&_svg]:size-4 [&_svg]:transition-transform [&_svg]:duration-300 [&_svg]:ease-out-quint hover:[&_svg]:translate-x-0.5" onClick={onClose}>
           Xem tất cả đồ chơi
         </Link>
       </nav>
