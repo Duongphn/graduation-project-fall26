@@ -25,6 +25,6 @@ export const WITHDRAWAL_LIMITS = {
   MAX_AMOUNT: 20_000_000,
 } as const;
 
-export const WITHDRAWAL_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export const WITHDRAWAL_STATUSES = ['pending', 'completed', 'approved', 'rejected'] as const;
 export type WithdrawalStatus = (typeof WITHDRAWAL_STATUSES)[number];
 

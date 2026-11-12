@@ -6,7 +6,7 @@ export interface IBankInfo {
   accountHolderName: string;
 }
 
-export type WithdrawalStatus = 'pending' | 'approved' | 'rejected';
+export type WithdrawalStatus = 'pending' | 'completed' | 'approved' | 'rejected';
 
 export interface IWithdrawalRequest extends Document {
   _id: Types.ObjectId;
@@ -16,6 +16,7 @@ export interface IWithdrawalRequest extends Document {
   bankInfo: IBankInfo;
   status: WithdrawalStatus;
   processedBy?: Types.ObjectId | undefined;
+  processedAt?: Date | undefined;
   notes?: string | undefined;
   createdAt: Date;
   updatedAt: Date;
@@ -33,6 +34,7 @@ const withdrawalRequestSchema = new Schema(
     },
     status: { type: String, required: true, default: 'pending' },
     processedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    processedAt: { type: Date },
     notes: { type: String },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },

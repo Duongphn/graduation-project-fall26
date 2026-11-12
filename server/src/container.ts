@@ -32,6 +32,7 @@ import { WalletService } from './services/wallet.service.js';
 import { WalletRepository } from './repositories/wallet.repository.js';
 import { WalletTransactionRepository } from './repositories/wallet-transaction.repository.js';
 import { WithdrawalRepository } from './repositories/withdrawal.repository.js';
+import { NotificationRepository } from './repositories/notification.repository.js';
 import { PaymentRepository } from './repositories/payment.repository.js';
 import { PaymentService } from './services/payment.service.js';
 import { PaymentController } from './controllers/payment.controller.js';
@@ -57,6 +58,7 @@ export interface ContainerOverrides {
   toyCatalogService?: ToyCatalogService;
   walletService?: WalletService;
   withdrawalRepository?: WithdrawalRepository;
+  notificationRepository?: NotificationRepository;
   ledgerService?: LedgerService;
   paymentService?: PaymentService;
   paymentController?: PaymentController;
@@ -116,10 +118,11 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const txRepo = new WalletTransactionRepository();
 
   const withdrawalRepo = overrides.withdrawalRepository ?? new WithdrawalRepository();
+  const notifRepo = overrides.notificationRepository ?? new NotificationRepository();
   const ledgerService = overrides.ledgerService ?? new LedgerService(walletRepo, txRepo);
   const walletService =
     overrides.walletService ??
-    new WalletService(walletRepo, txRepo, withdrawalRepo, ledgerService);
+    new WalletService(walletRepo, txRepo, withdrawalRepo, ledgerService, notifRepo);
   const paymentRepo = new PaymentRepository();
   const vnpayGateway = overrides.vnpayGateway ?? new VNPayClient();
   const paymentService =

@@ -121,4 +121,41 @@ export interface PaginatedWithdrawalsDto {
   hasPrevPage?: boolean | undefined;
 }
 
+export interface AdminProcessWithdrawalInput {
+  status: 'completed' | 'rejected' | 'approved';
+  notes?: string | undefined;
+}
+
+export interface AdminWithdrawalQuery {
+  page?: number | undefined;
+  limit?: number | undefined;
+  status?: string | undefined;
+  startDate?: Date | undefined;
+  endDate?: Date | undefined;
+}
+
+export interface WithdrawalUserSummaryDto {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string | undefined;
+  avatar?: string | undefined;
+}
+
+export interface AdminWithdrawalRequestDto extends WithdrawalRequestDto {
+  processedAt?: string | undefined;
+  user?: WithdrawalUserSummaryDto | undefined;
+}
+
+export interface PaginatedAdminWithdrawalsDto {
+  items: AdminWithdrawalRequestDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage?: boolean | undefined;
+  hasPrevPage?: boolean | undefined;
+}
+
+
 

@@ -2,6 +2,8 @@ import type { RequestHandler } from 'express';
 import type { WalletService } from '../services/wallet.service.js';
 import { AppError } from '../utils/app-error.js';
 import {
+  validateAdminProcessWithdrawal,
+  validateAdminWithdrawalListQuery,
   validateSystemWalletParam,
   validateTransactionListQuery,
   validateWithdrawalRequest,
@@ -75,5 +77,49 @@ export class WalletController {
       next(error);
     }
   };
+
+  public adminListWithdrawals: RequestHandler = async (req, res, next) => {
+    try {
+      const query = validateAdminWithdrawalListQuery(req.query);
+      const data = await this.walletService.adminListWithdrawals(query);
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public adminProcessWithdrawal: RequestHandler = async (req, res, next) => {
+    try {
+      if (!req.auth?.userId) {
+        throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+      }
+      const rawId = req.params.id;
+      const withdrawalId = Array.isArray(rawId) ? rawId[0] : rawId;
+      if (!withdrawalId) {
+        throw new AppError(400, 'INVALID_ID', 'ID yêu cầu rút tiền là bắt buộc.');
+      }
+
+      const input = validateAdminProcessWithdrawal(req.body);
+      const data = await this.walletService.adminProcessWithdrawal(
+        req.auth.userId,
+        withdrawalId,
+        input,
+      );
+
+      const actionText =
+        input.status === 'rejected'
+          ? 'Từ chối yêu cầu rút tiền và hoàn lại số dư cho người dùng thành công.'
+          : 'Xác nhận hoàn tất chuyển tiền cho người dùng thành công.';
+
+      res.status(200).json({
+        success: true,
+        message: actionText,
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+
 

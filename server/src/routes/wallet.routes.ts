@@ -30,5 +30,9 @@ export function createWalletRouter(
   // Route cho Quản trị viên: xem ví hệ thống (escrow, platform_fee, platform)
   router.get('/system/:ownerType', requireRoles('ADMIN'), controller.getSystemWallet);
 
+  // Route cho Quản trị viên: Quản lý & xử lý yêu cầu rút tiền
+  router.get('/admin/withdrawals', requireRoles('ADMIN'), controller.adminListWithdrawals);
+  router.patch('/admin/withdrawals/:id/process', requireRoles('ADMIN'), controller.adminProcessWithdrawal);
+
   return router;
 }

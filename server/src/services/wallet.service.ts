@@ -5,9 +5,14 @@ import type { IWithdrawalRequest } from '../models/withdrawal-request.model.js';
 import { WalletRepository } from '../repositories/wallet.repository.js';
 import { WalletTransactionRepository } from '../repositories/wallet-transaction.repository.js';
 import { WithdrawalRepository } from '../repositories/withdrawal.repository.js';
+import { NotificationRepository } from '../repositories/notification.repository.js';
 import { LedgerService } from './ledger.service.js';
 import type {
+  AdminProcessWithdrawalInput,
+  AdminWithdrawalQuery,
+  AdminWithdrawalRequestDto,
   CreateWithdrawalInput,
+  PaginatedAdminWithdrawalsDto,
   PaginatedTransactionsDto,
   PaginatedWithdrawalsDto,
   WalletDto,
@@ -22,10 +27,42 @@ export class WalletService {
     private readonly transactionRepository: WalletTransactionRepository = new WalletTransactionRepository(),
     private readonly withdrawalRepository: WithdrawalRepository = new WithdrawalRepository(),
     private readonly ledgerService?: LedgerService,
+    private readonly notificationRepository: NotificationRepository = new NotificationRepository(),
   ) {
     if (!this.ledgerService) {
       this.ledgerService = new LedgerService(this.walletRepository, this.transactionRepository);
     }
+  }
+
+  private mapAdminWithdrawalToDto(
+    withdrawal: IWithdrawalRequest & { userId?: unknown },
+  ): AdminWithdrawalRequestDto {
+    const baseDto = this.mapWithdrawalToDto(withdrawal);
+    const adminDto: AdminWithdrawalRequestDto = {
+      ...baseDto,
+    };
+
+    if (withdrawal.processedAt) {
+      adminDto.processedAt = withdrawal.processedAt.toISOString();
+    }
+
+    if (
+      withdrawal.userId &&
+      typeof withdrawal.userId === 'object' &&
+      '_id' in (withdrawal.userId as Record<string, unknown>)
+    ) {
+      const userObj = withdrawal.userId as Record<string, unknown>;
+      adminDto.user = {
+        id: String(userObj._id),
+        fullName: String(userObj.fullName || ''),
+        email: String(userObj.email || ''),
+        phone: userObj.phone ? String(userObj.phone) : undefined,
+        avatar: userObj.avatar ? String(userObj.avatar) : undefined,
+      };
+      adminDto.userId = String(userObj._id);
+    }
+
+    return adminDto;
   }
 
   private mapWithdrawalToDto(withdrawal: IWithdrawalRequest): WithdrawalRequestDto {
@@ -290,5 +327,121 @@ export class WalletService {
       hasPrevPage,
     };
   }
+
+  public async adminListWithdrawals(
+    query: AdminWithdrawalQuery = {},
+  ): Promise<PaginatedAdminWithdrawalsDto> {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(query.limit) || 20));
+
+    const { items, total } = await this.withdrawalRepository.listForAdmin({
+      page,
+      limit,
+      status: query.status,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return {
+      items: items.map((item) => this.mapAdminWithdrawalToDto(item)),
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+    };
+  }
+
+  public async adminProcessWithdrawal(
+    adminId: string,
+    withdrawalId: string,
+    input: AdminProcessWithdrawalInput,
+  ): Promise<AdminWithdrawalRequestDto> {
+    if (!adminId || !mongoose.Types.ObjectId.isValid(adminId)) {
+      throw new AppError(400, 'INVALID_ADMIN_ID', 'Invalid admin ID.');
+    }
+    if (!withdrawalId || !mongoose.Types.ObjectId.isValid(withdrawalId)) {
+      throw new AppError(400, 'INVALID_WITHDRAWAL_ID', 'Invalid withdrawal request ID.');
+    }
+
+    const existing = await this.withdrawalRepository.findById(withdrawalId);
+    if (!existing) {
+      throw new AppError(404, 'WITHDRAWAL_NOT_FOUND', 'Không tìm thấy yêu cầu rút tiền.');
+    }
+
+    if (existing.status !== 'pending') {
+      throw new AppError(
+        400,
+        'WITHDRAWAL_ALREADY_PROCESSED',
+        `Yêu cầu rút tiền này đã được xử lý trước đó (trạng thái hiện tại: ${existing.status}).`,
+      );
+    }
+
+    const targetStatus = input.status === 'approved' ? 'completed' : input.status;
+
+    // 1. Nếu từ chối (rejected): Hoàn trả lại số dư ví cho người dùng
+    if (targetStatus === 'rejected') {
+      const userWallet = await this.walletRepository.findByUserId(existing.userId);
+      if (!userWallet) {
+        throw new AppError(404, 'WALLET_NOT_FOUND', 'Không tìm thấy ví của người dùng để hoàn tiền.');
+      }
+
+      const refundCode = existing.code ?? existing._id.toString();
+      await this.ledgerService!.recordSingleEntry({
+        walletId: userWallet._id,
+        postingKey: `refund_rejected_wd_${refundCode}`,
+        amount: existing.amount,
+        type: 'credit',
+        reference: {
+          kind: 'withdrawal',
+          id: existing._id,
+        },
+        description: `Hoàn tiền yêu cầu rút tiền bị từ chối (${refundCode}): ${input.notes ?? ''}`.trim(),
+      });
+    }
+
+    // 2. Cập nhật trạng thái nguyên tử chỉ khi status còn là 'pending'
+    const processedAt = new Date();
+    const updated = await this.withdrawalRepository.atomicProcessPending(withdrawalId, {
+      status: targetStatus,
+      processedBy: adminId,
+      processedAt,
+      notes: input.notes,
+    });
+
+    if (!updated) {
+      throw new AppError(
+        400,
+        'WITHDRAWAL_ALREADY_PROCESSED',
+        'Yêu cầu rút tiền đã được xử lý bởi quản trị viên khác.',
+      );
+    }
+
+    // 3. Gửi thông báo đến người dùng (Notification)
+    const formattedAmount = existing.amount.toLocaleString('vi-VN');
+    if (targetStatus === 'completed') {
+      await this.notificationRepository.create({
+        userId: existing.userId,
+        title: 'Yêu cầu rút tiền thành công',
+        body: `Số tiền ${formattedAmount} VNĐ đã được chuyển về tài khoản ngân hàng ${existing.bankInfo.bankName} (${existing.bankInfo.accountNumber}).`,
+        type: 'withdrawal_completed',
+      });
+    } else {
+      await this.notificationRepository.create({
+        userId: existing.userId,
+        title: 'Yêu cầu rút tiền bị từ chối',
+        body: `Yêu cầu rút ${formattedAmount} VNĐ đã bị từ chối. Lý do: ${input.notes || 'Không hợp lệ'}. Số dư đã được hoàn lại vào ví của bạn.`,
+        type: 'withdrawal_rejected',
+      });
+    }
+
+    return this.mapAdminWithdrawalToDto(updated);
+  }
 }
+
 

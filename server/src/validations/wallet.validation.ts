@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { WITHDRAWAL_LIMITS } from '../constants/wallet.constant.js';
-import type { CreateWithdrawalInput } from '../types/wallet.types.js';
+import type {
+  AdminProcessWithdrawalInput,
+  AdminWithdrawalQuery,
+  CreateWithdrawalInput,
+} from '../types/wallet.types.js';
 import { AppError } from '../utils/app-error.js';
 
 export const transactionListQuerySchema = z.object({
@@ -133,4 +137,95 @@ export function validateWithdrawalRequest(body: unknown): CreateWithdrawalInput 
   }
   return result.data;
 }
+
+export const adminProcessWithdrawalSchema = z
+  .object({
+    status: z.enum(['completed', 'rejected', 'approved'], {
+      errorMap: () => ({ message: 'Trạng thái xử lý phải là completed, approved hoặc rejected.' }),
+    }),
+    notes: z.string().trim().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === 'rejected') {
+      if (!data.notes || data.notes.length < 5) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Vui lòng nhập lý do từ chối (tối thiểu 5 ký tự).',
+          path: ['notes'],
+        });
+      }
+    }
+  });
+
+export function validateAdminProcessWithdrawal(body: unknown): AdminProcessWithdrawalInput {
+  if (!body || typeof body !== 'object') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Request body must be an object.');
+  }
+
+  const result = adminProcessWithdrawalSchema.safeParse(body);
+  if (!result.success) {
+    const firstErrorMessage =
+      Object.values(result.error.flatten().fieldErrors).flat()[0] ||
+      (result.error.issues[0]?.message ?? 'Dữ liệu xử lý rút tiền không hợp lệ.');
+    throw new AppError(400, 'VALIDATION_ERROR', firstErrorMessage);
+  }
+  return result.data as AdminProcessWithdrawalInput;
+}
+
+export const adminWithdrawalListQuerySchema = z.object({
+  page: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number.parseInt(val, 10) : 1))
+    .refine((val) => Number.isInteger(val) && val >= 1, {
+      message: 'page must be a positive integer.',
+    }),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number.parseInt(val, 10) : 20))
+    .refine((val) => Number.isInteger(val) && val >= 1 && val <= 100, {
+      message: 'limit must be between 1 and 100.',
+    }),
+  status: z.enum(['all', 'pending', 'completed', 'approved', 'rejected']).optional(),
+  startDate: z
+    .string()
+    .optional()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: 'startDate must be a valid date.',
+    })
+    .transform((val) => (val ? new Date(val) : undefined)),
+  endDate: z
+    .string()
+    .optional()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: 'endDate must be a valid date.',
+    })
+    .transform((val) => (val ? new Date(val) : undefined)),
+});
+
+export function validateAdminWithdrawalListQuery(query: unknown): AdminWithdrawalQuery {
+  const result = adminWithdrawalListQuerySchema.safeParse(query);
+  if (!result.success) {
+    const firstErrorMessage =
+      Object.values(result.error.flatten().fieldErrors).flat()[0] || 'Invalid query parameters.';
+    throw new AppError(400, 'VALIDATION_ERROR', firstErrorMessage);
+  }
+
+  const data = result.data;
+  if (data.startDate && data.endDate && data.startDate > data.endDate) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'startDate cannot be after endDate.');
+  }
+
+  const cleaned: AdminWithdrawalQuery = {
+    page: data.page,
+    limit: data.limit,
+  };
+  if (data.status !== undefined) cleaned.status = data.status;
+  if (data.startDate !== undefined) cleaned.startDate = data.startDate;
+  if (data.endDate !== undefined) cleaned.endDate = data.endDate;
+
+  return cleaned;
+}
+
 
