@@ -18,22 +18,56 @@ The system maintains a zero-sum double-entry ledger where the sum of all wallet 
 ## Endpoints
 
 ### 1. Get Current User's Wallet
-- **Method / Path**: `GET /api/v1/wallets/me`
+- **Method / Path**: `GET /api/v1/wallets/me?page=1&limit=20`
 - **Auth**: User token
+- **Balances**:
+  - `availableBalance`: spendable now (the wallet balance). `balance` is the same value, kept for older clients.
+  - `holdingBalance`: money that left the balance but is still the user's. `holdings.rentals` is the rent + deposit (`pricing.totalPayable`) of the user's rentals in `PAID`, `SHIPPING`, `IN_USE`, `RETURNING` or `DISPUTING`: paid into escrow, not settled yet.
 - **Response (`200 OK`)**:
   ```json
   {
     "success": true,
     "data": {
-      "id": "6adfe1d362325b45c1adecf0",
-      "userId": "6adfe1d362325b45c1aded00",
-      "balance": 350000,
+      "balance": 650000,
+      "availableBalance": 650000,
+      "holdingBalance": 350000,
+      "holdings": { "rentals": 350000 },
       "currency": "VND",
-      "createdAt": "2026-10-27T00:00:00.000Z",
-      "updatedAt": "2026-10-27T00:00:00.000Z"
+      "transactions": [],
+      "total": 0,
+      "page": 1,
+      "limit": 20
     }
   }
   ```
+
+---
+
+### 2. Wallet History (View Wallet Transactions)
+- **Method / Path**: `GET /api/v1/wallets/me/transactions`
+- **Auth**: User token
+- **Query**:
+  - `page` (default `1`), `limit` (default `10`, max `100`)
+  - `type` (optional): `rental` | `topup` | `withdrawal` | `admin_credit` (by `reference.kind`)
+  - `direction` (optional): `credit` (money in) | `debit` (money out)
+- **Response (`200 OK`)**: newest first, paginated envelope (`docs/api-conventions.md` §3)
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "6af6098da7df69a64cda6d90",
+        "amount": 350000,
+        "type": "debit",
+        "description": "Thanh toán tiền thuê và tiền cọc",
+        "reference": { "kind": "rental_order", "id": "6af6098da7df69a64cda6d91" },
+        "createdAt": "2026-11-13T01:46:34.000Z"
+      }
+    ],
+    "pagination": { "page": 1, "limit": 10, "totalItems": 1, "totalPages": 1, "hasNextPage": false, "hasPrevPage": false }
+  }
+  ```
+- **Errors**: `400 VALIDATION_ERROR` (unknown `type` / `direction`, bad `page` / `limit`), `401 UNAUTHORIZED`.
 
 #### Example cURL:
 ```bash
@@ -43,7 +77,7 @@ curl -X GET http://localhost:3000/api/v1/wallets/me \
 
 ---
 
-### 2. Admin Manual Credit
+### 3. Admin Manual Credit
 In the absence of payment gateway top-ups (UC20), Admins can credit integer VND funds directly to a user's wallet.
 
 - **Method / Path**: `POST /api/v1/admin/wallets/:userId/credit`

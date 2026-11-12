@@ -1,4 +1,10 @@
+import {
+  walletTransactionDirections,
+  walletTransactionTypes,
+} from '../constants/wallet-transaction.js';
 import { AppError } from '../utils/app-error.js';
+import { MAX_PAGE_LIMIT } from './common.validation.js';
+import { z } from './zod.js';
 
 export interface AdminCreditInput {
   amount: number;
@@ -74,3 +80,14 @@ export function validateWalletPaginationQuery(query: unknown): WalletPaginationQ
 
   return { page, limit };
 }
+
+/** GET /wallets/me/transactions: newest first, filtered by type ("Loại") and direction. */
+export const walletTransactionListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(10),
+    type: z.enum(walletTransactionTypes).optional(),
+    direction: z.enum(walletTransactionDirections).optional(),
+  })
+  .strict();
+export type WalletTransactionListQuery = z.infer<typeof walletTransactionListQuerySchema>;

@@ -3,6 +3,7 @@ import {
   type LedgerEntry,
   type LedgerReference,
   type SystemWalletType,
+  type TransactionFilter,
   type WalletLedgerPort,
   type WalletRecord,
 } from '../interfaces/wallet.ports.js';
@@ -204,9 +205,14 @@ export class WalletLedgerRepository implements WalletLedgerPort {
     walletId: string,
     page: number,
     limit: number,
+    options: TransactionFilter = {},
   ): Promise<{ items: IWalletTransaction[]; total: number }> {
     const skip = (page - 1) * limit;
-    const filter = { walletId: new Types.ObjectId(walletId) };
+    const filter = {
+      walletId: new Types.ObjectId(walletId),
+      ...(options.kinds ? { 'reference.kind': { $in: [...options.kinds] } } : {}),
+      ...(options.direction ? { type: options.direction } : {}),
+    };
 
     const [items, total] = await Promise.all([
       this.transactionModel

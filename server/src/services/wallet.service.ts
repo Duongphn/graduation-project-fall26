@@ -1,6 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import mongoose, { type Model } from 'mongoose';
-import { type WalletLedgerPort } from '../interfaces/wallet.ports.js';
+import {
+  type WalletTransactionDirection,
+  type WalletTransactionType,
+  walletTransactionTypeKinds,
+} from '../constants/wallet-transaction.js';
+import {
+  type WalletHoldings,
+  type WalletHoldingsPort,
+  type WalletLedgerPort,
+} from '../interfaces/wallet.ports.js';
+import { type IWalletTransaction } from '../models/index.js';
+import { WalletHoldingsRepository } from '../repositories/wallet-holdings.repository.js';
 import { type IUser, User } from '../models/user.model.js';
 import { withTransaction } from '../repositories/transaction.js';
 import { type RequestActor } from '../types/request-actor.js';
@@ -16,12 +27,25 @@ export interface WalletTransactionItemDto {
 }
 
 export interface WalletSummaryDto {
+  /** Same as availableBalance (kept for older clients). */
   balance: number;
+  /** Spendable now. */
+  availableBalance: number;
+  /** Not spendable yet but still the user's: sum of `holdings`. */
+  holdingBalance: number;
+  holdings: WalletHoldings;
   currency: string;
   transactions: WalletTransactionItemDto[];
   total: number;
   page: number;
   limit: number;
+}
+
+export interface TransactionListQuery {
+  page: number;
+  limit: number;
+  type?: WalletTransactionType | undefined;
+  direction?: WalletTransactionDirection | undefined;
 }
 
 export interface AdminCreditDto {
@@ -34,24 +58,20 @@ export interface AdminCreditDto {
 export class WalletService {
   private readonly ledger: WalletLedgerPort;
   private readonly userModel: Model<IUser>;
+  private readonly holdings: WalletHoldingsPort;
 
-  public constructor(ledger: WalletLedgerPort, userModel: Model<IUser> = User) {
+  public constructor(
+    ledger: WalletLedgerPort,
+    userModel: Model<IUser> = User,
+    holdings: WalletHoldingsPort = new WalletHoldingsRepository(),
+  ) {
     this.ledger = ledger;
     this.userModel = userModel;
+    this.holdings = holdings;
   }
 
-  public async getMyWallet(
-    actor: RequestActor,
-    query: { page: number; limit: number },
-  ): Promise<WalletSummaryDto> {
-    const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
-    const { items, total } = await this.ledger.listTransactions(
-      wallet.id,
-      query.page,
-      query.limit,
-    );
-
-    const transactions: WalletTransactionItemDto[] = items.map((t) => ({
+  private toTransactionDto(t: IWalletTransaction): WalletTransactionItemDto {
+    return {
       id: t._id.toString(),
       amount: t.amount,
       type: t.type,
@@ -60,16 +80,43 @@ export class WalletService {
         ? { kind: t.reference.kind, id: t.reference.id.toString() }
         : undefined,
       createdAt: t.createdAt,
-    }));
+    };
+  }
+
+  public async getMyWallet(
+    actor: RequestActor,
+    query: { page: number; limit: number },
+  ): Promise<WalletSummaryDto> {
+    const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
+    const [{ items, total }, holdings] = await Promise.all([
+      this.ledger.listTransactions(wallet.id, query.page, query.limit),
+      this.holdings.getHoldings(actor.userId),
+    ]);
 
     return {
       balance: wallet.balance,
+      availableBalance: wallet.balance,
+      holdingBalance: holdings.rentals,
+      holdings,
       currency: wallet.currency,
-      transactions,
+      transactions: items.map((t) => this.toTransactionDto(t)),
       total,
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  /** History of the signed-in user's wallet, newest first, filtered by type and direction. */
+  public async listMyTransactions(
+    actor: RequestActor,
+    query: TransactionListQuery,
+  ): Promise<{ items: WalletTransactionItemDto[]; total: number }> {
+    const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
+    const { items, total } = await this.ledger.listTransactions(wallet.id, query.page, query.limit, {
+      kinds: query.type ? walletTransactionTypeKinds[query.type] : undefined,
+      direction: query.direction,
+    });
+    return { items: items.map((t) => this.toTransactionDto(t)), total };
   }
 
   public async adminCredit(
