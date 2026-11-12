@@ -4,6 +4,7 @@ import { AppError } from '../utils/app-error.js';
 import {
   validateSystemWalletParam,
   validateTransactionListQuery,
+  validateWithdrawalRequest,
 } from '../validations/wallet.validation.js';
 
 export class WalletController {
@@ -43,4 +44,36 @@ export class WalletController {
       next(error);
     }
   };
+
+  public requestWithdrawal: RequestHandler = async (req, res, next) => {
+    try {
+      if (!req.auth?.userId) {
+        throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+      }
+      const input = validateWithdrawalRequest(req.body);
+      const data = await this.walletService.requestWithdrawal(req.auth.userId, input);
+      res.status(201).json({
+        success: true,
+        message: 'Tạo yêu cầu rút tiền thành công. Số dư ví đã được tạm giữ để xử lý.',
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getMyWithdrawals: RequestHandler = async (req, res, next) => {
+    try {
+      if (!req.auth?.userId) {
+        throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+      }
+      const page = req.query.page ? Number.parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? Number.parseInt(req.query.limit as string, 10) : 20;
+      const data = await this.walletService.getMyWithdrawals(req.auth.userId, { page, limit });
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+

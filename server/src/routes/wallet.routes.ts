@@ -16,6 +16,12 @@ export function createWalletRouter(
   router.get('/me', requireActor, controller.getMyWallet);
   router.get('/me/transactions', requireActor, controller.getMyTransactions);
 
+  // Yêu cầu rút tiền & xem lịch sử yêu cầu rút tiền
+  router.post('/withdrawals', requireActor, controller.requestWithdrawal);
+  router.post('/withdraw', requireActor, controller.requestWithdrawal);
+  router.get('/withdrawals', requireActor, controller.getMyWithdrawals);
+  router.get('/withdrawals/me', requireActor, controller.getMyWithdrawals);
+
   // Khởi tạo nạp tiền ví qua VNPay (yêu cầu đăng nhập)
   if (paymentController) {
     router.post('/topup/vnpay', requireActor, paymentController.createTopup);

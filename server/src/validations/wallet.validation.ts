@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { WITHDRAWAL_LIMITS } from '../constants/wallet.constant.js';
+import type { CreateWithdrawalInput } from '../types/wallet.types.js';
 import { AppError } from '../utils/app-error.js';
 
 export const transactionListQuerySchema = z.object({
@@ -85,3 +87,50 @@ export function validateSystemWalletParam(params: unknown): {
   }
   return result.data;
 }
+
+export const withdrawalRequestSchema = z.object({
+  amount: z
+    .number({ invalid_type_error: 'Số tiền rút phải là số hợp lệ.' })
+    .int('Số tiền rút phải là số nguyên.')
+    .min(
+      WITHDRAWAL_LIMITS.MIN_AMOUNT,
+      `Số tiền rút tối thiểu là ${WITHDRAWAL_LIMITS.MIN_AMOUNT.toLocaleString('vi-VN')} VNĐ.`,
+    )
+    .max(
+      WITHDRAWAL_LIMITS.MAX_AMOUNT,
+      `Số tiền rút tối đa cho một lần là ${WITHDRAWAL_LIMITS.MAX_AMOUNT.toLocaleString('vi-VN')} VNĐ.`,
+    ),
+  bankInfo: z.object({
+    bankName: z
+      .string({ required_error: 'Vui lòng nhập tên ngân hàng.' })
+      .trim()
+      .min(2, 'Tên ngân hàng phải có ít nhất 2 ký tự.')
+      .max(100, 'Tên ngân hàng quá dài.'),
+    accountNumber: z
+      .string({ required_error: 'Vui lòng nhập số tài khoản ngân hàng.' })
+      .trim()
+      .regex(/^[0-9]{6,25}$/, 'Số tài khoản chỉ bao gồm số (từ 6 đến 25 chữ số).'),
+    accountHolderName: z
+      .string({ required_error: 'Vui lòng nhập tên chủ tài khoản.' })
+      .trim()
+      .min(2, 'Tên chủ tài khoản phải có ít nhất 2 ký tự.')
+      .max(100, 'Tên chủ tài khoản quá dài.')
+      .transform((val) => val.toUpperCase()),
+  }),
+});
+
+export function validateWithdrawalRequest(body: unknown): CreateWithdrawalInput {
+  if (!body || typeof body !== 'object') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Request body must be an object.');
+  }
+
+  const result = withdrawalRequestSchema.safeParse(body);
+  if (!result.success) {
+    const firstErrorMessage =
+      Object.values(result.error.flatten().fieldErrors).flat()[0] ||
+      (result.error.issues[0]?.message ?? 'Thông tin rút tiền không hợp lệ.');
+    throw new AppError(400, 'VALIDATION_ERROR', firstErrorMessage);
+  }
+  return result.data;
+}
+

@@ -87,3 +87,38 @@ export interface LedgerResult {
   transactions: WalletTransactionDto[];
 }
 
+export interface BankInfoDto {
+  bankName: string;
+  accountNumber: string;
+  accountHolderName: string;
+}
+
+export interface CreateWithdrawalInput {
+  amount: number;
+  bankInfo: BankInfoDto;
+}
+
+export interface WithdrawalRequestDto {
+  id: string;
+  code?: string | undefined;
+  userId: string;
+  amount: number;
+  bankInfo: BankInfoDto;
+  status: string;
+  processedBy?: string | undefined;
+  notes?: string | undefined;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedWithdrawalsDto {
+  items: WithdrawalRequestDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage?: boolean | undefined;
+  hasPrevPage?: boolean | undefined;
+}
+
+

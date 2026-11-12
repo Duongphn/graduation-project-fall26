@@ -19,3 +19,12 @@ export const REFERENCE_KINDS = {
   PLATFORM_FEE: 'platform_fee',
   ADJUSTMENT: 'adjustment',
 } as const;
+
+export const WITHDRAWAL_LIMITS = {
+  MIN_AMOUNT: 50_000,
+  MAX_AMOUNT: 20_000_000,
+} as const;
+
+export const WITHDRAWAL_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type WithdrawalStatus = (typeof WITHDRAWAL_STATUSES)[number];
+
