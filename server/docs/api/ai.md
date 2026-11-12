@@ -10,9 +10,9 @@ Configuration (environment variables): the "AI toy advisor" section of [server/R
 ## Endpoints
 
 ### 1. Ask the advisor
-- **Method / Path**: `POST /api/v1/ai/advisor`
+- **Method / Path**: `POST /api/v1/ai/toy-advice` (R04 3.4)
 - **Auth**: User token (`401` without a token, `403` for an Admin)
-- **Code**: `routes/ai.routes.ts` → `AiAdvisorController.ask` → `AiAdvisorService.ask`
+- **Code**: `routes/ai.routes.ts` → `AiAssistanceController.getToyAdvice` → `AiAssistanceService.getToyAdvice` → Gemini → `findActive(criteria)` (`MongoAiAdvisorRepository`) → `ToyAdviceDTO`
 - **Request Body**:
   ```json
   {
@@ -33,13 +33,13 @@ Configuration (environment variables): the "AI toy advisor" section of [server/R
   - `history` (optional): at most 20 items of `{ role: "user" | "assistant", text ≤ 2000 }`.
     The server sends only the last 2, cut to 300 characters, to Gemini.
   - `filtersFromButtons` (optional, default `false`): `true` skips the filter extraction call.
-- **Response (`200 OK`)**:
+- **Response (`200 OK`)**: `ToyAdviceDTO` (`advice`, `listings`) plus `filters` and `source`
   ```json
   {
     "success": true,
     "data": {
-      "reply": "Đây là các món mình thấy phù hợp với bé.",
-      "toys": [
+      "advice": "Đây là các món mình thấy phù hợp với bé.",
+      "listings": [
         {
           "id": "6adfe1d362325b45c1adecf0",
           "name": "Bộ xếp hình gỗ 100 chi tiết",
@@ -79,7 +79,7 @@ Configuration (environment variables): the "AI toy advisor" section of [server/R
 
 #### Example cURL:
 ```bash
-curl -X POST http://localhost:3000/api/v1/ai/advisor \
+curl -X POST http://localhost:3000/api/v1/ai/toy-advice \
   -H "Authorization: Bearer <USER_JWT_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"message":"Bé 4 tuổi thích xếp hình, muốn thuê dưới 150k"}'

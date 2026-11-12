@@ -67,7 +67,7 @@ export function createApiRouter(container: Container): Router {
   router.use('/donors', donorProfileRouter);
   router.use('/uploads', authenticate, uploadsRouter);
   // Trợ lý AI: router tự kiểm tra cờ tính năng trước khi xác thực (tắt thì 503).
-  router.use('/ai', createAiRouter(container.aiAdvisorService));
+  router.use('/ai', createAiRouter(container.aiAssistanceService));
 
   // Swagger UI and the OpenAPI JSON of the documented routes (never in production).
   if (featureEnv.docsEnabled) {

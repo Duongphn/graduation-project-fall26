@@ -1,25 +1,25 @@
 import { Router } from 'express';
 
-import { AiAdvisorController } from '../controllers/ai-advisor.controller.js';
+import { AiAssistanceController } from '../controllers/ai-assistance.controller.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { requireActor } from '../middlewares/require-actor.js';
 import { validateRequest } from '../middlewares/validate.js';
-import type { AiAdvisorService } from '../services/ai-advisor.service.js';
+import type { AiAssistanceService } from '../services/ai-assistance.service.js';
 import { advisorAskBodySchema } from '../validations/ai-advisor.validation.js';
 import './ai.openapi.js';
 
 /** Mounted at /api/v1/ai. Thứ tự: cờ tính năng → xác thực → validate đầu vào. */
-export function createAiRouter(service: AiAdvisorService): Router {
+export function createAiRouter(service: AiAssistanceService): Router {
   const router = Router();
-  const controller = new AiAdvisorController(service);
+  const controller = new AiAssistanceController(service);
 
   router.post(
-    '/advisor',
+    '/toy-advice',
     controller.ensureEnabled,
     authenticate,
     requireActor,
     validateRequest({ body: advisorAskBodySchema }),
-    controller.ask,
+    controller.getToyAdvice,
   );
 
   return router;

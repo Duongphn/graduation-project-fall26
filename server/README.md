@@ -39,7 +39,7 @@ Requests flow `routes → controllers → services → repositories / models`. S
 | BF-04 Donation | `donations`, `order-status-history` | Scaffold |
 | BF-05 Dispute and Deposit Settlement | `disputes`, `payments`, `ai-assistance` | Disputes opened on return condition DAMAGED (UC11) |
 | Trust and communication | `ratings`, `chat`, `notifications` | In-app notifications integrated |
-| AI toy advisor | `ai` (`POST /api/v1/ai/advisor`) | Implemented: Gemini suggestions, FAQ, fallback, usage logs |
+| AI toy advisor | `ai` (`POST /api/v1/ai/toy-advice`) | Implemented: Gemini suggestions, FAQ, fallback, usage logs |
 
 `Shipping` is an order status only. ToyFlow does not operate delivery, select delivery providers, calculate delivery fees or manage tracking codes.
 
@@ -60,7 +60,7 @@ Default health endpoint: `GET /api/v1/health`. Home page showcase: `GET /api/v1/
 
 ## AI toy advisor
 
-`POST /api/v1/ai/advisor` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys for rent or sale (donated toys are never suggested). AI only suggests; the parent decides.
+`POST /api/v1/ai/toy-advice` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys for rent or sale (donated toys are never suggested). AI only suggests; the parent decides.
 
 API reference: [docs/api/ai.md](docs/api/ai.md). Design, and the `US-xx` / `BR-xx` / "mục 8.x" codes used in the code comments: [docs/ai-advisor-design.md](docs/ai-advisor-design.md).
 
@@ -82,14 +82,14 @@ Real token usage per question is in the `AiRequest` logs (`token_usage`: input, 
 Example request:
 
 ```http
-POST /api/v1/ai/advisor
+POST /api/v1/ai/toy-advice
 Authorization: Bearer <access token>
 Content-Type: application/json
 
 { "message": "Bé 4 tuổi thích xếp hình, muốn thuê dưới 150k", "history": [], "filtersFromButtons": false }
 ```
 
-The response `data.filters` is the conversation context: send it back as `filters` on the next question.
+The response is a `ToyAdviceDTO`: `advice`, `listings` (at most 5 toys), `filters`, `source`. `data.filters` is the conversation context: send it back as `filters` on the next question.
 
 ## Commands
 

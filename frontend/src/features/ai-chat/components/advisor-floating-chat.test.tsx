@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { httpClient } from '../../../services/http-client'
 import { renderWithProviders } from '../../../test/render'
-import type { AdvisorResponse } from '../ai-chat-api'
+import type { ToyAdviceDTO } from '../ai-chat-api'
 import { AdvisorFloatingChat } from './advisor-floating-chat'
 
 const renderChat = () =>
@@ -15,9 +15,9 @@ const renderChat = () =>
     </MemoryRouter>,
   )
 
-const answer: AdvisorResponse = {
-  reply: 'Mình gợi ý món này nhé.',
-  toys: [
+const answer: ToyAdviceDTO = {
+  advice: 'Mình gợi ý món này nhé.',
+  listings: [
     {
       id: '66a000000000000000000001',
       name: 'Bộ xếp hình gỗ',
@@ -66,7 +66,7 @@ describe('AdvisorFloatingChat', () => {
     await userEvent.type(screen.getByLabelText('Nhập câu hỏi cho trợ lý AI'), 'Bé 4 tuổi thích xếp hình{Enter}')
 
     expect(post).toHaveBeenCalledWith(
-      '/ai/advisor',
+      '/ai/toy-advice',
       expect.objectContaining({ message: 'Bé 4 tuổi thích xếp hình' }),
       expect.anything(),
     )

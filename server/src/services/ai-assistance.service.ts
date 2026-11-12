@@ -13,7 +13,7 @@ import {
   type AdvisorFilters,
   type AdvisorFiltersInput,
   type AdvisorListingType,
-  type AdvisorReply,
+  type ToyAdviceDTO,
   type AdvisorTokenUsage,
   type AdvisorToy,
   type AdvisorToyQuery,
@@ -189,10 +189,10 @@ interface TurnContext {
 }
 
 /**
- * Trợ lý AI tư vấn đồ chơi (POST /api/v1/ai/advisor). AI chỉ gợi ý, phụ huynh tự quyết định.
+ * Trợ lý AI tư vấn đồ chơi (POST /api/v1/ai/toy-advice, R04 3.4). AI chỉ gợi ý, phụ huynh tự quyết định.
  * Các mã US-xx, BR-xx, "mục 8.x" trong code: server/docs/ai-advisor-design.md
  */
-export class AiAdvisorService {
+export class AiAssistanceService {
   private readonly clock: { now(): Date };
   private readonly logger: Pick<Console, 'warn' | 'error'>;
 
@@ -210,7 +210,7 @@ export class AiAdvisorService {
     return serviceUnavailable('AI_ADVISOR_DISABLED', REPLIES.disabled);
   }
 
-  public async ask(input: AdvisorAskInput): Promise<AdvisorReply> {
+  public async getToyAdvice(input: AdvisorAskInput): Promise<ToyAdviceDTO> {
     if (!this.isEnabled) throw this.disabledError();
 
     const message = maskPersonalInfo(input.message.trim());
@@ -313,16 +313,16 @@ export class AiAdvisorService {
       excludeOwnerId: userId,
       limit: ADVISOR_LIMITS.maxToys,
     };
-    const exact = await this.deps.catalog.searchToys(query);
+    const exact = await this.deps.catalog.findActive(query);
     if (exact.length > 0) return { toys: exact, relaxation: 'none' };
 
     // Bỏ giá trước, rồi bỏ danh mục.
     if (query.maxPrice !== null) {
-      const withoutPrice = await this.deps.catalog.searchToys({ ...query, maxPrice: null });
+      const withoutPrice = await this.deps.catalog.findActive({ ...query, maxPrice: null });
       if (withoutPrice.length > 0) return { toys: withoutPrice, relaxation: 'price' };
     }
     if (query.categoryId !== null) {
-      const relaxed = await this.deps.catalog.searchToys({
+      const relaxed = await this.deps.catalog.findActive({
         ...query,
         maxPrice: null,
         categoryId: null,
@@ -364,7 +364,7 @@ export class AiAdvisorService {
     filters: AdvisorFilters,
     records: readonly AdvisorToyRecord[],
     relaxation: AdvisorRelaxation,
-  ): Promise<AdvisorReply> {
+  ): Promise<ToyAdviceDTO> {
     const toys = records.map((toy) => toAdvisorToy(toy, fallbackReason(toy)));
     return this.finish(
       turn,
@@ -394,7 +394,7 @@ export class AiAdvisorService {
     reply: string,
     filters: AdvisorFilters,
     toys: AdvisorToy[] = [],
-  ): Promise<AdvisorReply> {
+  ): Promise<ToyAdviceDTO> {
     try {
       await this.deps.usageLog.record({
         userId: turn.userId,
@@ -408,7 +408,7 @@ export class AiAdvisorService {
     } catch (error) {
       this.logger.error('[ai-advisor] Không ghi được log AiRequest.', error);
     }
-    return { reply, toys, filters, source };
+    return { advice: reply, listings: toys, filters, source };
   }
 
   private warn(step: string, error: unknown) {

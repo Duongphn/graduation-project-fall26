@@ -3,7 +3,7 @@ import { GeminiAdvisorClient } from './integrations/ai/gemini.client.js';
 import { RequestLimiter } from './integrations/ai/request-limiter.js';
 import type { AdvisorLlm } from './interfaces/ai-advisor.ports.js';
 import { MongoAiAdvisorRepository } from './repositories/ai-advisor.repository.js';
-import { AiAdvisorService } from './services/ai-advisor.service.js';
+import { AiAssistanceService } from './services/ai-assistance.service.js';
 import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/mailer.js';
 import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
@@ -89,7 +89,7 @@ export interface ContainerOverrides {
   // Trợ lý AI: bản giả của Gemini và cấu hình (bật/tắt, giới hạn lượt) cho test.
   advisorLlm?: AdvisorLlm;
   aiAdvisorSettings?: Partial<AiAdvisorSettings>;
-  aiAdvisorService?: AiAdvisorService;
+  aiAssistanceService?: AiAssistanceService;
 }
 
 export interface Container {
@@ -105,7 +105,7 @@ export interface Container {
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
-  aiAdvisorService: AiAdvisorService;
+  aiAssistanceService: AiAssistanceService;
 }
 
 /**
@@ -187,7 +187,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     );
 
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
-  const aiAdvisorService = overrides.aiAdvisorService ?? createAiAdvisorService(overrides, clock);
+  const aiAssistanceService =
+    overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
 
   return {
     toyImageStorage,
@@ -201,16 +202,19 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,
-    aiAdvisorService,
+    aiAssistanceService,
   };
 }
 
-function createAiAdvisorService(overrides: ContainerOverrides, clock: Clock): AiAdvisorService {
+function createAiAssistanceService(
+  overrides: ContainerOverrides,
+  clock: Clock,
+): AiAssistanceService {
   const settings = { ...aiConfig.advisor, ...overrides.aiAdvisorSettings };
   const repository = new MongoAiAdvisorRepository(
     overrides.toyCatalogPorts ?? createToyCatalogPorts(),
   );
-  return new AiAdvisorService({
+  return new AiAssistanceService({
     llm:
       overrides.advisorLlm ??
       new GeminiAdvisorClient({

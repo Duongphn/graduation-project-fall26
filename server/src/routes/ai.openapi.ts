@@ -5,11 +5,11 @@ import {
   openApiRegistry,
 } from '../config/openapi.js';
 import { successResponseSchema } from '../validations/common.validation.js';
-import { advisorAskBodySchema, advisorReplySchema } from '../validations/ai-advisor.validation.js';
+import { advisorAskBodySchema, toyAdviceSchema } from '../validations/ai-advisor.validation.js';
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/api/v1/ai/advisor',
+  path: '/api/v1/ai/toy-advice',
   tags: ['AI Advisor'],
   security: bearerAuthSecurity,
   summary: 'Trợ lý AI tư vấn đồ chơi',
@@ -19,7 +19,7 @@ openApiRegistry.registerPath({
   responses: {
     200: {
       description: 'Lời tư vấn và đồ chơi gợi ý',
-      content: jsonContent(successResponseSchema(advisorReplySchema)),
+      content: jsonContent(successResponseSchema(toyAdviceSchema)),
     },
     ...errorResponses(400, 401, 403, 429, 503),
   },

@@ -2,7 +2,7 @@ import { isAxiosError } from 'axios'
 import { getApiErrorMessage, httpClient, type ApiResponse } from '../../services/http-client'
 
 /**
- * Trợ lý AI tư vấn chọn đồ chơi: POST /ai/advisor. Server gọi Gemini; frontend không gọi AI trực tiếp
+ * Trợ lý AI tư vấn chọn đồ chơi: POST /ai/toy-advice (R04 3.4). Server gọi Gemini; frontend không gọi AI trực tiếp
  * và không giữ API key. AI chỉ gợi ý, phụ huynh tự quyết định thuê/mua (server/docs/backend-architecture.md).
  */
 
@@ -50,16 +50,17 @@ export interface AdvisorToy {
 
 export type AdvisorSource = 'ai' | 'faq' | 'fallback' | 'no_result' | 'off_topic'
 
-export interface AdvisorResponse {
-  reply: string
-  toys: AdvisorToy[]
+/** R04 3.4: ToyAdviceDTO (advice, listings) kèm bộ lọc (ngữ cảnh hỏi tiếp) và nguồn câu trả lời */
+export interface ToyAdviceDTO {
+  advice: string
+  listings: AdvisorToy[]
   filters: AdvisorFilters
   source: AdvisorSource
 }
 
-export async function askAdvisor(payload: AdvisorRequest): Promise<AdvisorResponse> {
+export async function getToyAdvice(payload: AdvisorRequest): Promise<ToyAdviceDTO> {
   // Server gọi Gemini tới 2 lần và không giới hạn thời gian chờ: bỏ timeout mặc định 15 giây của httpClient
-  const { data } = await httpClient.post<ApiResponse<AdvisorResponse>>('/ai/advisor', payload, {
+  const { data } = await httpClient.post<ApiResponse<ToyAdviceDTO>>('/ai/toy-advice', payload, {
     timeout: 0,
   })
   return data.data

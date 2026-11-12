@@ -36,7 +36,7 @@ export interface AdvisorLlm {
 export interface AdvisorCatalogPort {
   listActiveCategories(): Promise<AdvisorCategory[]>;
   /** Tin đã duyệt, chưa bán, không phải của người hỏi; mới nhất trước. */
-  searchToys(query: AdvisorToyQuery): Promise<AdvisorToyRecord[]>;
+  findActive(criteria: AdvisorToyQuery): Promise<AdvisorToyRecord[]>;
 }
 
 export interface AdvisorUsageLogPort {

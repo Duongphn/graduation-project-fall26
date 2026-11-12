@@ -10,26 +10,27 @@ A parent asks in natural Vietnamese ("Bé 4 tuổi thích xếp hình, muốn th
 piece of advice plus at most 5 real toys that are listed on ToyFlow for **rent or sale**. AI only
 suggests; the parent decides. Donated toys are never suggested.
 
-## 2. Relation to R03, R04 and UC32
+## 2. Mapping to R04 3.4 (UC32)
 
-The advisor was built from a dedicated feature brief that came after R03/R04. Where they differ, the
-code follows the brief, and R03/R04 are to be updated:
+| R04 3.4 sequence | Code |
+|---|---|
+| 1. `POST /ai/toy-advice (message)` | `POST /api/v1/ai/toy-advice` (`routes/ai.routes.ts`) |
+| `AiAssistanceController` | `controllers/ai-assistance.controller.ts`, handler `getToyAdvice` |
+| 2. `getToyAdvice(message)` | `AiAssistanceService.getToyAdvice` (`services/ai-assistance.service.ts`) |
+| 3. `buildPrompt(message)` | `services/ai-advisor.prompts.ts` (extraction and advice prompts) |
+| 4–5. AI call → search criteria + advice text | Gemini through `@google/genai` (`integrations/ai/gemini.client.ts`): call 1 returns the criteria, call 2 the advice |
+| 6–7. `findActive(criteria)` → matching active listings | `MongoAiAdvisorRepository.findActive` (`repositories/ai-advisor.repository.ts`) |
+| 8–9. `ToyAdviceDTO (advice, listings)` → `200 OK` | Response `{ advice, listings, filters, source }`; `filters` and `source` are added for follow-up questions and the fallback notice |
 
-| Topic | R03 / R04 / UC32 | Code | Reason |
-|---|---|---|---|
-| AI provider | Qwen API through LangChain.js | Google Gemini through `@google/genai` only | The brief allows only `@google/genai`; JSON schema output, `thinkingLevel` and token usage come from the SDK directly, no extra framework |
-| Endpoint | `POST /ai/toy-advice` (R04 3.4) | `POST /api/v1/ai/advisor` | Follows the repo route convention (`/api/v1/<feature>`) and the brief's API contract (section 7) |
-| Class names, response | R04 3.4 | `AiAdvisorService`, `AiAdvisorController`, `GeminiAdvisorClient`; response in section 7 | Repo layering: controller → service → ports (repository, LLM client) |
-| Child profile step (UC32) | Parent picks a child profile | Not supported: the parent types the age or picks it in the quick filters | The repo has no child profile feature yet |
-| Entry point (R03) | Floating button, bottom right of the toy list | Card on the home page (`#tro-ly-ai`) and a floating button on `/toys` | — |
-| Not in R03/R04 | — | FAQ (20 topics), daily limit, per-minute queue, quick filters | Cost control and faster answers (sections 6 and 8) |
+Added on top of R04 3.4 (sections 6, 8, 9): FAQ (20 topics), daily limit, per-minute queue, quick filters.
+The advisor opens from the card on the home page (`#tro-ly-ai`) and from the floating button on `/toys`.
 
 ## 3. Scope
 
 Included: the endpoint, FAQ, daily limit, two-step Gemini flow, MongoDB search with relaxed filters,
 fallback, `AiRequest` logging, the home page card, the floating chat on `/toys`, quick filters.
 
-Not included: child profiles, filtering by area (the `Toy` model has no address field; `area` is
+Not included: filtering by area (the `Toy` model has no address field; `area` is
 kept in the filters and the reply says it was not used), changes to the `Toy` schema or to the
 listing, rental, purchase and payment flows.
 
@@ -110,7 +111,7 @@ Measured on the free tier: about 850 input and 140 output tokens for a question 
 Gemini is never called in automated tests: the service and API tests use a fake LLM
 (`server/tests/support/fake-advisor-llm.ts`) and an in-memory MongoDB.
 
-- `server/tests/ai-advisor.service.test.ts`, `ai-advisor-api.test.ts`: the 14 cases of the brief
+- `server/tests/ai-assistance.service.test.ts`, `ai-assistance-api.test.ts`: the 14 cases of the brief
   (picks outside the list, unknown category, FAQ, off topic, relaxing, buttons, fallback, `429`,
   `400`, `401`, `503`, history trimming, one log per question).
 - `server/tests/ai-advisor.faq.test.ts`: FAQ routing.
