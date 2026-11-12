@@ -188,7 +188,10 @@ interface TurnContext {
   usage: AdvisorTokenUsage;
 }
 
-/** Trợ lý AI tư vấn đồ chơi (POST /api/v1/ai/advisor). AI chỉ gợi ý, phụ huynh tự quyết định. */
+/**
+ * Trợ lý AI tư vấn đồ chơi (POST /api/v1/ai/advisor). AI chỉ gợi ý, phụ huynh tự quyết định.
+ * Các mã US-xx, BR-xx, "mục 8.x" trong code: server/docs/ai-advisor-design.md
+ */
 export class AiAdvisorService {
   private readonly clock: { now(): Date };
   private readonly logger: Pick<Console, 'warn' | 'error'>;

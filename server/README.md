@@ -62,6 +62,8 @@ Default health endpoint: `GET /api/v1/health`. Home page showcase: `GET /api/v1/
 
 `POST /api/v1/ai/advisor` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys for rent or sale (donated toys are never suggested). AI only suggests; the parent decides.
 
+API reference: [docs/api/ai.md](docs/api/ai.md). Design, and the `US-xx` / `BR-xx` / "mục 8.x" codes used in the code comments: [docs/ai-advisor-design.md](docs/ai-advisor-design.md).
+
 Configure it in `.env` (the API key stays on the server, never in the frontend):
 
 | Variable | Default | Meaning |
