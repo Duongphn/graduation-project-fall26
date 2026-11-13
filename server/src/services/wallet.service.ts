@@ -49,9 +49,9 @@ export class WalletService {
     if (
       withdrawal.userId &&
       typeof withdrawal.userId === 'object' &&
-      '_id' in (withdrawal.userId as Record<string, unknown>)
+      '_id' in (withdrawal.userId as unknown as Record<string, unknown>)
     ) {
-      const userObj = withdrawal.userId as Record<string, unknown>;
+      const userObj = withdrawal.userId as unknown as Record<string, unknown>;
       adminDto.user = {
         id: String(userObj._id),
         fullName: String(userObj.fullName || ''),

@@ -94,7 +94,7 @@ export function validateSystemWalletParam(params: unknown): {
 
 export const withdrawalRequestSchema = z.object({
   amount: z
-    .number({ invalid_type_error: 'Số tiền rút phải là số hợp lệ.' })
+    .number()
     .int('Số tiền rút phải là số nguyên.')
     .min(
       WITHDRAWAL_LIMITS.MIN_AMOUNT,
@@ -106,16 +106,16 @@ export const withdrawalRequestSchema = z.object({
     ),
   bankInfo: z.object({
     bankName: z
-      .string({ required_error: 'Vui lòng nhập tên ngân hàng.' })
+      .string()
       .trim()
       .min(2, 'Tên ngân hàng phải có ít nhất 2 ký tự.')
       .max(100, 'Tên ngân hàng quá dài.'),
     accountNumber: z
-      .string({ required_error: 'Vui lòng nhập số tài khoản ngân hàng.' })
+      .string()
       .trim()
       .regex(/^[0-9]{6,25}$/, 'Số tài khoản chỉ bao gồm số (từ 6 đến 25 chữ số).'),
     accountHolderName: z
-      .string({ required_error: 'Vui lòng nhập tên chủ tài khoản.' })
+      .string()
       .trim()
       .min(2, 'Tên chủ tài khoản phải có ít nhất 2 ký tự.')
       .max(100, 'Tên chủ tài khoản quá dài.')
@@ -140,22 +140,22 @@ export function validateWithdrawalRequest(body: unknown): CreateWithdrawalInput 
 
 export const adminProcessWithdrawalSchema = z
   .object({
-    status: z.enum(['completed', 'rejected', 'approved'], {
-      errorMap: () => ({ message: 'Trạng thái xử lý phải là completed, approved hoặc rejected.' }),
-    }),
+    status: z.enum(['completed', 'rejected', 'approved']),
     notes: z.string().trim().optional(),
   })
-  .superRefine((data, ctx) => {
-    if (data.status === 'rejected') {
-      if (!data.notes || data.notes.length < 5) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Vui lòng nhập lý do từ chối (tối thiểu 5 ký tự).',
-          path: ['notes'],
-        });
+  .refine(
+    (data) => {
+      if (data.status === 'rejected') {
+        return typeof data.notes === 'string' && data.notes.length >= 5;
       }
-    }
-  });
+      return true;
+    },
+    {
+      message: 'Vui lòng nhập lý do từ chối (tối thiểu 5 ký tự).',
+      path: ['notes'],
+    },
+  );
+
 
 export function validateAdminProcessWithdrawal(body: unknown): AdminProcessWithdrawalInput {
   if (!body || typeof body !== 'object') {

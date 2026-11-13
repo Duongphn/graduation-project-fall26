@@ -168,8 +168,8 @@ export class WithdrawalRepository {
     updateData: {
       status: WithdrawalStatus;
       processedBy: Types.ObjectId | string;
-      processedAt?: Date;
-      notes?: string;
+      processedAt?: Date | undefined;
+      notes?: string | undefined;
     },
     session?: ClientSession,
   ): Promise<IWithdrawalRequest | null> {
