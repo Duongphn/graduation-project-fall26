@@ -18,9 +18,13 @@ export function AdminLayout() {
       .find((item) => location.pathname.startsWith(item.path))?.key ?? 'dashboard'
 
   return (
-    // The admin area keeps its own antd theme (palette.ts) inside the app-wide ThemeProvider.
-    <ConfigProvider theme={antdTheme}>
-    <Layout className="min-h-screen">
+    // The admin area keeps its own light antd theme (palette.ts) inside the app-wide
+    // ThemeProvider. `inherit: false`: in the site's dark mode, antd would otherwise merge the
+    // dark algorithm and dark tokens (modal and popup backgrounds, text on primary buttons) with
+    // this palette's dark text. `text-text` does the same for plain text, which would inherit
+    // the dark-mode body colour.
+    <ConfigProvider theme={{ ...antdTheme, inherit: false }}>
+    <Layout className="min-h-screen text-text">
       <Layout.Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} width={240}>
         <div className="flex h-16 items-center justify-center">
           <Typography.Text strong className="!text-lg !text-white">
