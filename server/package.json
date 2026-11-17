@@ -14,6 +14,7 @@
     "start": "node dist/server.js",
     "jobs:expire-donations": "tsx src/jobs/expire-donations.ts",
     "db:seed-categories": "tsx src/jobs/seed-categories.ts",
+    "db:backfill-organizations": "tsx src/jobs/backfill-organizations.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

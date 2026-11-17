@@ -54,7 +54,7 @@ export const findToy = (toyId: string | Types.ObjectId, session?: ClientSession)
 
 export const findOrganization = (id: string | Types.ObjectId, session?: ClientSession) =>
   Organization.findById(id)
-    .select('name status')
+    .select('name status isAccepting')
     .session(session ?? null)
     .lean();
 
@@ -110,12 +110,28 @@ export const touchActiveDonationToy = (toyId: string | Types.ObjectId, session: 
     { new: true, session, timestamps: false, projection: toySummaryFields },
   ).lean<ToySummary>();
 
-/** The organization, if it is still active (else null). */
-export const touchActiveOrganization = (id: string | Types.ObjectId, session: ClientSession) =>
+/**
+ * The organization, if it is still active (else null). With `accepting`, also only while it is
+ * accepting toys (GB-55: no new requests otherwise; a missing flag means accepting).
+ */
+export const touchActiveOrganization = (
+  id: string | Types.ObjectId,
+  session: ClientSession,
+  options: { accepting?: boolean } = {},
+) =>
   Organization.findOneAndUpdate(
-    { _id: oid(id), status: { $regex: /^active$/i } },
+    {
+      _id: oid(id),
+      status: { $regex: /^active$/i },
+      ...(options.accepting ? { isAccepting: { $ne: false } } : {}),
+    },
     { $inc: { __v: 1 } },
-    { new: true, session, timestamps: false, projection: 'name status' },
+    {
+      new: true,
+      session,
+      timestamps: false,
+      projection: 'name status isAccepting receivingPoint',
+    },
   ).lean();
 
 const newCode = (): string => `DN${randomBytes(5).toString('hex').toUpperCase()}`;
