@@ -36,6 +36,10 @@ describe('CategoryRowActions', () => {
     await user.tab()
     await user.tab()
     expect(reason).toHaveFocus()
+    // Sighted keyboard users see it too: the tooltip opens on focus, not only on hover.
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Danh mục đang có đồ chơi, chỉ có thể ẩn',
+    )
   })
 
   it('offers the delete button itself when no toy uses the category', () => {

@@ -1,5 +1,5 @@
 import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons'
-import { Button, Tooltip } from 'antd'
+import { Button, Tooltip, type TooltipProps } from 'antd'
 
 interface CategoryOrderControlProps {
   displayOrder: number
@@ -15,6 +15,9 @@ const moves = [
   { offset: -1, label: 'Đưa lên trên', icon: <ArrowUpOutlined /> },
   { offset: 1, label: 'Đưa xuống dưới', icon: <ArrowDownOutlined /> },
 ] as const
+
+// Focus as well as hover, so a keyboard user who tabs to the span also sees the reason.
+const TOOLTIP_TRIGGER: TooltipProps['trigger'] = ['hover', 'focus']
 
 // Display order with up/down buttons that swap the row with its neighbour. The buttons sit in a
 // span so the tooltip still explains why they are disabled; when a reason blocks them, the span
@@ -32,7 +35,7 @@ export function CategoryOrderControl({
     <div className="flex items-center gap-1">
       <span className="w-8 text-right tabular-nums text-muted">{displayOrder}</span>
       {moves.map(({ offset, label, icon }) => (
-        <Tooltip key={offset} title={disabledReason ?? label}>
+        <Tooltip key={offset} title={disabledReason ?? label} trigger={TOOLTIP_TRIGGER}>
           <span
             {...(disabledReason
               ? { tabIndex: 0, role: 'note', 'aria-label': `${label}: ${disabledReason}` }

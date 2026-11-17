@@ -69,7 +69,8 @@ export function CategoryRowActions({ category, onEdit }: CategoryRowActionsProps
           </Button>
         </Popconfirm>
       ) : (
-        <Tooltip title={IN_USE_HINT}>
+        // Focus as well as hover, so a keyboard user who tabs to the span also sees the reason.
+        <Tooltip title={IN_USE_HINT} trigger={['hover', 'focus']}>
           {/* A disabled button gets no mouse events; the span keeps the tooltip working and is
               focusable with the reason as its name, for keyboard and screen reader users. */}
           <span tabIndex={0} role="note" aria-label={`Xoá: ${IN_USE_HINT}`}>

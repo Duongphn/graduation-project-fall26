@@ -26,6 +26,8 @@ describe('CategoryOrderControl', () => {
     // The reason is reachable with Tab although both buttons are disabled.
     await userEvent.setup().tab()
     expect(screen.getByRole('note', { name: `Đưa lên trên: ${REASON}` })).toHaveFocus()
+    // Sighted keyboard users see it too: the tooltip opens on focus, not only on hover.
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(REASON)
   })
 
   it('adds nothing to the wrappers when only the list edges disable a move', async () => {
