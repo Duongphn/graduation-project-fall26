@@ -153,7 +153,7 @@ Field rules (R03 III.3.1.1 and III.3.1.2, R04 `toys`), on create and on the fiel
 Photo rules (R03 GB-10, MSG20, MSG21):
 
 - A rental listing has 3 to 8 photos and a sale listing 4 to 8, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.
-- Photos are JPG or PNG, at most 5 MB each, checked on the file content. Any other type, WebP included, gives `400 INVALID_IMAGE_FORMAT` "Only JPG or PNG files up to 5 MB are accepted."; nothing is uploaded.
+- Photos are JPG, PNG or WebP, checked on the file content: any other type, or a file whose content does not match its type, gives `400 INVALID_IMAGE_FORMAT`. A file over 5 MB gives `400 INVALID_IMAGE_UPLOAD` ("Each image must be at most 5 MB."). Nothing is uploaded.
 
 Review rules (R03 GB-08, BF-02/BF-03 alternative 1a):
 

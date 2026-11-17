@@ -119,20 +119,6 @@ export function assertListingPhotoCount(
   }
 }
 
-/**
- * Listing photos are JPG or PNG only (R03 GB-10, MSG20). `detectedType` is the type that
- * validateToyImage read from the file content; that shared check also takes WebP for other uploads.
- */
-export function assertListingPhotoType(detectedType: string): void {
-  if (detectedType !== 'image/jpeg' && detectedType !== 'image/png') {
-    throw new AppError(
-      400,
-      'INVALID_IMAGE_FORMAT',
-      'Only JPG or PNG files up to 5 MB are accepted.',
-    );
-  }
-}
-
 function parseNonEmptyString(val: unknown, fieldName: string): string {
   if (typeof val !== 'string' || val.trim().length === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', `${fieldName} must be a non-empty string.`);

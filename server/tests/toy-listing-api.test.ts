@@ -404,22 +404,28 @@ describe('POST /api/v1/toys', () => {
     expect((await postListing(ctx, sellFields(), images(8))).status).toBe(201);
   });
 
-  it('refuses a WebP photo: listing photos are JPG or PNG (GB-10, MSG20)', async () => {
+  it('accepts JPG, PNG and WebP photos (GB-10, MSG20) and refuses other types', async () => {
     const WEBP = Buffer.from([
       0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50,
     ]);
+    const GIF = Buffer.from('GIF89a', 'ascii');
     ctx.setActor(ctx.actor1);
-    const res = await postListing(ctx, rentFields(), [
+    const res = await postListing(ctx, sellFields(), [
       ...images(2),
+      { buffer: PNG, contentType: 'image/png', filename: 'toy.png' },
       { buffer: WEBP, contentType: 'image/webp', filename: 'toy.webp' },
     ]);
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatchObject({
-      code: 'INVALID_IMAGE_FORMAT',
-      message: 'Only JPG or PNG files up to 5 MB are accepted.',
-    });
-    expect(ctx.uploads).toHaveLength(0);
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(ctx.uploads).toEqual(['image/jpeg', 'image/jpeg', 'image/png', 'image/webp']);
+
+    const gif = await postListing(ctx, rentFields(), [
+      ...images(2),
+      { buffer: GIF, contentType: 'image/gif', filename: 'toy.gif' },
+    ]);
+    expect(gif.status).toBe(400);
+    expect(gif.body.error.code).toBe('INVALID_IMAGE_FORMAT');
+    expect(ctx.uploads).toHaveLength(4);
   });
 
   it('returns 400 for an image whose signature is invalid', async () => {

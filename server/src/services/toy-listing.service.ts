@@ -16,7 +16,6 @@ import type {
 import {
   assertListingFieldRules,
   assertListingPhotoCount,
-  assertListingPhotoType,
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
@@ -143,7 +142,7 @@ export class ToyListingService {
 
     assertListingPhotoCount(validatedInput.listingType, files?.length ?? 0);
     for (const file of files) {
-      assertListingPhotoType(validateToyImage(file.buffer, file.mimetype));
+      validateToyImage(file.buffer, file.mimetype);
     }
 
     const uploadedAssets: ToyImage[] = [];
@@ -383,7 +382,7 @@ export class ToyListingService {
       finalImageCount,
     );
     for (const file of newFiles) {
-      assertListingPhotoType(validateToyImage(file.buffer, file.mimetype));
+      validateToyImage(file.buffer, file.mimetype);
     }
 
     const newUploadedAssets: ToyImage[] = [];
