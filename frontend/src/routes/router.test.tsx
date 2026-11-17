@@ -43,12 +43,14 @@ const renderAt = (url: string) => {
             <Outlet />
           </>
         ),
+        errorElement: adminRoute.errorElement,
         children: [
           { path: 'categories', element: <p>Danh mục</p> },
           { path: 'organizations', element: <p>Tổ chức</p> },
         ],
       },
       { path: '/login', element: <LoginProbe /> },
+      { path: '/', element: <p>Trang chủ</p> },
     ],
     { initialEntries: [url] },
   )
@@ -59,13 +61,22 @@ const renderAt = (url: string) => {
 beforeEach(() => currentRole.mockReset())
 
 describe('admin route guard', () => {
-  it.each([null, 'USER'] as const)('sends role %s to the login page with ?redirect=', async (role) => {
-    currentRole.mockReturnValue(role)
+  it('sends a Guest to the login page with ?redirect=', async () => {
+    currentRole.mockReturnValue(null)
     const response = (await runLoader('/admin/categories?page=2')) as Response
     expect(response.status).toBe(302)
     expect(response.headers.get('Location')).toBe(
       `/login?redirect=${encodeURIComponent('/admin/categories?page=2')}`,
     )
+  })
+
+  it('shows a signed-in USER the 403 page with a link home, not the login form (C7)', async () => {
+    currentRole.mockReturnValue('USER')
+    renderAt('/admin/categories')
+    expect(await screen.findByText('Bạn không có quyền mở trang này.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/')
+    expect(screen.queryByText(/Trang đăng nhập/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Khu quản trị')).not.toBeInTheDocument()
   })
 
   it('lets an ADMIN in', async () => {
