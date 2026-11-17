@@ -1,7 +1,7 @@
 import type { VisibilityStatus } from '../../constants/domain'
 import type { PaginationParams } from '../../types/api'
 
-// Toy categories (UC30). Shapes match server/src/features/categories/categories.schemas.ts.
+// Toy categories (UC30). Shapes match server/src/validations/category-admin.validation.ts.
 
 export interface AdminCategory {
   id: string
