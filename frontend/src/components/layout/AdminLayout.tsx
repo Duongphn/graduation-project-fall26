@@ -1,9 +1,10 @@
-import { ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
+import { Badge, ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
 import { useState } from 'react'
 import { Outlet, useLocation, useNavigate, useNavigation } from 'react-router-dom'
 
 import { adminMenuItems } from '../../routes/admin-menu'
 import { antdTheme } from '../../styles/theme'
+import { useAdminPendingCounts } from './useAdminPendingCounts'
 
 // Admin area shell: dark sidebar menu + content. Desktop-first (R01 LI-01).
 export function AdminLayout() {
@@ -11,6 +12,7 @@ export function AdminLayout() {
   const navigate = useNavigate()
   const navigation = useNavigation()
   const location = useLocation()
+  const pendingCounts = useAdminPendingCounts()
 
   // The longest menu path that prefixes the current URL is the selected entry.
   const selected =
@@ -32,12 +34,23 @@ export function AdminLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[selected]}
-          items={adminMenuItems.map((item) => ({
-            key: item.key,
-            icon: item.icon,
-            label: item.label,
-            onClick: () => navigate(item.path),
-          }))}
+          items={adminMenuItems.map((item) => {
+            const pending = item.pendingCounter ? (pendingCounts[item.pendingCounter] ?? 0) : 0
+            return {
+              key: item.key,
+              icon: item.icon,
+              // Pending counter (L7): the queue replaces any "new post" notification to Admins.
+              label: pending ? (
+                <span className="flex items-center justify-between gap-2">
+                  {item.label}
+                  <Badge count={pending} overflowCount={99} title={`${pending} đang chờ duyệt`} />
+                </span>
+              ) : (
+                item.label
+              ),
+              onClick: () => navigate(item.path),
+            }
+          })}
         />
       </Layout.Sider>
       <Layout>

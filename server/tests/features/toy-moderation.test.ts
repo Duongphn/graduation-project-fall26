@@ -104,6 +104,15 @@ const createPending = async (
 
 const tokenOf = (toy: { updatedAt: Date }) => toy.updatedAt.toISOString();
 
+// Every item of the Admin safety checklist ticked (UC27, GB-48).
+const safetyChecklist = {
+  photosShowWholeToy: true,
+  ageFitsSmallParts: true,
+  batteryCompartmentSecured: true,
+  notRecalledOrBanned: true,
+  noHiddenDefect: true,
+};
+
 beforeEach(async () => {
   await Promise.all([
     Toy.deleteMany({}),
@@ -153,6 +162,28 @@ describe('queue', () => {
     expect(donations.body.data).toHaveLength(1);
     const byId = await get(`/?q=${String(first._id)}`);
     expect(byId.body.data).toHaveLength(1);
+  });
+
+  it('queues by submittedAt, falling back to createdAt when it is missing (oldest first)', async () => {
+    const newest = await createPending({ moderation: { submittedAt: new Date('2026-10-05') } });
+    const oldest = await createPending({ moderation: { submittedAt: new Date('2026-10-03') } });
+    // A post without moderation.submittedAt queues at its createdAt (2026-10-04).
+    const noSubmittedAt = await createPending({ moderation: {} });
+    await Toy.collection.updateOne(
+      { _id: noSubmittedAt._id },
+      { $set: { createdAt: new Date('2026-10-04') }, $unset: { moderation: 1 } },
+    );
+
+    const response = await get('/');
+    expect(response.body.data.map((item: { id: string }) => item.id)).toEqual(
+      [oldest, noSubmittedAt, newest].map((toy) => String(toy._id)),
+    );
+    expect(response.body.data[1].moderation.submittedAt).toBe('2026-10-04T00:00:00.000Z');
+
+    const explicit = await get('/?sortBy=moderation.submittedAt&sortOrder=desc');
+    expect(explicit.body.data.map((item: { id: string }) => item.id)).toEqual(
+      [newest, noSubmittedAt, oldest].map((toy) => String(toy._id)),
+    );
   });
 
   it('searches the title with the text index', async () => {
@@ -225,7 +256,10 @@ describe('decisions', () => {
       moderation: { submittedAt: new Date(), rejectReason: 'old' },
     });
 
-    const response = await post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy) });
+    const response = await post(`/${String(toy._id)}/approve`, {
+      expectedUpdatedAt: tokenOf(toy),
+      safetyChecklist,
+    });
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({
       status: 'active',
@@ -241,9 +275,54 @@ describe('decisions', () => {
     expect(String(audit?.actor_id)).toBe(ADMIN_ID);
     await vi.waitFor(() =>
       expect(handler).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'TOY_REVIEWED', decision: 'approved', toyTitle: toy.title }),
+        expect.objectContaining({
+          type: 'TOY_REVIEWED',
+          decision: 'approved',
+          toyTitle: toy.title,
+        }),
       ),
     );
+  });
+
+  it('refuses to approve unless every safety checklist item is ticked (400, GB-48)', async () => {
+    const toy = await createPending();
+    const approve = (body: object) =>
+      post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy), ...body });
+
+    expect((await approve({})).status).toBe(400);
+    for (const item of Object.keys(safetyChecklist)) {
+      const unticked = await approve({ safetyChecklist: { ...safetyChecklist, [item]: false } });
+      expect(unticked.status).toBe(400);
+      expect(unticked.body.error.code).toBe('VALIDATION_ERROR');
+      const missing: Record<string, boolean> = { ...safetyChecklist };
+      delete missing[item];
+      expect((await approve({ safetyChecklist: missing })).status).toBe(400);
+    }
+    expect((await Toy.findById(toy._id).lean())?.status).toBe('pending');
+    expect(await AuditLog.countDocuments({})).toBe(0);
+  });
+
+  it('stores the safety checklist with the moderation record and shows it in the detail', async () => {
+    const toy = await createPending();
+    const before = await get(`/${String(toy._id)}`);
+    expect(before.body.data.moderation.safetyChecklist).toBeNull();
+
+    await post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy), safetyChecklist });
+    const saved = await Toy.findById(toy._id).lean();
+    expect(saved?.moderation).toMatchObject({ safetyChecklist });
+    const after = await get(`/${String(toy._id)}`);
+    expect(after.body.data.moderation.safetyChecklist).toEqual(safetyChecklist);
+  });
+
+  it('rejects without a checklist and clears an earlier one', async () => {
+    const toy = await createPending({ moderation: { submittedAt: new Date(), safetyChecklist } });
+    const response = await post(`/${String(toy._id)}/reject`, {
+      expectedUpdatedAt: tokenOf(toy),
+      reason: 'Đồ chơi có chi tiết sắc nhọn.',
+    });
+    expect(response.status).toBe(200);
+    const saved = await Toy.findById(toy._id).lean();
+    expect(saved?.moderation).not.toHaveProperty('safetyChecklist');
   });
 
   it('rejects with a reason', async () => {
@@ -273,6 +352,7 @@ describe('decisions', () => {
   it('answers 404 for an unknown post', async () => {
     const response = await post(`/${newId().toString()}/approve`, {
       expectedUpdatedAt: new Date().toISOString(),
+      safetyChecklist,
     });
     expect(response.status).toBe(404);
   });
@@ -283,7 +363,10 @@ describe('decisions', () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     await Toy.updateOne({ _id: toy._id }, { $set: { description: 'Edited by the owner.' } });
 
-    const response = await post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: token });
+    const response = await post(`/${String(toy._id)}/approve`, {
+      expectedUpdatedAt: token,
+      safetyChecklist,
+    });
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('TOY_CHANGED');
     expect((await Toy.findById(toy._id).lean())?.status).toBe('pending');
@@ -291,7 +374,7 @@ describe('decisions', () => {
 
   it('refuses a decided post (409 TOY_ALREADY_DECIDED)', async () => {
     const toy = await createPending();
-    await post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy) });
+    await post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy), safetyChecklist });
     const again = await post(`/${String(toy._id)}/reject`, {
       expectedUpdatedAt: tokenOf(toy),
       reason: 'Không phù hợp.',
@@ -303,7 +386,10 @@ describe('decisions', () => {
   it('refuses to approve a post in a hidden category (409)', async () => {
     const hidden = await createCategory({ status: 'hidden' });
     const toy = await createPending({ categoryId: hidden._id });
-    const response = await post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy) });
+    const response = await post(`/${String(toy._id)}/approve`, {
+      expectedUpdatedAt: tokenOf(toy),
+      safetyChecklist,
+    });
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('CATEGORY_NOT_AVAILABLE');
   });
@@ -312,6 +398,7 @@ describe('decisions', () => {
     const unverified = await createPending({}, await createUser({ verificationStatus: 'pending' }));
     const first = await post(`/${String(unverified._id)}/approve`, {
       expectedUpdatedAt: tokenOf(unverified),
+      safetyChecklist,
     });
     expect(first.status).toBe(422);
     expect(first.body.error.code).toBe('OWNER_NOT_ELIGIBLE');
@@ -322,6 +409,7 @@ describe('decisions', () => {
     );
     const second = await post(`/${String(locked._id)}/approve`, {
       expectedUpdatedAt: tokenOf(locked),
+      safetyChecklist,
     });
     expect(second.body.error.code).toBe('OWNER_NOT_ELIGIBLE');
     expect(await Toy.countDocuments({ status: 'active' })).toBe(0);
@@ -345,7 +433,7 @@ describe('decisions', () => {
       ),
     );
     const approving = startRequest(
-      post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy) }),
+      post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: tokenOf(toy), safetyChecklist }),
     );
     await pause(300);
     await hide.commit();
@@ -361,7 +449,7 @@ describe('decisions', () => {
     const toy = await createPending();
     const token = tokenOf(toy);
     const [a, b] = await Promise.all([
-      post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: token }),
+      post(`/${String(toy._id)}/approve`, { expectedUpdatedAt: token, safetyChecklist }),
       post(`/${String(toy._id)}/reject`, { expectedUpdatedAt: token, reason: 'Không phù hợp.' }),
     ]);
     expect([a.status, b.status].sort()).toEqual([200, 409]);

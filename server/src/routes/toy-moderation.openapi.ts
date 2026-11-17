@@ -86,6 +86,7 @@ openApiRegistry.registerPath({
   tags,
   summary: 'Approve a pending post (pending -> active)',
   description:
+    '400 VALIDATION_ERROR unless every item of safetyChecklist is true (GB-48). ' +
     '409 TOY_CHANGED when updatedAt differs from expectedUpdatedAt (the Owner edited the post), ' +
     '409 TOY_ALREADY_DECIDED when it is no longer pending, 409 CATEGORY_NOT_AVAILABLE when the ' +
     'category is hidden or deleted, 422 OWNER_NOT_ELIGIBLE when the owner is not identity ' +

@@ -38,6 +38,17 @@ const pointSchema = new Schema(
   { _id: false },
 );
 
+const safetyChecklistSchema = new Schema(
+  {
+    photosShowWholeToy: { type: Boolean, required: true },
+    ageFitsSmallParts: { type: Boolean, required: true },
+    batteryCompartmentSecured: { type: Boolean, required: true },
+    notRecalledOrBanned: { type: Boolean, required: true },
+    noHiddenDefect: { type: Boolean, required: true },
+  },
+  { _id: false },
+);
+
 export const toySchema = new Schema<IToy>(
   {
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -66,6 +77,8 @@ export const toySchema = new Schema<IToy>(
       reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
       reviewedAt: { type: Date },
       rejectReason: { type: String },
+      // Admin safety checklist ticked on approval (UC27, GB-48); written by toy-moderation.
+      safetyChecklist: { type: safetyChecklistSchema, default: undefined },
     },
     ageRange: {
       minAge: { type: Number, required: true },
