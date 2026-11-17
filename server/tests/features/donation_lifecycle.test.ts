@@ -349,6 +349,31 @@ describe('donation posts (POST /donation-posts)', () => {
     await mongoose.connection.collection('identityverifications').deleteMany({});
   });
 
+  it('checks the title and description like a rent or sale listing (R03 III.5.2.1 (1))', async () => {
+    const category = await Category.create({ name: 'Xe', slug: 'xe', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+    const refused = async (text: { title?: string; description?: string }, field: string) => {
+      const res = await send('donor', String(category._id), 3, text);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: { field } });
+    };
+
+    await refused({ title: 'T'.repeat(101) }, 'title');
+    await refused({ description: 'D'.repeat(49) }, 'description');
+    await refused({ description: 'D'.repeat(1001) }, 'description');
+    expect(uploaded).toHaveLength(uploadsBefore);
+
+    for (const text of [
+      { title: 'T'.repeat(100) },
+      { description: 'D'.repeat(50) },
+      { description: 'D'.repeat(1000) },
+    ]) {
+      expect((await send('donor', String(category._id), 3, text)).status).toBe(201);
+    }
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
   it('refuses a phone number, an email or a link in the title or description (GB-11)', async () => {
     const category = await Category.create({ name: 'Bóng', slug: 'bong', status: 'active' });
     await verifyDonor();

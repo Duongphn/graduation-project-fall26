@@ -148,7 +148,7 @@ Field rules (R03 III.3.1.1 and III.3.1.2, R04 `toys`), on create and on the fiel
 - `title` at most 100 characters; `description` 50 to 1000 characters (both trimmed).
 - Rent: `priceOrRate` (VND per day) a whole number from 5,000 to 5,000,000; `depositPrice` a whole number at least `priceOrRate` (one day of rental). An edit that changes the price, the deposit or the type checks them against the stored values it does not send.
 - Sale: `priceOrRate` a whole number from 10,000 to 50,000,000.
-- A broken rule gives `400 VALIDATION_ERROR` with `details: { field }`. Donation posts (`POST /donation-posts`) do not use these rules.
+- A broken rule gives `400 VALIDATION_ERROR` with `details: { field }`. Donation posts (`POST /donation-posts`) use the `title` and `description` rules, not the price rules.
 
 Contact details (R03 GB-11, MSG22), on create and on the fields an edit sends, for rent, sale and donation posts:
 
@@ -173,6 +173,53 @@ Category rules:
 - Listing responses carry `categoryId` and `categoryName`; the name is also given for a category an Admin has hidden (`GET /categories` lists only active ones), and is `""` if the category no longer exists.
 - Create, and an edit that changes `categoryId`, need an active category (`400 CATEGORY_NOT_FOUND` otherwise). An edit that resends the toy's current `categoryId` is accepted even if an Admin hid that category after the toy was posted.
 - Create (`POST /toys`, and `POST /donation-posts` for a donation post) and an edit that changes `categoryId` save the toy in a transaction that first writes its category (`$inc __v` while the category is active). An Admin hide or delete running at the same time therefore conflicts with the save: either the toy is refused (`400 CATEGORY_NOT_FOUND`), or the delete sees it (`409 CATEGORY_IN_USE`). Other edits do not write the category and save the toy without a transaction. Like every transaction, this needs a MongoDB replica set.
+
+---
+
+### Create Donation Post (UC33)
+
+`POST /api/v1/donation-posts` creates a free donation post: a toy with `listingType: "donate"` and `priceOrRate: 0`, `pending` until the Admin reviews it like any listing. It needs an authenticated user actor with a verified identity. The post is edited, hidden and deleted with the Owner endpoints above.
+
+Request: multipart form data.
+
+- `title` (required): at most 100 characters.
+- `description` (required): 50 to 1000 characters. The web form adds the handover method and the preferred organization as lines at the end of the Donor's text, so it keeps the Donor's part to 800 characters.
+- `condition` (required), `categoryId` (required, an active category), `ageRange` (required, JSON `{ "minAge": 1, "maxAge": 3 }`).
+- `images`: 3 to 10 photos, JPG, PNG or WebP, at most 5 MB each (R03 GB-10, III.5.2.1 (2)).
+- Price and deposit fields are ignored.
+
+Errors:
+
+- `401 UNAUTHORIZED`; `403 USER_NOT_VERIFIED` when the identity is not verified.
+- `400 VALIDATION_ERROR` for a missing or invalid field, with `details: { field }` for the `title` and `description` lengths; `400 VALIDATION_ERROR` "A donation post needs 3 to 10 images." for fewer than 3 photos.
+- `400 CONTACT_DETAILS_NOT_ALLOWED` with `details: { field }` (GB-11, see "Contact details" above).
+- `400 CATEGORY_NOT_FOUND` when the category is not active, also when an Admin hides or deletes it during the upload ("Category rules" above).
+- `400 INVALID_IMAGE_FORMAT` for a file that is not JPG, PNG or WebP; `400 INVALID_IMAGE_UPLOAD` for an 11th photo or a file over 5 MB.
+
+Response `201 Created`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "65f...",
+    "ownerId": "65e...",
+    "categoryId": "64b...",
+    "categoryName": "Gấu bông",
+    "title": "Gấu bông",
+    "description": "Gấu bông còn mới, đã giặt sạch...\n\nCách bàn giao: Gửi qua đơn vị vận chuyển\nĐơn vị tiếp nhận mong muốn: Để ToyFlow ghép tổ chức phù hợp",
+    "condition": "Như mới (90–99%)",
+    "listingType": "donate",
+    "priceOrRate": 0,
+    "ageRange": { "minAge": 1, "maxAge": 3 },
+    "images": [{ "url": "https://res.cloudinary.com/...", "publicId": "toyflow/toys/..." }],
+    "quantity": 1,
+    "status": "pending",
+    "createdAt": "2026-11-17T03:00:00.000Z",
+    "updatedAt": "2026-11-17T03:00:00.000Z"
+  }
+}
+```
 
 ---
 

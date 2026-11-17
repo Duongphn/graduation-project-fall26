@@ -76,7 +76,7 @@ const postDonation = (categoryId: string) =>
     .post('/api/v1/donation-posts')
     .set('Authorization', OWNER)
     .field('title', 'Gấu bông')
-    .field('description', 'Gấu bông còn mới, đã giặt sạch')
+    .field('description', 'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.')
     .field('condition', 'like_new')
     .field('categoryId', categoryId)
     .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }))

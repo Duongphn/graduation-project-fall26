@@ -29,8 +29,8 @@ const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
 /**
  * Field rules of the Post Rental Listing and Post Resale Listing screens (R03 III.3.1.1 (5), (9),
- * (11), (12); III.3.1.2 (6), (10), (12); R04 toys). Only rent and sale listings use them:
- * POST /donation-posts shares validateCreateToyListingInput, which does not check them.
+ * (11), (12); III.3.1.2 (6), (10), (12); R04 toys). The title and description rules apply to
+ * donation posts too (R03 III.5.2.1 (1)): POST /donation-posts calls assertListingTextRules.
  */
 export const LISTING_FIELD_RULES = {
   titleMax: 100,

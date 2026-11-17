@@ -8,6 +8,7 @@ import { saveWithActiveCategory } from '../repositories/toy-listing.repository.j
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
 import {
+  assertListingTextRules,
   assertNoContactDetails,
   validateCreateToyListingInput,
 } from '../validations/toy-listing.validation.js';
@@ -17,7 +18,8 @@ import {
 // (listingType 'donate', priceOrRate 0) and go through Admin moderation like any listing
 // (status 'pending'). Same checks as develop's listing: verified identity, active category,
 // JPEG/PNG/WebP images (develop's toyImageUpload middleware). A donation post has 3 to 10 photos
-// (R03 GB-10 and III.5.2.1 (2), R04 toys.images). The title and description must not hold a
+// (R03 GB-10 and III.5.2.1 (2), R04 toys.images). The title and description follow the rent and
+// sale rules (R03 III.5.2.1 (1)): title at most 100 characters, description 50 to 1000, and no
 // phone number, email address or http/www link (GB-11). Like POST /toys, the toy is saved in the
 // transaction that touches its category, so an Admin hide or delete during the upload cannot
 // leave the post on that category ("Category rules" in docs/api/toys.md).
@@ -52,6 +54,7 @@ export const createDonationPost = async (
   // Develop's listing validator parses title, description, condition, categoryId and ageRange;
   // the price fields do not apply to a donation.
   const input = validateCreateToyListingInput({ ...body, listingType: 'sell', priceOrRate: 1 });
+  assertListingTextRules(input);
   assertNoContactDetails(input);
   if (!(await isActiveCategory(input.categoryId))) {
     throw categoryNotAvailable();
