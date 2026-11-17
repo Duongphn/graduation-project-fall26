@@ -14,6 +14,8 @@ import type {
   ToyModeration,
 } from '../interfaces/toy-listing.ports.js';
 import {
+  assertListingPhotoCount,
+  assertListingPhotoType,
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
@@ -128,15 +130,9 @@ export class ToyListingService {
       throw categoryNotAvailable();
     }
 
-    if (!files || files.length === 0) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'At least one image is required.');
-    }
-    if (files.length > 10) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'A maximum of 10 images are allowed.');
-    }
-
+    assertListingPhotoCount(validatedInput.listingType, files?.length ?? 0);
     for (const file of files) {
-      validateToyImage(file.buffer, file.mimetype);
+      assertListingPhotoType(validateToyImage(file.buffer, file.mimetype));
     }
 
     const uploadedAssets: ToyImage[] = [];
@@ -333,15 +329,12 @@ export class ToyListingService {
     const newFiles = files ?? [];
     const finalImageCount = remainingImages.length + newFiles.length;
 
-    if (finalImageCount < 1) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'A listing must have at least one image.');
-    }
-    if (finalImageCount > 10) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'A listing cannot have more than 10 images.');
-    }
-
+    assertListingPhotoCount(
+      isDonationPost(listing) ? 'donate' : effectiveListingType,
+      finalImageCount,
+    );
     for (const file of newFiles) {
-      validateToyImage(file.buffer, file.mimetype);
+      assertListingPhotoType(validateToyImage(file.buffer, file.mimetype));
     }
 
     const newUploadedAssets: ToyImage[] = [];

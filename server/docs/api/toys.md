@@ -137,11 +137,16 @@ These endpoints do not require authentication (`request.auth`).
 
 These endpoints require an authenticated user actor (`request.auth`). An Admin account gets `403 FORBIDDEN`: Admin accounts cannot own or manage toy listings.
 
-- `POST /api/v1/toys`: Create a pending toy listing (multipart form data with up to 10 images).
+- `POST /api/v1/toys`: Create a pending toy listing (multipart form data, field `images`).
 - `GET /api/v1/toys/mine`: List owner's listings (supports `status` filter: `pending`, `active`, `hidden`, `sold`).
 - `PATCH /api/v1/toys/:toyId`: Edit an owned listing and add/remove images. If another save changed the listing's images after this request read the listing (for example a second tab saving during the upload) and this edit would overwrite them, the edit is refused with `409 LISTING_CHANGED`: nothing is stored and its new images are deleted. Reload the listing and try again.
 - `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
+
+Photo rules (R03 GB-10, MSG20, MSG21):
+
+- A rental listing has 3 to 8 photos and a sale listing 4 to 8, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.
+- Photos are JPG or PNG, at most 5 MB each, checked on the file content. Any other type, WebP included, gives `400 INVALID_IMAGE_FORMAT` "Only JPG or PNG files up to 5 MB are accepted."; nothing is uploaded.
 
 Review rules (R03 GB-08, BF-02/BF-03 alternative 1a):
 

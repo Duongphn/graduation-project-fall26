@@ -233,10 +233,16 @@ const DEFAULT_IMAGE: ImageInput = {
   filename: 'toy.jpg',
 };
 
+const images = (count: number, image: ImageInput = DEFAULT_IMAGE): ImageInput[] =>
+  Array.from({ length: count }, () => image);
+
+// The fewest photos each listing type takes (GB-10): 3 for rent, 4 for sale.
+const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 4 };
+
 function postListing(
   ctx: Context,
   fields: Record<string, string>,
-  files: ImageInput[] = [DEFAULT_IMAGE],
+  files: ImageInput[] = images(MIN_PHOTOS[fields.listingType ?? 'rent'] ?? 3),
 ) {
   let req = request(ctx.app).post('/api/v1/toys');
   for (const [key, value] of Object.entries(fields)) {
@@ -319,8 +325,8 @@ describe('POST /api/v1/toys', () => {
       quantity: 1,
       ageRange: { minAge: 3, maxAge: 8 },
     });
-    expect(listing.images).toHaveLength(1);
-    expect(ctx.uploads).toEqual(['image/jpeg']);
+    expect(listing.images).toHaveLength(3);
+    expect(ctx.uploads).toEqual(['image/jpeg', 'image/jpeg', 'image/jpeg']);
   });
 
   it('creates a sell listing without a deposit', async () => {
@@ -332,12 +338,14 @@ describe('POST /api/v1/toys', () => {
 
   it('accepts a PNG image', async () => {
     ctx.setActor(ctx.actor1);
-    const res = await postListing(ctx, rentFields(), [
-      { buffer: PNG, contentType: 'image/png', filename: 'toy.png' },
-    ]);
+    const res = await postListing(
+      ctx,
+      rentFields(),
+      images(3, { buffer: PNG, contentType: 'image/png', filename: 'toy.png' }),
+    );
 
     expect(res.status).toBe(201);
-    expect(ctx.uploads).toEqual(['image/png']);
+    expect(ctx.uploads).toEqual(['image/png', 'image/png', 'image/png']);
   });
 
   it('returns 403 when the actor is not verified', async () => {
@@ -363,12 +371,61 @@ describe('POST /api/v1/toys', () => {
     const res = await postListing(ctx, rentFields(), []);
 
     expect(res.status).toBe(400);
-    expect(res.body.error.message).toBe('At least one image is required.');
+    expect(res.body.error).toMatchObject({
+      code: 'TOO_FEW_PHOTOS',
+      message: 'Please upload at least 3 photos.',
+    });
+  });
+
+  it('takes 3 to 8 photos for a rental and 4 to 8 for a sale (GB-10)', async () => {
+    ctx.setActor(ctx.actor1);
+    const tooFewRent = await postListing(ctx, rentFields(), images(2));
+    expect(tooFewRent.status).toBe(400);
+    expect(tooFewRent.body.error).toMatchObject({
+      code: 'TOO_FEW_PHOTOS',
+      message: 'Please upload at least 3 photos.',
+    });
+
+    const tooFewSale = await postListing(ctx, sellFields(), images(3));
+    expect(tooFewSale.status).toBe(400);
+    expect(tooFewSale.body.error.message).toBe('Please upload at least 4 photos.');
+
+    const tooMany = await postListing(ctx, rentFields(), images(9));
+    expect(tooMany.status).toBe(400);
+    expect(tooMany.body.error).toMatchObject({
+      code: 'TOO_MANY_PHOTOS',
+      message: 'Please upload no more than 8 photos.',
+    });
+    // Nothing is uploaded for a refused listing.
+    expect(ctx.uploads).toHaveLength(0);
+
+    expect((await postListing(ctx, rentFields(), images(8))).status).toBe(201);
+    expect((await postListing(ctx, sellFields(), images(4))).status).toBe(201);
+    expect((await postListing(ctx, sellFields(), images(8))).status).toBe(201);
+  });
+
+  it('refuses a WebP photo: listing photos are JPG or PNG (GB-10, MSG20)', async () => {
+    const WEBP = Buffer.from([
+      0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50,
+    ]);
+    ctx.setActor(ctx.actor1);
+    const res = await postListing(ctx, rentFields(), [
+      ...images(2),
+      { buffer: WEBP, contentType: 'image/webp', filename: 'toy.webp' },
+    ]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({
+      code: 'INVALID_IMAGE_FORMAT',
+      message: 'Only JPG or PNG files up to 5 MB are accepted.',
+    });
+    expect(ctx.uploads).toHaveLength(0);
   });
 
   it('returns 400 for an image whose signature is invalid', async () => {
     ctx.setActor(ctx.actor1);
     const res = await postListing(ctx, rentFields(), [
+      ...images(2),
       { buffer: NOT_AN_IMAGE, contentType: 'image/jpeg', filename: 'fake.jpg' },
     ]);
 
@@ -511,7 +568,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     expect(res.body.error.code).toBe('NOT_FOUND');
   });
 
-  it('returns 400 when removing every image', async () => {
+  it('returns 400 when an edit leaves fewer photos than the listing type needs', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
 
     ctx.setActor(ctx.actor1);
@@ -520,7 +577,30 @@ describe('PATCH /api/v1/toys/:toyId', () => {
       .send({ removeImagePublicIds: JSON.stringify([listing.images[0]?.publicId]) });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.message).toBe('A listing must have at least one image.');
+    expect(res.body.error).toMatchObject({
+      code: 'TOO_FEW_PHOTOS',
+      message: 'Please upload at least 3 photos.',
+    });
+    expect(ctx.deletions).toEqual([]);
+  });
+
+  it('counts the photos of the new listing type when an edit changes it', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    ctx.setActor(ctx.actor1);
+    const tooFew = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ listingType: 'sell', priceOrRate: 250000 });
+    expect(tooFew.status).toBe(400);
+    expect(tooFew.body.error.message).toBe('Please upload at least 4 photos.');
+
+    const enough = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .field('listingType', 'sell')
+      .field('priceOrRate', '250000')
+      .attach('images', JPEG, { filename: 'fourth.jpg', contentType: 'image/jpeg' });
+    expect(enough.status).toBe(200);
+    expect(enough.body.images).toHaveLength(4);
   });
 
   it('replaces an image and deletes the removed asset', async () => {
@@ -534,8 +614,10 @@ describe('PATCH /api/v1/toys/:toyId', () => {
       .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
 
     expect(res.status).toBe(200);
-    expect(res.body.images).toHaveLength(1);
-    expect(res.body.images[0].publicId).not.toBe(oldPublicId);
+    expect(res.body.images).toHaveLength(3);
+    expect(res.body.images.map((image: { publicId: string }) => image.publicId)).not.toContain(
+      oldPublicId,
+    );
     expect(ctx.deletions).toContainEqual([oldPublicId]);
   });
 
@@ -552,7 +634,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     expect(res.status).toBe(500);
     const stored = ctx.store.find((toy) => toy._id.toString() === listing.id);
     expect(stored?.title).toBe('Saved Before The Read');
-    expect(stored?.images).toHaveLength(2);
+    expect(stored?.images).toHaveLength(4);
     // The stored toy uses the new upload, so it must not be deleted.
     expect(ctx.deletions).toEqual([]);
   });
@@ -716,14 +798,14 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
 describe('DELETE /api/v1/toys/:toyId', () => {
   it('deletes an owned listing and its image assets with 204', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
-    const publicId = listing.images[0]?.publicId ?? '';
+    const publicIds = listing.images.map((image) => image.publicId);
 
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app).delete(`/api/v1/toys/${listing.id}`);
 
     expect(res.status).toBe(204);
     expect(ctx.store).toHaveLength(0);
-    expect(ctx.deletions).toContainEqual([publicId]);
+    expect(ctx.deletions).toContainEqual(publicIds);
   });
 
   it('returns 403 when deleting another owner listing', async () => {

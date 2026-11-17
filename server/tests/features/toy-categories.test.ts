@@ -61,7 +61,10 @@ const postToy = (categoryId: string) =>
     .field('priceOrRate', '20000')
     .field('depositPrice', '300000')
     .field('ageRange', JSON.stringify({ minAge: 3, maxAge: 8 }))
-    .attach('images', JPEG, { filename: 'toy.jpg', contentType: 'image/jpeg' });
+    // A rental takes at least 3 photos (GB-10).
+    .attach('images', JPEG, { filename: 'toy-1.jpg', contentType: 'image/jpeg' })
+    .attach('images', JPEG, { filename: 'toy-2.jpg', contentType: 'image/jpeg' })
+    .attach('images', JPEG, { filename: 'toy-3.jpg', contentType: 'image/jpeg' });
 
 const patchToy = (toyId: string, body: object) =>
   request(app).patch(`/api/v1/toys/${toyId}`).set('Authorization', OWNER).send(body);
@@ -249,7 +252,7 @@ describe('a commit that fails once with a transient error', () => {
     expect(stored[0]?.images.map((image) => image.publicId)).toEqual(
       response.body.images.map((image: { publicId: string }) => image.publicId),
     );
-    expect(stored[0]?.images).toHaveLength(1);
+    expect(stored[0]?.images).toHaveLength(3);
     expect(deletedImages).toEqual([]);
     // Only the touch of the second run was committed.
     expect((await CategoryModel.findById(categoryId).lean())?.__v).toBe(1);
@@ -438,7 +441,7 @@ describe('category hide/delete racing a toy save', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
     expect(await ToyModel.countDocuments()).toBe(0);
-    expect(deletedImages).toHaveLength(1);
+    expect(deletedImages).toHaveLength(3);
   });
 
   it('never leaves a toy on a category deleted between the check and the save', async () => {
@@ -450,7 +453,7 @@ describe('category hide/delete racing a toy save', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
     expect(await ToyModel.countDocuments()).toBe(0);
-    expect(deletedImages).toHaveLength(1);
+    expect(deletedImages).toHaveLength(3);
   });
 
   it('conflicts with an uncommitted hide, is retried after the commit and then refused', async () => {

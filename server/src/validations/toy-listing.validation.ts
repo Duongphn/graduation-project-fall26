@@ -26,6 +26,47 @@ export interface UpdateToyListingInput {
 
 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
+/**
+ * Photos per listing type (R03 GB-10, III.3.1.1 (1)-(2), III.3.1.2 (3)-(4); R04 toys.images).
+ * Donation posts are created by POST /donation-posts; their limit applies when one is edited here.
+ */
+export const LISTING_PHOTO_LIMITS = {
+  rent: { min: 3, max: 8 },
+  sell: { min: 4, max: 8 },
+  donate: { min: 3, max: 10 },
+} as const;
+
+/** Refuses a photo count outside GB-10 for the listing type, with MSG21 for too few photos. */
+export function assertListingPhotoCount(
+  listingType: keyof typeof LISTING_PHOTO_LIMITS,
+  count: number,
+): void {
+  const { min, max } = LISTING_PHOTO_LIMITS[listingType];
+  if (count < min) {
+    throw new AppError(400, 'TOO_FEW_PHOTOS', `Please upload at least ${min} photos.`, { min, max });
+  }
+  if (count > max) {
+    throw new AppError(400, 'TOO_MANY_PHOTOS', `Please upload no more than ${max} photos.`, {
+      min,
+      max,
+    });
+  }
+}
+
+/**
+ * Listing photos are JPG or PNG only (R03 GB-10, MSG20). `detectedType` is the type that
+ * validateToyImage read from the file content; that shared check also takes WebP for other uploads.
+ */
+export function assertListingPhotoType(detectedType: string): void {
+  if (detectedType !== 'image/jpeg' && detectedType !== 'image/png') {
+    throw new AppError(
+      400,
+      'INVALID_IMAGE_FORMAT',
+      'Only JPG or PNG files up to 5 MB are accepted.',
+    );
+  }
+}
+
 function parseNonEmptyString(val: unknown, fieldName: string): string {
   if (typeof val !== 'string' || val.trim().length === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', `${fieldName} must be a non-empty string.`);
