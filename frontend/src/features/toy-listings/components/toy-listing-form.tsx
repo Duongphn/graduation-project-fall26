@@ -34,7 +34,7 @@ import {
 /** Lỗi ở ô Danh mục khi máy chủ báo danh mục vừa chọn đã bị ẩn hoặc xoá (CATEGORY_NOT_FOUND) */
 const CATEGORY_GONE_ERROR = 'Danh mục vừa chọn không còn hoạt động, vui lòng chọn danh mục khác'
 
-/** Ảnh tin cho thuê / bán: tối đa 8 ảnh JPG hoặc PNG (GB-10) */
+/** Ảnh tin cho thuê / bán: tối đa 8 ảnh JPG, PNG hoặc WebP (GB-10) */
 const LISTING_PHOTO_RULES = { maxImages: LISTING_MAX_IMAGES, acceptedTypes: LISTING_IMAGE_TYPES }
 
 /** Đưa tin đăng từ backend về giá trị form */

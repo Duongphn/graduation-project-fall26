@@ -137,22 +137,27 @@ describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /^Giá bán mong muốn/ }), { target: { value: '250000' } })
     await user.click(saveButton())
     expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
-    expect(screen.getByText(/JPG hoặc PNG · tối đa 5 MB mỗi ảnh · từ 4 đến 8 ảnh/)).toBeInTheDocument()
+    expect(screen.getByText(/JPG, PNG hoặc WebP · tối đa 5 MB mỗi ảnh · từ 4 đến 8 ảnh/)).toBeInTheDocument()
     expect(patch).not.toHaveBeenCalled()
   })
 
-  it('takes JPG and PNG photos only, at most 8', async () => {
+  it('takes JPG, PNG and WebP photos only, at most 8', async () => {
     renderForm()
     // The file picker filters by `accept`; a dropped file is not filtered, so check without it.
     const user = userEvent.setup({ applyAccept: false })
     const input = screen.getByLabelText(/Kéo thả ảnh vào đây/)
 
-    await user.upload(input, new File(['webp'], 'toy.webp', { type: 'image/webp' }))
-    expect(within(photoErrors() as HTMLElement).getByText('"toy.webp" không phải ảnh JPG hoặc PNG.')).toBeInTheDocument()
+    await user.upload(input, new File(['gif'], 'toy.gif', { type: 'image/gif' }))
+    expect(
+      within(photoErrors() as HTMLElement).getByText('"toy.gif" không phải ảnh JPG, PNG hoặc WebP.'),
+    ).toBeInTheDocument()
+
+    await user.upload(input, new File(['webp'], 'toy-4.webp', { type: 'image/webp' }))
+    expect(screen.getAllByRole('img', { name: /^Ảnh đồ chơi/ })).toHaveLength(4)
 
     await user.upload(
       input,
-      [4, 5, 6, 7, 8, 9].map((n) => new File(['toy'], `toy-${n}.jpg`, { type: 'image/jpeg' })),
+      [5, 6, 7, 8, 9].map((n) => new File(['toy'], `toy-${n}.jpg`, { type: 'image/jpeg' })),
     )
     expect(screen.getByText('Chỉ đăng được tối đa 8 ảnh, đã bỏ qua "toy-9.jpg".')).toBeInTheDocument()
     expect(screen.getAllByRole('img', { name: /^Ảnh đồ chơi/ })).toHaveLength(8)

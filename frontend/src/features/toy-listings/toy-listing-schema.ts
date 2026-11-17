@@ -15,8 +15,8 @@ export const LISTING_PHOTO_LIMITS = {
   sell: { min: 4, max: 8 },
 } as const
 export const LISTING_MAX_IMAGES = 8
-/** Ảnh tin đăng chỉ nhận JPG hoặc PNG (R03 GB-10, MSG20) */
-export const LISTING_IMAGE_TYPES = ['image/jpeg', 'image/png']
+/** Ảnh tin đăng nhận JPG, PNG hoặc WebP, tối đa 5 MB mỗi ảnh (R03 GB-10, MSG20) */
+export const LISTING_IMAGE_TYPES = ACCEPTED_IMAGE_TYPES
 
 /** MSG21 */
 export const tooFewPhotosMessage = (min: number) => `Vui lòng tải lên ít nhất ${min} ảnh.`
