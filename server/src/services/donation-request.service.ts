@@ -34,6 +34,7 @@ import {
 } from '../validations/donation-request.validation.js';
 import {
   adminContextOf,
+  organizationNotAccepting,
   organizationNotAvailable,
   requestNotFound,
   toyNotAvailable,
@@ -94,10 +95,16 @@ export const createRequest = async (
         throw conflict('DONOR_LOCKED', 'Người quyên góp đang bị khóa, không thể gửi yêu cầu.');
       }
       if (input.organizationId) {
-        if (!(await repository.touchActiveOrganization(input.organizationId, session))) {
-          if (!(await repository.findOrganization(input.organizationId, session))) {
-            throw notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
-          }
+        // GB-55: a new request needs an active organization that is accepting toys.
+        const organization = await repository.touchActiveOrganization(
+          input.organizationId,
+          session,
+          { accepting: true },
+        );
+        if (!organization) {
+          const found = await repository.findOrganization(input.organizationId, session);
+          if (!found) throw notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
+          if (/^active$/i.test(found.status)) throw organizationNotAccepting();
           throw organizationNotAvailable();
         }
       }

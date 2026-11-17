@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Input, Skeleton } from 'antd'
-import { useForm } from 'react-hook-form'
+import { Checkbox, Divider, Input, Select, Skeleton, Switch } from 'antd'
+import { Controller, useForm } from 'react-hook-form'
 
 import { FormField, FormModal, QueryErrorAlert } from '../../../components/common'
 import { useServerFieldErrors } from '../../../hooks/useServerFieldErrors'
+import { useAdminCategoryOptions } from '../../categories/hooks'
+import { organizationAgeGroups } from '../constants'
 import { useCreateOrganization, useOrganization, useUpdateOrganization } from '../hooks'
 import { emptyOrganizationForm, organizationFormSchema, toFormValues, toInput } from '../schemas'
 import type { OrganizationFormInput, OrganizationFormValues } from '../schemas'
@@ -74,6 +76,17 @@ function OrganizationForm({
     defaultValues: initialValues,
   })
   const onError = useServerFieldErrors(setError)
+  const categories = useAdminCategoryOptions()
+  // Active categories, plus a hidden one the organization already has (so it stays visible).
+  const categoryOptions = (categories.data ?? [])
+    .filter(
+      (category) =>
+        category.status === 'active' || initialValues.categoryIds.includes(category.id),
+    )
+    .map((category) => ({
+      value: category.id,
+      label: category.status === 'active' ? category.name : `${category.name} (đang ẩn)`,
+    }))
   const create = useCreateOrganization(onError)
   const update = useUpdateOrganization(onError)
   const saving = create.isPending || update.isPending
@@ -105,20 +118,121 @@ function OrganizationForm({
       <FormField
         control={control}
         name="contactInfo"
-        label="Người liên hệ"
+        label="Liên hệ trụ sở (điện thoại hoặc email)"
         required
-        extra="Ví dụ: Chị Lan, phụ trách tiếp nhận"
+        extra="Chỉ Admin thấy. Ví dụ: Chị Lan, phụ trách tiếp nhận"
       >
         {(field) => <Input {...field} maxLength={300} />}
       </FormField>
-      <FormField control={control} name="supportCriteria" label="Tiêu chí hỗ trợ" required>
+
+      <Divider titlePlacement="start">Điểm nhận đồ chơi</Divider>
+      <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
+        <FormField control={control} name="receivingPoint.province" label="Tỉnh/Thành phố" required>
+          {(field) => <Input {...field} maxLength={100} placeholder="TP. Hồ Chí Minh" />}
+        </FormField>
+        <FormField control={control} name="receivingPoint.ward" label="Phường/Xã" required>
+          {(field) => <Input {...field} maxLength={100} placeholder="Phường Nhiêu Lộc" />}
+        </FormField>
+        <FormField control={control} name="receivingPoint.street" label="Số nhà, tên đường" required>
+          {(field) => <Input {...field} maxLength={120} placeholder="123 Lê Văn Sỹ" />}
+        </FormField>
+        <FormField control={control} name="receivingPoint.openingHours" label="Giờ nhận" required>
+          {(field) => <Input {...field} maxLength={200} placeholder="Thứ 2 – Thứ 7, 8:00 – 17:00" />}
+        </FormField>
+        <FormField
+          control={control}
+          name="receivingPoint.contactName"
+          label="Người liên hệ tại điểm nhận"
+          required
+          extra="Người tặng chỉ thấy khi yêu cầu đã được chấp nhận hoặc đang gửi."
+        >
+          {(field) => <Input {...field} maxLength={50} placeholder="Nguyễn Thị Lan" />}
+        </FormField>
+        <FormField control={control} name="receivingPoint.contactPhone" label="Số điện thoại" required>
+          {(field) => <Input {...field} maxLength={12} placeholder="0912345678" />}
+        </FormField>
+      </div>
+      <FormField control={control} name="receivingPoint.acceptsDropOff" label="Cách bàn giao" required>
+        {(field) => (
+          <div className="flex flex-wrap gap-4">
+            <Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)}>
+              Nhận đồ mang đến
+            </Checkbox>
+            <Controller
+              control={control}
+              name="receivingPoint.acceptsParcel"
+              render={({ field: parcel }) => (
+                <Checkbox
+                  checked={parcel.value}
+                  onChange={(event) => parcel.onChange(event.target.checked)}
+                >
+                  Nhận bưu kiện qua vận chuyển
+                </Checkbox>
+              )}
+            />
+          </div>
+        )}
+      </FormField>
+
+      <Divider titlePlacement="start">Nhu cầu</Divider>
+      <FormField control={control} name="ageGroups" label="Nhóm tuổi nhận" required>
+        {(field) => (
+          <Checkbox.Group
+            value={field.value}
+            onChange={(value) => field.onChange(value)}
+            options={organizationAgeGroups.map((group) => ({ value: group.key, label: group.label }))}
+          />
+        )}
+      </FormField>
+      <FormField control={control} name="categoryIds" label="Danh mục nhận" required>
+        {(field) => (
+          <Select
+            mode="multiple"
+            value={field.value}
+            onChange={(value: string[]) => field.onChange(value)}
+            onBlur={field.onBlur}
+            options={categoryOptions}
+            loading={categories.isLoading}
+            optionFilterProp="label"
+            placeholder="Chọn danh mục"
+          />
+        )}
+      </FormField>
+      <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
+        <FormField
+          control={control}
+          name="areaProvince"
+          label="Khu vực hỗ trợ (tỉnh)"
+          extra="Bỏ trống: tỉnh của điểm nhận."
+        >
+          {(field) => <Input {...field} maxLength={100} />}
+        </FormField>
+        <FormField control={control} name="isAccepting" label="Đang nhận đồ chơi">
+          {(field) => (
+            <Switch
+              checked={field.value}
+              onChange={(checked) => field.onChange(checked)}
+              checkedChildren="Đang nhận"
+              unCheckedChildren="Tạm ngừng"
+            />
+          )}
+        </FormField>
+      </div>
+      <FormField control={control} name="isRemoteArea">
+        {(field) => (
+          <Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)}>
+            Phục vụ vùng khó khăn, vùng sâu vùng xa (đã kiểm tra giấy tờ)
+          </Checkbox>
+        )}
+      </FormField>
+      <FormField control={control} name="supportCriteria" label="Ghi chú nhu cầu">
         {(field) => (
           <Input.TextArea
             {...field}
             rows={3}
             maxLength={1000}
             showCount
-            placeholder="Loại đồ chơi tổ chức đang cần, tình trạng chấp nhận…"
+            placeholder="Thông tin thêm về đồ chơi tổ chức đang cần (không bắt buộc)"
           />
         )}
       </FormField>
