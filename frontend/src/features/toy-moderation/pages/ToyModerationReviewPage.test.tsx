@@ -67,6 +67,7 @@ beforeEach(() => {
 })
 
 describe('ToyModerationReviewPage safety checklist (GB-48)', () => {
+  // Ticks 5 boxes and confirms: ~4 s alone, over vitest's 5 s default when the whole suite runs.
   it('keeps Approve disabled until every item is ticked, then sends the ticks', async () => {
     detail.mockResolvedValue(pendingToy)
     approve.mockResolvedValue({} as ToyModerationDecision)
@@ -93,7 +94,7 @@ describe('ToyModerationReviewPage safety checklist (GB-48)', () => {
       notRecalledOrBanned: true,
       noHiddenDefect: true,
     })
-  })
+  }, 15_000)
 
   it('shows the stored checklist read-only on an approved post', async () => {
     const ticked = Object.fromEntries(safetyChecklistItems.map((item) => [item.key, true]))
