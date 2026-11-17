@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Category, ToyListing } from '../features/toy-listings/toy-listing-api'
+import { profileQuery } from '../features/profile/profile-queries'
 import { categoriesQuery, myListingQuery } from '../features/toy-listings/toy-listing-queries'
 import { PATHS, toyListingEditPath } from '../routes/paths'
 import { httpClient } from '../services/http-client'
@@ -173,5 +174,26 @@ describe('ToyListingEditorPage', () => {
     expect(
       await screen.findByText(`Đã lưu thay đổi. Tin #TF-${saved.id.slice(-5).toUpperCase()} đang chờ Quản trị viên duyệt.`),
     ).toBeInTheDocument()
+  })
+
+  it('asks an Owner whose identity is not verified to verify it before posting (MSG17)', async () => {
+    const queryClient = createTestQueryClient()
+    queryClient.setQueryData(categoriesQuery.queryKey, [WOOD, CARS])
+    queryClient.setQueryData(profileQuery.queryKey, {
+      id: '64a000000000000000000001',
+      fullName: 'Chủ đồ chơi',
+      email: 'owner@test.vn',
+      phone: '0912345678',
+      verificationStatus: 'pending',
+      role: 'USER',
+    })
+    const router = createMemoryRouter([{ path: PATHS.newListing, element: <ToyListingEditorPage /> }], {
+      initialEntries: [PATHS.newListing],
+    })
+    renderWithProviders(<RouterProvider router={router} />, queryClient)
+
+    expect(await screen.findByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Xác minh danh tính' })).toHaveAttribute('href', PATHS.identityVerification)
+    expect(screen.queryByRole('button', { name: 'Đăng tin' })).not.toBeInTheDocument()
   })
 })

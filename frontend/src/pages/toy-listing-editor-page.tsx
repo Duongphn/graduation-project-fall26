@@ -6,6 +6,7 @@ import { ToyListingForm } from '../features/toy-listings/components/toy-listing-
 import { getListingErrorMessage, isUnauthorizedError, type ToyListing } from '../features/toy-listings/toy-listing-api'
 import { displayCode } from '../features/toy-listings/listing-display'
 import { categoriesQuery, MY_LISTINGS_ROOT_KEY, myListingQuery } from '../features/toy-listings/toy-listing-queries'
+import { profileQuery } from '../features/profile/profile-queries'
 import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS, toyListingEditPath } from '../routes/paths'
 
@@ -24,6 +25,10 @@ export function ToyListingEditorPage() {
   const categoriesResult = useQuery(categoriesQuery)
   const listingQuery = useQuery({ ...myListingQuery(toyId ?? ''), enabled: isEdit })
   const listing = listingQuery.data ?? undefined
+  // MSG17 / GB-06: chỉ người đã xác minh danh tính mới đăng tin; báo ngay khi mở form thay vì lúc gửi.
+  // Không tải được hồ sơ thì vẫn hiện form: backend vẫn chặn bằng USER_NOT_VERIFIED.
+  const profileResult = useQuery({ ...profileQuery, enabled: !isEdit })
+  const mustVerify = !isEdit && profileResult.data !== undefined && profileResult.data.verificationStatus !== 'verified'
 
   const justCreated = (location.state as { justCreated?: boolean } | null)?.justCreated === true
   const [toast, setToast] = useState<string | null>(null)
@@ -111,6 +116,13 @@ export function ToyListingEditorPage() {
               Thử lại
             </button>
           )}
+        </div>
+      ) : mustVerify ? (
+        <div className="tf-card load-state" role="alert">
+          <p>Vui lòng xác minh danh tính trước khi tiếp tục.</p>
+          <Link to={PATHS.identityVerification} className="tf-btn tf-btn--primary tf-btn--inline">
+            Xác minh danh tính
+          </Link>
         </div>
       ) : isEdit && listingQuery.isPending ? (
         <div className="tf-card load-state">Đang tải tin đăng...</div>
