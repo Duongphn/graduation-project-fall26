@@ -748,6 +748,67 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     expect(storedToy(listing.id).moderation?.submittedAt).toBe(submittedAt);
   });
 
+  it('fixes the listing type once the Admin has approved the listing (GB-09)', async () => {
+    const approved = await createListing(ctx, ctx.actor1, rentFields());
+    Object.assign(storedToy(approved.id), {
+      status: 'active',
+      moderation: { reviewedBy: reviewer, reviewedAt },
+    });
+    ctx.setActor(ctx.actor1);
+    const refused = await request(ctx.app)
+      .patch(`/api/v1/toys/${approved.id}`)
+      .field('listingType', 'sell')
+      .field('priceOrRate', '250000')
+      .attach('images', JPEG, { filename: 'fourth.jpg', contentType: 'image/jpeg' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.code).toBe('LISTING_TYPE_LOCKED');
+    expect(storedToy(approved.id).listingType).toBe('rent');
+    expect(ctx.uploads).toHaveLength(3);
+
+    // Still fixed after an edit sent it back to review, and the same type is still accepted.
+    const edited = await request(ctx.app)
+      .patch(`/api/v1/toys/${approved.id}`)
+      .send({ listingType: 'rent', title: 'Same Type' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.status).toBe('pending');
+    const stillRefused = await request(ctx.app)
+      .patch(`/api/v1/toys/${approved.id}`)
+      .send({ listingType: 'sell', priceOrRate: 250000 });
+    expect(stillRefused.status).toBe(400);
+    expect(stillRefused.body.error.code).toBe('LISTING_TYPE_LOCKED');
+  });
+
+  it('never turns a donation post into a rent or sale listing', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    // POST /donation-posts stores donation posts in the same collection.
+    Object.assign(storedToy(listing.id), { listingType: 'donate', depositPrice: undefined });
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ listingType: 'rent', priceOrRate: 20000, depositPrice: 300000 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({
+      code: 'LISTING_TYPE_LOCKED',
+      message: 'A donation post cannot become a rent or sale listing.',
+    });
+  });
+
+  it('lets the Owner change the type of a listing that was never approved', async () => {
+    const rejected = await createListing(ctx, ctx.actor1, sellFields());
+    Object.assign(storedToy(rejected.id), {
+      status: 'hidden',
+      moderation: { reviewedBy: reviewer, reviewedAt, rejectReason: 'Sai loại tin' },
+    });
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${rejected.id}`)
+      .send({ listingType: 'rent', priceOrRate: 20000, depositPrice: 300000 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ listingType: 'rent', status: 'pending' });
+  });
+
   it('keeps a listing its Owner hid hidden', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
     ctx.setActor(ctx.actor1);

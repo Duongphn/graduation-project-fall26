@@ -54,6 +54,15 @@ const isDonationPost = (toy: Pick<IToy, 'listingType'>): boolean =>
 const isBackToReview = (toy: Pick<IToy, 'status' | 'moderation'>): boolean =>
   toy.status !== 'hidden' || Boolean(toy.moderation?.rejectReason);
 
+/**
+ * Whether the Admin has approved the listing (GB-09): it is active, or its last review approved it
+ * (an approved listing that was edited is pending, or hidden by its Owner, with that review kept).
+ * A rejection, and a rejected listing sent again, leave no approval.
+ */
+const wasApproved = (toy: Pick<IToy, 'status' | 'moderation'>): boolean =>
+  toy.status === 'active' ||
+  (Boolean(toy.moderation?.reviewedAt) && !toy.moderation?.rejectReason);
+
 export class ToyListingService {
   public constructor(
     private readonly ports: ToyListingPorts,
@@ -295,6 +304,22 @@ export class ToyListingService {
       if (!categoryExists) {
         throw categoryNotAvailable();
       }
+    }
+
+    // GB-09: the listing type decides the payment and deposit rules, so it is fixed once the
+    // Admin has approved the listing; a donation post never becomes a rent or sale listing.
+    if (
+      validatedInput.listingType !== undefined &&
+      validatedInput.listingType !== listing.listingType &&
+      (isDonationPost(listing) || wasApproved(listing))
+    ) {
+      throw new AppError(
+        400,
+        'LISTING_TYPE_LOCKED',
+        isDonationPost(listing)
+          ? 'A donation post cannot become a rent or sale listing.'
+          : 'The listing type cannot be changed after the listing is approved.',
+      );
     }
 
     const effectiveListingType = validatedInput.listingType ?? listing.listingType;

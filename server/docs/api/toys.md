@@ -152,6 +152,7 @@ Review rules (R03 GB-08, BF-02/BF-03 alternative 1a):
 
 - A new listing is `pending` with `moderation.submittedAt` set, which orders the Admin queue (oldest first).
 - An edit sends the listing back to `pending`: an `active` (approved) listing leaves the public catalog until the Admin approves it again, and a rejected one (`hidden` with `moderation.rejectReason`) is sent again as a new submission (its reason and review data are removed). A `pending` listing keeps its `submittedAt`; an `active` or rejected one gets a new one. A listing its Owner hid stays `hidden`. Donation posts keep their status.
+- The listing type cannot change once the Admin has approved the listing (R03 GB-09): the listing is `active`, or its last review approved it (also after an edit sent it back to `pending`, or after its Owner hid it). Such an edit gives `400 LISTING_TYPE_LOCKED`. A listing that was never approved, a rejected one included, can change type. A donation post never becomes a rent or sale listing (same error).
 - Listing responses carry `moderation` with `submittedAt`, `reviewedAt` and, while the listing is rejected, `rejectReason`. The reviewing Admin's id is not returned.
 
 Category rules:
