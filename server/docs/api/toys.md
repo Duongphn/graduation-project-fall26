@@ -143,6 +143,12 @@ These endpoints require an authenticated user actor (`request.auth`). An Admin a
 - `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
 
+Review rules (R03 GB-08, BF-02/BF-03 alternative 1a):
+
+- A new listing is `pending` with `moderation.submittedAt` set, which orders the Admin queue (oldest first).
+- An edit sends the listing back to `pending`: an `active` (approved) listing leaves the public catalog until the Admin approves it again, and a rejected one (`hidden` with `moderation.rejectReason`) is sent again as a new submission (its reason and review data are removed). A `pending` listing keeps its `submittedAt`; an `active` or rejected one gets a new one. A listing its Owner hid stays `hidden`. Donation posts keep their status.
+- Listing responses carry `moderation` with `submittedAt`, `reviewedAt` and, while the listing is rejected, `rejectReason`. The reviewing Admin's id is not returned.
+
 Category rules:
 
 - Listing responses carry `categoryId` and `categoryName`; the name is also given for a category an Admin has hidden (`GET /categories` lists only active ones), and is `""` if the category no longer exists.

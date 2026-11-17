@@ -21,8 +21,22 @@ export interface ToyLocation {
   coordinates?: number[];
 }
 
+/** Stored review data of a toy; `reviewedBy`, `reviewedAt` and `rejectReason` are written by the Admin moderation. */
 export interface ToyModeration {
   submittedAt?: Date;
+  reviewedBy?: unknown;
+  reviewedAt?: Date | undefined;
+  rejectReason?: string | undefined;
+}
+
+/**
+ * What the Owner sees of the review (R03 III.3.2.1): when the listing was sent, and the Admin's
+ * reason while it is rejected. The reviewing Admin's id is not shown.
+ */
+export interface OwnerModerationView {
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  rejectReason?: string;
 }
 
 export interface ToyListingDto {
@@ -42,7 +56,7 @@ export interface ToyListingDto {
   quantity: number;
   status: ListingFilterStatus;
   location?: ToyLocation;
-  moderation?: ToyModeration;
+  moderation?: OwnerModerationView;
   createdAt: Date;
   updatedAt: Date;
 }

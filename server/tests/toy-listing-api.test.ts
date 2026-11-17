@@ -31,6 +31,12 @@ interface FakeToy {
   priceOrRate: number;
   depositPrice?: number;
   status: 'pending' | 'active' | 'hidden';
+  moderation?: {
+    submittedAt?: Date;
+    reviewedBy?: mongoose.Types.ObjectId;
+    reviewedAt?: Date;
+    rejectReason?: string;
+  };
   ageRange: { minAge: number; maxAge: number };
   images: { url: string; publicId: string }[];
   quantity: number;
@@ -565,6 +571,112 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('ORDER_IN_PROGRESS');
     expect(ctx.uploads.length).toBe(uploadsBefore);
+  });
+});
+
+describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
+  const storedToy = (id: string): FakeToy => {
+    const toy = ctx.store.find((doc) => doc._id.toString() === id);
+    if (!toy) throw new Error(`toy ${id} not stored`);
+    return toy;
+  };
+  const reviewedAt = new Date('2026-11-01T08:00:00Z');
+  const reviewer = new mongoose.Types.ObjectId();
+
+  it('stamps a new listing with its submission time for the Admin queue', async () => {
+    const before = Date.now();
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    const submittedAt = storedToy(listing.id).moderation?.submittedAt;
+    expect(submittedAt?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(new Date(listing.moderation?.submittedAt ?? 0).getTime()).toBe(submittedAt?.getTime());
+  });
+
+  it('sends an approved listing back to pending review and keeps its approval data', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    Object.assign(storedToy(listing.id), {
+      status: 'active',
+      moderation: { submittedAt: new Date(0), reviewedBy: reviewer, reviewedAt },
+    });
+
+    ctx.setActor(ctx.actor1);
+    const before = Date.now();
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'Updated Train' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+    const stored = storedToy(listing.id);
+    expect(stored.status).toBe('pending');
+    expect(stored.moderation?.submittedAt?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stored.moderation?.reviewedBy).toBe(reviewer);
+    // The Owner never gets the reviewing Admin's id.
+    expect(res.body.moderation).not.toHaveProperty('reviewedBy');
+    expect(new Date(res.body.moderation.reviewedAt).getTime()).toBe(reviewedAt.getTime());
+  });
+
+  it('sends a rejected listing again as a new submission', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    Object.assign(storedToy(listing.id), {
+      status: 'hidden',
+      moderation: {
+        submittedAt: new Date(0),
+        reviewedBy: reviewer,
+        reviewedAt,
+        rejectReason: 'Ảnh bị mờ',
+      },
+    });
+
+    ctx.setActor(ctx.actor1);
+    const mine = await request(ctx.app).get('/api/v1/toys/mine');
+    // The Owner reads the reason of the rejection (R03 III.3.2.1).
+    expect(mine.body.items[0]).toMatchObject({
+      status: 'hidden',
+      moderation: { rejectReason: 'Ảnh bị mờ' },
+    });
+    expect(mine.body.items[0].moderation).not.toHaveProperty('reviewedBy');
+
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'Clearer Photos' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+    expect(res.body.moderation).not.toHaveProperty('rejectReason');
+    const stored = storedToy(listing.id);
+    expect(stored.moderation?.rejectReason).toBeUndefined();
+    expect(stored.moderation?.reviewedAt).toBeUndefined();
+    expect(stored.moderation?.reviewedBy).toBeUndefined();
+    expect(stored.moderation?.submittedAt?.getTime()).toBeGreaterThan(0);
+  });
+
+  it('keeps the queue place of a pending listing', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    const submittedAt = new Date('2026-11-10T00:00:00Z');
+    storedToy(listing.id).moderation = { submittedAt };
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'Typo Fixed' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+    expect(storedToy(listing.id).moderation?.submittedAt).toBe(submittedAt);
+  });
+
+  it('keeps a listing its Owner hid hidden', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    ctx.setActor(ctx.actor1);
+    await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`).expect(200);
+
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'Still Hidden' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('hidden');
   });
 });
 

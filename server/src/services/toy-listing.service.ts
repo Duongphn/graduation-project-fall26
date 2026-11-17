@@ -7,9 +7,11 @@ import { validateToyImage } from '../utils/image-validation.js';
 import { Toy, type IToy } from '../models/toy.model.js';
 import type {
   ListingFilterStatus,
+  OwnerModerationView,
   ToyImage,
   ToyListingDto,
   ToyListingPorts,
+  ToyModeration,
 } from '../interfaces/toy-listing.ports.js';
 import {
   type CreateToyListingInput,
@@ -28,6 +30,27 @@ const listingChanged = () =>
     'LISTING_CHANGED',
     'The listing was changed in the meantime. Reload it and try again.',
   );
+
+// The Owner's view of the review: the reviewing Admin's id (reviewedBy) is left out. A reason is
+// stored only while the listing is rejected: approving or sending it again removes it.
+const toOwnerModerationView = (moderation: ToyModeration): OwnerModerationView => ({
+  ...(moderation.submittedAt ? { submittedAt: moderation.submittedAt } : {}),
+  ...(moderation.reviewedAt ? { reviewedAt: moderation.reviewedAt } : {}),
+  ...(moderation.rejectReason ? { rejectReason: moderation.rejectReason } : {}),
+});
+
+// The toys model also stores donation posts (listingType 'donate', POST /donation-posts), which
+// the ListingType of this service does not name.
+const isDonationPost = (toy: Pick<IToy, 'listingType'>): boolean =>
+  (toy.listingType as string) === 'donate';
+
+/**
+ * Whether an edit sends the listing back to Pending Review (GB-08): an approved (active) listing,
+ * a rejected one (hidden with the Admin's reason) and a pending one. A listing hidden by its Owner
+ * stays hidden.
+ */
+const isBackToReview = (toy: Pick<IToy, 'status' | 'moderation'>): boolean =>
+  toy.status !== 'hidden' || Boolean(toy.moderation?.rejectReason);
 
 export class ToyListingService {
   public constructor(
@@ -76,7 +99,7 @@ export class ToyListingService {
       quantity: doc.quantity ?? 1,
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
-      ...(doc.moderation ? { moderation: doc.moderation } : {}),
+      ...(doc.moderation ? { moderation: toOwnerModerationView(doc.moderation) } : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -152,6 +175,8 @@ export class ToyListingService {
               ? { depositPrice: validatedInput.depositPrice }
               : {}),
             status: 'pending',
+            // Oldest submission first in the Admin queue (UC27).
+            moderation: { submittedAt: new Date() },
             ageRange: validatedInput.ageRange,
             images: uploadedAssets,
             quantity: 1,
@@ -336,6 +361,7 @@ export class ToyListingService {
       throw uploadError;
     }
 
+    const submittedAt = new Date();
     const applyEdit = (toy: HydratedDocument<IToy>): void => {
       if (validatedInput.title !== undefined) toy.title = validatedInput.title;
       if (validatedInput.description !== undefined) toy.description = validatedInput.description;
@@ -356,6 +382,25 @@ export class ToyListingService {
       }
 
       toy.images = [...remainingImages, ...newUploadedAssets];
+
+      // GB-08: an edited listing waits for the Admin again, also a rejected one sent again
+      // (BF-02 1a, BF-03 1a). A listing its Owner hid stays hidden, and donation posts keep the
+      // status the donation flow gave them.
+      if (!isDonationPost(toy) && isBackToReview(toy)) {
+        toy.moderation ??= {};
+        if (toy.moderation.rejectReason) {
+          // A rejected listing sent again is a new submission: the rejection no longer applies.
+          // An approved one keeps its review data, which GB-09 reads.
+          toy.moderation.rejectReason = undefined;
+          toy.moderation.reviewedAt = undefined;
+          toy.moderation.reviewedBy = undefined;
+        }
+        // A pending listing keeps its place in the queue; any other one is sent again now.
+        if (toy.status !== 'pending' || !toy.moderation.submittedAt) {
+          toy.moderation.submittedAt = submittedAt;
+        }
+        toy.status = 'pending';
+      }
     };
 
     let saved: typeof listing;

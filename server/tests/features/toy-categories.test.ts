@@ -373,6 +373,61 @@ describe('toy listings and admin accounts', () => {
   });
 });
 
+describe('an edit sends the listing back to the Admin review (GB-08)', () => {
+  const reviewer = newId();
+  const reviewedAt = new Date('2026-11-01T08:00:00Z');
+
+  it('stores pending and a new submission time, with and without a category change', async () => {
+    const from = await createCategory('Duyệt rồi');
+    const to = await createCategory('Danh mục khác');
+    const created = await postToy(from);
+    expect(created.status).toBe(201);
+    const toyId = created.body.id as string;
+    const stored = await ToyModel.findById(toyId).lean();
+    expect(stored?.moderation?.submittedAt).toBeInstanceOf(Date);
+
+    for (const body of [{ title: 'Tàu gỗ (sửa)' }, { categoryId: to }]) {
+      await ToyModel.updateOne(
+        { _id: toyId },
+        {
+          status: 'active',
+          'moderation.submittedAt': new Date(0),
+          'moderation.reviewedBy': reviewer,
+          'moderation.reviewedAt': reviewedAt,
+        },
+      );
+      const response = await patchToy(toyId, body);
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('pending');
+      const edited = await ToyModel.findById(toyId).lean();
+      expect(edited?.status).toBe('pending');
+      expect(edited?.moderation?.submittedAt?.getTime()).toBeGreaterThan(0);
+      expect(String(edited?.moderation?.reviewedBy)).toBe(String(reviewer));
+    }
+  });
+
+  it('clears the rejection of a rejected listing sent again', async () => {
+    const toyId = (await postToy(await createCategory('Bị từ chối'))).body.id as string;
+    await ToyModel.updateOne(
+      { _id: toyId },
+      {
+        status: 'hidden',
+        'moderation.reviewedBy': reviewer,
+        'moderation.reviewedAt': reviewedAt,
+        'moderation.rejectReason': 'Ảnh bị mờ',
+      },
+    );
+
+    const response = await patchToy(toyId, { title: 'Tàu gỗ (ảnh mới)' });
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('pending');
+    const edited = await ToyModel.findById(toyId).lean();
+    expect(edited?.moderation?.rejectReason).toBeUndefined();
+    expect(edited?.moderation?.reviewedBy).toBeUndefined();
+    expect(edited?.moderation?.reviewedAt).toBeUndefined();
+  });
+});
+
 describe('category hide/delete racing a toy save', () => {
   it('refuses the toy when the category is hidden between the check and the save', async () => {
     const categoryId = await createCategory('Bị ẩn giữa chừng');
