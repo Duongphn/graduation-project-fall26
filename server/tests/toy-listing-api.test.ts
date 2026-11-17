@@ -260,12 +260,12 @@ function postListing(
 function rentFields(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     title: 'Wooden Train',
-    description: 'Barely used wooden train set',
+    description: 'Barely used wooden train set with twelve carriages and a full oval track.',
     condition: 'good',
     categoryId: CATEGORY_ID,
     listingType: 'rent',
-    priceOrRate: '12',
-    depositPrice: '50',
+    priceOrRate: '20000',
+    depositPrice: '300000',
     ageRange: JSON.stringify({ minAge: 3, maxAge: 8 }),
     ...overrides,
   };
@@ -274,11 +274,11 @@ function rentFields(overrides: Record<string, string> = {}): Record<string, stri
 function sellFields(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     title: 'LEGO Set',
-    description: 'Complete LEGO set',
+    description: 'Complete LEGO set with every brick, the manual and the original box.',
     condition: 'new',
     categoryId: CATEGORY_ID,
     listingType: 'sell',
-    priceOrRate: '99',
+    priceOrRate: '250000',
     ageRange: JSON.stringify({ minAge: 6, maxAge: 12 }),
     ...overrides,
   };
@@ -319,8 +319,8 @@ describe('POST /api/v1/toys', () => {
       categoryName: CATEGORY_NAME,
       title: 'Wooden Train',
       listingType: 'rent',
-      priceOrRate: 12,
-      depositPrice: 50,
+      priceOrRate: 20000,
+      depositPrice: 300000,
       status: 'pending',
       quantity: 1,
       ageRange: { minAge: 3, maxAge: 8 },
@@ -436,7 +436,7 @@ describe('POST /api/v1/toys', () => {
 
   it('returns 400 when a sell listing supplies a deposit', async () => {
     ctx.setActor(ctx.actor1);
-    const res = await postListing(ctx, sellFields({ depositPrice: '10' }));
+    const res = await postListing(ctx, sellFields({ depositPrice: '300000' }));
 
     expect(res.status).toBe(400);
     expect(res.body.error.message).toBe('depositPrice is not allowed for sell listings.');
@@ -459,6 +459,88 @@ describe('POST /api/v1/toys', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.message).toBe('ageRange minAge must be less than or equal to maxAge.');
+  });
+});
+
+describe('field rules of the listing screens (R03 III.3.1.1, III.3.1.2)', () => {
+  const expectFieldError = (res: request.Response, field: string) => {
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: { field } });
+  };
+
+  it('takes a title of up to 100 characters and a description of 50 to 1000', async () => {
+    ctx.setActor(ctx.actor1);
+    expectFieldError(await postListing(ctx, rentFields({ title: 'T'.repeat(101) })), 'title');
+    expectFieldError(
+      await postListing(ctx, rentFields({ description: 'D'.repeat(49) })),
+      'description',
+    );
+    expectFieldError(
+      await postListing(ctx, rentFields({ description: 'D'.repeat(1001) })),
+      'description',
+    );
+    expect(ctx.uploads).toHaveLength(0);
+
+    const longest = await postListing(
+      ctx,
+      rentFields({ title: 'T'.repeat(100), description: 'D'.repeat(1000) }),
+    );
+    expect(longest.status).toBe(201);
+    expect(
+      (await postListing(ctx, rentFields({ description: 'D'.repeat(50) }))).status,
+    ).toBe(201);
+  });
+
+  it('takes 5.000 to 5.000.000 đ a day and a deposit of at least one day for a rental', async () => {
+    ctx.setActor(ctx.actor1);
+    expectFieldError(
+      await postListing(ctx, rentFields({ priceOrRate: '4999', depositPrice: '300000' })),
+      'priceOrRate',
+    );
+    expectFieldError(
+      await postListing(ctx, rentFields({ priceOrRate: '5000001', depositPrice: '6000000' })),
+      'priceOrRate',
+    );
+    expectFieldError(
+      await postListing(ctx, rentFields({ priceOrRate: '20000.5' })),
+      'priceOrRate',
+    );
+    expectFieldError(
+      await postListing(ctx, rentFields({ priceOrRate: '20000', depositPrice: '19999' })),
+      'depositPrice',
+    );
+
+    expect(
+      (await postListing(ctx, rentFields({ priceOrRate: '5000', depositPrice: '5000' }))).status,
+    ).toBe(201);
+    expect(
+      (await postListing(ctx, rentFields({ priceOrRate: '5000000', depositPrice: '5000000' })))
+        .status,
+    ).toBe(201);
+  });
+
+  it('takes 10.000 to 50.000.000 đ for a sale', async () => {
+    ctx.setActor(ctx.actor1);
+    expectFieldError(await postListing(ctx, sellFields({ priceOrRate: '9999' })), 'priceOrRate');
+    expectFieldError(
+      await postListing(ctx, sellFields({ priceOrRate: '50000001' })),
+      'priceOrRate',
+    );
+    expect((await postListing(ctx, sellFields({ priceOrRate: '10000' }))).status).toBe(201);
+    expect((await postListing(ctx, sellFields({ priceOrRate: '50000000' }))).status).toBe(201);
+  });
+
+  it('checks an edit against the same rules, with the stored price for the deposit', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    ctx.setActor(ctx.actor1);
+    const patch = (body: object) => request(ctx.app).patch(`/api/v1/toys/${listing.id}`).send(body);
+    expectFieldError(await patch({ description: 'Too short.' }), 'description');
+    // The stored daily price is 20.000 đ.
+    expectFieldError(await patch({ depositPrice: 10000 }), 'depositPrice');
+    expectFieldError(await patch({ priceOrRate: 400000 }), 'depositPrice');
+    expect((await patch({ priceOrRate: 300000 })).status).toBe(200);
+    expect(ctx.store[0]?.priceOrRate).toBe(300000);
   });
 });
 
@@ -539,12 +621,12 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Updated Train', priceOrRate: 15 });
+      .send({ title: 'Updated Train', priceOrRate: 25000 });
 
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Updated Train');
     expect(res.body.categoryName).toBe(CATEGORY_NAME);
-    expect(res.body.priceOrRate).toBe(15);
+    expect(res.body.priceOrRate).toBe(25000);
     expect(res.body.status).toBe('pending');
   });
 

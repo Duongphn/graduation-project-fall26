@@ -54,7 +54,7 @@ const postToy = (categoryId: string) =>
     .post('/api/v1/toys')
     .set('Authorization', OWNER)
     .field('title', 'Tàu gỗ')
-    .field('description', 'Bộ tàu gỗ 20 chi tiết')
+    .field('description', 'Bộ tàu gỗ 20 chi tiết, đủ toa và đường ray, sơn còn đẹp, đã lau sạch.')
     .field('condition', 'good')
     .field('categoryId', categoryId)
     .field('listingType', 'rent')

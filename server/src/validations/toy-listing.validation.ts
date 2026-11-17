@@ -27,6 +27,72 @@ export interface UpdateToyListingInput {
 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
 /**
+ * Field rules of the Post Rental Listing and Post Resale Listing screens (R03 III.3.1.1 (5), (9),
+ * (11), (12); III.3.1.2 (6), (10), (12); R04 toys). Only rent and sale listings use them:
+ * POST /donation-posts shares validateCreateToyListingInput, which does not check them.
+ */
+export const LISTING_FIELD_RULES = {
+  titleMax: 100,
+  descriptionMin: 50,
+  descriptionMax: 1000,
+  rentPricePerDay: { min: 5_000, max: 5_000_000 },
+  salePrice: { min: 10_000, max: 50_000_000 },
+} as const;
+
+const fieldError = (field: string, message: string) =>
+  new AppError(400, 'VALIDATION_ERROR', message, { field });
+
+/**
+ * Checks the fields of a rent or sale listing that are set: on create all of them, on an edit the
+ * ones it sends, with the stored values for the others (deposit against the daily price).
+ */
+export function assertListingFieldRules(listing: {
+  title?: string | undefined;
+  description?: string | undefined;
+  listingType: ListingType;
+  priceOrRate?: number | undefined;
+  depositPrice?: number | undefined;
+}): void {
+  const rules = LISTING_FIELD_RULES;
+  if (listing.title !== undefined && listing.title.length > rules.titleMax) {
+    throw fieldError('title', `title: please enter no more than ${rules.titleMax} characters.`);
+  }
+  if (
+    listing.description !== undefined &&
+    (listing.description.length < rules.descriptionMin ||
+      listing.description.length > rules.descriptionMax)
+  ) {
+    throw fieldError(
+      'description',
+      `description must be between ${rules.descriptionMin} and ${rules.descriptionMax} characters.`,
+    );
+  }
+  if (listing.priceOrRate !== undefined) {
+    const range = listing.listingType === 'rent' ? rules.rentPricePerDay : rules.salePrice;
+    if (!Number.isInteger(listing.priceOrRate)) {
+      throw fieldError('priceOrRate', 'priceOrRate must be a whole number of VND.');
+    }
+    if (listing.priceOrRate < range.min || listing.priceOrRate > range.max) {
+      throw fieldError(
+        'priceOrRate',
+        `priceOrRate must be between ${range.min} and ${range.max}.`,
+      );
+    }
+  }
+  if (listing.listingType === 'rent' && listing.depositPrice !== undefined) {
+    if (!Number.isInteger(listing.depositPrice)) {
+      throw fieldError('depositPrice', 'depositPrice must be a whole number of VND.');
+    }
+    if (listing.priceOrRate !== undefined && listing.depositPrice < listing.priceOrRate) {
+      throw fieldError(
+        'depositPrice',
+        'depositPrice must be at least one day of rental (priceOrRate).',
+      );
+    }
+  }
+}
+
+/**
  * Photos per listing type (R03 GB-10, III.3.1.1 (1)-(2), III.3.1.2 (3)-(4); R04 toys.images).
  * Donation posts are created by POST /donation-posts; their limit applies when one is edited here.
  */

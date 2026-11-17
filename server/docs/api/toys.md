@@ -143,6 +143,13 @@ These endpoints require an authenticated user actor (`request.auth`). An Admin a
 - `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
 
+Field rules (R03 III.3.1.1 and III.3.1.2, R04 `toys`), on create and on the fields an edit sends:
+
+- `title` at most 100 characters; `description` 50 to 1000 characters (both trimmed).
+- Rent: `priceOrRate` (VND per day) a whole number from 5,000 to 5,000,000; `depositPrice` a whole number at least `priceOrRate` (one day of rental). An edit that changes the price, the deposit or the type checks them against the stored values it does not send.
+- Sale: `priceOrRate` a whole number from 10,000 to 50,000,000.
+- A broken rule gives `400 VALIDATION_ERROR` with `details: { field }`. Donation posts (`POST /donation-posts`) do not use these rules.
+
 Photo rules (R03 GB-10, MSG20, MSG21):
 
 - A rental listing has 3 to 8 photos and a sale listing 4 to 8, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.

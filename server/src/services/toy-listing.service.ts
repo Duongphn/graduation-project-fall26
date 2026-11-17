@@ -14,6 +14,7 @@ import type {
   ToyModeration,
 } from '../interfaces/toy-listing.ports.js';
 import {
+  assertListingFieldRules,
   assertListingPhotoCount,
   assertListingPhotoType,
   type CreateToyListingInput,
@@ -133,6 +134,7 @@ export class ToyListingService {
     }
 
     const validatedInput = validateCreateToyListingInput(input);
+    assertListingFieldRules(validatedInput);
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
@@ -343,6 +345,28 @@ export class ToyListingService {
           'depositPrice must be non-negative for rent listings.',
         );
       }
+    }
+
+    // Field rules on what the edit sends; prices against the stored ones they depend on.
+    const pricesChanged =
+      validatedInput.priceOrRate !== undefined ||
+      validatedInput.depositPrice !== undefined ||
+      validatedInput.listingType !== undefined;
+    if (!isDonationPost(listing)) {
+      assertListingFieldRules({
+        title: validatedInput.title,
+        description: validatedInput.description,
+        listingType: effectiveListingType,
+        ...(pricesChanged
+          ? {
+              priceOrRate: validatedInput.priceOrRate ?? listing.priceOrRate,
+              depositPrice:
+                effectiveListingType === 'rent'
+                  ? (validatedInput.depositPrice ?? listing.depositPrice)
+                  : undefined,
+            }
+          : {}),
+      });
     }
 
     const existingImages = listing.images || [];
