@@ -288,7 +288,15 @@ const unique = (ids: Array<Types.ObjectId | null | undefined>) => [
 
 export const loadRelations = async (records: DonationRecord[], withContacts = false) => {
   const toyIds = unique(records.map((item) => item.toyId));
-  const userIds = unique(records.flatMap((item) => [item.donorId, item.requestedBy]));
+  // decidedBy and handovers[].by: the history tells an Admin's step from a user's (role).
+  const userIds = unique(
+    records.flatMap((item) => [
+      item.donorId,
+      item.requestedBy,
+      item.decidedBy,
+      ...(item.handovers ?? []).map((handover) => handover.by),
+    ]),
+  );
   const organizationIds = unique(records.map((item) => item.receiver?.organizationId));
   const [toys, users, organizations] = await Promise.all([
     Toy.find({ _id: { $in: toyIds } })
@@ -296,7 +304,7 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
       .lean<ToySummary[]>(),
     User.find({ _id: { $in: userIds } })
       // phone: also the D-03 counterpart contact of user views (the mapper decides who sees it).
-      .select(withContacts ? 'fullName avatar phone email' : 'fullName avatar phone')
+      .select(withContacts ? 'fullName avatar phone email role' : 'fullName avatar phone role')
       .lean(),
     Organization.find({ _id: { $in: organizationIds } })
       // contact_info / receivingPoint contact: also the GB-62 counterpart of the Donor's view

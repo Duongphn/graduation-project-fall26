@@ -153,7 +153,10 @@ export const toDonationRequestDto = (
  * The status timeline, rebuilt from the request's own fields (develop's donation_requests keeps
  * no separate history): created, decided, handed over, completed or cancelled.
  */
-const historyOf = (record: DonationRecord) => {
+const historyOf = (record: DonationRecord, relations: Relations) => {
+  // An Admin decides or confirms for organizations, or creates a request for one (GB-56).
+  const actorTypeOf = (actorId: unknown) =>
+    relations.users.get(String(actorId))?.role === 'ADMIN' ? 'ADMIN' : 'USER';
   type Row = {
     fromStatus: string | null;
     toStatus: string;
@@ -166,7 +169,7 @@ const historyOf = (record: DonationRecord) => {
     {
       fromStatus: null,
       toStatus: 'pending',
-      actorType: 'USER',
+      actorType: actorTypeOf(record.requestedBy),
       actorId: String(record.requestedBy),
       reason: null,
       at: iso(record.createdAt)!,
@@ -178,7 +181,7 @@ const historyOf = (record: DonationRecord) => {
     rows.push({
       fromStatus: last,
       toStatus,
-      actorType: actorId ? 'USER' : 'SYSTEM',
+      actorType: actorId ? actorTypeOf(actorId) : 'SYSTEM',
       actorId: actorId ? String(actorId) : null,
       reason: reason ?? null,
       at: iso(at)!,
@@ -234,5 +237,5 @@ export const toDonationRequestDetailDto = (
         at: iso(record.cancellation.at)!,
       }
     : null,
-  history: historyOf(record),
+  history: historyOf(record, relations),
 });

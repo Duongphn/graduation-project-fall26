@@ -547,6 +547,18 @@ describe('Donor to organization (UC33, GB-56)', () => {
     expect(accepted.body.data.status).toBe('accepted');
     expect(await toyStatus()).toBe('hidden');
     expect(await AuditLog.countDocuments({ action: 'donation.accept', target_id: id })).toBe(1);
+
+    // The status history shows who acted: the Donor created it, the Admin accepted it.
+    const detail = await request(app).get(`/admin/donation-requests/${id}`).set(as(admin, 'ADMIN'));
+    expect(
+      detail.body.data.history.map((row: { toStatus: string; actorType: string }) => [
+        row.toStatus,
+        row.actorType,
+      ]),
+    ).toEqual([
+      ['pending', 'USER'],
+      ['accepted', 'ADMIN'],
+    ]);
   });
 
   it('lets the Admin reject it with a reason, and the Donor choose another organization', async () => {

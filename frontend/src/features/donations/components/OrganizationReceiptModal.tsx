@@ -101,6 +101,7 @@ export function OrganizationReceiptModal({
           <DatePicker
             className="w-full"
             format="DD/MM/YYYY"
+            placeholder="Chọn ngày"
             value={field.value ? dayjs(field.value) : null}
             onChange={(date: Dayjs | null) => field.onChange(date ? date.format('YYYY-MM-DD') : '')}
             onBlur={field.onBlur}
