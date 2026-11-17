@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
-import { DESCRIPTION_MIN_LENGTH, MAX_IMAGES, TITLE_MAX_LENGTH } from '../toy-listings/toy-listing-schema'
+import { CONTACT_DETAILS_MESSAGES, hasBlockedContactDetails } from '../toy-listings/contact-details'
+import {
+  DESCRIPTION_MAX_LENGTH,
+  DESCRIPTION_MIN_LENGTH,
+  MAX_IMAGES,
+  TITLE_MAX_LENGTH,
+} from '../toy-listings/toy-listing-schema'
 import { handoverMethodLabels, handoverMethods, type HandoverMethod } from './constants'
 
 // Donor creates a donation post (POST /donation-posts, listingType "donate"): the toy, its photos, a
@@ -77,7 +83,8 @@ export const donationPostSchema = z
       .string()
       .trim()
       .min(5, 'Tên đồ chơi tối thiểu 5 ký tự')
-      .max(TITLE_MAX_LENGTH, `Tên đồ chơi tối đa ${TITLE_MAX_LENGTH} ký tự`),
+      .max(TITLE_MAX_LENGTH, `Tên đồ chơi tối đa ${TITLE_MAX_LENGTH} ký tự`)
+      .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.title),
     categoryId: z.string().min(1, 'Vui lòng chọn danh mục'),
     minAge: z.number({ error: 'Vui lòng chọn độ tuổi' }).int().min(0),
     maxAge: z.number({ error: 'Vui lòng chọn độ tuổi' }).int().min(0),
@@ -86,7 +93,8 @@ export const donationPostSchema = z
       .string()
       .trim()
       .min(DONATION_DESCRIPTION_MIN, `Mô tả tối thiểu ${DONATION_DESCRIPTION_MIN} ký tự`)
-      .max(DONATION_DESCRIPTION_MAX, `Mô tả tối đa ${DONATION_DESCRIPTION_MAX} ký tự`),
+      .max(DONATION_DESCRIPTION_MAX, `Mô tả tối đa ${DONATION_DESCRIPTION_MAX} ký tự`)
+      .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.description),
     safety: z.object({
       noSharpParts: z.boolean(),
       batteriesRemoved: z.boolean(),
@@ -135,3 +143,10 @@ export const composeDonationDescription = (
     `Cách bàn giao: ${handoverMethodLabels[handoverMethod]}`,
     `Đơn vị tiếp nhận mong muốn: ${receiverName ?? 'Để ToyFlow ghép tổ chức phù hợp'}`,
   ].join('\n')
+
+/**
+ * Số ký tự còn cho phần mô tả của người tặng: backend nhận mô tả (đã ghi thêm cách bàn giao và tổ
+ * chức) tối đa 1000 ký tự. Thường trên 800; chỉ thấp hơn khi tên tổ chức rất dài.
+ */
+export const donationDescriptionRoom = (handoverMethod: HandoverMethod, receiverName: string | null) =>
+  DESCRIPTION_MAX_LENGTH - composeDonationDescription('', handoverMethod, receiverName).length

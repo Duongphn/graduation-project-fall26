@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { CONTACT_DETAILS_MESSAGES, hasBlockedContactDetails } from './contact-details'
+
 export const TITLE_MAX_LENGTH = 100
 export const DESCRIPTION_MIN_LENGTH = 50
 export const DESCRIPTION_MAX_LENGTH = 1000
@@ -53,7 +55,8 @@ export const listingSchema = z
       .string()
       .trim()
       .min(5, 'Tên đồ chơi tối thiểu 5 ký tự')
-      .max(TITLE_MAX_LENGTH, `Tên đồ chơi tối đa ${TITLE_MAX_LENGTH} ký tự`),
+      .max(TITLE_MAX_LENGTH, `Tên đồ chơi tối đa ${TITLE_MAX_LENGTH} ký tự`)
+      .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.title),
     categoryId: z.string().min(1, 'Vui lòng chọn danh mục'),
     minAge: z.number({ error: 'Vui lòng chọn độ tuổi' }).int().min(0),
     maxAge: z.number({ error: 'Vui lòng chọn độ tuổi' }).int().min(0),
@@ -62,7 +65,8 @@ export const listingSchema = z
       .string()
       .trim()
       .min(DESCRIPTION_MIN_LENGTH, `Mô tả tối thiểu ${DESCRIPTION_MIN_LENGTH} ký tự`)
-      .max(DESCRIPTION_MAX_LENGTH, `Mô tả tối đa ${DESCRIPTION_MAX_LENGTH} ký tự`),
+      .max(DESCRIPTION_MAX_LENGTH, `Mô tả tối đa ${DESCRIPTION_MAX_LENGTH} ký tự`)
+      .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.description),
     priceOrRate: z.number({ error: 'Vui lòng nhập giá' }).int('Giá phải là số nguyên (VND)'),
     depositPrice: z.number().int('Tiền cọc phải là số nguyên (VND)').optional(),
   })

@@ -164,7 +164,7 @@ export function ListingDetailsSection({ categories, categoriesLoading }: Listing
           {...register('description')}
         />
         <p id="description-hint" className="tf-caption">
-          {DESCRIPTION_MIN_LENGTH} đến {DESCRIPTION_MAX_LENGTH} ký tự. Không bao gồm số điện thoại hoặc số tài khoản ngân hàng.
+          {DESCRIPTION_MIN_LENGTH} đến {DESCRIPTION_MAX_LENGTH} ký tự. Không ghi số điện thoại, email hoặc đường link.
         </p>
         <FieldError id="description-error" message={errors.description?.message} />
       </div>

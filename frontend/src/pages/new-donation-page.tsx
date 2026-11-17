@@ -17,6 +17,7 @@ import {
   MIN_DONATION_PHOTOS,
   SAFETY_COMMITMENTS,
   composeDonationDescription,
+  donationDescriptionRoom,
   donationPostSchema,
   findBannedTerms,
   isPhotoCountValid,
@@ -26,7 +27,8 @@ import { organizationDetailQuery, organizationListQuery } from '../features/orga
 import type { PublicOrganization } from '../features/organizations/types'
 import { ListingPhotoUploader } from '../features/toy-listings/components/listing-photo-uploader'
 import { useListingPhotos } from '../features/toy-listings/hooks/use-listing-photos'
-import { getListingErrorMessage } from '../features/toy-listings/toy-listing-api'
+import { CONTACT_DETAILS_MESSAGES } from '../features/toy-listings/contact-details'
+import { getContactDetailsField, getListingErrorMessage } from '../features/toy-listings/toy-listing-api'
 import { AGE_OPTIONS, MAX_IMAGES } from '../features/toy-listings/toy-listing-schema'
 import { categoriesQuery, MY_LISTINGS_ROOT_KEY } from '../features/toy-listings/toy-listing-queries'
 import { SiteLayout } from '../layouts/site/site-layout'
@@ -112,6 +114,11 @@ export function NewDonationPage() {
         setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
         void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
       }
+      // GB-11: tên hoặc mô tả có số điện thoại, email hoặc đường link: báo ngay dưới ô đó
+      const contactField = getContactDetailsField(error)
+      if (contactField) {
+        setError(contactField, { type: 'server', message: CONTACT_DETAILS_MESSAGES[contactField] }, { shouldFocus: true })
+      }
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY }),
   })
@@ -129,6 +136,16 @@ export function NewDonationPage() {
   const submit = handleSubmit(
     (values) => {
       if (!checkPhotos()) return
+      // Backend nhận mô tả tối đa 1000 ký tự, tính cả các dòng ghi thêm ở cuối
+      const room = donationDescriptionRoom(values.handoverMethod, receiverName)
+      if (values.description.trim().length > room) {
+        setError(
+          'description',
+          { type: 'manual', message: `Mô tả tối đa ${room} ký tự khi gửi kèm tổ chức nhận đã chọn` },
+          { shouldFocus: true },
+        )
+        return
+      }
       create.mutate({
         title: values.title,
         categoryId: values.categoryId,

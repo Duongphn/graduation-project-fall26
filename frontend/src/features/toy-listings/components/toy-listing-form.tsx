@@ -11,8 +11,10 @@ import { ListingPurposeSection } from './listing-purpose-section'
 import { PATHS } from '../../../routes/paths'
 import { getApiErrorCode } from '../../../services/http-client'
 import { useListingPhotos } from '../hooks/use-listing-photos'
+import { CONTACT_DETAILS_MESSAGES } from '../contact-details'
 import {
   createToyListing,
+  getContactDetailsField,
   getListingErrorMessage,
   isUnauthorizedError,
   updateToyListing,
@@ -104,6 +106,11 @@ export function ToyListingForm({
         setValue('categoryId', '')
         setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
         void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
+      }
+      // GB-11: tên hoặc mô tả có số điện thoại, email hoặc đường link: báo ngay dưới ô đó
+      const contactField = getContactDetailsField(error)
+      if (contactField) {
+        setError(contactField, { type: 'server', message: CONTACT_DETAILS_MESSAGES[contactField] }, { shouldFocus: true })
       }
     },
     onSuccess: (saved) => {

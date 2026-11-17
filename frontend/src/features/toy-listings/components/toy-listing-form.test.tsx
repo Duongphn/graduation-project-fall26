@@ -197,6 +197,67 @@ describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
   })
 })
 
+describe('ToyListingForm contact details (GB-11, MSG22)', () => {
+  const titleBox = () => screen.getByRole('textbox', { name: /^Tên đồ chơi/ })
+  const descriptionBox = () => screen.getByRole('textbox', { name: /^Mô tả chi tiết/ })
+
+  it('refuses a phone number, an email or a link before it saves', async () => {
+    const { user } = renderForm()
+
+    await user.clear(titleBox())
+    await user.type(titleBox(), 'Bộ nấu ăn, gọi 0912 345 678')
+    await user.click(descriptionBox())
+    await user.paste(' Xem thêm ảnh tại https://shopee.vn/bo-nau-an')
+    await user.click(saveButton())
+
+    expect(
+      await screen.findByText('Không được ghi số điện thoại, email hoặc đường link trong tên đồ chơi.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Không được ghi số điện thoại, email hoặc đường link trong mô tả.')).toBeInTheDocument()
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('saves honest text that only warns the Admin', async () => {
+    patch.mockResolvedValueOnce({ data: { ...listing, title: 'Bộ nấu ăn Momo' } })
+    const { user } = renderForm()
+
+    await user.clear(titleBox())
+    await user.type(titleBox(), 'Bộ nấu ăn Momo')
+    await user.click(descriptionBox())
+    await user.paste(' Mã vạch 8936036022345, hàng Tobot.vn, hot trên TikTok.')
+    await user.click(saveButton())
+
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows the CONTACT_DETAILS_NOT_ALLOWED refusal of the server under its field', async () => {
+    patch.mockRejectedValueOnce(
+      new AxiosError('refused', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 400,
+        statusText: '',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: {
+          error: {
+            code: 'CONTACT_DETAILS_NOT_ALLOWED',
+            message: 'Không được ghi số điện thoại, email hoặc đường link trong mô tả.',
+            details: { field: 'description' },
+          },
+        },
+      }),
+    )
+    const { user } = renderForm()
+
+    await user.click(saveButton())
+    await waitFor(() => expect(descriptionBox()).toHaveAttribute('aria-invalid', 'true'))
+    // Under the description box, and in the panel next to the save button.
+    expect(document.getElementById('description-error')).toHaveTextContent(
+      'Không được ghi số điện thoại, email hoặc đường link trong mô tả.',
+    )
+    expect(titleBox()).toHaveAttribute('aria-invalid', 'false')
+  })
+})
+
 describe('ToyListingForm and the Admin review (GB-08, GB-09)', () => {
   it('shows the rejection reason and sends the listing again', async () => {
     patch.mockResolvedValue({ data: { ...listing, status: 'pending', moderation: {} } })

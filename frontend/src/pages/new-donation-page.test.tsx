@@ -130,4 +130,57 @@ describe('NewDonationPage', () => {
     expect((post.mock.calls[1]?.[1] as FormData).get('categoryId')).toBe(WOOD.id)
     expect(await screen.findByText('Đã gửi phiếu quyên góp')).toBeInTheDocument()
   }, 30_000)
+
+  it('shows the CONTACT_DETAILS_NOT_ALLOWED refusal under the description, and checks it before sending', async () => {
+    post.mockRejectedValueOnce(
+      new AxiosError('refused', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 400,
+        statusText: '',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: {
+          success: false,
+          error: {
+            code: 'CONTACT_DETAILS_NOT_ALLOWED',
+            message: 'Không được ghi số điện thoại, email hoặc đường link trong mô tả.',
+            details: { field: 'description' },
+          },
+        },
+      }),
+    )
+    const { user } = renderPage()
+    const descriptionField = () => screen.getByText('Mô tả đồ chơi').closest('.ant-form-item') as HTMLElement
+
+    await user.click(screen.getByPlaceholderText(/^VD: Bộ đồ chơi lắp ráp/))
+    await user.paste('Bộ xe điều khiển địa hình')
+    await pickCategory(user, WOOD.name)
+    await user.click(screen.getByRole('radio', { name: '3 - 6 tuổi (Mẫu giáo)' }))
+    await user.click(screen.getByRole('radio', { name: /^Như mới/ }))
+    const description = screen.getByPlaceholderText(/^Đồ chơi gồm những gì/)
+    await user.click(description)
+    await user.paste('Xe chạy tốt, đủ điều khiển và bộ sạc, đã lau sạch. Hỏi thêm qua 0912 345 678.')
+    await user.upload(screen.getByLabelText(/Kéo thả ảnh vào đây/), [
+      new File(['1'], '1.jpg', { type: 'image/jpeg' }),
+      new File(['2'], '2.jpg', { type: 'image/jpeg' }),
+      new File(['3'], '3.jpg', { type: 'image/jpeg' }),
+    ])
+    for (const box of screen.getAllByRole('checkbox')) await user.click(box)
+
+    // The form refuses the phone number before sending.
+    await submit(user)
+    expect(
+      await within(descriptionField()).findByText('Không được ghi số điện thoại, email hoặc đường link trong mô tả.'),
+    ).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+
+    // Whatever the server still refuses is shown under the same field.
+    await user.clear(description)
+    await user.click(description)
+    await user.paste('Xe chạy tốt, đủ điều khiển và bộ sạc, đã lau sạch, vỏ không nứt vỡ hay trầy xước.')
+    await submit(user)
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
+    expect(
+      await within(descriptionField()).findByText('Không được ghi số điện thoại, email hoặc đường link trong mô tả.'),
+    ).toBeInTheDocument()
+  }, 30_000)
 })

@@ -1,5 +1,6 @@
 import { isAxiosError } from 'axios'
 import { getApiErrorCode, getApiErrorMessage, httpClient } from '../../services/http-client'
+import { CONTACT_DETAILS_MESSAGES, type ContactField } from './contact-details'
 import { tooFewPhotosMessage, type ListingFormValues } from './toy-listing-schema'
 
 /** Các endpoint /toys và /categories trả JSON thô (chưa bọc envelope `{ success, data }`) */
@@ -153,8 +154,20 @@ const LISTING_ERROR_MESSAGES: Record<string, string> = {
   CLOUDINARY_NOT_CONFIGURED:'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau.',
 }
 
+/**
+ * Ô bị backend từ chối vì có số điện thoại, email hoặc đường link (CONTACT_DETAILS_NOT_ALLOWED,
+ * GB-11): 'title' hoặc 'description', để form hiện lỗi ngay dưới ô đó
+ */
+export function getContactDetailsField(error: unknown): ContactField | undefined {
+  if (getApiErrorCode(error) !== 'CONTACT_DETAILS_NOT_ALLOWED') return undefined
+  const field = errorDetails(error)?.field
+  return field === 'title' || field === 'description' ? field : 'description'
+}
+
 export function getListingErrorMessage(error: unknown): string {
   const code = getApiErrorCode(error)
+  const contactField = getContactDetailsField(error)
+  if (contactField) return CONTACT_DETAILS_MESSAGES[contactField]
   // MSG21: số ảnh tối thiểu nằm trong error.details.min
   if (code === 'TOO_FEW_PHOTOS') {
     const min = errorDetails(error)?.min
