@@ -1,5 +1,5 @@
 import 'multer';
-import mongoose, { type Model } from 'mongoose';
+import mongoose, { type HydratedDocument, type Model } from 'mongoose';
 import type { RequestActor } from '../types/request-actor.js';
 import { AppError } from '../utils/app-error.js';
 import type { ToyImageStorage } from '../interfaces/toy-listing.ports.js';
@@ -7,16 +7,62 @@ import { validateToyImage } from '../utils/image-validation.js';
 import { Toy, type IToy } from '../models/toy.model.js';
 import type {
   ListingFilterStatus,
+  OwnerModerationView,
   ToyImage,
   ToyListingDto,
   ToyListingPorts,
+  ToyModeration,
 } from '../interfaces/toy-listing.ports.js';
 import {
+  assertListingFieldRules,
+  assertListingPhotoCount,
+  assertNoContactDetails,
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
   validateUpdateToyListingInput,
 } from '../validations/toy-listing.validation.js';
+
+const categoryNotAvailable = () =>
+  new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+
+// Another save changed the toy after this request read it; the edit was computed from that read.
+const listingChanged = () =>
+  new AppError(
+    409,
+    'LISTING_CHANGED',
+    'The listing was changed in the meantime. Reload it and try again.',
+  );
+
+// The Owner's view of the review: the reviewing Admin's id (reviewedBy) is left out. A reason is
+// stored only while the listing is rejected: approving or sending it again removes it.
+const toOwnerModerationView = (moderation: ToyModeration): OwnerModerationView => ({
+  ...(moderation.submittedAt ? { submittedAt: moderation.submittedAt } : {}),
+  ...(moderation.reviewedAt ? { reviewedAt: moderation.reviewedAt } : {}),
+  ...(moderation.rejectReason ? { rejectReason: moderation.rejectReason } : {}),
+});
+
+// The toys model also stores donation posts (listingType 'donate', POST /donation-posts), which
+// the ListingType of this service does not name.
+const isDonationPost = (toy: Pick<IToy, 'listingType'>): boolean =>
+  (toy.listingType as string) === 'donate';
+
+/**
+ * Whether an edit sends the listing back to Pending Review (GB-08): an approved (active) listing,
+ * a rejected one (hidden with the Admin's reason) and a pending one. A listing hidden by its Owner
+ * stays hidden.
+ */
+const isBackToReview = (toy: Pick<IToy, 'status' | 'moderation'>): boolean =>
+  toy.status !== 'hidden' || Boolean(toy.moderation?.rejectReason);
+
+/**
+ * Whether the Admin has approved the listing (GB-09): it is active, or its last review approved it
+ * (an approved listing that was edited is pending, or hidden by its Owner, with that review kept).
+ * A rejection, and a rejected listing sent again, leave no approval.
+ */
+const wasApproved = (toy: Pick<IToy, 'status' | 'moderation'>): boolean =>
+  toy.status === 'active' ||
+  (Boolean(toy.moderation?.reviewedAt) && !toy.moderation?.rejectReason);
 
 export class ToyListingService {
   public constructor(
@@ -26,24 +72,26 @@ export class ToyListingService {
   ) {}
 
   private assertActor(actor: RequestActor): void {
-    if (
-      !actor ||
-      !actor.userId ||
-      actor.actorType !== 'USER' ||
-      !mongoose.Types.ObjectId.isValid(actor.userId)
-    ) {
+    if (!actor || !actor.userId || !mongoose.Types.ObjectId.isValid(actor.userId)) {
       throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+    }
+    // Policy: toy listings belong to member accounts; an Admin account may not own or edit them.
+    if (actor.actorType !== 'USER') {
+      throw new AppError(403, 'FORBIDDEN', 'Admin accounts cannot manage toy listings.');
     }
   }
 
   private mapToDto(
     doc: IToy & { _id: mongoose.Types.ObjectId | string },
     derivedStatus: ListingFilterStatus,
+    categoryNames: Map<string, string>,
   ): ToyListingDto {
+    const categoryId = doc.categoryId.toString();
     return {
       id: doc._id.toString(),
       ownerId: doc.ownerId.toString(),
-      categoryId: doc.categoryId.toString(),
+      categoryId,
+      categoryName: categoryNames.get(categoryId) ?? '',
       title: doc.title,
       description: doc.description,
       condition: doc.condition,
@@ -63,7 +111,7 @@ export class ToyListingService {
       quantity: doc.quantity ?? 1,
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
-      ...(doc.moderation ? { moderation: doc.moderation } : {}),
+      ...(doc.moderation ? { moderation: toOwnerModerationView(doc.moderation) } : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -86,19 +134,15 @@ export class ToyListingService {
     }
 
     const validatedInput = validateCreateToyListingInput(input);
+    assertListingFieldRules(validatedInput);
+    assertNoContactDetails(validatedInput);
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
-      throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+      throw categoryNotAvailable();
     }
 
-    if (!files || files.length === 0) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'At least one image is required.');
-    }
-    if (files.length > 10) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'A maximum of 10 images are allowed.');
-    }
-
+    assertListingPhotoCount(validatedInput.listingType, files?.length ?? 0);
     for (const file of files) {
       validateToyImage(file.buffer, file.mimetype);
     }
@@ -121,25 +165,40 @@ export class ToyListingService {
     }
 
     try {
-      const newToy = new this.toyModel({
-        ownerId: new mongoose.Types.ObjectId(actor.userId),
-        categoryId: new mongoose.Types.ObjectId(validatedInput.categoryId),
-        title: validatedInput.title,
-        description: validatedInput.description,
-        condition: validatedInput.condition,
-        listingType: validatedInput.listingType,
-        priceOrRate: validatedInput.priceOrRate,
-        ...(validatedInput.listingType === 'rent' && validatedInput.depositPrice !== undefined
-          ? { depositPrice: validatedInput.depositPrice }
-          : {}),
-        status: 'pending',
-        ageRange: validatedInput.ageRange,
-        images: uploadedAssets,
-        quantity: 1,
-      });
-
-      const saved = await newToy.save();
-      return this.mapToDto(saved, 'pending');
+      // The check above ran before the uploads; the touch write re-checks the category atomically.
+      // A new document on every run of the callback: withTransaction runs it again when the commit
+      // fails with a transient error, and a document saved by an earlier run inserts nothing.
+      const touched = await this.ports.saveWithActiveCategory(
+        validatedInput.categoryId,
+        (session) =>
+          new this.toyModel({
+            ownerId: new mongoose.Types.ObjectId(actor.userId),
+            categoryId: new mongoose.Types.ObjectId(validatedInput.categoryId),
+            title: validatedInput.title,
+            description: validatedInput.description,
+            condition: validatedInput.condition,
+            listingType: validatedInput.listingType,
+            priceOrRate: validatedInput.priceOrRate,
+            ...(validatedInput.listingType === 'rent' && validatedInput.depositPrice !== undefined
+              ? { depositPrice: validatedInput.depositPrice }
+              : {}),
+            status: 'pending',
+            // Oldest submission first in the Admin queue (UC27).
+            moderation: { submittedAt: new Date() },
+            ageRange: validatedInput.ageRange,
+            images: uploadedAssets,
+            quantity: 1,
+          }).save({ session }),
+      );
+      if (!touched) {
+        throw categoryNotAvailable();
+      }
+      const saved = touched.result;
+      return this.mapToDto(
+        saved,
+        'pending',
+        new Map([[saved.categoryId.toString(), touched.categoryName]]),
+      );
     } catch (dbError) {
       if (uploadedAssets.length > 0) {
         try {
@@ -198,7 +257,12 @@ export class ToyListingService {
     const total = matchedToys.length;
     const startIndex = (page - 1) * limit;
     const paginated = matchedToys.slice(startIndex, startIndex + limit);
-    const items = paginated.map(({ toy, derivedStatus }) => this.mapToDto(toy, derivedStatus));
+    const categoryNames = await this.ports.getCategoryNames([
+      ...new Set(paginated.map(({ toy }) => toy.categoryId.toString())),
+    ]);
+    const items = paginated.map(({ toy, derivedStatus }) =>
+      this.mapToDto(toy, derivedStatus, categoryNames),
+    );
 
     return { items, page, limit, total };
   }
@@ -232,12 +296,35 @@ export class ToyListingService {
     }
 
     const validatedInput = validateUpdateToyListingInput(input);
+    // GB-11 applies to every post, donation posts included.
+    assertNoContactDetails(validatedInput);
 
-    if (validatedInput.categoryId) {
-      const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
+    // Only a new category must be active: a toy keeps a category an Admin hid later (RQ-02).
+    const newCategoryId = validatedInput.categoryId;
+    const categoryChanged =
+      newCategoryId !== undefined &&
+      !new mongoose.Types.ObjectId(newCategoryId).equals(listing.categoryId);
+    if (categoryChanged) {
+      const categoryExists = await this.ports.categoryExists(newCategoryId);
       if (!categoryExists) {
-        throw new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+        throw categoryNotAvailable();
       }
+    }
+
+    // GB-09: the listing type decides the payment and deposit rules, so it is fixed once the
+    // Admin has approved the listing; a donation post never becomes a rent or sale listing.
+    if (
+      validatedInput.listingType !== undefined &&
+      validatedInput.listingType !== listing.listingType &&
+      (isDonationPost(listing) || wasApproved(listing))
+    ) {
+      throw new AppError(
+        400,
+        'LISTING_TYPE_LOCKED',
+        isDonationPost(listing)
+          ? 'A donation post cannot become a rent or sale listing.'
+          : 'The listing type cannot be changed after the listing is approved.',
+      );
     }
 
     const effectiveListingType = validatedInput.listingType ?? listing.listingType;
@@ -263,6 +350,28 @@ export class ToyListingService {
       }
     }
 
+    // Field rules on what the edit sends; prices against the stored ones they depend on.
+    const pricesChanged =
+      validatedInput.priceOrRate !== undefined ||
+      validatedInput.depositPrice !== undefined ||
+      validatedInput.listingType !== undefined;
+    if (!isDonationPost(listing)) {
+      assertListingFieldRules({
+        title: validatedInput.title,
+        description: validatedInput.description,
+        listingType: effectiveListingType,
+        ...(pricesChanged
+          ? {
+              priceOrRate: validatedInput.priceOrRate ?? listing.priceOrRate,
+              depositPrice:
+                effectiveListingType === 'rent'
+                  ? (validatedInput.depositPrice ?? listing.depositPrice)
+                  : undefined,
+            }
+          : {}),
+      });
+    }
+
     const existingImages = listing.images || [];
     const removeSet = new Set(removeImagePublicIds ?? []);
     const remainingImages = existingImages.filter((img) => !removeSet.has(img.publicId));
@@ -272,13 +381,10 @@ export class ToyListingService {
     const newFiles = files ?? [];
     const finalImageCount = remainingImages.length + newFiles.length;
 
-    if (finalImageCount < 1) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'A listing must have at least one image.');
-    }
-    if (finalImageCount > 10) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'A listing cannot have more than 10 images.');
-    }
-
+    assertListingPhotoCount(
+      isDonationPost(listing) ? 'donate' : effectiveListingType,
+      finalImageCount,
+    );
     for (const file of newFiles) {
       validateToyImage(file.buffer, file.mimetype);
     }
@@ -300,43 +406,85 @@ export class ToyListingService {
       throw uploadError;
     }
 
-    try {
-      if (validatedInput.title !== undefined) listing.title = validatedInput.title;
-      if (validatedInput.description !== undefined)
-        listing.description = validatedInput.description;
-      if (validatedInput.condition !== undefined) listing.condition = validatedInput.condition;
-      if (validatedInput.categoryId !== undefined) {
-        listing.categoryId = new mongoose.Types.ObjectId(validatedInput.categoryId);
+    const submittedAt = new Date();
+    const applyEdit = (toy: HydratedDocument<IToy>): void => {
+      if (validatedInput.title !== undefined) toy.title = validatedInput.title;
+      if (validatedInput.description !== undefined) toy.description = validatedInput.description;
+      if (validatedInput.condition !== undefined) toy.condition = validatedInput.condition;
+      if (categoryChanged) {
+        toy.categoryId = new mongoose.Types.ObjectId(newCategoryId);
       }
-      if (validatedInput.ageRange !== undefined) listing.ageRange = validatedInput.ageRange;
-      if (validatedInput.listingType !== undefined)
-        listing.listingType = validatedInput.listingType;
-      if (validatedInput.priceOrRate !== undefined)
-        listing.priceOrRate = validatedInput.priceOrRate;
+      if (validatedInput.ageRange !== undefined) toy.ageRange = validatedInput.ageRange;
+      if (validatedInput.listingType !== undefined) toy.listingType = validatedInput.listingType;
+      if (validatedInput.priceOrRate !== undefined) toy.priceOrRate = validatedInput.priceOrRate;
 
       if (effectiveListingType === 'rent') {
         if (validatedInput.depositPrice !== undefined) {
-          listing.depositPrice = validatedInput.depositPrice;
+          toy.depositPrice = validatedInput.depositPrice;
         }
       } else {
-        listing.depositPrice = undefined;
+        toy.depositPrice = undefined;
       }
 
-      listing.images = [...remainingImages, ...newUploadedAssets];
+      toy.images = [...remainingImages, ...newUploadedAssets];
 
-      const saved = await listing.save();
+      // GB-08: an edited listing waits for the Admin again, also a rejected one sent again
+      // (BF-02 1a, BF-03 1a). A listing its Owner hid stays hidden, and donation posts keep the
+      // status the donation flow gave them.
+      if (!isDonationPost(toy) && isBackToReview(toy)) {
+        toy.moderation ??= {};
+        if (toy.moderation.rejectReason) {
+          // A rejected listing sent again is a new submission: the rejection no longer applies.
+          // An approved one keeps its review data, which GB-09 reads.
+          toy.moderation.rejectReason = undefined;
+          toy.moderation.reviewedAt = undefined;
+          toy.moderation.reviewedBy = undefined;
+        }
+        // A pending listing keeps its place in the queue; any other one is sent again now.
+        if (toy.status !== 'pending' || !toy.moderation.submittedAt) {
+          toy.moderation.submittedAt = submittedAt;
+        }
+        toy.status = 'pending';
+      }
+    };
 
-      if (toDelete.length > 0) {
+    let saved: typeof listing;
+    // Set when the category changed: the touch write already returned the new category's name.
+    let touchedCategoryName: string | undefined;
+    try {
+      if (categoryChanged) {
+        const touched = await this.ports.saveWithActiveCategory(newCategoryId, async (session) => {
+          // Re-read and edit the toy on every run of the callback: withTransaction runs it again
+          // when the commit fails with a transient error, and a document saved by an earlier run
+          // has no change left to write.
+          const toy = await this.toyModel.findById(toyId, null, { session });
+          if (!toy) {
+            throw new AppError(404, 'NOT_FOUND', 'Listing not found');
+          }
+          // The edit, its images in particular, was computed from `listing`: refuse it when another
+          // save changed the toy since (every images change bumps __v), as the version check of
+          // `listing.save()` does on the other path.
+          if (toy.__v !== listing.__v) {
+            throw listingChanged();
+          }
+          applyEdit(toy);
+          return toy.save({ session });
+        });
+        if (!touched) {
+          throw categoryNotAvailable();
+        }
+        saved = touched.result;
+        touchedCategoryName = touched.categoryName;
+      } else {
+        applyEdit(listing);
         try {
-          await this.imageStorage.delete(toDelete);
-        } catch {
-          // Cleanup failure does not fail the DB update
+          saved = await listing.save();
+        } catch (saveError) {
+          // Mongoose's version check failed: this edit sets the images, and another save changed
+          // them since `listing` was read.
+          throw saveError instanceof mongoose.Error.VersionError ? listingChanged() : saveError;
         }
       }
-
-      const soldSet = await this.ports.getSoldToyIds([toyId]);
-      const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-      return this.mapToDto(saved, derivedStatus);
     } catch (dbError) {
       if (newUploadedAssets.length > 0) {
         try {
@@ -347,6 +495,25 @@ export class ToyListingService {
       }
       throw dbError;
     }
+
+    // The edit is stored from here on, with the new images: a failure below must not delete them.
+    // The removed images are deleted only now, as the stored toy no longer uses them (with a
+    // category change, the transaction has committed).
+    if (toDelete.length > 0) {
+      try {
+        await this.imageStorage.delete(toDelete);
+      } catch {
+        // Cleanup failure does not fail the DB update
+      }
+    }
+
+    const soldSet = await this.ports.getSoldToyIds([toyId]);
+    const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
+    const categoryNames =
+      touchedCategoryName !== undefined
+        ? new Map([[saved.categoryId.toString(), touchedCategoryName]])
+        : await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, derivedStatus, categoryNames);
   }
 
   public async hide(actor: RequestActor, toyId: string): Promise<ToyListingDto> {
@@ -375,7 +542,8 @@ export class ToyListingService {
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
-    return this.mapToDto(saved, derivedStatus);
+    const categoryNames = await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, derivedStatus, categoryNames);
   }
 
   public async delete(actor: RequestActor, toyId: string): Promise<void> {

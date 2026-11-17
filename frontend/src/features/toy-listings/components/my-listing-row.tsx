@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { EyeOff, ImageOff, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS, toyListingEditPath } from '../../../routes/paths'
 import { formatVnd } from '../format-vnd'
-import { displayCode, formatDate, STATUS_LABELS } from '../listing-display'
+import { displayCode, formatDate, isRejected, REJECTED_LABEL, STATUS_LABELS } from '../listing-display'
 import { deleteToyListing, getListingErrorMessage, hideToyListing, type ToyListing } from '../toy-listing-api'
 import { MY_LISTINGS_ROOT_KEY, myListingQuery } from '../toy-listing-queries'
 import type { DonationToyState } from '../../donations/donor-queries'
@@ -24,6 +24,10 @@ const DONATION_STATE_LABELS: Record<DonationToyState, string> = {
 export function MyListingRow({ listing, categoryName, donationState }: MyListingRowProps) {
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [showingReason, setShowingReason] = useState(false)
+  // Bị Admin từ chối: hiện nhãn riêng và lý do, sửa tin là gửi duyệt lại (R03 III.3.2.1, BF-02 1a)
+  const rejected = isRejected(listing)
+  const reasonId = `listing-reason-${listing.id}`
   const isRent = listing.listingType === 'rent'
   const isDonation = listing.listingType === 'donate'
   // Đồ đang trao hoặc đã tặng: không cho ẩn/xoá (phiếu quyên góp còn tham chiếu tới đồ chơi)
@@ -56,6 +60,8 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         <div className="listing-row__meta">
           {donationState ? (
             <span className="status-badge status-badge--sold">{DONATION_STATE_LABELS[donationState]}</span>
+          ) : rejected ? (
+            <span className="status-badge status-badge--rejected">{REJECTED_LABEL}</span>
           ) : (
             <span className={`status-badge status-badge--${listing.status}`}>{STATUS_LABELS[listing.status]}</span>
           )}
@@ -87,6 +93,13 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
           <span className="listing-row__chip">{listing.condition}</span>
         </div>
 
+        {rejected && showingReason && (
+          <p id={reasonId} className="listing-row__reason">
+            <strong>Lý do từ chối:</strong> {listing.moderation?.rejectReason}
+            {!isDonation && ' Sửa tin rồi lưu để gửi duyệt lại.'}
+          </p>
+        )}
+
         {actionError && (
           <p className="listing-row__error" role="alert">
             {getListingErrorMessage(actionError)}
@@ -108,6 +121,18 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
           </>
         ) : (
           <>
+            {rejected && (
+              <button
+                type="button"
+                className="row-btn"
+                aria-expanded={showingReason}
+                aria-controls={reasonId}
+                onClick={() => setShowingReason((shown) => !shown)}
+              >
+                <MessageSquareWarning aria-hidden />
+                {showingReason ? 'Ẩn lý do' : 'Xem lý do'}
+              </button>
+            )}
             {!isDonation && (
               <Link to={toyListingEditPath(listing.id)} className="row-btn row-btn--primary">
                 <Pencil aria-hidden />

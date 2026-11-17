@@ -50,6 +50,8 @@ const audit = (
     session,
   );
 
+// Counted after the commit, outside the transaction: the count is display-only (toyCount and
+// canDelete in the Admin list); delete re-counts inside its own transaction.
 const withToyCount = async (category: CategoryRecord): Promise<AdminCategoryView> => {
   const counts = await repo.countToys([category._id]);
   return toAdminCategory(category, counts.get(String(category._id)) ?? 0);
@@ -173,9 +175,10 @@ export const changeCategoryVisibility = async (
 };
 
 // Hard delete only when no toy points to the category; otherwise the Admin hides it.
-// Race with a toy being saved: the category document is written first (lockForDelete), and the
-// toys feature writes the same document when it saves a toy, so the two transactions conflict
-// and the loser retries with fresh data. See README.md.
+// Race with a toy being saved: the category document is written first (lockForDelete), and every
+// toy save that sets a category (toy listings and donation posts, saveWithActiveCategory) writes
+// the same document, so the two transactions conflict and the loser retries with fresh data. See
+// "Category rules" in docs/api/toys.md.
 export const deleteCategory = async (id: string, context: AdminContext): Promise<void> => {
   await withTransaction(async (session) => {
     const category = await repo.lockForDelete(id, session);

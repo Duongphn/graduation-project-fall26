@@ -73,7 +73,10 @@ async function homeLoader() {
 
 async function newListingLoader() {
   if (isGuest()) return null
-  await queryClient.query(categoriesQuery).catch(ignoreError) // GET /categories
+  await Promise.all([
+    queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (đã xác minh danh tính chưa)
+  ])
   return null
 }
 

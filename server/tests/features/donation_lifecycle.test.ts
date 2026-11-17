@@ -266,32 +266,55 @@ describe('contact sharing (D-03)', () => {
 
 describe('donation posts (POST /donation-posts)', () => {
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
-  const send = (who: Who, categoryId: string) =>
-    request(app)
+  // The description the web form sends: the Donor's text, then the handover method and the
+  // preferred organization (composeDonationDescription in the frontend).
+  const DESCRIPTION = [
+    'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.',
+    '',
+    'Cách bàn giao: Gửi qua đơn vị vận chuyển',
+    'Đơn vị tiếp nhận mong muốn: Để ToyFlow ghép tổ chức phù hợp',
+  ].join('\n');
+  // A donation post has 3 to 10 photos (R03 GB-10).
+  const send = (
+    who: Who,
+    categoryId: string,
+    photos = 3,
+    text: { title?: string; description?: string } = {},
+  ) => {
+    const req = request(app)
       .post('/api/v1/donation-posts')
       .set(headers(who))
-      .field('title', 'Gấu bông')
-      .field('description', 'Còn mới')
+      .field('title', text.title ?? 'Gấu bông')
+      .field('description', text.description ?? DESCRIPTION)
       .field('condition', 'like_new')
       .field('categoryId', categoryId)
-      .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }))
-      .attach('images', PNG, { filename: 'a.png', contentType: 'image/png' });
+      .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }));
+    for (let i = 1; i <= photos; i += 1) {
+      void req.attach('images', PNG, { filename: `p${i}.png`, contentType: 'image/png' });
+    }
+    return req;
+  };
+  const verifyDonor = () =>
+    IdentityVerification.collection.insertOne({
+      userId: oid(ids.donor),
+      status: 'verified',
+      submittedAt: new Date(),
+    });
 
   it('creates a pending free donate toy for a verified user in an active category', async () => {
     const category = await Category.create({ name: 'Gấu', slug: 'gau', status: 'active' });
     expect((await send('donor', String(category._id))).status).toBe(403);
 
-    await IdentityVerification.collection.insertOne({
-      userId: oid(ids.donor),
-      status: 'verified',
-      submittedAt: new Date(),
-    });
+    await verifyDonor();
     const res = await send('donor', String(category._id));
     expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.images).toHaveLength(3);
     expect(res.body.data).toMatchObject({
       listingType: 'donate',
       priceOrRate: 0,
       status: 'pending',
+      categoryId: String(category._id),
+      categoryName: 'Gấu',
     });
     const toy = await Toy.findById(res.body.data.id).lean();
     expect(toy).toMatchObject({ listingType: 'donate', priceOrRate: 0, status: 'pending' });
@@ -299,6 +322,84 @@ describe('donation posts (POST /donation-posts)', () => {
 
     expect((await send('donor', String(newId()))).status).toBe(400);
     expect((await request(app).post('/api/v1/donation-posts')).status).toBe(401);
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
+  it('refuses a donation post with fewer than 3 photos and uploads nothing (GB-10)', async () => {
+    const category = await Category.create({ name: 'Búp bê', slug: 'bup-be', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+
+    for (const photos of [0, 2]) {
+      const res = await send('donor', String(category._id), photos);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        message: 'A donation post needs 3 to 10 images.',
+      });
+    }
+    expect(uploaded).toHaveLength(uploadsBefore);
+    expect(await Toy.countDocuments({ categoryId: category._id })).toBe(0);
+
+    // 10 photos is the most a donation post takes; an 11th is refused by the upload middleware.
+    expect((await send('donor', String(category._id), 10)).status).toBe(201);
+    const tooMany = await send('donor', String(category._id), 11);
+    expect(tooMany.status).toBe(400);
+    expect(tooMany.body.error.code).toBe('INVALID_IMAGE_UPLOAD');
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
+  it('checks the title and description like a rent or sale listing (R03 III.5.2.1 (1))', async () => {
+    const category = await Category.create({ name: 'Xe', slug: 'xe', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+    const refused = async (text: { title?: string; description?: string }, field: string) => {
+      const res = await send('donor', String(category._id), 3, text);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: { field } });
+    };
+
+    await refused({ title: 'T'.repeat(101) }, 'title');
+    await refused({ description: 'D'.repeat(49) }, 'description');
+    await refused({ description: 'D'.repeat(1001) }, 'description');
+    expect(uploaded).toHaveLength(uploadsBefore);
+
+    for (const text of [
+      { title: 'T'.repeat(100) },
+      { description: 'D'.repeat(50) },
+      { description: 'D'.repeat(1000) },
+    ]) {
+      expect((await send('donor', String(category._id), 3, text)).status).toBe(201);
+    }
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
+  it('refuses a phone number, an email or a link in the title or description (GB-11)', async () => {
+    const category = await Category.create({ name: 'Bóng', slug: 'bong', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+    const refused = async (text: { title?: string; description?: string }, field: string) => {
+      const res = await send('donor', String(category._id), 3, text);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({
+        code: 'CONTACT_DETAILS_NOT_ALLOWED',
+        details: { field },
+      });
+    };
+
+    await refused({ title: 'Gấu bông 0912.345.678' }, 'title');
+    await refused({ description: `${DESCRIPTION}\nZalo +84 912 345 678` }, 'description');
+    await refused({ description: `${DESCRIPTION}\nEmail be.na@gmail.com` }, 'description');
+    await refused({ description: `${DESCRIPTION}\nẢnh: https://imgur.com/abc` }, 'description');
+    expect(uploaded).toHaveLength(uploadsBefore);
+    expect(await Toy.countDocuments({ categoryId: category._id })).toBe(0);
+
+    // Honest text that only warns the Admin is saved.
+    const honest = await send('donor', String(category._id), 3, {
+      title: 'Gấu bông Momo',
+      description: `${DESCRIPTION}\nMẫu đang hot trên TikTok, mã vạch 8936036022345.`,
+    });
+    expect(honest.status, JSON.stringify(honest.body)).toBe(201);
     await mongoose.connection.collection('identityverifications').deleteMany({});
   });
 });

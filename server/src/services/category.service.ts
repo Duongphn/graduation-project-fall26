@@ -5,11 +5,16 @@ import type { CategoryDto } from '../types/category.types.js';
 export class CategoryService {
   public constructor(private readonly categoryModel: Model<ICategory> = Category) {}
 
-  /** Danh mục đang hoạt động, theo thứ tự menu, cho form đăng tin và bộ lọc tìm kiếm. */
+  /**
+   * Danh mục đang hoạt động, theo thứ tự menu, cho form đăng tin và bộ lọc tìm kiếm.
+   * Cùng thứ tự với danh sách của Admin (category-admin.repository.ts): displayOrder, rồi tên
+   * theo thứ tự chữ cái tiếng Việt, rồi _id.
+   */
   public async listActive(): Promise<CategoryDto[]> {
     const categories = await this.categoryModel
       .find({ status: { $regex: /^active$/i } })
-      .sort({ displayOrder: 1, name: 1 })
+      .sort({ displayOrder: 1, name: 1, _id: 1 })
+      .collation({ locale: 'vi' })
       .lean();
 
     return categories.map((category) => ({

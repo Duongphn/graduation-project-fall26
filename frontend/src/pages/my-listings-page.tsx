@@ -124,7 +124,8 @@ export function MyListingsPage() {
               <MyListingRow
                 key={listing.id}
                 listing={listing}
-                categoryName={categoryNames.get(listing.categoryId)}
+                // Danh mục đã bị Admin ẩn không có trong GET /categories: dùng tên backend trả kèm tin
+                categoryName={categoryNames.get(listing.categoryId) ?? listing.categoryName}
                 donationState={listing.listingType === 'donate' ? donationStates?.[listing.id] : undefined}
               />
             ))}

@@ -1,11 +1,15 @@
 import { Camera, CloudUpload, Images, ImagePlus, Star, X } from 'lucide-react'
 import { useState, type DragEvent } from 'react'
 import { RequiredMark, SectionTitle } from './listing-form-primitives'
-import type { ListingPhoto } from '../hooks/use-listing-photos'
+import { formatNames, type ListingPhoto } from '../hooks/use-listing-photos'
 import { ACCEPTED_IMAGE_TYPES, MAX_IMAGES } from '../toy-listing-schema'
 
 interface ListingPhotoUploaderProps {
   photos: ListingPhoto[]
+  /** Số ảnh tối thiểu và tối đa, định dạng nhận được; mặc định là giới hạn chung (form quyên góp) */
+  minPhotos?: number
+  maxPhotos?: number
+  acceptedTypes?: readonly string[]
   rejections: string[]
   /** Lỗi khi bấm lưu mà chưa có ảnh nào */
   requiredError?: string
@@ -21,6 +25,9 @@ const INPUT_ID = 'listing-photo-input'
 
 export function ListingPhotoUploader({
   photos,
+  minPhotos = 1,
+  maxPhotos = MAX_IMAGES,
+  acceptedTypes = ACCEPTED_IMAGE_TYPES,
   rejections,
   requiredError,
   canReorder,
@@ -30,7 +37,8 @@ export function ListingPhotoUploader({
   onMakeCover,
 }: ListingPhotoUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const canAdd = !disabled && photos.length < MAX_IMAGES
+  const canAdd = !disabled && photos.length < maxPhotos
+  const formats = formatNames(acceptedTypes)
 
   const handleDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
@@ -47,12 +55,12 @@ export function ListingPhotoUploader({
             <RequiredMark />
           </SectionTitle>
           <p className="tf-card__subtitle">
-            JPG, PNG hoặc WebP · tối đa 5 MB mỗi ảnh · từ 1 đến {MAX_IMAGES} ảnh
+            {formats} · tối đa 5 MB mỗi ảnh · từ {minPhotos} đến {maxPhotos} ảnh
           </p>
         </div>
         <span className="tf-pill tf-pill--primary">
           <Camera aria-hidden />
-          Tối đa {MAX_IMAGES} ảnh
+          Tối đa {maxPhotos} ảnh
         </span>
       </div>
 
@@ -60,7 +68,7 @@ export function ListingPhotoUploader({
         id={INPUT_ID}
         type="file"
         multiple
-        accept={ACCEPTED_IMAGE_TYPES.join(',')}
+        accept={acceptedTypes.join(',')}
         disabled={!canAdd}
         className="sr-only"
         onChange={(event) => {
@@ -85,7 +93,7 @@ export function ListingPhotoUploader({
         <span className="photo-dropzone__title">
           Kéo thả ảnh vào đây, hoặc <span className="photo-dropzone__link">chọn từ thiết bị</span>
         </span>
-        <span className="photo-dropzone__hint">Hỗ trợ JPG, PNG hoặc WebP · tối đa 5 MB mỗi ảnh · tối đa {MAX_IMAGES} ảnh</span>
+        <span className="photo-dropzone__hint">Hỗ trợ {formats} · tối đa 5 MB mỗi ảnh · tối đa {maxPhotos} ảnh</span>
       </label>
 
       {photos.length > 0 && (
@@ -116,13 +124,13 @@ export function ListingPhotoUploader({
             </li>
           ))}
 
-          {photos.length < MAX_IMAGES && (
+          {photos.length < maxPhotos && (
             <li>
               <label htmlFor={INPUT_ID} className={`photo-tile photo-tile--add ${disabled ? 'is-disabled' : ''}`}>
                 <ImagePlus aria-hidden />
                 <span className="photo-tile__add-label">+ Thêm ảnh</span>
                 <span className="photo-tile__add-count">
-                  (Đã tải {photos.length}/{MAX_IMAGES})
+                  (Đã tải {photos.length}/{maxPhotos})
                 </span>
               </label>
             </li>
