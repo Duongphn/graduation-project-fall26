@@ -1,14 +1,16 @@
 import { z } from 'zod'
 
-import { MAX_IMAGES, TITLE_MAX_LENGTH } from '../toy-listings/toy-listing-schema'
+import { DESCRIPTION_MIN_LENGTH, MAX_IMAGES, TITLE_MAX_LENGTH } from '../toy-listings/toy-listing-schema'
 import { handoverMethodLabels, handoverMethods, type HandoverMethod } from './constants'
 
-// Donor creates a donation post (POST /toys, listingType "donate"): the toy, its photos, a
+// Donor creates a donation post (POST /donation-posts, listingType "donate"): the toy, its photos, a
 // safety check that blocks unsafe toys, the preferred receiver and the handover method.
 
 /** Ảnh 3 góc: toàn cảnh, cận cảnh tem/thông số, khớp nối/vệ sinh */
 export const MIN_DONATION_PHOTOS = 3
-export const DONATION_DESCRIPTION_MIN = 20
+/** Mô tả theo luật của Toy Form (R03 III.5.2.1 (1) → III.3.1.1 (9): 50–1000 ký tự) */
+export const DONATION_DESCRIPTION_MIN = DESCRIPTION_MIN_LENGTH
+/** Thấp hơn 1000: cách bàn giao và tổ chức mong muốn được ghi thêm vào cuối mô tả */
 export const DONATION_DESCRIPTION_MAX = 800
 
 /** Người tặng phải cam kết đủ 4 điều trước khi gửi phiếu */
