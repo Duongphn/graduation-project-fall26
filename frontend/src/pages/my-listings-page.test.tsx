@@ -96,4 +96,26 @@ describe('MyListingsPage', () => {
     expect(await screen.findByRole('link', { name: 'Tàu hoả gỗ' })).toBeInTheDocument()
     expect(mineCalls()).toBe(12)
   })
+
+  it('shows a rejected listing as "Bị từ chối" with its reason, and the Owner can edit it', async () => {
+    const rejected: ToyListing = {
+      ...inWood,
+      status: 'hidden',
+      moderation: { reviewedAt: '2026-11-01T08:00:00.000Z', rejectReason: 'Ảnh bị mờ, chụp lại giúp' },
+    }
+    const hidden: ToyListing = { ...inHidden, status: 'hidden' }
+    answer([rejected, hidden])
+    const { user } = await renderPage()
+
+    expect(await screen.findByText('Bị từ chối')).toBeInTheDocument()
+    // A listing the Owner hid has no reason.
+    expect(screen.getByText('Đã ẩn', { selector: '.status-badge' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Xem lý do' })).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Xem lý do' }))
+    expect(screen.getByText(/Ảnh bị mờ, chụp lại giúp/)).toHaveTextContent(
+      'Lý do từ chối: Ảnh bị mờ, chụp lại giúp Sửa tin rồi lưu để gửi duyệt lại.',
+    )
+    expect(screen.getAllByRole('link', { name: 'Sửa' })).toHaveLength(2)
+  })
 })

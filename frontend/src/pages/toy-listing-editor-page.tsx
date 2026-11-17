@@ -53,7 +53,12 @@ export function ToyListingEditorPage() {
     // Cập nhật cache để loader của trang sửa không phải gọi lại API
     queryClient.setQueryData(myListingQuery(saved.id).queryKey, saved)
     void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY })
-    if (isEdit) setToast(`Cập nhật tin thành công! Tin ${displayCode(saved.id)} đã được lưu an toàn.`)
+    if (isEdit)
+      setToast(
+        saved.status === 'pending'
+          ? `Đã lưu thay đổi. Tin ${displayCode(saved.id)} đang chờ Quản trị viên duyệt.`
+          : `Cập nhật tin thành công! Tin ${displayCode(saved.id)} đã được lưu an toàn.`,
+      )
     else navigate(toyListingEditPath(saved.id), { state: { justCreated: true } })
   }
 

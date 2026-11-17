@@ -32,6 +32,11 @@ export interface ToyListing {
   images: ToyImage[]
   quantity: number
   status: ListingStatus
+  /**
+   * Kiểm duyệt: thời điểm gửi duyệt, lần duyệt gần nhất, và lý do Admin từ chối (chỉ có khi tin đang
+   * bị từ chối: status 'hidden'). Sửa tin bị từ chối là gửi duyệt lại, lý do được xoá.
+   */
+  moderation?: { submittedAt?: string; reviewedAt?: string; rejectReason?: string }
   createdAt: string
   updatedAt: string
 }
@@ -142,6 +147,7 @@ const LISTING_ERROR_MESSAGES: Record<string, string> = {
   CATEGORY_NOT_FOUND: 'Danh mục đã chọn không còn hoạt động. Vui lòng chọn danh mục khác.',
   INVALID_IMAGE_FORMAT: 'Chỉ nhận ảnh JPG hoặc PNG, tối đa 5 MB mỗi ảnh. Vui lòng chọn ảnh khác.',
   TOO_MANY_PHOTOS: 'Tin đăng có tối đa 8 ảnh. Vui lòng bớt ảnh.',
+  LISTING_TYPE_LOCKED: 'Tin đã được duyệt nên không đổi được loại tin (cho thuê / bán).',
   ORDER_IN_PROGRESS: 'Tin đang có đơn thuê hoặc mua chưa hoàn tất, chưa thể sửa, ẩn hoặc xoá.',
   LISTING_CHANGED: 'Tin đăng vừa được thay đổi ở nơi khác. Vui lòng tải lại trang rồi thử lại.',
   CLOUDINARY_NOT_CONFIGURED:'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau.',

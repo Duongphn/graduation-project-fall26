@@ -126,7 +126,8 @@ describe('ToyListingForm', () => {
 
 describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
   it('asks for 3 photos for a rental and 4 for a sale before it saves (MSG21)', async () => {
-    const { user } = renderForm()
+    // Never approved yet, so its type can still change.
+    const { user } = renderForm({ listing: { ...listing, status: 'pending' } })
 
     await user.click(screen.getByRole('button', { name: 'Xoá ảnh 3' }))
     await user.click(saveButton())
@@ -188,5 +189,37 @@ describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
 
     await user.click(saveButton())
     expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
+  })
+})
+
+describe('ToyListingForm and the Admin review (GB-08, GB-09)', () => {
+  it('shows the rejection reason and sends the listing again', async () => {
+    patch.mockResolvedValue({ data: { ...listing, status: 'pending', moderation: {} } })
+    const { onSaved, user } = renderForm({
+      listing: { ...listing, status: 'hidden', moderation: { rejectReason: 'Ảnh bị mờ, chụp lại giúp' } },
+    })
+
+    expect(screen.getByText('Ảnh bị mờ, chụp lại giúp')).toBeInTheDocument()
+    // Never approved: the type can still change.
+    expect(screen.getByRole('button', { name: 'Bán lại' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Gửi duyệt lại' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+  })
+
+  it('says an approved listing waits for the Admin again and keeps its type', () => {
+    renderForm()
+
+    expect(screen.getByText(/Sau khi lưu, tin sẽ/)).toHaveTextContent(
+      'Sau khi lưu, tin sẽ Chờ duyệt lại và tạm ẩn khỏi sàn cho đến khi Quản trị viên phê duyệt.',
+    )
+    expect(screen.getByRole('button', { name: 'Bán lại' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /Bán lại/ })).toBeDisabled()
+    expect(screen.getByText('Tin đã được duyệt nên không đổi được loại tin.')).toBeInTheDocument()
+  })
+
+  it('keeps the type fixed after an approved listing was edited back to pending', () => {
+    renderForm({ listing: { ...listing, status: 'pending', moderation: { reviewedAt: '2026-11-01T08:00:00.000Z' } } })
+    expect(screen.getByRole('button', { name: 'Bán lại' })).toBeDisabled()
+    expect(screen.queryByText(/Sau khi lưu, tin sẽ/)).not.toBeInTheDocument()
   })
 })

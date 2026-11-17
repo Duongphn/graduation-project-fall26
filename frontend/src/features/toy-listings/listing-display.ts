@@ -1,4 +1,4 @@
-import type { ListingStatus } from './toy-listing-api'
+import type { ListingStatus, ToyListing } from './toy-listing-api'
 
 /** Nhãn hiển thị dùng chung cho trang danh sách và trang sửa tin */
 
@@ -10,6 +10,17 @@ export const STATUS_LABELS: Record<ListingStatus, string> = {
   hidden: 'Đã ẩn',
   sold: 'Đã bán',
 }
+
+/** Tin bị Admin từ chối: ẩn kèm lý do (R03 III.3.2.1: nhãn "Bị từ chối" và "Xem lý do") */
+export const REJECTED_LABEL = 'Bị từ chối'
+export const isRejected = (listing: Pick<ToyListing, 'status' | 'moderation'>) =>
+  listing.status === 'hidden' && Boolean(listing.moderation?.rejectReason)
+
+/** Tin đã được Admin duyệt thì không đổi được loại tin (GB-09), kể cả khi đang chờ duyệt lại sau khi sửa */
+export const isListingTypeLocked = (listing: Pick<ToyListing, 'status' | 'moderation'>) =>
+  listing.status === 'active' ||
+  listing.status === 'sold' ||
+  (Boolean(listing.moderation?.reviewedAt) && !listing.moderation?.rejectReason)
 
 export function isListingStatus(value: string | null): value is ListingStatus {
   return value !== null && (LISTING_STATUSES as string[]).includes(value)

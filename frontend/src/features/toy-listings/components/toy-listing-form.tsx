@@ -19,6 +19,7 @@ import {
   type Category,
   type ToyListing,
 } from '../toy-listing-api'
+import { isListingTypeLocked, isRejected } from '../listing-display'
 import { categoriesQuery } from '../toy-listing-queries'
 import {
   EMPTY_LISTING_VALUES,
@@ -130,6 +131,18 @@ export function ToyListingForm({
     : categories
 
   const isSaving = saveMutation.isPending
+  // GB-08: sửa tin đang hiển thị hoặc bị từ chối là gửi Quản trị viên duyệt lại
+  const rejected = listing ? isRejected(listing) : false
+  const reviewNotice = rejected ? (
+    <>
+      Tin bị từ chối. Lý do: <strong>{listing?.moderation?.rejectReason}</strong>. Sửa theo lý do rồi bấm Gửi duyệt lại.
+    </>
+  ) : listing?.status === 'active' ? (
+    <>
+      Sau khi lưu, tin sẽ <strong>Chờ duyệt</strong> lại và tạm ẩn khỏi sàn cho đến khi Quản trị viên phê duyệt.
+    </>
+  ) : undefined
+  const typeLocked = listing ? isListingTypeLocked(listing) : false
   // GB-10: tin thuê cần ít nhất 3 ảnh, tin bán ít nhất 4 ảnh
   const minPhotos = LISTING_PHOTO_LIMITS[listingType ?? 'rent'].min
   const photoRequiredError =
@@ -172,7 +185,7 @@ export function ToyListingForm({
         }}
       >
         <fieldset disabled={isSaving} className="listing-form__main">
-          <ListingPurposeSection />
+          <ListingPurposeSection typeLocked={typeLocked} />
           <ListingPhotoUploader
             photos={photos.photos}
             minPhotos={minPhotos}
@@ -191,9 +204,16 @@ export function ToyListingForm({
 
         <div className="listing-form__side">
           <fieldset disabled={isSaving} className="contents">
-            <ListingPricingSection />
+            <ListingPricingSection typeLocked={typeLocked} />
           </fieldset>
-          <ListingPublishPanel isEdit={isEdit} isSaving={isSaving} error={saveError} onDiscard={discardChanges} />
+          <ListingPublishPanel
+            isEdit={isEdit}
+            reviewNotice={reviewNotice}
+            saveLabel={rejected ? 'Gửi duyệt lại' : undefined}
+            isSaving={isSaving}
+            error={saveError}
+            onDiscard={discardChanges}
+          />
         </div>
       </form>
     </FormProvider>

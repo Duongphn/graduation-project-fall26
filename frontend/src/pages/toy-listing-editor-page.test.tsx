@@ -163,4 +163,15 @@ describe('ToyListingEditorPage', () => {
       await screen.findByText('Tin đăng vừa được thay đổi ở nơi khác. Vui lòng tải lại trang rồi thử lại.'),
     ).toBeInTheDocument()
   })
+
+  it('says the edited listing waits for the Admin again', async () => {
+    patch.mockResolvedValue({ data: { ...saved, status: 'pending' } })
+    const { user } = renderEditor(toyListingEditPath(saved.id), { ...saved, status: 'active' })
+
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+
+    expect(
+      await screen.findByText(`Đã lưu thay đổi. Tin #TF-${saved.id.slice(-5).toUpperCase()} đang chờ Quản trị viên duyệt.`),
+    ).toBeInTheDocument()
+  })
 })
