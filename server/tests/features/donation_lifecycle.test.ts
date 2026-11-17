@@ -300,6 +300,8 @@ describe('donation posts (POST /donation-posts)', () => {
       listingType: 'donate',
       priceOrRate: 0,
       status: 'pending',
+      categoryId: String(category._id),
+      categoryName: 'Gấu',
     });
     const toy = await Toy.findById(res.body.data.id).lean();
     expect(toy).toMatchObject({ listingType: 'donate', priceOrRate: 0, status: 'pending' });

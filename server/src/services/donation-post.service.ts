@@ -92,6 +92,8 @@ export const createDonationPost = async (
       id: String(toy._id),
       ownerId: userId,
       categoryId: input.categoryId,
+      // Like the toy listing responses (docs/api/toys.md "Category rules").
+      categoryName: touched.categoryName,
       title: toy.title,
       description: toy.description,
       condition: toy.condition,
