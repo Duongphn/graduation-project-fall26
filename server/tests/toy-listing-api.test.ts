@@ -550,6 +550,71 @@ describe('field rules of the listing screens (R03 III.3.1.1, III.3.1.2)', () => 
   });
 });
 
+describe('contact details in the title or description (R03 GB-11, MSG22)', () => {
+  const expectContactError = (res: request.Response, field: 'title' | 'description') => {
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({
+      code: 'CONTACT_DETAILS_NOT_ALLOWED',
+      details: { field },
+    });
+    expect(res.body.error.message).toMatch(/^Không được ghi số điện thoại, email hoặc đường link/);
+  };
+  const LONG = 'Bộ đồ chơi còn rất mới, đủ phụ kiện và hộp, bé chơi rất ít lần. ';
+
+  it('refuses a phone number, an email or a link on create, and uploads nothing', async () => {
+    ctx.setActor(ctx.actor1);
+    expectContactError(
+      await postListing(ctx, rentFields({ title: 'Xe gỗ, gọi 0912 345 678' })),
+      'title',
+    );
+    expectContactError(
+      await postListing(ctx, sellFields({ description: `${LONG}Liên hệ +84 912.345.678.` })),
+      'description',
+    );
+    expectContactError(
+      await postListing(ctx, sellFields({ description: `${LONG}Email be.na@gmail.com` })),
+      'description',
+    );
+    expectContactError(
+      await postListing(ctx, rentFields({ description: `${LONG}Xem https://shopee.vn/xe` })),
+      'description',
+    );
+    expectContactError(
+      await postListing(ctx, rentFields({ title: 'Xe gỗ www.xego.vn' })),
+      'title',
+    );
+    expect(ctx.uploads).toHaveLength(0);
+    expect(ctx.store).toHaveLength(0);
+  });
+
+  it('accepts honest text that only gives the Admin a warning', async () => {
+    ctx.setActor(ctx.actor1);
+    for (const [title, description] of [
+      ['Đồ chơi ngân hàng mini', `${LONG}Bé tập bỏ tiền tiết kiệm.`],
+      ['Gấu bông Momo', `${LONG}Mẫu Labubu đang hot trên TikTok.`],
+      ['Robot Tobot.vn chính hãng', `${LONG}Mã vạch hộp 8936036022345.`],
+      ['Xe đua điều khiển', `${LONG}Số seri 2023 0915 1234, giá mua 1.250.000đ.`],
+    ] as const) {
+      const res = await postListing(ctx, rentFields({ title, description }));
+      expect(res.status, `${title}: ${JSON.stringify(res.body)}`).toBe(201);
+    }
+  });
+
+  it('refuses contact details on an edit too, and keeps the listing', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    ctx.setActor(ctx.actor1);
+    const patch = (body: object) => request(ctx.app).patch(`/api/v1/toys/${listing.id}`).send(body);
+    expectContactError(await patch({ title: 'Inbox www.facebook.com/xego' }), 'title');
+    expectContactError(
+      await patch({ description: `${LONG}Hỏi thêm qua 0987654321 nhé.` }),
+      'description',
+    );
+    expect(ctx.store[0]?.title).toBe('Wooden Train');
+    expect((await patch({ title: 'Tàu gỗ Momo' })).status).toBe(200);
+  });
+});
+
 describe('GET /api/v1/toys/mine', () => {
   it('returns 401 without an actor', async () => {
     ctx.setActor(undefined);
@@ -879,6 +944,21 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     expect(res.body.error).toMatchObject({
       code: 'LISTING_TYPE_LOCKED',
       message: 'A donation post cannot become a rent or sale listing.',
+    });
+  });
+
+  it('refuses contact details when a donation post is edited (GB-11)', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    Object.assign(storedToy(listing.id), { listingType: 'donate', depositPrice: undefined });
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'Gấu bông, gọi 0912345678' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({
+      code: 'CONTACT_DETAILS_NOT_ALLOWED',
+      details: { field: 'title' },
     });
   });
 

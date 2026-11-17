@@ -150,6 +150,12 @@ Field rules (R03 III.3.1.1 and III.3.1.2, R04 `toys`), on create and on the fiel
 - Sale: `priceOrRate` a whole number from 10,000 to 50,000,000.
 - A broken rule gives `400 VALIDATION_ERROR` with `details: { field }`. Donation posts (`POST /donation-posts`) do not use these rules.
 
+Contact details (R03 GB-11, MSG22), on create and on the fields an edit sends, for rent, sale and donation posts:
+
+- A `title` or `description` with a Vietnamese phone number (`0912345678`, `0912 345 678`, `091.234.5678`, `+84 912 345 678`, a landline such as `024 3826 1234`), an email address, or a link starting with `http://`, `https://` or `www.` gives `400 CONTACT_DETAILS_NOT_ALLOWED` with `details: { field }` (`title` or `description`). The message is Vietnamese, for example "Không được ghi số điện thoại, email hoặc đường link trong mô tả.". Nothing is uploaded or stored.
+- Weaker hints never block a save: bank or e-wallet names ("ngân hàng", "Momo"), chat-app names ("Zalo", "TikTok"), long digit runs (a barcode, a serial number) and bare domains ("Tobot.vn"). They stay warnings for the Admin on the moderation screen (`CONTACT_PHONE`, `CONTACT_BANK_ACCOUNT`, `CONTACT_LINK`), which also flags the strong patterns.
+- The patterns are in `src/utils/contact-details.ts`; the web form checks the same strong patterns before sending.
+
 Photo rules (R03 GB-10, MSG20, MSG21):
 
 - A rental listing has 3 to 8 photos and a sale listing 4 to 8, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.

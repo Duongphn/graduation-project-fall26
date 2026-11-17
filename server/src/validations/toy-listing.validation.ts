@@ -1,4 +1,5 @@
 import { AppError } from '../utils/app-error.js';
+import { hasBlockedContactDetails } from '../utils/contact-details.js';
 import type { ListingType, ToyAgeRange } from '../interfaces/toy-listing.ports.js';
 
 export interface CreateToyListingInput {
@@ -42,16 +43,10 @@ export const LISTING_FIELD_RULES = {
 const fieldError = (field: string, message: string) =>
   new AppError(400, 'VALIDATION_ERROR', message, { field });
 
-/**
- * Checks the fields of a rent or sale listing that are set: on create all of them, on an edit the
- * ones it sends, with the stored values for the others (deposit against the daily price).
- */
-export function assertListingFieldRules(listing: {
+/** Title of at most 100 characters and a description of 50 to 1000, for the fields that are set. */
+export function assertListingTextRules(listing: {
   title?: string | undefined;
   description?: string | undefined;
-  listingType: ListingType;
-  priceOrRate?: number | undefined;
-  depositPrice?: number | undefined;
 }): void {
   const rules = LISTING_FIELD_RULES;
   if (listing.title !== undefined && listing.title.length > rules.titleMax) {
@@ -67,6 +62,50 @@ export function assertListingFieldRules(listing: {
       `description must be between ${rules.descriptionMin} and ${rules.descriptionMax} characters.`,
     );
   }
+}
+
+/**
+ * MSG22 (R03 GB-11), in the words the web app shows under the field. Only the strong patterns
+ * block a save; bank or e-wallet names, chat apps, long digit runs and bare domains stay Admin
+ * warnings (services/toy-moderation.warnings.ts).
+ */
+export const CONTACT_DETAILS_MESSAGES = {
+  title: 'Không được ghi số điện thoại, email hoặc đường link trong tên đồ chơi.',
+  description: 'Không được ghi số điện thoại, email hoặc đường link trong mô tả.',
+} as const;
+
+/**
+ * Refuses a title or description with a phone number, an email address or an http(s)/www link
+ * (R03 GB-11, MSG22): 400 CONTACT_DETAILS_NOT_ALLOWED with `details.field`. Rent, sale and
+ * donation posts, on create and on edit; only the fields that are set are checked.
+ */
+export function assertNoContactDetails(listing: {
+  title?: string | undefined;
+  description?: string | undefined;
+}): void {
+  for (const field of ['title', 'description'] as const) {
+    const value = listing[field];
+    if (value !== undefined && hasBlockedContactDetails(value)) {
+      throw new AppError(400, 'CONTACT_DETAILS_NOT_ALLOWED', CONTACT_DETAILS_MESSAGES[field], {
+        field,
+      });
+    }
+  }
+}
+
+/**
+ * Checks the fields of a rent or sale listing that are set: on create all of them, on an edit the
+ * ones it sends, with the stored values for the others (deposit against the daily price).
+ */
+export function assertListingFieldRules(listing: {
+  title?: string | undefined;
+  description?: string | undefined;
+  listingType: ListingType;
+  priceOrRate?: number | undefined;
+  depositPrice?: number | undefined;
+}): void {
+  const rules = LISTING_FIELD_RULES;
+  assertListingTextRules(listing);
   if (listing.priceOrRate !== undefined) {
     const range = listing.listingType === 'rent' ? rules.rentPricePerDay : rules.salePrice;
     if (!Number.isInteger(listing.priceOrRate)) {

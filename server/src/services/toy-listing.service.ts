@@ -16,6 +16,7 @@ import type {
 import {
   assertListingFieldRules,
   assertListingPhotoCount,
+  assertNoContactDetails,
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
@@ -134,6 +135,7 @@ export class ToyListingService {
 
     const validatedInput = validateCreateToyListingInput(input);
     assertListingFieldRules(validatedInput);
+    assertNoContactDetails(validatedInput);
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
@@ -294,6 +296,8 @@ export class ToyListingService {
     }
 
     const validatedInput = validateUpdateToyListingInput(input);
+    // GB-11 applies to every post, donation posts included.
+    assertNoContactDetails(validatedInput);
 
     // Only a new category must be active: a toy keeps a category an Admin hid later (RQ-02).
     const newCategoryId = validatedInput.categoryId;
