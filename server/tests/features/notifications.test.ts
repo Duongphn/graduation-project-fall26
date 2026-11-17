@@ -12,6 +12,7 @@ import {
   type MailMessage,
 } from '../../src/integrations/email/notification-mailer.js';
 import {
+  donationNeedsAdmins,
   donationRecipients,
   renderDonationStatusChanged,
   renderToyReviewed,
@@ -125,6 +126,31 @@ describe('notification templates', () => {
     expect(donationRecipients(event, [adminA, adminB])).toEqual([
       { party: 'REQUESTER', userId: adminB },
       { party: 'DONOR', userId: event.donorId },
+    ]);
+  });
+
+  it('sends a request the Donor sent to an organization to the Admins, not back to the Donor', () => {
+    const [adminA, adminB] = [String(newId()), String(newId())];
+    const donorId = String(newId());
+    const event = donationEvent({
+      receiverType: 'ORGANIZATION',
+      organizationId: String(newId()),
+      donorId,
+      requestedBy: donorId,
+      to: 'pending',
+      changedBy: donorId,
+    });
+    expect(donationNeedsAdmins(event)).toBe(true);
+    expect(donationRecipients(event, [adminA, adminB])).toEqual([
+      { party: 'REQUESTER', userId: adminA },
+      { party: 'REQUESTER', userId: adminB },
+    ]);
+    // The Admin decides it (GB-56): the Donor hears about the decision.
+    expect(
+      donationRecipients({ ...event, to: 'accepted', changedBy: adminA }, [adminA, adminB]),
+    ).toEqual([
+      { party: 'REQUESTER', userId: adminB },
+      { party: 'DONOR', userId: donorId },
     ]);
   });
 

@@ -33,10 +33,22 @@ export const isRequester = (record: DonationRecord, actor: DonationActor) =>
 export const canView = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor) || isRequester(record, actor);
 
+/** A request the Donor sent to an organization (UC33): the Donor created it. */
+export const isDonorToOrganization = (record: DonationRecord) =>
+  receiverTypeOf(record) === 'ORGANIZATION' && same(record.requestedBy, String(record.donorId));
+
 /**
- * D-04: only the Donor accepts or rejects (user routes). An Admin passes this check on the admin
- * routes, but `assertNotAdminDecision` then refuses a pending decision (409
- * DONOR_DECISION_REQUIRED): Admins only resolve stuck accepted/shipping requests.
+ * GB-56: the side that did not create a request decides it. The Admin, acting for the
+ * organization, decides a request the Donor sent to it; the Donor decides a request from a
+ * Receiver or from the Admin for an organization.
+ */
+export const deciderOf = (record: DonationRecord): 'ADMIN' | 'DONOR' =>
+  isDonorToOrganization(record) ? 'ADMIN' : 'DONOR';
+
+/**
+ * Who may try a decision at all (403 for anyone else): the Donor (user routes) or an Admin
+ * (admin routes). The service then checks GB-56 with `deciderOf` (409 when it is the other
+ * side's decision).
  */
 export const canDecide = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor);

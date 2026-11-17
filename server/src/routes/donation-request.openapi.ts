@@ -22,6 +22,7 @@ import {
   confirmReceivedBodySchema,
   createRequestBodySchema,
   donationCountsSchema,
+  donorOrganizationRequestBodySchema,
   donationRequestDetailSchema,
   donationRequestSchema,
   donorSummarySchema,
@@ -100,6 +101,23 @@ register({
   errors: [400, 401, 404, 409, 422],
 });
 register({
+  method: 'post',
+  path: `${userBase}/to-organization`,
+  tag: USER_TAG,
+  summary: 'Donor: send my donation post to an organization (UC33, GB-56)',
+  description:
+    "The toy must be the caller's own donation post in status active; the organization must be " +
+    'active and accepting toys (GB-55). Optional note (max 300) and handoverMethod (must be one ' +
+    'the receiving point accepts). The request is pending and the Admin accepts or rejects it ' +
+    '(decider ADMIN). Errors: 403 not the owner, 404 TOY_NOT_FOUND / ORGANIZATION_NOT_FOUND, ' +
+    '409 TOY_NOT_AVAILABLE / ORGANIZATION_NOT_ACCEPTING / ORGANIZATION_NOT_AVAILABLE (MSG51) / ' +
+    'DONATION_REQUEST_EXISTS, 422 HANDOVER_METHOD_NOT_ALLOWED.',
+  body: donorOrganizationRequestBodySchema,
+  response: donationRequestDetailSchema,
+  status: 201,
+  errors: [400, 401, 403, 404, 409, 422],
+});
+register({
   method: 'get',
   path: `${userBase}/mine`,
   tag: USER_TAG,
@@ -140,8 +158,10 @@ register({
   summary: 'Donor: accept (pending -> accepted)',
   description:
     'The toy moves active -> hidden and every other pending request of the toy is rejected. ' +
-    '409 TOY_NOT_AVAILABLE when another request was accepted first. Only the Donor decides ' +
-    '(also for organization requests); anyone else gets 403.',
+    '409 TOY_NOT_AVAILABLE when another request was accepted first. GB-56: the Donor decides ' +
+    "a Receiver's request and an Admin's request for an organization; a request the Donor sent " +
+    'to an organization is decided by the Admin (409 ADMIN_DECISION_REQUIRED). Anyone else ' +
+    'gets 403.',
   params: idParamsSchema,
   response: donationRequestDetailSchema,
   errors: MOVE_ERRORS,
@@ -175,8 +195,11 @@ register({
   tag: USER_TAG,
   summary: 'Donor: hand the toy over with photos (accepted -> shipping)',
   description:
-    'Photos are private uploads signed with purpose HANDOVER_PHOTO by the caller ' +
-    '(publicId toyflow/handovers/<caller id>/...); 422 HANDOVER_PHOTO_NOT_OWNED otherwise.',
+    'handoverMethod is required (400, MSG52): drop_off or carrier, limited to what the ' +
+    "organization's receiving point accepts (422 HANDOVER_METHOD_NOT_ALLOWED). carrierName and " +
+    'trackingCode: optional free text, carrier only (GB-58). Photos are private uploads signed ' +
+    'with purpose HANDOVER_PHOTO by the caller (publicId toyflow/handovers/<caller id>/...); ' +
+    '422 HANDOVER_PHOTO_NOT_OWNED otherwise.',
   params: idParamsSchema,
   body: handoverBodySchema,
   response: donationRequestDetailSchema,
@@ -251,11 +274,12 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/accept`,
   tag: ADMIN_TAG,
-  summary: 'Admin: accept - always refused, the Donor decides (D-04)',
+  summary: 'Admin: accept a request a Donor sent to an organization (GB-56)',
   description:
-    '409 DONOR_DECISION_REQUIRED for a pending request (also an organization request an Admin ' +
-    'filed); 409 INVALID_STATUS_TRANSITION for any other status, 404 for an unknown id. Admins ' +
-    'resolve stuck accepted/shipping requests with cancel or confirm-received.',
+    'Acting for the organization (audited). The organization must still be active (409 ' +
+    'ORGANIZATION_NOT_AVAILABLE); it may have stopped accepting toys (GB-55). 409 ' +
+    "DONOR_DECISION_REQUIRED for a Receiver's or an Admin's request (the Donor decides those); " +
+    '409 INVALID_STATUS_TRANSITION for any status but pending.',
   params: idParamsSchema,
   response: adminDonationRequestDetailSchema,
   errors: MOVE_ERRORS,
@@ -264,10 +288,10 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/reject`,
   tag: ADMIN_TAG,
-  summary: 'Admin: reject - always refused, the Donor decides (D-04)',
+  summary: 'Admin: reject a request a Donor sent to an organization, with a reason (GB-56)',
   description:
-    '409 DONOR_DECISION_REQUIRED for a pending request; 409 INVALID_STATUS_TRANSITION for any ' +
-    'other status. An Admin who wants a request gone cancels it (reason required, audited).',
+    "409 DONOR_DECISION_REQUIRED for a Receiver's or an Admin's request; 409 " +
+    'INVALID_STATUS_TRANSITION for any status but pending. Audited.',
   params: idParamsSchema,
   body: rejectBodySchema,
   response: adminDonationRequestDetailSchema,
@@ -290,8 +314,11 @@ register({
   tag: ADMIN_TAG,
   summary: 'Admin: confirm receipt (shipping -> completed, toy DONATED)',
   description:
-    'For an organization, or for a USER receiver who does not confirm (then `reason` is ' +
-    'required: 422 REASON_REQUIRED). Audited.',
+    'For an organization (GB-59): confirmedBy, channel and receivedAt are required (422 ' +
+    'RECEIPT_DETAILS_REQUIRED), at least one photo (422 RECEIPT_PHOTO_REQUIRED, MSG53), and ' +
+    'receivedAt is not before the sent date nor in the future (422 RECEIVED_AT_INVALID). For a ' +
+    'USER receiver who does not confirm, `reason` is required (422 REASON_REQUIRED) and the ' +
+    'receipt fields are ignored. Audited.',
   params: idParamsSchema,
   body: adminConfirmReceivedBodySchema,
   response: adminDonationRequestDetailSchema,

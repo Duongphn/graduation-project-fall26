@@ -26,3 +26,14 @@ export const PENDING_EXPIRY_DAYS = 14;
 export const HANDOVER_EXPIRY_DAYS = 14;
 
 export const DELIVERY_METHOD = 'shipping';
+
+/** GB-58: how the Donor hands the toy over (R04 3.9 handover_method). Stored lowercase. */
+export const handoverMethods = ['drop_off', 'carrier'] as const;
+export type HandoverMethod = (typeof handoverMethods)[number];
+
+/** GB-59: how an organization confirmed receipt to the Admin (R03 III.7.5.2 (8)). */
+export const receiptChannels = ['phone', 'email', 'in_person'] as const;
+export type ReceiptChannel = (typeof receiptChannels)[number];
+
+/** R03 III.5.2.1 (8): the note of a Donor's request to an organization. */
+export const DONOR_REQUEST_NOTE_MAX = 300;

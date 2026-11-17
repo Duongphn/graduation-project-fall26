@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
 import { conflict, forbidden, notFound } from '../utils/http-errors.js';
@@ -54,8 +54,9 @@ export interface TransitionCommand {
   // Statuses this actor may move from (narrower than donationTransitions).
   allowedFrom?: readonly StoredDonationStatus[];
   // Extra check on the current request, inside the transaction (e.g. a required reason).
-  check?: (record: DonationRecord) => void;
-  set?: Record<string, unknown>;
+  check?: (record: DonationRecord, session: ClientSession) => void | Promise<void>;
+  // Fields to set; a function gets the current request (e.g. fields that depend on the receiver).
+  set?: Record<string, unknown> | ((record: DonationRecord) => Record<string, unknown>);
   unset?: string[];
   pushHandover?: Record<string, unknown>;
   // Carried by the event (reject reason, cancel note).
@@ -101,7 +102,7 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
         to,
       });
     }
-    command.check?.(current);
+    await command.check?.(current, session);
 
     const toy = await repository.findToy(current.toyId, session);
     if (!toy) throw toyNotAvailable();
@@ -121,12 +122,13 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
       }
     }
 
+    const set = typeof command.set === 'function' ? command.set(current) : command.set;
     const next = await repository.updateRequestStatus(
       current._id,
       from,
       to,
       {
-        ...(command.set ? { set: command.set } : {}),
+        ...(set ? { set } : {}),
         ...(command.unset ? { unset: command.unset } : {}),
         ...(command.pushHandover ? { pushHandover: command.pushHandover } : {}),
       },

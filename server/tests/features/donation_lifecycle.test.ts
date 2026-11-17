@@ -132,6 +132,7 @@ const accepted = async (who: Who = 'receiver') => {
 const shipping = async () => {
   const id = await accepted();
   const res = await post('donor', `/donation-requests/${id}/handover`, {
+    handoverMethod: 'drop_off',
     photos: [photo('donor')],
   });
   expect(res.status).toBe(200);
@@ -239,7 +240,10 @@ describe('contact sharing (D-03)', () => {
     expect(admin.body.data.counterpartContact).toBeNull();
     expect(admin.body.data.donor.phone).not.toBe(donorContact.phone);
 
-    await post('donor', `/donation-requests/${id}/handover`, { photos: [photo('donor')] });
+    await post('donor', `/donation-requests/${id}/handover`, {
+      handoverMethod: 'drop_off',
+      photos: [photo('donor')],
+    });
     await post('receiver', `/donation-requests/${id}/confirm-received`, {
       photos: [photo('receiver')],
     });
