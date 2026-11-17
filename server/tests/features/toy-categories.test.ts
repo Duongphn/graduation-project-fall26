@@ -69,7 +69,8 @@ const postToy = (categoryId: string) =>
 const patchToy = (toyId: string, body: object) =>
   request(app).patch(`/api/v1/toys/${toyId}`).set('Authorization', OWNER).send(body);
 
-// POST /donation-posts saves a 'donate' toy under the same category rules.
+// POST /donation-posts saves a 'donate' toy under the same category rules. A donation post has
+// 3 to 10 photos (R03 GB-10).
 const postDonation = (categoryId: string) =>
   request(app)
     .post('/api/v1/donation-posts')
@@ -79,7 +80,9 @@ const postDonation = (categoryId: string) =>
     .field('condition', 'like_new')
     .field('categoryId', categoryId)
     .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }))
-    .attach('images', JPEG, { filename: 'gau.jpg', contentType: 'image/jpeg' });
+    .attach('images', JPEG, { filename: 'gau-1.jpg', contentType: 'image/jpeg' })
+    .attach('images', JPEG, { filename: 'gau-2.jpg', contentType: 'image/jpeg' })
+    .attach('images', JPEG, { filename: 'gau-3.jpg', contentType: 'image/jpeg' });
 
 const deleteCategory = (id: string) =>
   request(app).delete(`/api/v1/admin/categories/${id}`).set('Authorization', ADMIN);
@@ -562,7 +565,8 @@ describe('category hide/delete racing a toy save', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
     expect(await ToyModel.countDocuments()).toBe(0);
-    expect(deletedImages).toHaveLength(1);
+    // All three uploaded photos are deleted.
+    expect(deletedImages).toHaveLength(3);
   });
 
   it('never leaves a donation post on a category deleted during the upload', async () => {
@@ -574,7 +578,8 @@ describe('category hide/delete racing a toy save', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('CATEGORY_NOT_FOUND');
     expect(await ToyModel.countDocuments()).toBe(0);
-    expect(deletedImages).toHaveLength(1);
+    // All three uploaded photos are deleted.
+    expect(deletedImages).toHaveLength(3);
   });
 
   it('either the delete sees the toy or the toy sees the category gone, when both run at once', async () => {

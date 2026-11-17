@@ -13,9 +13,10 @@ import { validateCreateToyListingInput } from '../validations/toy-listing.valida
 // rent/sell listings, so donation posts are created here with develop's toys model
 // (listingType 'donate', priceOrRate 0) and go through Admin moderation like any listing
 // (status 'pending'). Same checks as develop's listing: verified identity, active category,
-// 1-10 images (JPEG/PNG/WebP, develop's toyImageUpload middleware). Like POST /toys, the toy is
-// saved in the transaction that touches its category, so an Admin hide or delete during the
-// upload cannot leave the post on that category ("Category rules" in docs/api/toys.md).
+// JPEG/PNG/WebP images (develop's toyImageUpload middleware). A donation post has 3 to 10 photos
+// (R03 GB-10 and III.5.2.1 (2), R04 toys.images). Like POST /toys, the toy is saved in the
+// transaction that touches its category, so an Admin hide or delete during the upload cannot
+// leave the post on that category ("Category rules" in docs/api/toys.md).
 
 const isVerifiedUser = async (userId: string) =>
   (await IdentityVerification.exists({ userId, status: { $regex: /^verified$/i } })) !== null;
@@ -23,6 +24,10 @@ const isVerifiedUser = async (userId: string) =>
 const isActiveCategory = async (categoryId: string) =>
   mongoose.Types.ObjectId.isValid(categoryId) &&
   (await Category.exists({ _id: categoryId, status: { $regex: /^active$/i } })) !== null;
+
+/** R03 GB-10: a donation listing has 3 to 10 photos; toyImageUpload already refuses an 11th. */
+const MIN_DONATION_IMAGES = 3;
+const MAX_DONATION_IMAGES = 10;
 
 const categoryNotAvailable = () =>
   new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
@@ -46,8 +51,12 @@ export const createDonationPost = async (
   if (!(await isActiveCategory(input.categoryId))) {
     throw categoryNotAvailable();
   }
-  if (files.length === 0) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'At least one image is required.');
+  if (files.length < MIN_DONATION_IMAGES || files.length > MAX_DONATION_IMAGES) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `A donation post needs ${MIN_DONATION_IMAGES} to ${MAX_DONATION_IMAGES} images.`,
+    );
   }
   for (const file of files) validateToyImage(file.buffer, file.mimetype);
 
