@@ -120,7 +120,7 @@ function OrganizationForm({
         name="contactInfo"
         label="Liên hệ trụ sở (điện thoại hoặc email)"
         required
-        extra="Chỉ Admin thấy. Ví dụ: Chị Lan, phụ trách tiếp nhận"
+        extra="Chỉ Admin thấy. Ví dụ: 024 3826 1234 hoặc lienhe@maiam.vn"
       >
         {(field) => <Input {...field} maxLength={300} />}
       </FormField>

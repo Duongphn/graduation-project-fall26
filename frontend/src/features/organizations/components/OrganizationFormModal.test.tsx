@@ -66,6 +66,7 @@ beforeEach(() => {
 })
 
 describe('OrganizationFormModal', () => {
+  // Fills about 15 fields: ~4 s alone, over vitest's 5 s default when the whole suite runs.
   it('sends the receiving point and the needs, age groups as [minAge, maxAge)', async () => {
     get.mockResolvedValue(organization)
     update.mockResolvedValue({ data: organization })
@@ -95,7 +96,7 @@ describe('OrganizationFormModal', () => {
       isRemoteArea: false,
       isAccepting: false,
     })
-  })
+  }, 15_000)
 
   it('needs at least one handover method (GB-51)', async () => {
     get.mockResolvedValue(organization)
