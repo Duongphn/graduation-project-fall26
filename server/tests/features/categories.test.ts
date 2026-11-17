@@ -176,6 +176,21 @@ describe('hide, show and the public list', () => {
     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
   });
 
+  // R03 I.3.2 Category "display order", R04 3.12 display_order: the menus of the post form and
+  // the filters follow the order the Admin sees, also when two categories share a number.
+  it('lists the public categories in the Admin list order, ties in Vietnamese name order', async () => {
+    await createCategory('Xe điều khiển', { displayOrder: 5 });
+    await createCategory('Đồ chơi gỗ', { displayOrder: 5 });
+    await createCategory('Búp bê', { displayOrder: 1 });
+
+    const adminNames = (await get()).body.data.map((item: { name: string }) => item.name);
+    expect(adminNames).toEqual(['Búp bê', 'Đồ chơi gỗ', 'Xe điều khiển']);
+    const publicNames = (await request(app).get('/api/v1/categories')).body.map(
+      (item: { name: string }) => item.name,
+    );
+    expect(publicNames).toEqual(adminNames);
+  });
+
   it('does not expose admin fields publicly', async () => {
     await createCategory('Gỗ');
     const [item] = (await request(app).get('/api/v1/categories')).body;
