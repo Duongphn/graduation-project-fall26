@@ -12,6 +12,19 @@ export const cancelReasonPresets = [
   'Bàn giao thất bại, đồ chơi không đến được bên nhận',
 ] as const
 
+// GB-58: how the Donor handed the toy over (stored values of the API).
+export const donationHandoverMethodLabels: Record<'drop_off' | 'carrier', string> = {
+  drop_off: 'Mang đến điểm nhận',
+  carrier: 'Gửi qua đơn vị vận chuyển',
+}
+
+// GB-59: how the organization confirmed receipt to the Admin (R03 III.7.5.2 (8)).
+export const receiptChannelLabels: Record<'phone' | 'email' | 'in_person', string> = {
+  phone: 'Điện thoại',
+  email: 'Email',
+  in_person: 'Trực tiếp',
+}
+
 // Admin confirmation of a receipt on behalf of the receiver (SHIPPING).
 export const confirmReasonPresets = [
   'Tổ chức đã xác nhận qua điện thoại',

@@ -1,11 +1,15 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
-import { conflict, notFound, unprocessable } from '../utils/http-errors.js';
+import { conflict, forbidden, notFound, unprocessable } from '../utils/http-errors.js';
 import { domainEvents } from '../utils/domain-events.js';
 import { toMongoPaging } from '../utils/response.js';
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
-import { HANDOVER_EXPIRY_DAYS, PENDING_EXPIRY_DAYS } from '../constants/donation-request-transitions.js';
+import {
+  HANDOVER_EXPIRY_DAYS,
+  PENDING_EXPIRY_DAYS,
+  type HandoverMethod,
+} from '../constants/donation-request-transitions.js';
 import {
   type DonationView,
   encodePhoto,
@@ -19,6 +23,7 @@ import {
   canDecide,
   canHandOver,
   canView,
+  deciderOf,
   receiverTypeOf,
   type DonationActor,
 } from './donation-request.policy.js';
@@ -29,6 +34,7 @@ import {
   HANDOVER_PHOTO_PATTERN,
   type ConfirmReceivedBody,
   type CreateRequestBody,
+  type DonorOrganizationRequestBody,
   type HandoverBody,
   type MyRequestsQuery,
 } from '../validations/donation-request.validation.js';
@@ -70,11 +76,45 @@ export const listPage = async (
   return { items: await toDtos(items, view), total };
 };
 
-// ---- Create (receiver, or an Admin for an organization) ---------------------------------------
+// ---- Create (receiver, an Admin for an organization, or the Donor to an organization) ---------
 
-export const createRequest = async (
+/** GB-51/GB-58: the methods a receiving point accepts. No point (older organization): both. */
+const allowedMethodsOf = (point: OrganizationPoint | undefined): HandoverMethod[] =>
+  point
+    ? [
+        ...(point.acceptsDropOff ? (['drop_off'] as const) : []),
+        ...(point.acceptsParcel ? (['carrier'] as const) : []),
+      ]
+    : ['drop_off', 'carrier'];
+
+type OrganizationPoint = { acceptsDropOff: boolean; acceptsParcel: boolean };
+
+const assertMethodAllowed = (method: HandoverMethod, point: OrganizationPoint | undefined) => {
+  const allowed = allowedMethodsOf(point);
+  if (!allowed.includes(method)) {
+    throw unprocessable(
+      'HANDOVER_METHOD_NOT_ALLOWED',
+      method === 'drop_off'
+        ? 'Điểm nhận của tổ chức không nhận đồ mang đến. Vui lòng gửi qua vận chuyển.'
+        : 'Điểm nhận của tổ chức không nhận bưu kiện. Vui lòng mang đến điểm nhận.',
+      { field: 'handoverMethod', allowed },
+    );
+  }
+};
+
+/**
+ * RECEIVER: a User asks for someone else's post, or an Admin for an organization.
+ * DONOR (UC33, GB-56): the Donor sends their own post to an organization; the Admin decides.
+ */
+type CreateSide = 'RECEIVER' | 'DONOR';
+
+const insertPendingRequest = async (
   actor: DonationActor,
-  input: CreateRequestBody & { organizationId?: string },
+  input: CreateRequestBody & {
+    organizationId?: string;
+    handoverMethod?: HandoverMethod | undefined;
+  },
+  side: CreateSide,
 ) => {
   const created = await repository
     .withTransaction(async (session) => {
@@ -87,8 +127,12 @@ export const createRequest = async (
         }
         throw toyNotAvailable();
       }
-      if (String(toy.ownerId) === actor.userId) {
+      const ownToy = String(toy.ownerId) === actor.userId;
+      if (side === 'RECEIVER' && ownToy) {
         throw unprocessable('OWN_TOY', 'Bạn không thể xin đồ chơi do chính mình tặng.');
+      }
+      if (side === 'DONOR' && !ownToy) {
+        throw forbidden('Chỉ người đăng tin quyên góp mới gửi được đồ chơi này tới tổ chức.');
       }
       // GB-05: the toys of a locked account are hidden, so they cannot be requested.
       if ((await repository.findUserStatus(toy.ownerId, session))?.toUpperCase() === 'LOCKED') {
@@ -107,6 +151,9 @@ export const createRequest = async (
           if (/^active$/i.test(found.status)) throw organizationNotAccepting();
           throw organizationNotAvailable();
         }
+        if (input.handoverMethod) {
+          assertMethodAllowed(input.handoverMethod, organization.receivingPoint);
+        }
       }
 
       const record = await repository.insertRequest(
@@ -118,6 +165,7 @@ export const createRequest = async (
           // develop's itemDetails (required): the requester's message, else the toy title.
           itemDetails: input.message || toy.title,
           dueAt: daysFromNow(PENDING_EXPIRY_DAYS),
+          ...(input.handoverMethod ? { handoverMethod: input.handoverMethod } : {}),
         },
         session,
       );
@@ -148,6 +196,21 @@ export const createRequest = async (
   domainEvents.publish(buildEvent(record, created.toyTitle, undefined, 'pending', actor.userId));
   return toDetail(record, viewOf(actor));
 };
+
+export const createRequest = (
+  actor: DonationActor,
+  input: CreateRequestBody & { organizationId?: string },
+) => insertPendingRequest(actor, input, 'RECEIVER');
+
+/**
+ * UC33 (GB-56): the Donor sends their own Active donation post to an organization that is
+ * accepting toys (GB-55), with an optional note (max 300) and handover method. The request is
+ * Pending and the Admin accepts or rejects it for the organization.
+ */
+export const createOrganizationRequestByDonor = (
+  actor: DonationActor,
+  input: DonorOrganizationRequestBody,
+) => insertPendingRequest(actor, input, 'DONOR');
 
 // ---- Reads -----------------------------------------------------------------------------------
 
@@ -200,15 +263,23 @@ const detailOf = async (record: DonationRecord, actor: DonationActor) =>
   toDetail(record, viewOf(actor));
 
 /**
- * D-04: the Donor decides. An Admin may not accept or reject a PENDING request (not even an
- * organization request an Admin filed); Admins only resolve stuck ACCEPTED/SHIPPING requests
- * (cancel, confirm receipt). Runs after the 404 and status checks of the transition.
+ * GB-56: the side that did not create the request decides it. The Admin decides a request the
+ * Donor sent to an organization (409 ADMIN_DECISION_REQUIRED for the Donor); the Donor decides
+ * a request from a Receiver or from the Admin for an organization (409 DONOR_DECISION_REQUIRED
+ * for an Admin). Runs after the 404 and status checks of the transition.
  */
-const assertNotAdminDecision = (actor: DonationActor) => () => {
-  if (actor.isAdmin) {
+const assertDecider = (actor: DonationActor) => (record: DonationRecord) => {
+  const decider = deciderOf(record);
+  if (decider === 'DONOR' && actor.isAdmin) {
     throw conflict(
       'DONOR_DECISION_REQUIRED',
-      'Chỉ người quyên góp mới được chấp nhận hoặc từ chối yêu cầu nhận tặng.',
+      'Người quyên góp chấp nhận hoặc từ chối yêu cầu này.',
+    );
+  }
+  if (decider === 'ADMIN' && !actor.isAdmin) {
+    throw conflict(
+      'ADMIN_DECISION_REQUIRED',
+      'Admin sẽ chấp nhận hoặc từ chối yêu cầu bạn gửi tới tổ chức.',
     );
   }
 };
@@ -220,7 +291,7 @@ export const accept = async (actor: DonationActor, id: string) =>
       to: 'accepted',
       actor,
       allowed: canDecide,
-      check: assertNotAdminDecision(actor),
+      check: assertDecider(actor),
       // The donor now has HANDOVER_EXPIRY_DAYS to hand the toy over.
       set: { ...decided(actor), 'timer.dueAt': daysFromNow(HANDOVER_EXPIRY_DAYS) },
     }),
@@ -234,7 +305,7 @@ export const reject = async (actor: DonationActor, id: string, reason: string) =
       to: 'rejected',
       actor,
       allowed: canDecide,
-      check: assertNotAdminDecision(actor),
+      check: assertDecider(actor),
       set: { ...decided(actor), rejectReason: reason },
       unset: ['timer'],
       reason,
@@ -296,19 +367,90 @@ const handover = (
   at: new Date(),
 });
 
+/** GB-58: an organization's receiving point limits the method; a User receiver takes both. */
+const assertMethodForRequest =
+  (method: HandoverMethod) => async (record: DonationRecord, session: ClientSession) => {
+    const organizationId = record.receiver?.organizationId;
+    if (!organizationId) return;
+    const organization = await repository.findOrganization(organizationId, session);
+    assertMethodAllowed(method, organization?.receivingPoint);
+  };
+
 export const handOver = async (actor: DonationActor, id: string, body: HandoverBody) => {
   assertOwnPhotos(actor, body.photos);
+  const carrier = body.handoverMethod === 'carrier';
   return detailOf(
     await transition({
       id,
       to: 'shipping',
-      unset: ['timer'],
+      unset: [
+        'timer',
+        // A method chosen at the request may change; drop the carrier fields of a drop-off.
+        ...(carrier ? [] : ['carrierName', 'trackingCode']),
+      ],
       actor,
       allowed: canHandOver,
+      check: assertMethodForRequest(body.handoverMethod),
+      set: {
+        handoverMethod: body.handoverMethod,
+        ...(carrier && body.carrierName ? { carrierName: body.carrierName } : {}),
+        ...(carrier && body.trackingCode ? { trackingCode: body.trackingCode } : {}),
+      },
       pushHandover: handover('DONOR_SENT', actor, body),
     }),
     actor,
   );
+};
+
+/** GB-59: what the Admin records when an organization confirms receipt. */
+export interface OrganizationReceipt {
+  confirmedBy?: string | undefined;
+  channel?: 'phone' | 'email' | 'in_person' | undefined;
+  // YYYY-MM-DD, Vietnam time.
+  receivedAt?: string | undefined;
+}
+
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+/** The Vietnam calendar day of an instant: "2026-11-17". */
+const vietnamDay = (date: Date) => new Date(date.getTime() + VN_OFFSET_MS).toISOString().slice(0, 10);
+/** "2026-11-17" -> 2026-11-17T00:00:00+07:00. */
+const fromVietnamDay = (day: string) => new Date(`${day}T00:00:00+07:00`);
+
+/**
+ * GB-59 for an organization: who confirmed, the channel, the received date and at least one
+ * photo (MSG53). The date is not before the sent date and not in the future.
+ */
+const assertOrganizationReceipt = (
+  record: DonationRecord,
+  receipt: OrganizationReceipt,
+  photoCount: number,
+) => {
+  const missing = [
+    ...(receipt.confirmedBy ? [] : ['confirmedBy']),
+    ...(receipt.channel ? [] : ['channel']),
+    ...(receipt.receivedAt ? [] : ['receivedAt']),
+  ];
+  if (missing.length > 0) {
+    throw unprocessable(
+      'RECEIPT_DETAILS_REQUIRED',
+      'Cần nhập người xác nhận, kênh xác nhận và ngày nhận của tổ chức.',
+      missing.map((field) => ({ field, message: 'Bắt buộc khi xác nhận cho tổ chức.' })),
+    );
+  }
+  if (photoCount === 0) {
+    throw unprocessable('RECEIPT_PHOTO_REQUIRED', 'Vui lòng tải lên ít nhất một ảnh nhận hàng.', [
+      { field: 'photos', message: 'Cần ít nhất một ảnh.' },
+    ]);
+  }
+  const sent = record.handovers.find((item) => item.step === 'DONOR_SENT');
+  const day = receipt.receivedAt!;
+  if (day > vietnamDay(new Date()) || (sent && day < vietnamDay(sent.at))) {
+    throw unprocessable(
+      'RECEIVED_AT_INVALID',
+      'Ngày nhận không được trước ngày gửi và không được ở tương lai.',
+      [{ field: 'receivedAt', message: 'Ngày nhận không hợp lệ.' }],
+    );
+  }
 };
 
 export const confirmReceived = async (
@@ -317,8 +459,9 @@ export const confirmReceived = async (
   body: Omit<ConfirmReceivedBody, 'photos'> & {
     photos?: ConfirmReceivedBody['photos'] | undefined;
   },
-  options: { reason?: string | undefined } = {},
+  options: { reason?: string | undefined; receipt?: OrganizationReceipt } = {},
 ) => {
+  const receipt = options.receipt ?? {};
   // GB-20: the receiving user always gives receipt photos (the route schema requires them).
   if (!actor.isAdmin && (body.photos ?? []).length === 0) {
     throw unprocessable(
@@ -341,8 +484,20 @@ export const confirmReceived = async (
             'Cần nhập lý do khi Admin xác nhận đã nhận thay người nhận.',
           );
         }
+        if (actor.isAdmin && receiverTypeOf(record) === 'ORGANIZATION') {
+          assertOrganizationReceipt(record, receipt, (body.photos ?? []).length);
+        }
       },
-      set: { completedAt: new Date() },
+      set: (record) => ({
+        completedAt: new Date(),
+        ...(actor.isAdmin && receiverTypeOf(record) === 'ORGANIZATION'
+          ? {
+              confirmedBy: receipt.confirmedBy,
+              channel: receipt.channel,
+              receivedAt: fromVietnamDay(receipt.receivedAt!),
+            }
+          : {}),
+      }),
       ...(body.photos
         ? {
             pushHandover: handover('RECEIVER_RECEIVED', actor, {

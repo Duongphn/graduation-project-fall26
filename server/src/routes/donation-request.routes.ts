@@ -16,6 +16,7 @@ import {
   cancelBodySchema,
   confirmReceivedBodySchema,
   createRequestBodySchema,
+  donorOrganizationRequestBodySchema,
   handoverBodySchema,
   myRequestsQuerySchema,
   rejectBodySchema,
@@ -33,6 +34,11 @@ donationRequestsRouter.post(
   '/',
   validateRequest({ body: createRequestBodySchema }),
   controller.create,
+);
+donationRequestsRouter.post(
+  '/to-organization',
+  validateRequest({ body: donorOrganizationRequestBodySchema }),
+  controller.createToOrganization,
 );
 donationRequestsRouter.get(
   '/mine',
