@@ -1,8 +1,9 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AxiosError, AxiosHeaders } from 'axios'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { httpClient } from '../../../services/http-client'
 import { renderWithProviders } from '../../../test/render'
@@ -33,7 +34,8 @@ const listing: ToyListing = {
   priceOrRate: 20_000,
   depositPrice: 300_000,
   ageRange: { minAge: 3, maxAge: 6 },
-  images: [{ url: 'https://cdn.test/1.jpg', publicId: 'toyflow/toys/1' }],
+  // A rental has at least 3 photos (GB-10).
+  images: [1, 2, 3].map((n) => ({ url: `https://cdn.test/${n}.jpg`, publicId: `toyflow/toys/${n}` })),
   quantity: 1,
   status: 'active',
   createdAt: '2026-10-01T00:00:00.000Z',
@@ -62,9 +64,18 @@ const optionNames = () => Array.from((categorySelect() as HTMLSelectElement).opt
 // The multipart body of the n-th PATCH /toys/:id.
 const sentForm = (call = 0) => patch.mock.calls[call]?.[1] as FormData
 
+beforeAll(() => {
+  // jsdom has no object URLs; the photo uploader previews the chosen files with them.
+  URL.createObjectURL = () => 'blob:toy-photo'
+  URL.revokeObjectURL = () => undefined
+})
+
 beforeEach(() => {
   patch.mockReset()
 })
+
+const saveButton = () => screen.getByRole('button', { name: 'Lưu thay đổi' })
+const photoErrors = () => screen.queryByRole('alert')
 
 describe('ToyListingForm', () => {
   it('keeps a category the Admin hid after posting selected, and does not send it again', async () => {
@@ -110,5 +121,72 @@ describe('ToyListingForm', () => {
   it('waits for GET /categories before it calls the saved category hidden', () => {
     renderForm({ categories: [], categoriesLoading: true, categoriesLoaded: false })
     expect(optionNames()).toEqual(['Đang tải danh mục...'])
+  })
+})
+
+describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
+  it('asks for 3 photos for a rental and 4 for a sale before it saves (MSG21)', async () => {
+    const { user } = renderForm()
+
+    await user.click(screen.getByRole('button', { name: 'Xoá ảnh 3' }))
+    await user.click(saveButton())
+    expect(await screen.findByText('Vui lòng tải lên ít nhất 3 ảnh.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Bán lại' }))
+    fireEvent.change(screen.getByRole('textbox', { name: /^Giá bán mong muốn/ }), { target: { value: '250000' } })
+    await user.click(saveButton())
+    expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
+    expect(screen.getByText(/JPG hoặc PNG · tối đa 5 MB mỗi ảnh · từ 4 đến 8 ảnh/)).toBeInTheDocument()
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('takes JPG and PNG photos only, at most 8', async () => {
+    renderForm()
+    // The file picker filters by `accept`; a dropped file is not filtered, so check without it.
+    const user = userEvent.setup({ applyAccept: false })
+    const input = screen.getByLabelText(/Kéo thả ảnh vào đây/)
+
+    await user.upload(input, new File(['webp'], 'toy.webp', { type: 'image/webp' }))
+    expect(within(photoErrors() as HTMLElement).getByText('"toy.webp" không phải ảnh JPG hoặc PNG.')).toBeInTheDocument()
+
+    await user.upload(
+      input,
+      [4, 5, 6, 7, 8, 9].map((n) => new File(['toy'], `toy-${n}.jpg`, { type: 'image/jpeg' })),
+    )
+    expect(screen.getByText('Chỉ đăng được tối đa 8 ảnh, đã bỏ qua "toy-9.jpg".')).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: /^Ảnh đồ chơi/ })).toHaveLength(8)
+  })
+
+  it('checks the daily price range and a deposit of at least one day', async () => {
+    const { user } = renderForm()
+    const price = screen.getByRole('textbox', { name: /^Giá thuê theo ngày/ })
+    const deposit = screen.getByRole('textbox', { name: /^Tiền cọc bảo chứng/ })
+
+    // The money inputs keep their formatted text; set the digits directly.
+    fireEvent.change(price, { target: { value: '4000' } })
+    await user.click(saveButton())
+    expect(await screen.findByText('Giá phải từ 5.000 đ đến 5.000.000 đ')).toBeInTheDocument()
+
+    fireEvent.change(price, { target: { value: '50000' } })
+    fireEvent.change(deposit, { target: { value: '40000' } })
+    await user.click(saveButton())
+    expect(await screen.findByText('Tiền cọc tối thiểu bằng giá thuê một ngày')).toBeInTheDocument()
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('shows the photo minimum the server sends with TOO_FEW_PHOTOS', async () => {
+    patch.mockRejectedValueOnce(
+      new AxiosError('Please upload at least 4 photos.', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 400,
+        statusText: '',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: { error: { code: 'TOO_FEW_PHOTOS', message: 'Please upload at least 4 photos.', details: { min: 4, max: 8 } } },
+      }),
+    )
+    const { user } = renderForm()
+
+    await user.click(saveButton())
+    expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
   })
 })

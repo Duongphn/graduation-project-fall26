@@ -36,7 +36,8 @@ const saved: ToyListing = {
   priceOrRate: 20_000,
   depositPrice: 300_000,
   ageRange: { minAge: 3, maxAge: 6 },
-  images: [{ url: 'https://cdn.test/1.jpg', publicId: 'toyflow/toys/1' }],
+  // A rental has at least 3 photos (GB-10).
+  images: [1, 2, 3].map((n) => ({ url: `https://cdn.test/${n}.jpg`, publicId: `toyflow/toys/${n}` })),
   quantity: 1,
   status: 'pending',
   createdAt: '2026-10-29T00:00:00.000Z',
@@ -92,7 +93,7 @@ describe('ToyListingEditorPage', () => {
 
     await user.upload(
       screen.getByLabelText(/Kéo thả ảnh vào đây/),
-      new File(['toy'], 'toy.jpg', { type: 'image/jpeg' }),
+      [1, 2, 3].map((n) => new File(['toy'], `toy-${n}.jpg`, { type: 'image/jpeg' })),
     )
     await user.type(screen.getByRole('textbox', { name: /^Tên đồ chơi/ }), saved.title)
     await user.selectOptions(categorySelect(), 'Đồ chơi gỗ')

@@ -4,11 +4,30 @@ export const TITLE_MAX_LENGTH = 100
 export const DESCRIPTION_MIN_LENGTH = 50
 export const DESCRIPTION_MAX_LENGTH = 1000
 
-/** Giới hạn ảnh khớp với multer + validateToyImage ở backend */
-export const MIN_IMAGES = 1
+/** Giới hạn ảnh chung của các form tải ảnh khác (quyên góp, bàn giao, hồ sơ) */
 export const MAX_IMAGES = 10
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+/** Ảnh tin cho thuê / bán (R03 GB-10): thuê 3–8 ảnh, bán 4–8 ảnh; backend kiểm tra cùng giới hạn */
+export const LISTING_PHOTO_LIMITS = {
+  rent: { min: 3, max: 8 },
+  sell: { min: 4, max: 8 },
+} as const
+export const LISTING_MAX_IMAGES = 8
+/** Ảnh tin đăng chỉ nhận JPG hoặc PNG (R03 GB-10, MSG20) */
+export const LISTING_IMAGE_TYPES = ['image/jpeg', 'image/png']
+
+/** MSG21 */
+export const tooFewPhotosMessage = (min: number) => `Vui lòng tải lên ít nhất ${min} ảnh.`
+
+/** Khoảng giá (R03 III.3.1.1 (11)–(12), III.3.1.2 (12)) */
+export const PRICE_RULES = {
+  rent: { min: 5_000, max: 5_000_000 },
+  sell: { min: 10_000, max: 50_000_000 },
+} as const
+
+const formatVndNumber = (value: number) => value.toLocaleString('vi-VN')
 
 /** Backend lưu `condition` dạng chuỗi tự do; dùng nhãn cố định để dữ liệu đồng nhất */
 export const CONDITION_OPTIONS = [
@@ -44,12 +63,28 @@ export const listingSchema = z
       .trim()
       .min(DESCRIPTION_MIN_LENGTH, `Mô tả tối thiểu ${DESCRIPTION_MIN_LENGTH} ký tự`)
       .max(DESCRIPTION_MAX_LENGTH, `Mô tả tối đa ${DESCRIPTION_MAX_LENGTH} ký tự`),
-    priceOrRate: z.number({ error: 'Vui lòng nhập giá' }).positive('Giá phải lớn hơn 0'),
-    depositPrice: z.number().min(0, 'Tiền cọc không âm').optional(),
+    priceOrRate: z.number({ error: 'Vui lòng nhập giá' }).int('Giá phải là số nguyên (VND)'),
+    depositPrice: z.number().int('Tiền cọc phải là số nguyên (VND)').optional(),
   })
-  .refine((values) => values.listingType === 'sell' || values.depositPrice !== undefined, {
-    message: 'Vui lòng nhập tiền cọc',
-    path: ['depositPrice'],
+  .superRefine((values, ctx) => {
+    const range = PRICE_RULES[values.listingType]
+    if (values.priceOrRate < range.min || values.priceOrRate > range.max) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['priceOrRate'],
+        message: `Giá phải từ ${formatVndNumber(range.min)} đ đến ${formatVndNumber(range.max)} đ`,
+      })
+    }
+    if (values.listingType !== 'rent') return
+    if (values.depositPrice === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['depositPrice'], message: 'Vui lòng nhập tiền cọc' })
+    } else if (values.depositPrice < values.priceOrRate) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['depositPrice'],
+        message: 'Tiền cọc tối thiểu bằng giá thuê một ngày',
+      })
+    }
   })
 
 export type ListingFormValues = z.infer<typeof listingSchema>

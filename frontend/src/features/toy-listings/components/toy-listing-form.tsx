@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { FormProvider, useForm } from 'react-hook-form'
+import { FormProvider, useForm, useWatch } from 'react-hook-form'
 import { Link, useLocation } from 'react-router-dom'
 import { ListingDetailsSection } from './listing-details-section'
 import { ListingPhotoUploader } from './listing-photo-uploader'
@@ -20,10 +20,21 @@ import {
   type ToyListing,
 } from '../toy-listing-api'
 import { categoriesQuery } from '../toy-listing-queries'
-import { EMPTY_LISTING_VALUES, listingSchema, MIN_IMAGES, type ListingFormValues } from '../toy-listing-schema'
+import {
+  EMPTY_LISTING_VALUES,
+  LISTING_IMAGE_TYPES,
+  LISTING_MAX_IMAGES,
+  LISTING_PHOTO_LIMITS,
+  listingSchema,
+  tooFewPhotosMessage,
+  type ListingFormValues,
+} from '../toy-listing-schema'
 
 /** Lỗi ở ô Danh mục khi máy chủ báo danh mục vừa chọn đã bị ẩn hoặc xoá (CATEGORY_NOT_FOUND) */
 const CATEGORY_GONE_ERROR = 'Danh mục vừa chọn không còn hoạt động, vui lòng chọn danh mục khác'
+
+/** Ảnh tin cho thuê / bán: tối đa 8 ảnh JPG hoặc PNG (GB-10) */
+const LISTING_PHOTO_RULES = { maxImages: LISTING_MAX_IMAGES, acceptedTypes: LISTING_IMAGE_TYPES }
 
 /** Đưa tin đăng từ backend về giá trị form */
 function toSavedValues(listing?: ToyListing): Partial<ListingFormValues> {
@@ -68,8 +79,9 @@ export function ToyListingForm({
     defaultValues: toSavedValues(listing),
     mode: 'onTouched',
   })
-  const { handleSubmit, reset, setError, setValue } = form
-  const photos = useListingPhotos(listing?.images ?? [])
+  const { control, handleSubmit, reset, setError, setValue } = form
+  const listingType = useWatch({ control, name: 'listingType' })
+  const photos = useListingPhotos(listing?.images ?? [], LISTING_PHOTO_RULES)
   const [submitAttempted, setSubmitAttempted] = useState(false)
 
   const saveMutation = useMutation({
@@ -118,13 +130,15 @@ export function ToyListingForm({
     : categories
 
   const isSaving = saveMutation.isPending
+  // GB-10: tin thuê cần ít nhất 3 ảnh, tin bán ít nhất 4 ảnh
+  const minPhotos = LISTING_PHOTO_LIMITS[listingType ?? 'rent'].min
   const photoRequiredError =
-    submitAttempted && photos.photos.length < MIN_IMAGES ? 'Cần ít nhất 1 ảnh thật của đồ chơi' : undefined
+    submitAttempted && photos.photos.length < minPhotos ? tooFewPhotosMessage(minPhotos) : undefined
 
   const submit = () => {
     setSubmitAttempted(true)
     void handleSubmit((values) => {
-      if (photos.photos.length < MIN_IMAGES) return
+      if (photos.photos.length < LISTING_PHOTO_LIMITS[values.listingType].min) return
       saveMutation.mutate(values)
     })()
   }
@@ -161,6 +175,9 @@ export function ToyListingForm({
           <ListingPurposeSection />
           <ListingPhotoUploader
             photos={photos.photos}
+            minPhotos={minPhotos}
+            maxPhotos={LISTING_MAX_IMAGES}
+            acceptedTypes={LISTING_IMAGE_TYPES}
             rejections={photos.rejections}
             requiredError={photoRequiredError}
             canReorder={!isEdit}
