@@ -90,6 +90,9 @@ toySchema.index({ status: 1, listingType: 1, createdAt: -1 }, { name: 'browse_by
 toySchema.index({ location: '2dsphere', status: 1, listingType: 1 }, { name: 'near_me' });
 toySchema.index({ title: 'text', description: 'text' }, { name: 'keyword_search' });
 toySchema.index({ ownerId: 1, status: 1, createdAt: -1 }, { name: 'owner_toys' });
+// Toys of a category in every status: the Admin category list counts them and a category in use
+// cannot be deleted (R04 IV 2.2).
+toySchema.index({ categoryId: 1 }, { name: 'by_category_id' });
 toySchema.index(
   { 'moderation.submittedAt': 1 },
   {
