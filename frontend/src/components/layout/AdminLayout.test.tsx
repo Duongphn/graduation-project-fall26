@@ -1,13 +1,16 @@
-import { render, screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { theme } from 'antd'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeProvider } from '../../contexts/theme-provider'
+import { identityVerificationsApi } from '../../features/identity-verifications/api'
+import { toyModerationApi } from '../../features/toy-moderation/api'
 import { adminMenuItems } from '../../routes/admin-menu'
 import { adminPaths } from '../../routes/paths'
 import { palette } from '../../styles/palette'
+import { renderWithProviders } from '../../test/render'
 import { AdminLayout } from './AdminLayout'
 
 // Reads the antd tokens that the admin pages, their modals and popconfirms get.
@@ -27,6 +30,59 @@ function TokenProbe() {
   )
 }
 
+
+vi.mock('../../features/toy-moderation/api', () => ({
+  toyModerationApi: { counts: vi.fn() },
+}))
+vi.mock('../../features/identity-verifications/api', () => ({
+  identityVerificationsApi: { counts: vi.fn() },
+}))
+
+const toyCounts = vi.mocked(toyModerationApi.counts)
+const identityCounts = vi.mocked(identityVerificationsApi.counts)
+
+const renderLayout = () => {
+  const router = createMemoryRouter(
+    [{ path: '/admin', element: <AdminLayout />, children: [{ index: true, element: null }] }],
+    { initialEntries: ['/admin'] },
+  )
+  renderWithProviders(<RouterProvider router={router} />)
+}
+
+const menuItem = (label: string) => screen.getByText(label).closest('li') as HTMLElement
+
+beforeEach(() => {
+  toyCounts.mockReset()
+  identityCounts.mockReset()
+  toyCounts.mockResolvedValue({ pending: 0, active: 0, hidden: 0 })
+  identityCounts.mockResolvedValue({ pending: 0, verified: 0, rejected: 0 })
+})
+
+describe('AdminLayout pending counters (L7)', () => {
+  it('shows the pending listings and identity requests next to their menu entries', async () => {
+    toyCounts.mockResolvedValue({ pending: 4, active: 20, hidden: 1 })
+    identityCounts.mockResolvedValue({ pending: 2, verified: 9, rejected: 1 })
+    renderLayout()
+
+    expect(await screen.findByTitle('4 đang chờ duyệt')).toBeInTheDocument()
+    expect(within(menuItem('Duyệt tin đăng')).getByTitle('4 đang chờ duyệt')).toBeInTheDocument()
+    expect(
+      within(menuItem('Xác minh danh tính')).getByTitle('2 đang chờ duyệt'),
+    ).toBeInTheDocument()
+    // Counted over every listing, not a filtered view.
+    expect(toyCounts).toHaveBeenCalledWith({})
+  })
+
+  it('shows no counter when nothing is pending', async () => {
+    toyCounts.mockResolvedValue({ pending: 0, active: 3, hidden: 0 })
+    identityCounts.mockResolvedValue({ pending: 0, verified: 1, rejected: 0 })
+    renderLayout()
+
+    await vi.waitFor(() => expect(identityCounts).toHaveBeenCalled())
+    expect(screen.queryByTitle(/đang chờ duyệt/)).not.toBeInTheDocument()
+  })
+})
+
 const renderAt = (url: string) => {
   const router = createMemoryRouter(
     [
@@ -44,7 +100,7 @@ const renderAt = (url: string) => {
     { initialEntries: [url] },
   )
   // The app-wide providers of main.tsx: the site theme (light or dark) around every route.
-  render(
+  renderWithProviders(
     <ThemeProvider>
       <RouterProvider router={router} />
     </ThemeProvider>,

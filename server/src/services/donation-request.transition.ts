@@ -33,6 +33,13 @@ export const toyNotAvailable = () =>
 export const organizationNotAvailable = () =>
   conflict('ORGANIZATION_NOT_AVAILABLE', 'Tổ chức nhận tặng không còn hoạt động.');
 
+/** GB-55, MSG51: the organization is active but not taking toys now. */
+export const organizationNotAccepting = () =>
+  conflict(
+    'ORGANIZATION_NOT_ACCEPTING',
+    'Tổ chức này hiện không nhận đồ chơi. Vui lòng chọn tổ chức khác.',
+  );
+
 /** The audit context of an Admin actor (DonationActor carries the same facts). */
 export const adminContextOf = (actor: DonationActor) => ({
   actor: { actorType: 'ADMIN' as const, actorId: actor.userId },

@@ -201,6 +201,29 @@ describe('create', () => {
       .send({ toyId, organizationId });
     expect(forbidden.status).toBe(403);
   });
+
+  it('GB-55: no new request for an organization that is not accepting toys; pending ones go on', async () => {
+    const pending = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(pending.status).toBe(201);
+    await Organization.updateOne({ _id: organizationId }, { isAccepting: false });
+
+    const second = await createToy({ ownerId: donor });
+    const refused = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId: String(second._id), organizationId });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('ORGANIZATION_NOT_ACCEPTING');
+
+    const accepted = await request(app)
+      .post(`/donation-requests/${pending.body.data.id as string}/accept`)
+      .set(as(donor));
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.status).toBe('accepted');
+  });
 });
 
 describe('decisions', () => {

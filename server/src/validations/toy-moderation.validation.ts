@@ -47,8 +47,45 @@ const expectedUpdatedAtField = isoDateTimeSchema.openapi({
   description: 'updatedAt of the post as shown to the Admin (stale-edit token).',
 });
 
+// The Admin safety checklist of UC27 (R03 II.7.2, GB-48). Every item must be ticked before a post
+// is approved; rejecting needs no checklist. The ticks are stored as moderation.safetyChecklist.
+export const safetyChecklistItems = [
+  'photosShowWholeToy',
+  'ageFitsSmallParts',
+  'batteryCompartmentSecured',
+  'notRecalledOrBanned',
+  'noHiddenDefect',
+] as const;
+export type SafetyChecklistItem = (typeof safetyChecklistItems)[number];
+
+const tickedSchema = z.literal(true, {
+  error: 'Admin phải đánh dấu đủ các mục kiểm tra an toàn trước khi duyệt.',
+});
+
+export const safetyChecklistSchema = z
+  .object({
+    photosShowWholeToy: tickedSchema.openapi({
+      description: 'The photos show the whole toy, with no broken or sharp parts.',
+    }),
+    ageFitsSmallParts: tickedSchema.openapi({
+      description: 'The age range fits the small parts, magnets and batteries (GB-45).',
+    }),
+    batteryCompartmentSecured: tickedSchema.openapi({
+      description: 'A battery compartment, if any, is closed with a screw.',
+    }),
+    notRecalledOrBanned: tickedSchema.openapi({
+      description: 'The toy is not a known recalled or banned toy (GB-47).',
+    }),
+    noHiddenDefect: tickedSchema.openapi({
+      description: 'The description does not hide a known defect.',
+    }),
+  })
+  .strict()
+  .openapi('ToySafetyChecklist');
+export type SafetyChecklist = z.infer<typeof safetyChecklistSchema>;
+
 export const approveToyBodySchema = z
-  .object({ expectedUpdatedAt: expectedUpdatedAtField })
+  .object({ expectedUpdatedAt: expectedUpdatedAtField, safetyChecklist: safetyChecklistSchema })
   .strict()
   .openapi('ApproveToyRequest');
 export type ApproveToyBody = z.infer<typeof approveToyBodySchema>;
@@ -141,6 +178,10 @@ export const toyModerationDetailSchema = toyModerationListItemSchema
       rejectReason: z.string().nullable(),
       reviewedBy: z.object({ id: z.string(), fullName: z.string().nullable() }).nullable(),
       reviewedAt: isoDateTimeSchema.nullable(),
+      safetyChecklist: z
+        .record(z.enum(safetyChecklistItems), z.boolean())
+        .nullable()
+        .openapi({ description: 'The ticks the approving Admin gave; null before approval.' }),
     }),
     warnings: z.array(moderationWarningSchema).openapi({
       description: 'Rule-based hints for the Admin; the Admin still decides (LI-03).',

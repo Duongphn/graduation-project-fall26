@@ -14,7 +14,7 @@ Every MongoDB collection has one Mongoose model in `src/models/<name>.model.ts`,
 | `message.model.ts` | `Message` | — | Scaffold. |
 | `notification.model.ts` | `Notification` | identity verification, rental-orders | Status updates, deadlines, and handover notifications. |
 | `order-status-history.model.ts` | `OrderStatusHistory` | rental-orders | Order timeline tracking status transitions; index `order_timeline`. |
-| `organization.model.ts` | `Organization` | — | Scaffold. |
+| `organization.model.ts` | `Organization` | — | Charity organizations (R04 3.8): embedded `receivingPoint`, needs profile (`ageGroups`, `categoryIds`, `areaProvince`, `isRemoteArea`, `isAccepting`). |
 | `otp-request.model.ts` | `OtpRequest` | auth | |
 | `payment.model.ts` | `Payment` | — | Payment records behind external payment gateway (UC20). |
 | `purchase-order.model.ts` | `PurchaseOrder` | toy catalog, toy listings | Status catalog in `src/constants/resale-order-status.ts`. |

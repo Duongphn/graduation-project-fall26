@@ -4,7 +4,11 @@ import { Category } from '../models/category.model.js';
 import { User } from '../models/user.model.js';
 import { accentInsensitivePattern } from '../utils/text.js';
 import { Toy } from '../models/toy.model.js';
-import type { ModerationListingType, ModerationToyStatus } from '../validations/toy-moderation.validation.js';
+import type {
+  ModerationListingType,
+  ModerationToyStatus,
+  SafetyChecklist,
+} from '../validations/toy-moderation.validation.js';
 
 // Database access of the Admin moderation screens, on develop's toys / users / categories models.
 
@@ -59,6 +63,7 @@ export interface ToyRow {
     reviewedBy?: Types.ObjectId;
     reviewedAt?: Date;
     rejectReason?: string;
+    safetyChecklist?: SafetyChecklist;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -107,15 +112,29 @@ const ownerProjection = {
   createdAt: 1,
 } as const;
 
+// Posts created before moderation.submittedAt was written (or by a flow that does not write it)
+// queue by createdAt instead: sorting on the raw field would put them all first.
+const QUEUE_TIME = 'queueAt';
+
 export const findQueueToys = async (
   filter: ToyQueueFilter,
   paging: { sort: ToySort; skip: number; limit: number },
-): Promise<ToyRow[]> =>
-  (await Toy.find(toMongoFilter(filter), queueProjection)
-    .sort(paging.sort)
-    .skip(paging.skip)
-    .limit(paging.limit)
-    .lean()) as unknown as ToyRow[];
+): Promise<ToyRow[]> => {
+  const sort: ToySort = Object.fromEntries(
+    Object.entries(paging.sort).map(([field, order]) => [
+      field === 'moderation.submittedAt' ? QUEUE_TIME : field,
+      order,
+    ]),
+  );
+  return (await Toy.aggregate([
+    { $match: toMongoFilter(filter) },
+    { $addFields: { [QUEUE_TIME]: { $ifNull: ['$moderation.submittedAt', '$createdAt'] } } },
+    { $sort: sort },
+    { $skip: paging.skip },
+    { $limit: paging.limit },
+    { $project: queueProjection },
+  ])) as unknown as ToyRow[];
+};
 
 export const countToys = (filter: ToyQueueFilter) => Toy.countDocuments(toMongoFilter(filter));
 
@@ -178,7 +197,9 @@ const pendingAndUnchanged = (write: DecisionWrite) => ({
 });
 
 /** pending -> active. Null when the post changed or was decided meanwhile. */
-export const approvePending = async (write: DecisionWrite): Promise<ToyRow | null> =>
+export const approvePending = async (
+  write: DecisionWrite & { safetyChecklist: SafetyChecklist },
+): Promise<ToyRow | null> =>
   (await Toy.findOneAndUpdate(
     pendingAndUnchanged(write),
     {
@@ -186,6 +207,7 @@ export const approvePending = async (write: DecisionWrite): Promise<ToyRow | nul
         status: 'active',
         'moderation.reviewedBy': new Types.ObjectId(write.reviewerId),
         'moderation.reviewedAt': write.reviewedAt,
+        'moderation.safetyChecklist': write.safetyChecklist,
       },
       $unset: { 'moderation.rejectReason': 1 },
     },
@@ -205,6 +227,8 @@ export const rejectPending = async (
         'moderation.reviewedAt': write.reviewedAt,
         'moderation.rejectReason': write.reason,
       },
+      // A checklist from an earlier approval does not describe this version of the post.
+      $unset: { 'moderation.safetyChecklist': 1 },
     },
     { new: true, session: write.session },
   ).lean()) as unknown as ToyRow | null;

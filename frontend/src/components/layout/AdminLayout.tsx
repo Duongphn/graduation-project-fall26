@@ -1,15 +1,17 @@
-import { ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
+import { Badge, ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigation } from 'react-router-dom'
 
 import { adminMenuItems } from '../../routes/admin-menu'
 import { antdTheme } from '../../styles/theme'
+import { useAdminPendingCounts } from './useAdminPendingCounts'
 
 // Admin area shell: dark sidebar menu + content. Desktop-first (R01 LI-01).
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const navigation = useNavigation()
   const location = useLocation()
+  const pendingCounts = useAdminPendingCounts()
 
   // The longest menu path that prefixes the current URL is the selected entry.
   const selected =
@@ -36,11 +38,22 @@ export function AdminLayout() {
           mode="inline"
           selectedKeys={[selected]}
           // Real links: open in a new tab works and screen readers announce links.
-          items={adminMenuItems.map((item) => ({
-            key: item.key,
-            icon: item.icon,
-            label: <Link to={item.path}>{item.label}</Link>,
-          }))}
+          items={adminMenuItems.map((item) => {
+            const pending = item.pendingCounter ? (pendingCounts[item.pendingCounter] ?? 0) : 0
+            return {
+              key: item.key,
+              icon: item.icon,
+              // Pending counter (L7): the queue replaces any "new post" notification to Admins.
+              label: pending ? (
+                <span className="flex items-center justify-between gap-2">
+                  <Link to={item.path}>{item.label}</Link>
+                  <Badge count={pending} overflowCount={99} title={`${pending} đang chờ duyệt`} />
+                </span>
+              ) : (
+                <Link to={item.path}>{item.label}</Link>
+              ),
+            }
+          })}
         />
       </Layout.Sider>
       <Layout>
