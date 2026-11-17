@@ -7,7 +7,7 @@ import { deferred, renderWithProviders } from '../../../test/render'
 import type { WithMessage } from '../../../types/api'
 import { categoriesApi } from '../api'
 import type { AdminCategory } from '../types'
-import { CategoryFormModal } from './CategoryFormModal'
+import { CategoryFormModal, DESCRIPTION_HINT } from './CategoryFormModal'
 
 // No network: the feature api module is replaced; each test decides what the server answers.
 vi.mock('../api', () => ({
@@ -44,6 +44,14 @@ beforeEach(() => {
 })
 
 describe('CategoryFormModal', () => {
+  // The public list (GET /categories) has no description, so the hint must not promise users
+  // will see it.
+  it('describes the description as a note that users do not see', () => {
+    renderForm()
+    expect(screen.getByText(DESCRIPTION_HINT)).toBeInTheDocument()
+    expect(screen.queryByText(/Hiển thị cho người dùng/)).not.toBeInTheDocument()
+  })
+
   it('sends one create request for a double click on OK', async () => {
     const pending = deferred<WithMessage<AdminCategory>>()
     create.mockReturnValue(pending.promise)
