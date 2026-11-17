@@ -35,6 +35,9 @@ import { getApiErrorCode } from '../services/http-client'
 
 const NO_IMAGES: never[] = []
 
+/** Lỗi ở ô Danh mục khi máy chủ báo danh mục vừa chọn đã bị ẩn hoặc xoá (CATEGORY_NOT_FOUND) */
+const CATEGORY_GONE_ERROR = 'Danh mục vừa chọn không còn hoạt động, vui lòng chọn danh mục khác'
+
 /** Donor tạo phiếu quyên góp: đồ chơi, ảnh, kiểm duyệt an toàn, tổ chức mong muốn, cách bàn giao (UC27) */
 export function NewDonationPage() {
   const [searchParams] = useSearchParams()
@@ -44,7 +47,7 @@ export function NewDonationPage() {
   const [photoError, setPhotoError] = useState<string>()
   const photos = useListingPhotos(NO_IMAGES)
 
-  const { control, handleSubmit, setValue } = useForm<DonationPostValues>({
+  const { control, handleSubmit, setError, setValue } = useForm<DonationPostValues>({
     resolver: zodResolver(donationPostSchema),
     defaultValues: { ...EMPTY_DONATION_POST, receiver: presetOrganizationId ?? AUTO_MATCH },
   })
@@ -101,6 +104,15 @@ export function NewDonationPage() {
 
   const create = useMutation({
     mutationFn: createDonationPost,
+    onError: (error) => {
+      // Admin vừa ẩn/xoá danh mục đã chọn (kể cả trong lúc tải ảnh lên): tải lại danh sách để ô
+      // chọn không còn danh mục đó, và bỏ chọn nó để lần gửi sau không gửi lại đúng danh mục ấy.
+      if (getApiErrorCode(error) === 'CATEGORY_NOT_FOUND') {
+        setValue('categoryId', '')
+        setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
+        void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
+      }
+    },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY }),
   })
 
