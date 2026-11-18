@@ -28,6 +28,8 @@ export const donationStatuses = [
   'completed',
   'rejected',
   'cancelled',
+  // GB-57: set by the expiry job (JOB-10) on a pending or accepted request
+  'expired',
 ] as const
 export type DonationStatus = (typeof donationStatuses)[number]
 

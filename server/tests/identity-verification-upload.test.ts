@@ -7,7 +7,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { identityVerificationUpload } from '../src/middlewares/upload.middleware.js';
 import { validateIdentityImageBuffer } from '../src/utils/image-validation.js';
 import type { StoredIdentityImage } from '../src/interfaces/identity-verification.ports.js';
-import { CloudinaryIdentityStorage } from '../src/integrations/cloudinary/cloudinary-identity-storage.js';
+import {
+  CloudinaryIdentityStorage,
+  IDENTITY_LINK_TTL_SECONDS,
+} from '../src/integrations/cloudinary/cloudinary-identity-storage.js';
 import { errorHandler } from '../src/middlewares/error-handler.js';
 
 // Sample valid image fixtures
@@ -139,9 +142,23 @@ describe('identityVerificationUpload middleware', () => {
     expect(res.body.error.code).toBe('UNEXPECTED_FIELD');
   });
 
-  it('rejects with FILE_TOO_LARGE when file exceeds 5 MB', async () => {
+  it('accepts a 7.9 MB identity photo (limit 8 MB, TC-SEC-025)', async () => {
     const app = createUploadApp();
-    const largeBuffer = Buffer.alloc(5 * 1024 * 1024 + 10, 0xff);
+    const bigBuffer = Buffer.alloc(Math.round(7.9 * 1024 * 1024), 0xff);
+    VALID_JPEG.copy(bigBuffer, 0, 0, VALID_JPEG.length);
+
+    const res = await request(app)
+      .post('/api/v1/identity-verifications')
+      .attach('frontImage', bigBuffer, { filename: 'front.jpg', contentType: 'image/jpeg' })
+      .attach('backImage', VALID_JPEG, { filename: 'back.jpg', contentType: 'image/jpeg' })
+      .attach('selfie', VALID_JPEG, { filename: 'selfie.jpg', contentType: 'image/jpeg' });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects with FILE_TOO_LARGE when file exceeds 8 MB', async () => {
+    const app = createUploadApp();
+    const largeBuffer = Buffer.alloc(8 * 1024 * 1024 + 10, 0xff);
     // Write valid JPEG header at start
     VALID_JPEG.copy(largeBuffer, 0, 0, VALID_JPEG.length);
 
@@ -338,6 +355,27 @@ describe('CloudinaryIdentityStorage', () => {
     const expectedExpiryMs = before + 1800 * 1000;
     expect(delivery.expiresAt.getTime()).toBeGreaterThanOrEqual(expectedExpiryMs - 1000);
     expect(delivery.expiresAt.getTime()).toBeLessThanOrEqual(after + 1800 * 1000 + 1000);
+  });
+
+  it('signs identity links for 10 minutes by default (TC-SEC-017)', async () => {
+    const { client } = createMockCloudinaryClient();
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-18T08:00:00.000Z'));
+      const nowSeconds = Math.floor(Date.now() / 1000);
+
+      for (const storage of [
+        new CloudinaryIdentityStorage({ client }),
+        new CloudinaryIdentityStorage(client),
+      ]) {
+        const delivery = await storage.getAuthorizedDelivery('toyflow/identity/img-1');
+        expect(IDENTITY_LINK_TTL_SECONDS).toBe(600);
+        expect(delivery.expiresAt.getTime()).toBe((nowSeconds + 600) * 1000);
+        expect(delivery.url).toContain(`expires_at=${nowSeconds + 600}`);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects empty or whitespace publicId in getAuthorizedDelivery', async () => {

@@ -146,6 +146,27 @@ describe('admin create and edit', () => {
     expect(response.body.error.code).toBe('ORGANIZATION_NAME_TAKEN');
   });
 
+  it('refuses a name that differs only in letter case or accents, on create and on edit', async () => {
+    const first = await createOrganization();
+    const name = 'Mái ấm Hoa Hồng';
+    const upper = await adminApi.create(validBody({ name: name.toUpperCase() }));
+    const plain = await adminApi.create(
+      validBody({
+        name: name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D'),
+      }),
+    );
+    expect([upper.status, upper.body.error?.code]).toEqual([409, 'ORGANIZATION_NAME_TAKEN']);
+    expect([plain.status, plain.body.error?.code]).toEqual([409, 'ORGANIZATION_NAME_TAKEN']);
+    expect(await Organization.countDocuments()).toBe(1);
+
+    const other = await adminApi.create(validBody({ name: 'Làng trẻ SOS Gò Vấp' }));
+    const rename = await adminApi.update(other.body.data.id, { name: name.toLowerCase() });
+    expect([rename.status, rename.body.error?.code]).toEqual([409, 'ORGANIZATION_NAME_TAKEN']);
+    // Renaming an organization to its own name in another letter case is allowed.
+    const own = await adminApi.update(first.id, { name: name.toUpperCase() });
+    expect(own.status).toBe(200);
+  });
+
   it('updates fields and audits the change', async () => {
     const created = await createOrganization();
     const response = await adminApi.update(created.id, { contactInfo: 'Anh Minh' });

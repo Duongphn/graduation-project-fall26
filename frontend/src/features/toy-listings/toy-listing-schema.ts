@@ -9,6 +9,9 @@ export const DESCRIPTION_MAX_LENGTH = 1000
 /** Giới hạn ảnh chung của các form tải ảnh khác (quyên góp, bàn giao, hồ sơ) */
 export const MAX_IMAGES = 10
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+/** Ảnh đại diện tối đa 2 MB, ảnh CCCD tối đa 8 MB (R03 IV.2.3) */
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+export const MAX_IDENTITY_IMAGE_BYTES = 8 * 1024 * 1024
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 /** Ảnh tin cho thuê / bán (R03 GB-10): thuê 3–8 ảnh, bán 4–8 ảnh; backend kiểm tra cùng giới hạn */

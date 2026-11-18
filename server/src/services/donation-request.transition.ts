@@ -73,6 +73,7 @@ export const buildEvent = (
 ): DonationStatusChangedEvent => ({
   type: 'DONATION_STATUS_CHANGED',
   donationRequestId: String(record._id),
+  ...(record.code ? { code: record.code } : {}),
   toyId: String(record.toyId),
   toyTitle,
   donorId: String(record.donorId),

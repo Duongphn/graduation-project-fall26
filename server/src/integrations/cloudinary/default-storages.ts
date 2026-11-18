@@ -5,7 +5,10 @@ import type { ToyImageStorage } from '../../interfaces/toy-listing.ports.js';
 import type { UserAvatarStorage } from '../../interfaces/user.ports.js';
 import { AppError } from '../../utils/app-error.js';
 import { configureCloudinary } from './cloudinary-client.js';
-import { CloudinaryIdentityStorage } from './cloudinary-identity-storage.js';
+import {
+  CloudinaryIdentityStorage,
+  IDENTITY_LINK_TTL_SECONDS,
+} from './cloudinary-identity-storage.js';
 import { CloudinaryImageStorage } from './cloudinary-image-storage.js';
 
 /**
@@ -51,7 +54,7 @@ export function createDefaultIdentityStorage(): IdentityImageStorage {
       async getAuthorizedDelivery(publicId: string) {
         return {
           url: `https://api.cloudinary.com/download?publicId=${encodeURIComponent(publicId)}`,
-          expiresAt: new Date(Date.now() + 3600 * 1000),
+          expiresAt: new Date(Date.now() + IDENTITY_LINK_TTL_SECONDS * 1000),
         };
       },
     };

@@ -229,7 +229,7 @@ export function IdentityVerificationPage() {
                   <VerifyStep
                     done={idCardDone}
                     title="Ảnh căn cước công dân (2 mặt)"
-                    description="CCCD gắn chip hoặc CMND còn hạn. JPG, PNG hoặc WebP, tối đa 5 MB mỗi ảnh."
+                    description="CCCD gắn chip hoặc CMND còn hạn. JPG, PNG hoặc WebP, tối đa 8 MB mỗi ảnh."
                   >
                     <div className="tf-field verify-form__narrow">
                       <label htmlFor="verify-id-card" className="tf-label">
@@ -326,7 +326,7 @@ export function IdentityVerificationPage() {
                       {doneCount === 4 && <CircleCheck aria-hidden />}
                       Đã xong {doneCount}/4 mục
                     </span>
-                    <button type="submit" className="tf-btn tf-btn--primary tf-btn--inline" disabled={isSaving}>
+                    <button type="submit" className="tf-btn tf-btn--primary tf-btn--inline" disabled={isSaving || doneCount < 4}>
                       <ShieldCheck aria-hidden />
                       {isSaving ? 'Đang gửi hồ sơ...' : 'Gửi hồ sơ xác minh'}
                     </button>

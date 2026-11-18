@@ -235,11 +235,37 @@ describe('detail', () => {
       ]),
     );
     expect(response.body.data).toMatchObject({
-      minPhotos: 1,
+      minPhotos: 3,
       owner: { accountStatus: 'LOCKED' },
       updatedAt: tokenOf(toy),
     });
     expect(response.body.data.owner).not.toHaveProperty('phone');
+  });
+
+  it('flags too few photos with the GB-10 minimum of the listing type', async () => {
+    const rent = await createPending({ listingType: 'rent', images: photos(2) });
+    const sale = await createPending({
+      listingType: 'sell',
+      priceOrRate: 250_000,
+      images: photos(3),
+    });
+    const enough = await createPending({
+      listingType: 'sell',
+      priceOrRate: 250_000,
+      images: photos(4),
+    });
+
+    const codes = (body: { data: { warnings: { code: string }[] } }) =>
+      body.data.warnings.map((warning) => warning.code);
+    const a = await get(`/${String(rent._id)}`);
+    const b = await get(`/${String(sale._id)}`);
+    const c = await get(`/${String(enough._id)}`);
+    expect([a.body.data.minPhotos, b.body.data.minPhotos, c.body.data.minPhotos]).toEqual([
+      3, 4, 4,
+    ]);
+    expect(codes(a.body)).toContain('TOO_FEW_PHOTOS');
+    expect(codes(b.body)).toContain('TOO_FEW_PHOTOS');
+    expect(codes(c.body)).not.toContain('TOO_FEW_PHOTOS');
   });
 
   it('answers 404 for an unknown post and 400 for a bad id', async () => {

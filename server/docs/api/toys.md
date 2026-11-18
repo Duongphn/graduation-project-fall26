@@ -142,6 +142,7 @@ These endpoints require an authenticated user actor (`request.auth`). An Admin a
 - `PATCH /api/v1/toys/:toyId`: Edit an owned listing and add/remove images. If another save changed the listing's images after this request read the listing (for example a second tab saving during the upload) and this edit would overwrite them, the edit is refused with `409 LISTING_CHANGED`: nothing is stored and its new images are deleted. Reload the listing and try again.
 - `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
+- For a donation post, an `accepted` or `shipping` donation request counts as an unfinished order (`409 ORDER_IN_PROGRESS`, GB-12, GB-60). Hiding or deleting it rejects its `pending` donation requests with the reason "Người quyên góp đã ẩn/xóa đồ chơi này." and notifies the requesters (D-06).
 
 Field rules (R03 III.3.1.1 and III.3.1.2, R04 `toys`), on create and on the fields an edit sends:
 

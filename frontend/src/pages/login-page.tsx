@@ -46,7 +46,8 @@ export function LoginPage() {
   // ?redirect= comes from the /admin guard; only same-site paths are accepted.
   const redirectParam = searchParams.get('redirect')
   const safeRedirect = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
-  const redirectTo = state?.from ?? safeRedirect ?? PATHS.profile
+  // R03 III.1.2.1 (8): with no page that asked for sign-in, a User lands on the home page
+  const redirectTo = state?.from ?? safeRedirect ?? PATHS.home
   const registeredIdentifier = state?.registeredIdentifier
 
   // Sau khi Google xác thực, backend chuyển về một trong hai dạng:

@@ -46,6 +46,8 @@ const base: DonationRequestDetail = {
   decidedAt: null,
   rejectReason: null,
   completedAt: null,
+  expiredAt: null,
+  expiryReason: null,
   createdAt: '2026-11-10T00:00:00.000Z',
   updatedAt: '2026-11-10T00:00:00.000Z',
   decidedBy: null,

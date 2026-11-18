@@ -78,7 +78,22 @@ export interface ToyListingPorts {
     categoryId: string,
     save: (session: ClientSession) => Promise<T>,
   ): Promise<{ result: T; categoryName: string } | null>;
+  /**
+   * A rental or purchase order in progress, or (GB-12, GB-60) an accepted or shipping donation
+   * request: the toy cannot be hidden, edited or deleted then.
+   */
   hasUnfinishedOrder(toyId: string): Promise<boolean>;
+  /**
+   * D-06: the Donor hid or deleted a donation post. Its pending donation requests are rejected
+   * with the reason and the requesters are notified; resolves how many were closed. Optional so
+   * that test doubles without a donation flow need not provide it.
+   */
+  closePendingDonationRequests?(
+    toyId: string,
+    ownerId: string,
+    why: 'HIDDEN' | 'DELETED',
+    toyTitle: string,
+  ): Promise<number>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
   /** Names of the given categories, whatever their status (hidden included). */
   getCategoryNames(categoryIds: string[]): Promise<Map<string, string>>;

@@ -45,6 +45,8 @@ describe('rental-time', () => {
     expect(() => assertBookablePeriod({ startDate: d('2026-11-02'), endDate: d('2026-12-02') }, now, s)).toThrow(); // 31 days
     expect(() => assertBookablePeriod({ startDate: d('2027-04-29'), endDate: d('2027-04-30') }, now, s)).toThrow(); // beyond 180-day window
     expect(() => assertBookablePeriod({ startDate: d('2026-11-01'), endDate: d('2026-11-30') }, now, s)).not.toThrow();
+    expect(() => assertBookablePeriod({ startDate: d('2026-11-03'), endDate: d('2026-11-03') }, now, s)).toThrow(/từ 2 đến 30 ngày/); // 1 day
+    expect(() => assertBookablePeriod({ startDate: d('2026-11-03'), endDate: d('2026-11-04') }, now, s)).not.toThrow(); // 2 days
   });
 
   it('caps deadlines at the end of the start day', () => {
