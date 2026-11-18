@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 
 import { createApp } from './app.js';
-import { env } from './config/env.js';
+import { assertRequiredSecrets, env } from './config/env.js';
 import {
   connectDatabase,
   disconnectDatabase,
@@ -13,6 +13,7 @@ import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
+  assertRequiredSecrets();
   await connectDatabase(env.mongoDbUri);
   registerEventHandlers();
   const donationExpiryJob = startDonationExpiryJob();

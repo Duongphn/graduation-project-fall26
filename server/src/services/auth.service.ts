@@ -53,6 +53,9 @@ const RESET_TOKEN_EXPIRES_IN = '15m';
 /** Hạn của mã đổi sau đăng nhập Google — Frontend đổi ngay khi được chuyển về nên chỉ cần ngắn */
 const GOOGLE_LOGIN_CODE_TTL_SECONDS = 60;
 
+/** Chỉ lưu SHA-256 của Refresh Token trong DB (R04 III.1.1) — lộ DB cũng không dùng được token */
+const hashRefreshToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
+
 interface TempTokenPayload {
   email: string;
   type: 'google_2fa_pending';
@@ -86,21 +89,7 @@ export class AuthService {
       { expiresIn: env.jwtAccessExpiresIn } as jwt.SignOptions
     );
 
-    const refreshToken = jwt.sign(
-      {
-        userId: String(user._id),
-        jti: crypto.randomUUID(),
-      },
-      env.jwtRefreshSecret,
-      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
-    );
-
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await RefreshToken.create({
-      userId: user._id,
-      token: refreshToken,
-      expiresAt: refreshExpiresAt,
-    });
+    const refreshToken = await this.createRefreshToken(user._id);
 
     return {
       user: {
@@ -116,6 +105,30 @@ export class AuthService {
         refreshToken,
       },
     };
+  }
+
+  /**
+   * Ký Refresh Token mới và lưu hash của nó; hạn của bản ghi lấy từ chính `exp` của token
+   * để DB (TTL index) và JWT luôn hết hạn cùng lúc
+   */
+  private async createRefreshToken(userId: unknown): Promise<string> {
+    const refreshToken = jwt.sign(
+      {
+        userId: String(userId),
+        jti: crypto.randomUUID(),
+      },
+      env.jwtRefreshSecret,
+      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
+    );
+
+    const { exp } = jwt.decode(refreshToken) as { exp: number };
+    await RefreshToken.create({
+      userId,
+      token: hashRefreshToken(refreshToken),
+      expiresAt: new Date(exp * 1000),
+    });
+
+    return refreshToken;
   }
 
   /** Chặn đăng nhập nếu tài khoản bị khóa vĩnh viễn hoặc tạm thời */
@@ -729,8 +742,9 @@ export class AuthService {
    * Làm mới Access Token bằng Refresh Token (Token Rotation)
    */
   public async refreshToken(token: string): Promise<RefreshTokenResponse> {
-    // 1. Kiểm tra tính hợp lệ của Refresh Token trong Database
-    const storedToken = await RefreshToken.findOne({ token });
+    // 1. Lấy và xóa ngay bản ghi (theo hash) một cách nguyên tử — token cũ chỉ dùng được một lần,
+    //    kể cả khi hai request làm mới gửi cùng lúc. Mọi nhánh lỗi bên dưới cũng đều thu hồi token này
+    const storedToken = await RefreshToken.findOneAndDelete({ token: hashRefreshToken(token) });
     if (!storedToken) {
       throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã bị thu hồi.');
     }
@@ -740,21 +754,17 @@ export class AuthService {
     try {
       decoded = jwt.verify(token, env.jwtRefreshSecret) as { userId: string };
     } catch {
-      // Nếu token hết hạn hoặc sai chữ ký, xóa khỏi DB luôn
-      await RefreshToken.deleteOne({ token });
+      // Token hết hạn hoặc sai chữ ký (bản ghi đã bị xóa ở bước 1)
       throw new AppError(401, 'EXPIRED_REFRESH_TOKEN', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
 
     // 3. Kiểm tra User có còn active không
     const user = await User.findById(decoded.userId);
     if (!user || user.status !== 'ACTIVE') {
-      await RefreshToken.deleteOne({ token });
       throw new AppError(403, 'USER_INACTIVE', 'Tài khoản không tồn tại hoặc đã bị khóa.');
     }
 
-    // 4. Token Rotation: Xóa token cũ và cấp token mới
-    await RefreshToken.deleteOne({ token });
-
+    // 4. Token Rotation: token cũ đã bị xóa ở bước 1, cấp token mới
     const newAccessToken = jwt.sign(
       {
         userId: String(user._id),
@@ -765,21 +775,7 @@ export class AuthService {
       { expiresIn: env.jwtAccessExpiresIn } as jwt.SignOptions
     );
 
-    const newRefreshToken = jwt.sign(
-      {
-        userId: String(user._id),
-        jti: crypto.randomUUID(),
-      },
-      env.jwtRefreshSecret,
-      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
-    );
-
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await RefreshToken.create({
-      userId: user._id,
-      token: newRefreshToken,
-      expiresAt: refreshExpiresAt,
-    });
+    const newRefreshToken = await this.createRefreshToken(user._id);
 
     return {
       accessToken: newAccessToken,
@@ -788,22 +784,31 @@ export class AuthService {
   }
 
   /**
-   * Đăng xuất tài khoản (Xóa Refresh Token khỏi DB)
+   * Đăng xuất tài khoản (Xóa Refresh Token khỏi DB).
+   * Đăng xuất mọi thiết bị chỉ chạy với Refresh Token đúng chữ ký và còn trong DB — nếu không,
+   * ai cũng có thể tự tạo token mang userId của người khác để đá họ khỏi mọi phiên
    */
   public async logout(token: string, allDevices = false): Promise<{ message: string }> {
+    const tokenHash = hashRefreshToken(token);
+
     if (allDevices) {
+      const invalid = new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã bị thu hồi.');
+      let decoded: { userId?: string };
       try {
-        const decoded = jwt.decode(token) as { userId?: string } | null;
-        if (decoded?.userId) {
-          await RefreshToken.deleteMany({ userId: decoded.userId });
-          return { message: 'Đã đăng xuất thành công khỏi tất cả các thiết bị!' };
-        }
+        decoded = jwt.verify(token, env.jwtRefreshSecret) as { userId?: string };
       } catch {
-        // Fallback xóa token đơn lẻ nếu decode lỗi
+        throw invalid;
       }
+      if (!decoded.userId || !(await RefreshToken.exists({ token: tokenHash, userId: decoded.userId }))) {
+        throw invalid;
+      }
+
+      await RefreshToken.deleteMany({ userId: decoded.userId });
+      return { message: 'Đã đăng xuất thành công khỏi tất cả các thiết bị!' };
     }
 
-    await RefreshToken.deleteOne({ token });
+    // Đăng xuất một thiết bị: token lạ hoặc đã thu hồi thì không có gì để xóa (idempotent)
+    await RefreshToken.deleteOne({ token: tokenHash });
     return {
       message: 'Đăng xuất thành công!',
     };
