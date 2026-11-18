@@ -3,11 +3,16 @@ import { RentalOrderController } from '../controllers/rental-order.controller.js
 import { authenticate } from '../middlewares/authenticate.js';
 import { requireActor } from '../middlewares/require-actor.js';
 import { rentalPhotoUpload } from '../middlewares/upload.middleware.js';
+import { type DisputeService } from '../services/dispute.service.js';
 import { type RentalOrderService } from '../services/rental-order.service.js';
+import { createRentalDisputeRouter } from './dispute.routes.js';
 
-export function createRentalOrderRouter(service: RentalOrderService): Router {
+export function createRentalOrderRouter(
+  service: RentalOrderService,
+  disputeService: DisputeService,
+): Router {
   const router = Router();
-  const controller = new RentalOrderController(service);
+  const controller = new RentalOrderController(service, disputeService);
 
   router.post('/quote', authenticate, requireActor, controller.quote);
   router.post('/', authenticate, requireActor, controller.create);
@@ -21,6 +26,7 @@ export function createRentalOrderRouter(service: RentalOrderService): Router {
   router.post('/:id/receive', authenticate, requireActor, rentalPhotoUpload, controller.receive);
   router.post('/:id/return', authenticate, requireActor, rentalPhotoUpload, controller.returnToy);
   router.post('/:id/settle', authenticate, requireActor, rentalPhotoUpload, controller.settle);
+  router.use(createRentalDisputeRouter(disputeService));
 
   return router;
 }
