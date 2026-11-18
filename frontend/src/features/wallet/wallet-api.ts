@@ -4,6 +4,7 @@ import type { Paginated } from '../../types/api'
 /**
  * GET /wallets/me, GET /wallets/me/transactions — server/docs/api/wallets.md
  * POST /payments/vnpay/topup, GET /payments/vnpay/return (UC17) — server/docs/api/payments.md
+ * POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
  */
 
 export interface WalletHoldings {
@@ -18,7 +19,8 @@ export interface WalletSummary {
   availableBalance: number
   /** Đã rời số dư nhưng vẫn là tiền của bạn: tổng các khoản trong `holdings` */
   holdingBalance: number
-  holdings: WalletHoldings
+  /** Chi tiết khoản tạm giữ (không phải backend nào cũng trả) */
+  holdings?: WalletHoldings
   currency: string
 }
 
@@ -71,6 +73,47 @@ export interface TopupResult {
   balance: number
 }
 
+/** Hạn mức một lệnh rút (khớp WITHDRAWAL_LIMITS ở backend) */
+export const WITHDRAWAL_MIN_AMOUNT = 50_000
+export const WITHDRAWAL_MAX_AMOUNT = 20_000_000
+
+export interface BankInfo {
+  bankName: string
+  accountNumber: string
+  /** In hoa, không dấu (server cũng tự in hoa) */
+  accountHolderName: string
+}
+
+/** pending: đang chờ, tiền đã tạm trừ · approved: đã duyệt · completed: đã chuyển khoản · rejected: bị từ chối, tiền hoàn về ví */
+export type WithdrawalStatus = 'pending' | 'approved' | 'completed' | 'rejected'
+
+export interface WithdrawalRequest {
+  id: string
+  code?: string
+  amount: number
+  bankInfo: BankInfo
+  status: WithdrawalStatus
+  /** Ghi chú của Admin, vd. lý do từ chối */
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateWithdrawalInput {
+  amount: number
+  bankInfo: BankInfo
+}
+
+/** GET /wallets/withdrawals trả danh sách trong `data` (không dùng envelope `pagination`) */
+export interface WithdrawalPage {
+  items: WithdrawalRequest[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+  hasNextPage?: boolean
+}
+
 export const walletApi = {
   // limit=1: màn hình chỉ cần số dư, lịch sử lấy ở /wallets/me/transactions
   me: () => apiGet<WalletSummary>('/wallets/me', { limit: 1 }),
@@ -82,4 +125,7 @@ export const walletApi = {
    * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
    */
   confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay/return${search}`),
+  /** UC18: tạo lệnh rút Pending, server tạm trừ số tiền khỏi số dư khả dụng */
+  createWithdrawal: (input: CreateWithdrawalInput) => apiPost<WithdrawalRequest>('/wallets/withdrawals', input),
+  myWithdrawals: (params: { page: number; limit: number }) => apiGet<WithdrawalPage>('/wallets/withdrawals', params),
 }

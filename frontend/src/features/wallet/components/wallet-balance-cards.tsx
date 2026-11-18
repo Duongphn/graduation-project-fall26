@@ -10,7 +10,7 @@ interface WalletBalanceCardsProps {
 
 const amountOrDots = (value: number | undefined) => (value === undefined ? '…' : formatVnd(value))
 
-/** Hai thẻ số dư: khả dụng (dùng ngay) và đang tạm giữ (tiền thuê + cọc chưa quyết toán) */
+/** Hai thẻ số dư: khả dụng (dùng ngay) và đang tạm giữ (tiền thuê + cọc chưa quyết toán, lệnh rút đang chờ) */
 export function WalletBalanceCards({ wallet }: WalletBalanceCardsProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -30,7 +30,7 @@ export function WalletBalanceCards({ wallet }: WalletBalanceCardsProps) {
           {amountOrDots(wallet?.holdingBalance)}
         </p>
         <p className="mt-1 text-xs text-tf-ink-muted">
-          Tiền thuê và tiền cọc của các đơn đang thuê, ToyFlow giữ đến khi trả đồ và quyết toán.
+          Tiền thuê, tiền cọc của đơn đang thuê và lệnh rút đang chờ xử lý. Vẫn là tiền của bạn.
         </p>
       </section>
     </div>

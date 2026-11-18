@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Pagination } from 'antd'
-import { ChevronRight, Home, Plus } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, ChevronRight, Home, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
@@ -9,9 +9,14 @@ import { TopupDialog } from '../features/wallet/components/topup-dialog'
 import { WalletBalanceCards } from '../features/wallet/components/wallet-balance-cards'
 import { WalletHistoryFilters } from '../features/wallet/components/wallet-history-filters'
 import { WalletTransactionList } from '../features/wallet/components/wallet-transaction-list'
+import { WithdrawDialog } from '../features/wallet/components/withdraw-dialog'
+import { WithdrawalList } from '../features/wallet/components/withdrawal-list'
+import { formatVnd } from '../features/toy-listings/format-vnd'
+import type { WithdrawalRequest } from '../features/wallet/wallet-api'
 import { parseTopupRequest } from '../features/wallet/topup-session'
 import {
   myWalletQuery,
+  myWithdrawalsQuery,
   parseWalletHistorySearch,
   toWalletHistorySearch,
   WALLET_HISTORY_PAGE_SIZE,
@@ -27,8 +32,11 @@ export function WalletPage() {
   // ?topup=50000&returnTo=/rentals/mine/… (từ khung thanh toán đơn thuê): mở sẵn hộp nạp tiền
   const topupRequest = parseTopupRequest(searchParams)
   const [topupOpen, setTopupOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [createdWithdrawal, setCreatedWithdrawal] = useState<WithdrawalRequest | null>(null)
   const wallet = useQuery(myWalletQuery)
   const history = useQuery(walletTransactionsQuery(filters))
+  const withdrawals = useQuery(myWithdrawalsQuery)
 
   useEffect(() => {
     document.title = 'Ví ToyFlow | ToyFlow'
@@ -38,6 +46,9 @@ export function WalletPage() {
   const total = history.data?.pagination.totalItems ?? 0
   const filtered = Boolean(filters.type || filters.direction)
   const showTopup = topupOpen || topupRequest !== undefined
+  const recentWithdrawals = withdrawals.data?.items ?? []
+  // Mỗi người chỉ có một lệnh rút đang chờ (server cũng chặn)
+  const pendingWithdrawal = recentWithdrawals.find((withdrawal) => withdrawal.status === 'pending')
 
   const closeTopup = () => {
     setTopupOpen(false)
@@ -62,14 +73,38 @@ export function WalletPage() {
           <h1 className="text-2xl leading-tight font-bold tracking-[-0.02em] text-tf-ink">Ví ToyFlow</h1>
           <p className="mt-1 text-sm text-tf-ink-muted">Số dư của bạn và mọi khoản tiền vào, ra khỏi ví.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setTopupOpen(true)}
-          className="inline-flex h-10 items-center gap-2 self-start rounded-full bg-tf-primary px-4 text-sm font-bold text-white hover:bg-tf-primary-container sm:self-auto"
-        >
-          <Plus className="size-4" aria-hidden /> Nạp tiền
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setTopupOpen(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-tf-primary px-4 text-sm font-bold text-white hover:bg-tf-primary-container"
+          >
+            <Plus className="size-4" aria-hidden /> Nạp tiền
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCreatedWithdrawal(null)
+              setWithdrawOpen(true)
+            }}
+            disabled={!wallet.data || pendingWithdrawal !== undefined}
+            title={pendingWithdrawal ? 'Bạn đang có một lệnh rút chờ xử lý' : undefined}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-tf-surface bg-white px-4 text-sm font-semibold text-tf-primary hover:border-tf-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ArrowUpRight className="size-4" aria-hidden /> Rút tiền
+          </button>
+        </div>
       </header>
+
+      <div aria-live="polite">
+        {createdWithdrawal && (
+          <p className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+            Đã tạo lệnh rút {formatVnd(createdWithdrawal.amount)}. Số tiền đã được tạm trừ khỏi số dư khả dụng và sẽ
+            được chuyển về {createdWithdrawal.bankInfo.bankName} sau khi ToyFlow duyệt.
+          </p>
+        )}
+      </div>
 
       <div className="mt-4">
         {wallet.isError ? (
@@ -78,6 +113,22 @@ export function WalletPage() {
           <WalletBalanceCards wallet={wallet.data} />
         )}
       </div>
+
+      {recentWithdrawals.length > 0 && (
+        <section aria-labelledby="wallet-withdrawals-title" className="mt-6 flex flex-col gap-3">
+          <div>
+            <h2 id="wallet-withdrawals-title" className="text-lg font-bold text-tf-ink">
+              Lệnh rút tiền
+            </h2>
+            {pendingWithdrawal && (
+              <p className="text-sm text-tf-ink-muted">
+                Bạn có một lệnh đang chờ xử lý; có thể tạo lệnh mới sau khi lệnh này hoàn tất.
+              </p>
+            )}
+          </div>
+          <WithdrawalList withdrawals={recentWithdrawals} />
+        </section>
+      )}
 
       <section aria-labelledby="wallet-history-title" className="mt-6 flex flex-col gap-4">
         <h2 id="wallet-history-title" className="text-lg font-bold text-tf-ink">
@@ -126,6 +177,17 @@ export function WalletPage() {
           />
         )}
       </section>
+
+      {withdrawOpen && wallet.data && (
+        <WithdrawDialog
+          availableBalance={wallet.data.availableBalance}
+          onClose={() => setWithdrawOpen(false)}
+          onCreated={(withdrawal) => {
+            setWithdrawOpen(false)
+            setCreatedWithdrawal(withdrawal)
+          }}
+        />
+      )}
 
       {showTopup && (
         <TopupDialog onClose={closeTopup} initialAmount={topupRequest?.amount} returnTo={topupRequest?.returnTo} />

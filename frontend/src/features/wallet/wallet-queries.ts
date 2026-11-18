@@ -46,7 +46,18 @@ export function toWalletHistorySearch({ type, direction, page }: WalletHistoryFi
 export const walletKeys = {
   me: ['wallet', 'me'] as const,
   transactions: (filters: WalletHistoryFilters) => [...walletKeys.me, 'transactions', filters] as const,
+  withdrawals: ['wallet', 'me', 'withdrawals'] as const,
 }
+
+/** Số lệnh rút gần nhất hiện trên màn hình ví */
+export const RECENT_WITHDRAWALS_LIMIT = 5
+
+export const myWithdrawalsQuery = queryOptions({
+  queryKey: walletKeys.withdrawals,
+  queryFn: () => walletApi.myWithdrawals({ page: 1, limit: RECENT_WITHDRAWALS_LIMIT }),
+  staleTime: 10_000,
+  retry: false,
+})
 
 export const myWalletQuery = queryOptions({
   queryKey: walletKeys.me,
