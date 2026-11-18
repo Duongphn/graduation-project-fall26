@@ -102,7 +102,8 @@ export class RentalOrderController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const query = validateRentalListQuery(req.query);
+      const actorRole = (req.auth as any)?.role ?? req.auth?.actorType;
+      const query = validateRentalListQuery(req.query, actorRole);
       const data = await this.service.list(req.auth!, query);
       res.status(200).json({ success: true, data });
     } catch (err) {

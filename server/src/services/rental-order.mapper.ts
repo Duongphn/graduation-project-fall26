@@ -1,5 +1,15 @@
 import { type IRentalOrder, type RentalOrderDoc } from '../models/rental-order.model.js';
-import { type RentalOrderDto } from '../types/rental-order.types.js';
+import { type EnrichedRentalOrderDoc } from '../repositories/rental-order.repository.js';
+import {
+  type RentalFinancialBreakdownDto,
+  type RentalOrderDetailDto,
+  type RentalOrderDto,
+  type RentalOrderItemDto,
+  type RentalOrderItemPricingDto,
+  type RentalPartyProfileDto,
+  type RentalTimelineEntryDto,
+  type RentalToySummaryDto,
+} from '../types/rental-order.types.js';
 import { formatDateOnly } from './rental-time.js';
 
 /** Chuyển document đơn thuê sang DTO trả về API; nhóm con rỗng (chưa giao, chưa trả…) bị bỏ. */
@@ -56,5 +66,80 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
         : undefined,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+  };
+}
+
+/** Chuyển document đơn thuê sang Item DTO cho danh sách đơn thuê (bỏ platformFee nếu là renter). */
+export function toRentalOrderItemDto(
+  doc: EnrichedRentalOrderDoc | IRentalOrder | RentalOrderDoc,
+  actorRole?: string,
+): RentalOrderItemDto {
+  const enriched = doc as Partial<EnrichedRentalOrderDoc>;
+  const isOwner =
+    actorRole === 'owner' ||
+    (actorRole !== 'renter' && enriched.role === 'owner');
+  const role: 'renter' | 'owner' = isOwner ? 'owner' : 'renter';
+
+  // Renter does not receive platformFee or platformFeeRate in item pricing
+  const isRenter =
+    actorRole === 'renter' ||
+    (!actorRole && enriched.role === 'renter') ||
+    (!actorRole && !enriched.role);
+
+  const pricing: RentalOrderItemPricingDto = {
+    days: doc.pricing.days,
+    dailyRate: doc.pricing.dailyRate,
+    rentalFee: doc.pricing.rentalFee,
+    depositAmount: doc.pricing.depositAmount,
+    totalPayable: doc.pricing.totalPayable,
+  };
+
+  if (!isRenter) {
+    pricing.platformFeeRate = doc.pricing.platformFeeRate;
+    pricing.platformFee = doc.pricing.platformFee;
+  }
+
+  return {
+    id: doc._id.toString(),
+    code: doc.code,
+    role,
+    status: doc.status,
+    period: {
+      startDate: formatDateOnly(doc.period.startDate),
+      endDate: formatDateOnly(doc.period.endDate),
+    },
+    pricing,
+    toy: enriched.toy ?? undefined,
+    counterpart: enriched.counterpart ?? undefined,
+    timer:
+      doc.timer?.kind && doc.timer.dueAt
+        ? { kind: doc.timer.kind, dueAt: doc.timer.dueAt }
+        : undefined,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
+}
+
+/** Chuyển document đơn thuê sang Detail DTO hoàn chỉnh kèm metadata mở rộng. */
+export function toRentalOrderDetailDto(
+  order: RentalOrderDoc | IRentalOrder,
+  extras: {
+    toy?: RentalToySummaryDto | undefined;
+    renter?: RentalPartyProfileDto | undefined;
+    owner?: RentalPartyProfileDto | undefined;
+    timeline?: RentalTimelineEntryDto[] | undefined;
+    financialBreakdown?: RentalFinancialBreakdownDto | undefined;
+  } = {},
+): RentalOrderDetailDto {
+  const baseDto = toRentalOrderDto(order);
+  return {
+    ...baseDto,
+    ...(extras.toy !== undefined ? { toy: extras.toy } : {}),
+    ...(extras.renter !== undefined ? { renter: extras.renter } : {}),
+    ...(extras.owner !== undefined ? { owner: extras.owner } : {}),
+    ...(extras.timeline !== undefined ? { timeline: extras.timeline } : {}),
+    ...(extras.financialBreakdown !== undefined
+      ? { financialBreakdown: extras.financialBreakdown }
+      : {}),
   };
 }

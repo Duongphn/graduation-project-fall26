@@ -1,5 +1,9 @@
 import mongoose, { type HydratedDocument, Types } from 'mongoose';
-import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
+import {
+  SYSTEM_ACTOR_ID,
+  type RentalOrderStatus,
+  type RentalTimerKind,
+} from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
 import { type IToy } from '../models/toy.model.js';
@@ -17,14 +21,24 @@ import {
   suggestFreeRange,
   vnToday,
 } from './rental-time.js';
-import { toRentalOrderDto } from './rental-order.mapper.js';
+import {
+  toRentalOrderDetailDto,
+  toRentalOrderItemDto,
+  toRentalOrderDto,
+} from './rental-order.mapper.js';
+import { computeFinancialBreakdown } from './rental-financial-breakdown.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
 import {
   type RentalHistoryEntryDto,
   type RentalOrderDetailDto,
   type RentalOrderDto,
+  type RentalOrderItemDto,
+  type RentalPartyProfileDto,
   type RentalQuoteDto,
   type RentalSettings,
+  type RentalTimelineActorDto,
+  type RentalTimelineEntryDto,
+  type RentalToySummaryDto,
 } from '../types/rental-order.types.js';
 import { type RequestActor } from '../types/request-actor.js';
 import {
@@ -34,6 +48,7 @@ import {
 } from '../validations/rental-order.validation.js';
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
+import { slugify } from '../utils/slug.js';
 import { RentalOrderCore } from './rental-order-core.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
@@ -78,6 +93,15 @@ export class RentalOrderService extends RentalOrderCore {
 
     const isRenter = order.renterId.toString() === actor.userId;
     const isOwner = order.ownerId.toString() === actor.userId;
+    const actorRole = (actor as RequestActor & { role?: string }).role ?? actor.actorType;
+    const isAdmin = actorRole?.toLowerCase() === 'admin' || actorRole?.toUpperCase() === 'ADMIN';
+
+    if (role === 'any') {
+      if (!isRenter && !isOwner && !isAdmin) {
+        throw new AppError(404, 'RENTAL_NOT_FOUND', 'Không tìm thấy đơn thuê.');
+      }
+      return order;
+    }
 
     if (!isRenter && !isOwner) {
       throw new AppError(404, 'RENTAL_NOT_FOUND', 'Không tìm thấy đơn thuê.');
@@ -321,40 +345,169 @@ export class RentalOrderService extends RentalOrderCore {
 
   public async get(actor: RequestActor, orderId: string): Promise<RentalOrderDetailDto> {
     const order = await this.loadForParty(actor, orderId, 'any');
-    const dto = toRentalOrderDto(order) as RentalOrderDetailDto;
 
-    if (actor.userId === order.ownerId.toString()) {
-      const renter = await this.userModel.findById(order.renterId);
-      if (renter) {
-        dto.renter = {
-          fullName: renter.fullName,
-          avatar: renter.avatar ?? undefined,
-          trustScore: renter.trust?.score ?? undefined,
-          verified: renter.verificationStatus === 'verified',
-        };
+    const actorRole = (actor as RequestActor & { role?: string }).role ?? actor.actorType;
+    const isAdmin = actorRole?.toLowerCase() === 'admin' || actorRole?.toUpperCase() === 'ADMIN';
+    const isRenter = order.renterId.toString() === actor.userId;
+
+    let effectiveRole: 'renter' | 'owner' | 'admin';
+    if (isAdmin) {
+      effectiveRole = 'admin';
+    } else if (isRenter) {
+      effectiveRole = 'renter';
+    } else {
+      effectiveRole = 'owner';
+    }
+
+    const [toyDoc, renterUser, ownerUser, historyRows] = await Promise.all([
+      this.toyModel.findById(order.toyId).lean(),
+      this.userModel.findById(order.renterId).lean(),
+      this.userModel.findById(order.ownerId).lean(),
+      this.orderStatusHistoryModel
+        .find({ orderType: 'RENTAL', orderId: order._id })
+        .sort({ occurredAt: 1 })
+        .lean(),
+    ]);
+
+    let toyDto: RentalToySummaryDto | undefined;
+    if (toyDoc) {
+      const images = (toyDoc.images ?? []) as ToyImage[];
+      toyDto = {
+        id: toyDoc._id.toString(),
+        name: toyDoc.title,
+        slug: (toyDoc as any).slug || slugify(toyDoc.title, { fallback: 'toy' }),
+        primaryImage: images[0]?.url,
+        images,
+        dailyRate: toyDoc.priceOrRate,
+        depositAmount: toyDoc.depositPrice ?? 0,
+      };
+    }
+
+    let renterDto: RentalPartyProfileDto | undefined;
+    if (renterUser) {
+      renterDto = {
+        id: renterUser._id.toString(),
+        fullName: renterUser.fullName,
+        avatar: renterUser.avatar ?? undefined,
+        trustScore: renterUser.trust?.score ?? undefined,
+        verified: renterUser.verificationStatus === 'verified',
+        role: 'renter',
+      };
+    }
+
+    let ownerDto: RentalPartyProfileDto | undefined;
+    if (ownerUser) {
+      ownerDto = {
+        id: ownerUser._id.toString(),
+        fullName: ownerUser.fullName,
+        avatar: ownerUser.avatar ?? undefined,
+        trustScore: ownerUser.trust?.score ?? undefined,
+        verified: ownerUser.verificationStatus === 'verified',
+        role: 'owner',
+      };
+    }
+
+    const otherUserIds = new Set<string>();
+    for (const row of historyRows) {
+      const changedByStr = row.changedBy.toString();
+      if (
+        changedByStr !== SYSTEM_ACTOR_ID &&
+        changedByStr !== order.renterId.toString() &&
+        changedByStr !== order.ownerId.toString()
+      ) {
+        otherUserIds.add(changedByStr);
       }
     }
 
-    return dto;
+    const otherUserMap = new Map<string, { _id: Types.ObjectId; fullName: string; role?: string }>();
+    if (otherUserIds.size > 0) {
+      const users = await this.userModel
+        .find({ _id: { $in: Array.from(otherUserIds).map((id) => new Types.ObjectId(id)) } })
+        .select('fullName role')
+        .lean();
+      for (const u of users) {
+        otherUserMap.set(u._id.toString(), u as any);
+      }
+    }
+
+    const timeline: RentalTimelineEntryDto[] = historyRows.map((r) => {
+      const changedByStr = r.changedBy.toString();
+      let actorDto: RentalTimelineActorDto;
+
+      if (changedByStr === SYSTEM_ACTOR_ID) {
+        actorDto = {
+          id: null,
+          name: 'Hệ thống',
+          role: 'system',
+          isSystem: true,
+        };
+      } else if (changedByStr === order.renterId.toString()) {
+        actorDto = {
+          id: renterUser?._id.toString() ?? changedByStr,
+          name: renterUser?.fullName ?? 'Người thuê',
+          role: 'renter',
+          isSystem: false,
+        };
+      } else if (changedByStr === order.ownerId.toString()) {
+        actorDto = {
+          id: ownerUser?._id.toString() ?? changedByStr,
+          name: ownerUser?.fullName ?? 'Chủ đồ chơi',
+          role: 'owner',
+          isSystem: false,
+        };
+      } else {
+        const u = otherUserMap.get(changedByStr);
+        const uRole =
+          u?.role?.toLowerCase() === 'admin' ? 'admin' : (u?.role?.toLowerCase() || 'user');
+        actorDto = {
+          id: u?._id.toString() ?? changedByStr,
+          name: u?.fullName ?? 'Quản trị viên',
+          role: uRole,
+          isSystem: false,
+        };
+      }
+
+      return {
+        oldStatus: (r.oldStatus as RentalOrderStatus) ?? null,
+        newStatus: r.newStatus as RentalOrderStatus,
+        changedBy: actorDto,
+        notes: r.notes ?? undefined,
+        occurredAt: r.occurredAt,
+      };
+    });
+
+    const financialBreakdown = computeFinancialBreakdown(order, effectiveRole);
+
+    return toRentalOrderDetailDto(order, {
+      toy: toyDto,
+      renter: renterDto,
+      owner: ownerDto,
+      timeline,
+      financialBreakdown,
+    });
   }
 
   public async list(
     actor: RequestActor,
     query: RentalListQuery,
-  ): Promise<{ items: RentalOrderDto[]; total: number; page: number; limit: number }> {
+  ): Promise<{ items: RentalOrderItemDto[]; total: number; page: number; limit: number }> {
+    const role = query.role ?? 'renter';
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
     const { items, total } = await this.repository.listForParty(
       actor.userId,
-      query.role,
+      role,
       query.status,
-      query.page,
-      query.limit,
+      page,
+      limit,
     );
 
     return {
-      items: items.map((doc) => toRentalOrderDto(doc)),
+      items: items.map((doc) => toRentalOrderItemDto(doc, role)),
       total,
-      page: query.page,
-      limit: query.limit,
+      page,
+      limit,
     };
   }
 

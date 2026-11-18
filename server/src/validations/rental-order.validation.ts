@@ -7,16 +7,11 @@ import { parseDateOnly } from '../services/rental-time.js';
 import {
   STATUS_GROUP_MAP,
   type RentalStatusGroup,
-  type RentalListQuery as DtoRentalListQuery,
+  type RentalListQuery,
 } from '../types/rental-order.types.js';
 import { AppError } from '../utils/app-error.js';
 
-export type RentalListQuery = DtoRentalListQuery & {
-  role?: any;
-  status?: any;
-  page?: any;
-  limit?: any;
-};
+export type { RentalListQuery } from '../types/rental-order.types.js';
 
 export interface RentalPeriodInput {
   toyId: string;
