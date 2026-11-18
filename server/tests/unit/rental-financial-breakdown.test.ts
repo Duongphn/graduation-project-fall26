@@ -277,6 +277,10 @@ describe('computeFinancialBreakdown', () => {
       expect(adminRes.items.escrowBalance).toBe(800000);
       expect(adminRes.settlementStatus).toBe('HELD_IN_ESCROW');
       expect(adminRes.payoutStatus).toBe('ESCROW_HELD');
+      // Platform fee is only realised at settlement
+      expect(adminRes.platformRevenue).toBe(0);
+      expect(adminRes).not.toHaveProperty('renterView');
+      expect(adminRes).not.toHaveProperty('escrowStatus');
     });
 
     it('shows frozen escrow balance and 0 platform revenue for DISPUTING order', () => {
