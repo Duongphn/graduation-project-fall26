@@ -3,7 +3,7 @@ import { ArrowRight, Camera, CircleCheck, Circle, Clock3, Mail, Phone, ShieldAle
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
-import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../toy-listings/toy-listing-schema'
+import { ACCEPTED_IMAGE_TYPES, MAX_AVATAR_BYTES } from '../../toy-listings/toy-listing-schema'
 import { getProfileErrorMessage, uploadAvatar, type LatestVerification, type UserProfile, type VerificationStatus } from '../profile-api'
 import { profileQuery } from '../profile-queries'
 
@@ -78,8 +78,8 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
       setLocalError(`"${file.name}" không phải ảnh JPG, PNG hoặc WebP.`)
       return
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setLocalError(`"${file.name}" lớn hơn 5 MB. Hãy chọn ảnh nhỏ hơn.`)
+    if (file.size > MAX_AVATAR_BYTES) {
+      setLocalError(`"${file.name}" lớn hơn 2 MB. Hãy chọn ảnh nhỏ hơn.`)
       return
     }
     setLocalError(null)

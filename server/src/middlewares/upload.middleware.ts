@@ -3,11 +3,16 @@ import multer, { MulterError } from 'multer';
 import { AppError } from '../utils/app-error.js';
 import { validateIdentityImageBuffer } from '../utils/image-validation.js';
 
+/** R03 IV.2.3 Uploaded file safety: 5 MB per photo, 2 MB for avatars, 8 MB for identity photos. */
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const MAX_IDENTITY_IMAGE_BYTES = 8 * 1024 * 1024;
+
 export const imageArrayUpload = (fieldName: string): RequestHandler => {
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 5 * 1024 * 1024,
+      fileSize: MAX_IMAGE_BYTES,
       files: 10,
     },
   }).array(fieldName, 10);
@@ -52,7 +57,7 @@ export const rentalPhotoUpload = imageArrayUpload('photos');
 const multerFieldsUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: MAX_IDENTITY_IMAGE_BYTES,
   },
 }).fields([
   { name: 'frontImage', maxCount: 1 },
@@ -66,7 +71,7 @@ export const identityVerificationUpload: RequestHandler = (req, res, next) => {
       if (err instanceof MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return next(
-            new AppError(400, 'FILE_TOO_LARGE', 'Each image must be at most 5 MB.', {
+            new AppError(400, 'FILE_TOO_LARGE', 'Each identity image must be at most 8 MB.', {
               code: err.code,
               field: err.field,
             }),
@@ -147,7 +152,7 @@ export const identityVerificationUpload: RequestHandler = (req, res, next) => {
 const multerAvatarUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: MAX_AVATAR_BYTES,
   },
 }).single('avatar');
 
@@ -157,7 +162,7 @@ export const userAvatarUpload: RequestHandler = (req, res, next) => {
       if (err instanceof MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return next(
-            new AppError(400, 'FILE_TOO_LARGE', 'Avatar image must be at most 5 MB.', {
+            new AppError(400, 'FILE_TOO_LARGE', 'Avatar image must be at most 2 MB.', {
               code: err.code,
             }),
           );
