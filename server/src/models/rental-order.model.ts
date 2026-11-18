@@ -52,6 +52,7 @@ export interface IRentalOrder {
     autoSettled?: boolean;
     disputeId?: Types.ObjectId;
   };
+  disputeId?: Types.ObjectId;
   lastReminderAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -125,6 +126,7 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       autoSettled: { type: Boolean, default: false },
       disputeId: { type: Schema.Types.ObjectId, ref: 'Dispute' },
     },
+    disputeId: { type: Schema.Types.ObjectId, ref: 'Dispute' },
     lastReminderAt: { type: Date },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
