@@ -6,6 +6,8 @@ export interface IOtpRequest {
   otp_code: string;
   purpose: string;
   is_used: boolean;
+  /** Wrong codes typed while this code was active; the 5th cancels it (R03 III.1.1.1 (14)) */
+  attempts?: number;
   expires_at: Date;
   purgeAt?: Date;
   payload?: unknown;
@@ -20,6 +22,7 @@ const otpRequestSchema = new Schema<IOtpRequest>(
     otp_code: { type: String, required: true },
     purpose: { type: String, required: true },
     is_used: { type: Boolean, required: true, default: false },
+    attempts: { type: Number, default: 0 },
     expires_at: { type: Date, required: true },
     purgeAt: { type: Date }, // Dùng cho TTL index tự động xóa
     payload: { type: Schema.Types.Mixed },

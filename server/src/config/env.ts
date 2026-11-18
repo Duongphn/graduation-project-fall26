@@ -36,6 +36,10 @@ export const env = Object.freeze({
   port: parsePort(process.env.PORT),
   mongoDbUri: process.env.MONGODB_URI ?? '',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  // Number of proxies in front of the API (1 on Render), so req.ip is the client's address.
+  trustProxy: Number(process.env.TRUST_PROXY ?? 0),
+  // Limit of each /auth action per client IP per minute (R5.4 TC-SEC-032); 0 turns it off.
+  authRateLimitPerMinute: Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE ?? (process.env.NODE_ENV === 'test' ? 0 : 10)),
 
   // Google OAuth
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',

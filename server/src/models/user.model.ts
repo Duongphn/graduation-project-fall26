@@ -37,6 +37,11 @@ const userSchema = new Schema(
     lock: {
       until: { type: Date },
     },
+    // Consecutive failed password sign-ins (GB-03); reset by a successful sign-in or a lock.
+    failedLogins: {
+      count: { type: Number, default: 0 },
+      lastAt: { type: Date },
+    },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
@@ -106,6 +111,10 @@ export interface IUser {
   };
   lock?: {
     until?: Date;
+  };
+  failedLogins?: {
+    count?: number;
+    lastAt?: Date;
   };
   createdAt: Date;
   updatedAt: Date;

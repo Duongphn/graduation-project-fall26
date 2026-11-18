@@ -17,6 +17,7 @@ export const createApp = (
   app.locals.container = container;
 
   app.disable('x-powered-by');
+  if (env.trustProxy > 0) app.set('trust proxy', env.trustProxy);
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigin }));
   app.use(express.json({ limit: '1mb' }));
