@@ -22,6 +22,7 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
 | `POST` | `/:id/receive` | UC09 | Renter | Uploads receipt photos and starts rental period (`IN_USE`) |
 | `POST` | `/:id/return` | UC10 | Renter | Uploads return photos, computes late fee (`RETURNING`), starts 72h settlement timer |
 | `POST` | `/:id/settle` | UC11 | Owner | Settles as `GOOD` (distributes escrow) or `DAMAGED` (opens Dispute, holds escrow) |
+| `POST` | `/:id/disputes` | UC17 | Renter / Owner | Opens the order's dispute (`DISPUTING`), holds escrow; see [disputes.md](./disputes.md) |
 
 ---
 
@@ -200,6 +201,17 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
   - For `GOOD`: Escrow is distributed (`escrow -(R+D)`, `owner +(R-F+L)`, `platform +F`, `renter +(D-L)`). Order moves to `COMPLETED`.
   - For `DAMAGED`: Requires `description` (10–1000 characters) and 1–10 evidence `photos`. Creates an open `Dispute` record, holds escrow untouched, and order moves to `DISPUTING`. Rejected with `409 INVALID_RENTAL_TRANSITION` once the 72h settlement deadline has passed (the order is then auto-settled as GOOD). `GOOD` is still accepted after the deadline.
 - **Response (`200 OK`)**: Updates order to `COMPLETED` or `DISPUTING`.
+
+### 13. Open a Dispute (UC17)
+- **Method / Path**: `POST /api/v1/rentals/:id/disputes`
+- **Auth**: Renter (status `IN_USE`, within 24h of `rentalStartedAt`) or Owner (status `RETURNING`, before the `SETTLEMENT` timer)
+- **Content-Type**: `multipart/form-data`
+- **Form Data**: `reason`, `description` (10–1000 characters), `photos` (1–10 images).
+- **Response (`201 Created`)**: `{ dispute, order }`. The order moves to `DISPUTING`, its timer is removed and `disputeId` is set; escrow stays held until the Admin verdict (`POST /api/v1/admin/disputes/:id/resolve`), which moves the order `DISPUTING → COMPLETED`.
+- Full rules, error codes and the payout formulas: [disputes.md](./disputes.md).
+
+### Order field `disputeId`
+`RentalOrderDto.disputeId` (string, optional) is the id of the order's dispute, set when the order enters `DISPUTING` (by `POST /:id/disputes` or `POST /:id/settle` with `DAMAGED`). For an Owner claim it is also in `settlement.disputeId`. An order has at most one dispute, ever.
 
 ---
 
