@@ -23,9 +23,12 @@ import { slugify } from '../utils/slug.js';
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export type EnrichedRentalOrderDoc = RentalOrderDoc & {
-  role: 'renter' | 'owner';
+  role: 'renter' | 'owner' | 'admin';
   toy?: RentalToySummaryDto | undefined;
   counterpart?: RentalCounterpartDto | undefined;
+  // Chỉ có khi admin xem đơn mà mình không tham gia (role=all)
+  renter?: RentalCounterpartDto | undefined;
+  owner?: RentalCounterpartDto | undefined;
 };
 
 export class RentalOrderRepository {
@@ -101,15 +104,22 @@ export class RentalOrderRepository {
       return { items: [], total };
     }
 
+    const viewerRoleOf = (item: RentalOrderDoc): 'renter' | 'owner' | 'admin' => {
+      if (role !== 'all') return role;
+      if (item.ownerId.toString() === userId) return 'owner';
+      if (item.renterId.toString() === userId) return 'renter';
+      return 'admin';
+    };
+
     const toyIds = new Set<string>();
     const counterpartUserIds = new Set<string>();
 
     for (const item of items) {
       toyIds.add(item.toyId.toString());
 
-      const isOwner = role === 'owner' || (role === 'all' && item.ownerId.toString() === userId);
-      const counterpartId = isOwner ? item.renterId.toString() : item.ownerId.toString();
-      counterpartUserIds.add(counterpartId);
+      const viewerRole = viewerRoleOf(item);
+      if (viewerRole !== 'owner') counterpartUserIds.add(item.ownerId.toString());
+      if (viewerRole !== 'renter') counterpartUserIds.add(item.renterId.toString());
     }
 
     const [toys, users] = await Promise.all([
@@ -135,11 +145,24 @@ export class RentalOrderRepository {
       userMap.set(user._id.toString(), user);
     }
 
+    const toPartyDto = (
+      id: string,
+      partyRole: 'renter' | 'owner',
+    ): RentalCounterpartDto | undefined => {
+      const userDoc = userMap.get(id);
+      if (!userDoc) return undefined;
+      return {
+        id: userDoc._id.toString(),
+        fullName: userDoc.fullName,
+        avatar: userDoc.avatar ?? undefined,
+        trustScore: userDoc.trust?.score ?? undefined,
+        verified: userDoc.verificationStatus === 'verified',
+        role: partyRole,
+      };
+    };
+
     const enrichedItems: EnrichedRentalOrderDoc[] = items.map((item) => {
-      const isOwner = role === 'owner' || (role === 'all' && item.ownerId.toString() === userId);
-      const itemRole: 'renter' | 'owner' = isOwner ? 'owner' : 'renter';
-      const counterpartId = isOwner ? item.renterId.toString() : item.ownerId.toString();
-      const counterpartRole: 'renter' | 'owner' = isOwner ? 'renter' : 'owner';
+      const itemRole = viewerRoleOf(item);
 
       const toyDoc = toyMap.get(item.toyId.toString());
       let toySummary: RentalToySummaryDto | undefined;
@@ -156,23 +179,18 @@ export class RentalOrderRepository {
         };
       }
 
-      const userDoc = userMap.get(counterpartId);
-      let counterpartDto: RentalCounterpartDto | undefined;
-      if (userDoc) {
-        counterpartDto = {
-          id: userDoc._id.toString(),
-          fullName: userDoc.fullName,
-          avatar: userDoc.avatar ?? undefined,
-          trustScore: userDoc.trust?.score ?? undefined,
-          verified: userDoc.verificationStatus === 'verified',
-          role: counterpartRole,
-        };
-      }
-
       const enrichedDoc = item as EnrichedRentalOrderDoc;
       enrichedDoc.role = itemRole;
       enrichedDoc.toy = toySummary;
-      enrichedDoc.counterpart = counterpartDto;
+      if (itemRole === 'admin') {
+        enrichedDoc.renter = toPartyDto(item.renterId.toString(), 'renter');
+        enrichedDoc.owner = toPartyDto(item.ownerId.toString(), 'owner');
+      } else {
+        enrichedDoc.counterpart =
+          itemRole === 'owner'
+            ? toPartyDto(item.renterId.toString(), 'renter')
+            : toPartyDto(item.ownerId.toString(), 'owner');
+      }
 
       return enrichedDoc;
     });
