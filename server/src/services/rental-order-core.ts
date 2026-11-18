@@ -1,5 +1,5 @@
 import { type ClientSession, type Model, Types } from 'mongoose';
-import { type RentalOrderStatus } from '../constants/rental-order-status.js';
+import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import {
   type Clock,
   type RentalNotifier,
@@ -143,6 +143,14 @@ export class RentalOrderCore {
 
       return updated;
     });
+  }
+
+  /**
+   * Thao tác làm đổi kết cục (duyệt đơn, báo hư hỏng) phải xảy ra trước hạn của timer tương ứng,
+   * kể cả khi scheduler chưa kịp chạy. Dùng làm `filter` cho transition và để chặn sớm.
+   */
+  protected beforeDeadline(kind: RentalTimerKind, now: Date): Record<string, unknown> {
+    return { 'timer.kind': kind, 'timer.dueAt': { $gt: now } };
   }
 
   protected async notifyParty(
