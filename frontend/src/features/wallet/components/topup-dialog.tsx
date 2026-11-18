@@ -175,7 +175,7 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
 
           <p className="flex items-start gap-2 text-xs text-tf-ink-muted">
             <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-            Bạn sẽ được chuyển sang trang VNPay để thanh toán. Giao dịch quá 15 phút chưa hoàn tất sẽ tự huỷ, tiền
+            Bạn sẽ được chuyển sang trang VNPay để thanh toán. Nếu huỷ hoặc thanh toán không thành công, số dư ví
             không bị trừ.
           </p>
         </form>

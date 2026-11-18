@@ -36,7 +36,6 @@ describe('TopupDialog', () => {
       paymentCode: 'TOPUP1',
       paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_TxnRef=TOPUP1',
       amount: 200_000,
-      expiresAt: '2026-11-18T17:15:00.000Z',
     })
     renderDialog({ returnTo: '/rentals/mine/1' })
 

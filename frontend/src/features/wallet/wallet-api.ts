@@ -1,32 +1,34 @@
-import { apiGet, apiGetPage, apiPost } from '../../services/http'
+import { apiGet, apiPost } from '../../services/http'
 import type { Paginated } from '../../types/api'
 
 /**
- * GET /wallets/me, GET /wallets/me/transactions — server/docs/api/wallets.md
- * POST /payments/vnpay/topup, GET /payments/vnpay/return (UC17) — server/docs/api/payments.md
- * POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
+ * API ví theo backend của lead (nhánh wallet-*):
+ * - GET /wallets/me, GET /wallets/me/transactions
+ * - POST /payments/topup/vnpay, GET /payments/vnpay-return (UC17)
+ * - POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
  */
-
-export interface WalletHoldings {
-  /** Tiền thuê + tiền cọc của các đơn đã thanh toán, chưa quyết toán (đang ở tài khoản ký quỹ) */
-  rentals: number
-}
 
 export interface WalletSummary {
   /** Bằng availableBalance (giữ cho code cũ) */
   balance: number
   /** Dùng được ngay */
   availableBalance: number
-  /** Đã rời số dư nhưng vẫn là tiền của bạn: tổng các khoản trong `holdings` */
+  /** Đã rời số dư nhưng vẫn là tiền của bạn: tiền thuê + cọc chưa quyết toán, lệnh rút đang chờ */
   holdingBalance: number
-  /** Chi tiết khoản tạm giữ (không phải backend nào cũng trả) */
-  holdings?: WalletHoldings
   currency: string
 }
 
-/** Nhóm "Loại" trên màn hình lịch sử, khớp `type` của API */
+/** Nhóm "Loại" trên màn hình lịch sử */
 export const walletTransactionTypes = ['rental', 'topup', 'withdrawal', 'admin_credit'] as const
 export type WalletTransactionType = (typeof walletTransactionTypes)[number]
+
+/** Nhóm "Loại" → `reference.kind` mà backend ghi cho giao dịch đó (tham số `kind`) */
+export const WALLET_TYPE_KINDS: Record<WalletTransactionType, string> = {
+  rental: 'rental_order',
+  topup: 'payment',
+  withdrawal: 'withdrawal',
+  admin_credit: 'admin_credit',
+}
 
 export const walletTransactionDirections = ['credit', 'debit'] as const
 export type WalletTransactionDirection = (typeof walletTransactionDirections)[number]
@@ -37,40 +39,67 @@ export interface WalletTransaction {
   /** credit: tiền vào ví, debit: tiền ra khỏi ví */
   type: WalletTransactionDirection
   description?: string
-  reference?: { kind: 'rental_order' | 'admin_credit' | 'topup' | 'withdrawal'; id: string }
+  /** kind: rental_order | payment (nạp VNPay) | withdrawal | admin_credit | adjustment… */
+  reference?: { kind?: string; id?: string }
   createdAt: string
 }
 
+/** Tham số của GET /wallets/me/transactions: `type` là chiều tiền, `kind` là loại giao dịch */
 export interface WalletTransactionParams {
   page: number
   limit: number
-  type?: WalletTransactionType
-  direction?: WalletTransactionDirection
+  type?: WalletTransactionDirection
+  kind?: string
 }
 
-/** Hạn mức một lần nạp qua VNPay (khớp backend) */
+/** GET /wallets/me/transactions và GET /wallets/withdrawals trả danh sách trong `data` */
+interface ListPage<T> {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+  hasNextPage?: boolean
+  hasPrevPage?: boolean
+}
+
+/** Đổi danh sách của backend về dạng Paginated dùng chung của frontend */
+export const toPaginated = <T,>(page: ListPage<T>): Paginated<T> => ({
+  items: page.items,
+  pagination: {
+    page: page.page,
+    limit: page.limit,
+    totalItems: page.total,
+    totalPages: page.totalPages,
+    hasNextPage: page.hasNextPage ?? page.page < page.totalPages,
+    hasPrevPage: page.hasPrevPage ?? page.page > 1,
+  },
+})
+
+/** Hạn mức một lần nạp qua VNPay (khớp validateTopupInput ở backend) */
 export const TOPUP_MIN_AMOUNT = 10_000
-export const TOPUP_MAX_AMOUNT = 50_000_000
+export const TOPUP_MAX_AMOUNT = 100_000_000
 
-/** POST /payments/vnpay/topup: giao dịch Pending và link sang cổng VNPay */
+/** POST /payments/topup/vnpay: giao dịch Pending và link sang cổng VNPay */
 export interface TopupCreated {
-  paymentCode: string
   paymentUrl: string
+  paymentCode: string
   amount: number
-  expiresAt: string
 }
 
-export type TopupStatus = 'pending' | 'success' | 'failed'
+/**
+ * Kết quả GET /payments/vnpay-return. invalid_checksum: chữ ký sai (link bị sửa),
+ * not_found: không có giao dịch, cancelled: người dùng bấm Hủy trên VNPay.
+ */
+export type TopupStatus = 'success' | 'failed' | 'cancelled' | 'invalid_checksum' | 'not_found'
 
-/** GET /payments/vnpay/return: kết quả giao dịch sau khi VNPay chuyển về */
 export interface TopupResult {
-  paymentCode: string
-  amount: number
+  success: boolean
   status: TopupStatus
-  /** Người dùng bấm Hủy trên VNPay (status vẫn là failed) */
-  cancelled: boolean
-  /** Số dư ví sau khi xử lý */
-  balance: number
+  paymentCode?: string
+  amount?: number
+  /** Câu thông báo của server */
+  message: string
 }
 
 /** Hạn mức một lệnh rút (khớp WITHDRAWAL_LIMITS ở backend) */
@@ -104,27 +133,18 @@ export interface CreateWithdrawalInput {
   bankInfo: BankInfo
 }
 
-/** GET /wallets/withdrawals trả danh sách trong `data` (không dùng envelope `pagination`) */
-export interface WithdrawalPage {
-  items: WithdrawalRequest[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
-  hasNextPage?: boolean
-}
+export type WithdrawalPage = ListPage<WithdrawalRequest>
 
 export const walletApi = {
-  // limit=1: màn hình chỉ cần số dư, lịch sử lấy ở /wallets/me/transactions
-  me: () => apiGet<WalletSummary>('/wallets/me', { limit: 1 }),
-  transactions: (params: WalletTransactionParams): Promise<Paginated<WalletTransaction>> =>
-    apiGetPage<WalletTransaction>('/wallets/me/transactions', params),
-  createTopup: (amount: number) => apiPost<TopupCreated>('/payments/vnpay/topup', { amount }),
+  me: () => apiGet<WalletSummary>('/wallets/me'),
+  transactions: async (params: WalletTransactionParams): Promise<Paginated<WalletTransaction>> =>
+    toPaginated(await apiGet<ListPage<WalletTransaction>>('/wallets/me/transactions', params)),
+  createTopup: (amount: number) => apiPost<TopupCreated>('/payments/topup/vnpay', { amount }),
   /**
    * Gửi nguyên query VNPay trả về (`?vnp_Amount=…&vnp_SecureHash=…`) cho server kiểm tra chữ ký.
    * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
    */
-  confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay/return${search}`),
+  confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay-return${search}`),
   /** UC18: tạo lệnh rút Pending, server tạm trừ số tiền khỏi số dư khả dụng */
   createWithdrawal: (input: CreateWithdrawalInput) => apiPost<WithdrawalRequest>('/wallets/withdrawals', input),
   myWithdrawals: (params: { page: number; limit: number }) => apiGet<WithdrawalPage>('/wallets/withdrawals', params),

@@ -1,6 +1,7 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 
 import {
+  WALLET_TYPE_KINDS,
   walletApi,
   walletTransactionDirections,
   walletTransactionTypes,
@@ -61,7 +62,7 @@ export const myWithdrawalsQuery = queryOptions({
 
 export const myWalletQuery = queryOptions({
   queryKey: walletKeys.me,
-  queryFn: walletApi.me,
+  queryFn: () => walletApi.me(),
   staleTime: 10_000,
   retry: false,
 })
@@ -73,8 +74,9 @@ export const walletTransactionsQuery = (filters: WalletHistoryFilters) =>
       walletApi.transactions({
         page: filters.page,
         limit: WALLET_HISTORY_PAGE_SIZE,
-        ...(filters.type ? { type: filters.type } : {}),
-        ...(filters.direction ? { direction: filters.direction } : {}),
+        // Backend: `type` là chiều tiền (credit/debit), `kind` là loại giao dịch
+        ...(filters.direction ? { type: filters.direction } : {}),
+        ...(filters.type ? { kind: WALLET_TYPE_KINDS[filters.type] } : {}),
       }),
     placeholderData: keepPreviousData,
     staleTime: 10_000,

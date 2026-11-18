@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Clock, Loader2, XCircle, type LucideIcon } from 'lucide-react'
+import { CheckCircle2, Loader2, XCircle, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { clearTopupReturn, readTopupReturn } from '../features/wallet/topup-session'
 import { walletApi, type TopupResult } from '../features/wallet/wallet-api'
-import { walletKeys } from '../features/wallet/wallet-queries'
+import { myWalletQuery, walletKeys } from '../features/wallet/wallet-queries'
 import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
 import { ApiError } from '../services/api-error'
@@ -18,36 +18,45 @@ interface ResultView {
   description: string
 }
 
-function viewOf(result: TopupResult): ResultView {
-  if (result.status === 'success') {
-    return {
-      icon: CheckCircle2,
-      tone: 'bg-emerald-50 text-emerald-700',
-      title: `Đã nạp ${formatVnd(result.amount)} vào ví`,
-      description: `Số dư hiện tại: ${formatVnd(result.balance)}.`,
-    }
-  }
-  if (result.status === 'pending') {
-    return {
-      icon: Clock,
-      tone: 'bg-amber-50 text-amber-700',
-      title: 'Giao dịch đang được xử lý',
-      description: 'VNPay chưa báo kết quả cuối cùng. Kiểm tra lại sau ít phút; tiền chỉ vào ví khi giao dịch thành công.',
-    }
-  }
-  return {
-    icon: XCircle,
-    tone: 'bg-red-50 text-red-700',
-    title: result.cancelled ? 'Bạn đã huỷ giao dịch nạp tiền' : 'Nạp tiền không thành công',
-    description: result.cancelled
-      ? 'Không có khoản tiền nào bị trừ. Bạn có thể nạp lại bất cứ lúc nào.'
-      : 'Giao dịch bị từ chối hoặc đã quá hạn. Số dư ví không thay đổi.',
+const FAILED_TONE = 'bg-red-50 text-red-700'
+
+function viewOf(result: TopupResult, balance: number | undefined): ResultView {
+  switch (result.status) {
+    case 'success':
+      return {
+        icon: CheckCircle2,
+        tone: 'bg-emerald-50 text-emerald-700',
+        title: result.amount !== undefined ? `Đã nạp ${formatVnd(result.amount)} vào ví` : 'Nạp tiền thành công',
+        description: balance !== undefined ? `Số dư khả dụng hiện tại: ${formatVnd(balance)}.` : result.message,
+      }
+    case 'cancelled':
+      return {
+        icon: XCircle,
+        tone: FAILED_TONE,
+        title: 'Bạn đã huỷ giao dịch nạp tiền',
+        description: 'Không có khoản tiền nào bị trừ. Bạn có thể nạp lại bất cứ lúc nào.',
+      }
+    case 'failed':
+      return {
+        icon: XCircle,
+        tone: FAILED_TONE,
+        title: 'Nạp tiền không thành công',
+        description: 'Giao dịch bị từ chối hoặc đã quá hạn. Số dư ví không thay đổi.',
+      }
+    default:
+      // invalid_checksum, not_found: link bị sửa hoặc không có giao dịch
+      return {
+        icon: XCircle,
+        tone: FAILED_TONE,
+        title: 'Không xác nhận được giao dịch',
+        description: result.message,
+      }
   }
 }
 
 /**
- * VNPay chuyển về đây kèm ?vnp_…&vnp_SecureHash=… (UC17). Trang gửi nguyên query cho server kiểm
- * tra chữ ký và ghi nhận kết quả (cộng tiền đúng một lần), rồi hiển thị thành công / huỷ / thất bại.
+ * VNPay chuyển về đây kèm ?vnp_…&vnp_SecureHash=… (UC17). Trang gửi nguyên query cho server
+ * (GET /payments/vnpay-return) kiểm tra chữ ký và ghi nhận kết quả, rồi hiển thị thành công / huỷ / thất bại.
  */
 export function WalletTopupResultPage() {
   const { search } = useLocation()
@@ -63,14 +72,16 @@ export function WalletTopupResultPage() {
     retry: false,
     staleTime: Infinity,
   })
+  const status = result.data?.status
+  // Số dư mới sau khi nạp thành công (server không trả kèm kết quả)
+  const wallet = useQuery({ ...myWalletQuery, enabled: status === 'success' })
 
   useEffect(() => {
     document.title = 'Kết quả nạp tiền | ToyFlow'
   }, [])
 
-  const status = result.data?.status
   useEffect(() => {
-    if (status === 'success' || status === 'failed') {
+    if (status === 'success' || status === 'failed' || status === 'cancelled') {
       void queryClient.invalidateQueries({ queryKey: walletKeys.me })
     }
   }, [queryClient, status])
@@ -85,7 +96,7 @@ export function WalletTopupResultPage() {
     : result.isError
       ? {
           icon: XCircle,
-          tone: 'bg-red-50 text-red-700',
+          tone: FAILED_TONE,
           title: 'Không xác nhận được giao dịch',
           description:
             result.error instanceof ApiError
@@ -93,12 +104,15 @@ export function WalletTopupResultPage() {
               : 'Không kết nối được máy chủ. Vui lòng thử lại.',
         }
       : result.data
-        ? viewOf(result.data)
+        ? viewOf(result.data, wallet.data?.availableBalance)
         : undefined
 
   return (
     <AccountLayout activeItem="wallet">
-      <section aria-live="polite" className="mx-auto mt-6 max-w-lg rounded-2xl border border-tf-surface bg-white p-6 text-center sm:p-8">
+      <section
+        aria-live="polite"
+        className="mx-auto mt-6 max-w-lg rounded-2xl border border-tf-surface bg-white p-6 text-center sm:p-8"
+      >
         {!view ? (
           <>
             <Loader2 className="mx-auto size-10 animate-spin text-tf-primary" aria-hidden />
@@ -112,7 +126,7 @@ export function WalletTopupResultPage() {
             </span>
             <h1 className="mt-4 text-xl font-bold text-tf-ink">{view.title}</h1>
             <p className="mt-2 text-sm text-tf-ink-muted">{view.description}</p>
-            {result.data && (
+            {result.data?.paymentCode && (
               <p className="mt-3 text-xs text-tf-ink-muted">Mã giao dịch: {result.data.paymentCode}</p>
             )}
 
@@ -125,16 +139,6 @@ export function WalletTopupResultPage() {
                 >
                   Quay lại thanh toán đơn thuê
                 </Link>
-              )}
-              {status === 'pending' && (
-                <button
-                  type="button"
-                  onClick={() => void result.refetch()}
-                  disabled={result.isFetching}
-                  className="inline-flex h-10 items-center justify-center rounded-full bg-tf-primary px-5 text-sm font-bold text-white hover:bg-tf-primary-container disabled:opacity-60"
-                >
-                  {result.isFetching ? 'Đang kiểm tra…' : 'Kiểm tra lại'}
-                </button>
               )}
               <Link
                 to={PATHS.wallet}

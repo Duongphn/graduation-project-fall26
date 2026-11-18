@@ -35,7 +35,7 @@ describe('top-up helpers', () => {
   it('suggests the shortfall rounded up to a thousand, within the limits', () => {
     expect(suggestedTopupAmount(123_456)).toBe(124_000)
     expect(suggestedTopupAmount(3_000)).toBe(10_000)
-    expect(suggestedTopupAmount(90_000_000)).toBe(50_000_000)
+    expect(suggestedTopupAmount(150_000_000)).toBe(100_000_000)
   })
 
   it('builds and reads the wallet link that opens the top-up dialog', () => {
@@ -54,7 +54,7 @@ describe('top-up helpers', () => {
   it('validates the amount against the limits', () => {
     expect(topupAmountError(undefined)).toMatch(/nhập số tiền/)
     expect(topupAmountError(9_999)).toMatch(/tối thiểu/)
-    expect(topupAmountError(50_000_001)).toMatch(/tối đa/)
+    expect(topupAmountError(100_000_001)).toMatch(/tối đa/)
     expect(topupAmountError(200_000)).toBeUndefined()
   })
 })

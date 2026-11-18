@@ -1,4 +1,10 @@
-import type { WalletTransaction, WalletTransactionDirection, WalletTransactionType } from './wallet-api'
+import {
+  WALLET_TYPE_KINDS,
+  walletTransactionTypes,
+  type WalletTransaction,
+  type WalletTransactionDirection,
+  type WalletTransactionType,
+} from './wallet-api'
 
 /** Nhãn bộ lọc "Loại" trên màn hình lịch sử */
 export const WALLET_TYPE_LABELS: Record<WalletTransactionType, string> = {
@@ -13,16 +19,11 @@ export const WALLET_DIRECTION_LABELS: Record<WalletTransactionDirection, string>
   debit: 'Tiền ra',
 }
 
-const KIND_TO_TYPE: Record<NonNullable<WalletTransaction['reference']>['kind'], WalletTransactionType> = {
-  rental_order: 'rental',
-  topup: 'topup',
-  withdrawal: 'withdrawal',
-  admin_credit: 'admin_credit',
+/** Loại của một giao dịch (theo reference.kind); kind khác (vd. adjustment) thì undefined */
+export const transactionTypeOf = (transaction: WalletTransaction): WalletTransactionType | undefined => {
+  const kind = transaction.reference?.kind
+  return walletTransactionTypes.find((type) => WALLET_TYPE_KINDS[type] === kind)
 }
-
-/** Loại của một giao dịch (theo reference.kind); giao dịch không có reference thì undefined */
-export const transactionTypeOf = (transaction: WalletTransaction): WalletTransactionType | undefined =>
-  transaction.reference ? KIND_TO_TYPE[transaction.reference.kind] : undefined
 
 /** Dòng chính của một giao dịch: mô tả từ server, thiếu thì dùng nhãn loại */
 export function transactionTitle(transaction: WalletTransaction): string {

@@ -18,7 +18,6 @@ describe('WalletBalanceCards', () => {
           balance: 650_000,
           availableBalance: 650_000,
           holdingBalance: 350_000,
-          holdings: { rentals: 350_000 },
           currency: 'VND',
         }}
       />,
@@ -53,11 +52,18 @@ describe('WalletTransactionList', () => {
       reference: { kind: 'rental_order', id: 'r2' },
       createdAt: '2026-11-13T02:00:00.000Z',
     },
+    {
+      id: 't3',
+      amount: 200_000,
+      type: 'credit',
+      reference: { kind: 'payment', id: 'p1' },
+      createdAt: '2026-11-13T03:00:00.000Z',
+    },
   ]
 
   it('signs money in with + and money out with −, and labels the type', () => {
     render(<WalletTransactionList transactions={transactions} />)
-    const [credit, debit] = screen.getAllByRole('listitem')
+    const [credit, debit, topup] = screen.getAllByRole('listitem')
 
     expect(within(credit).getByText('Nạp thử')).toBeInTheDocument()
     expect(within(credit).getByText('ToyFlow cộng tiền')).toBeInTheDocument()
@@ -66,6 +72,9 @@ describe('WalletTransactionList', () => {
     // No description: the type label is the title
     expect(within(debit).getAllByText('Thuê đồ chơi').length).toBeGreaterThan(0)
     expect(within(debit).getByLabelText(/^Trừ/).textContent).toMatch(/^−/)
+
+    // VNPay top-ups are recorded with reference.kind "payment"
+    expect(within(topup).getAllByText('Nạp tiền').length).toBeGreaterThan(0)
   })
 })
 
