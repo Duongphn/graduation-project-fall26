@@ -78,7 +78,8 @@ export function toRentalOrderItemDto(
   const isOwner =
     actorRole === 'owner' ||
     (actorRole !== 'renter' && enriched.role === 'owner');
-  const role: 'renter' | 'owner' = isOwner ? 'owner' : 'renter';
+  const role: RentalOrderItemDto['role'] =
+    enriched.role === 'admin' ? 'admin' : isOwner ? 'owner' : 'renter';
 
   // Renter does not receive platformFee or platformFeeRate in item pricing
   const isRenter =
@@ -111,6 +112,8 @@ export function toRentalOrderItemDto(
     pricing,
     toy: enriched.toy ?? undefined,
     counterpart: enriched.counterpart ?? undefined,
+    ...(enriched.renter !== undefined ? { renter: enriched.renter } : {}),
+    ...(enriched.owner !== undefined ? { owner: enriched.owner } : {}),
     timer:
       doc.timer?.kind && doc.timer.dueAt
         ? { kind: doc.timer.kind, dueAt: doc.timer.dueAt }
@@ -129,11 +132,24 @@ export function toRentalOrderDetailDto(
     owner?: RentalPartyProfileDto | undefined;
     timeline?: RentalTimelineEntryDto[] | undefined;
     financialBreakdown?: RentalFinancialBreakdownDto | undefined;
+    viewerRole?: 'renter' | 'owner' | 'admin' | undefined;
   } = {},
 ): RentalOrderDetailDto {
   const baseDto = toRentalOrderDto(order);
+  const pricing: RentalOrderItemPricingDto = {
+    days: order.pricing.days,
+    dailyRate: order.pricing.dailyRate,
+    rentalFee: order.pricing.rentalFee,
+    depositAmount: order.pricing.depositAmount,
+    totalPayable: order.pricing.totalPayable,
+  };
+  if (extras.viewerRole !== 'renter') {
+    pricing.platformFeeRate = order.pricing.platformFeeRate;
+    pricing.platformFee = order.pricing.platformFee;
+  }
   return {
     ...baseDto,
+    pricing,
     ...(extras.toy !== undefined ? { toy: extras.toy } : {}),
     ...(extras.renter !== undefined ? { renter: extras.renter } : {}),
     ...(extras.owner !== undefined ? { owner: extras.owner } : {}),
