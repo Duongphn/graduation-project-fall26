@@ -1,5 +1,6 @@
 import { type RentalPeriod, type RentalPricing, type RentalSettings } from '../types/rental-order.types.js';
 import { type LedgerEntry } from '../interfaces/wallet.ports.js';
+import { AppError } from '../utils/app-error.js';
 import { inclusiveDays, rentalEnd } from './rental-time.js';
 
 const DAY_MS = 86_400_000;
@@ -72,5 +73,53 @@ export function settlementEntries(
     { walletId: wallets.owner, amount: R - F + L },
     { walletId: wallets.platform, amount: F },
     { walletId: wallets.renter, amount: D - L },
+  ].filter((entry) => entry.amount !== 0);
+}
+
+export type ClaimantRole = 'renter' | 'owner';
+
+export interface DisputeAmounts {
+  rentalFee: number;
+  depositAmount: number;
+  platformFee: number;
+  lateFee: number;
+}
+
+export interface Payout {
+  renter: number;
+  owner: number;
+  platform: number;
+}
+
+/** Maximum compensation: owner claimant D − L; renter claimant R. */
+export function disputeCompensationCap(amounts: DisputeAmounts, role: ClaimantRole): number {
+  return role === 'owner' ? Math.max(0, amounts.depositAmount - amounts.lateFee) : amounts.rentalFee;
+}
+
+/** Split of escrow R + D after a dispute verdict with compensation X. */
+export function disputePayout(amounts: DisputeAmounts, role: ClaimantRole, compensation: number): Payout {
+  const { rentalFee: R, depositAmount: D, platformFee: F, lateFee: L } = amounts;
+  const max = disputeCompensationCap(amounts, role);
+  if (compensation > max) {
+    throw new AppError(400, 'COMPENSATION_TOO_HIGH', 'Số tiền bồi thường vượt mức tối đa cho phép.', { max });
+  }
+  if (role === 'owner') {
+    return { owner: R - F + L + compensation, platform: F, renter: D - L - compensation };
+  }
+  const platform = R === 0 ? 0 : Math.round((F * (R - compensation)) / R);
+  return { renter: D + compensation, owner: R - compensation - platform, platform };
+}
+
+/** Ledger entries for a dispute payout: escrow −(R+D), zero lines dropped. */
+export function disputeSettlementEntries(
+  payout: Payout,
+  totalEscrow: number,
+  wallets: SettleWallets,
+): LedgerEntry[] {
+  return [
+    { walletId: wallets.escrow, amount: -totalEscrow },
+    { walletId: wallets.owner, amount: payout.owner },
+    { walletId: wallets.platform, amount: payout.platform },
+    { walletId: wallets.renter, amount: payout.renter },
   ].filter((entry) => entry.amount !== 0);
 }

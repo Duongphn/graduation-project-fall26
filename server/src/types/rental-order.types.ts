@@ -6,6 +6,8 @@ export interface RentalSettings {
   paymentHours: number;
   receiptAutoConfirmHours: number;
   settlementHours: number;
+  renterComplaintHours: number;
+  disputeResponseHours: number;
   returnReminderHours: number;
   platformFeeRate: number;
   lateFeeMultiplier: number;
@@ -19,6 +21,8 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   paymentHours: 12,
   receiptAutoConfirmHours: 48,
   settlementHours: 48, // GB-22: the Owner inspects within 48 hours
+  renterComplaintHours: 24,
+  disputeResponseHours: 72,
   returnReminderHours: 24,
   platformFeeRate: 0.1,
   lateFeeMultiplier: 1.0,
@@ -81,6 +85,7 @@ export interface RentalOrderDto {
     autoSettled?: boolean | undefined;
     disputeId?: string | undefined;
   } | undefined;
+  disputeId?: string | undefined;
   createdAt: Date;
   updatedAt: Date;
 }

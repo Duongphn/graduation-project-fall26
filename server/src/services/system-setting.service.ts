@@ -15,6 +15,8 @@ export class SystemSettingService {
       'paymentHours',
       'receiptAutoConfirmHours',
       'settlementHours',
+      'renterComplaintHours',
+      'disputeResponseHours',
       'returnReminderHours',
       'platformFeeRate',
       'lateFeeMultiplier',

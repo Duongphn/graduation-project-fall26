@@ -116,6 +116,7 @@ export function validateRentalListQuery(query: unknown): RentalListQuery {
 export interface SettleRentalInput {
   result: 'GOOD' | 'DAMAGED';
   description?: string | undefined;
+  reason?: string | undefined;
 }
 
 export function validateSettleRentalInput(body: unknown): SettleRentalInput {
@@ -123,7 +124,7 @@ export function validateSettleRentalInput(body: unknown): SettleRentalInput {
     throw new AppError(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ.');
   }
 
-  const { result, description } = body as Record<string, unknown>;
+  const { result, description, reason } = body as Record<string, unknown>;
 
   if (result !== 'GOOD' && result !== 'DAMAGED') {
     throw new AppError(
@@ -143,7 +144,11 @@ export function validateSettleRentalInput(body: unknown): SettleRentalInput {
     throw new AppError(400, 'VALIDATION_ERROR', 'Mô tả hư hại phải có độ dài từ 10 đến 1000 ký tự.');
   }
 
-  return { result, description: trimmed };
+  if (reason !== undefined && reason !== '' && typeof reason !== 'string') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Lý do khiếu nại không hợp lệ.');
+  }
+
+  return { result, description: trimmed, reason: reason || undefined };
 }
 
 export function validateReturnRentalInput(body: unknown): { note?: string | undefined } {
