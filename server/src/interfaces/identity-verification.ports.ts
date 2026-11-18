@@ -3,7 +3,8 @@ export type UserVerificationStatus = 'unverified' | 'pending' | 'verified' | 're
 
 export interface UserAddress {
   province: string;
-  district: string;
+  /** Optional: no district level since 01/07/2025 (R03 III.6.1.1 (10)). */
+  district?: string;
   ward: string;
   street: string;
 }

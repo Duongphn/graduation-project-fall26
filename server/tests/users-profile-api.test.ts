@@ -183,6 +183,23 @@ describe('User Profile and Avatar APIs', () => {
       });
     });
 
+    it('rejects a full name with digits, under 2 or over 50 characters (R03 III.6.1.1 (5))', async () => {
+      for (const fullName of ['A', 'Nguyen Van 123', 'A'.repeat(51)]) {
+        const res = await request(app).patch('/api/v1/users/profile').send({ fullName });
+        expect(res.status).toBe(400);
+        expect(res.body.error.code).toBe('INVALID_INPUT');
+      }
+      const ok = await request(app).patch('/api/v1/users/profile').send({ fullName: 'Nguyễn Thị Ánh' });
+      expect(ok.status).toBe(200);
+    });
+
+    it('accepts an address without a district (R03 III.6.1.1 (10), no district since 01/07/2025)', async () => {
+      const address = { province: 'Ha Noi', ward: 'Phuong Cau Giay', street: '123 Xuan Thuy' };
+      const res = await request(app).patch('/api/v1/users/profile').send({ address });
+      expect(res.status).toBe(200);
+      expect(res.body.data.address).toEqual(address);
+    });
+
     it('rejects unknown or forbidden fields outside allowlist', async () => {
       const res = await request(app)
         .patch('/api/v1/users/profile')

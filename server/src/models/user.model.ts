@@ -3,7 +3,8 @@ import mongoose, { type Model, Schema } from 'mongoose';
 const addressSchema = new Schema(
   {
     province: { type: String, required: true },
-    district: { type: String, required: true },
+    // Optional: Vietnam has no district level since 01/07/2025 (R03 III.6.1.1 (10)).
+    district: { type: String },
     ward: { type: String, required: true },
     street: { type: String, required: true },
   },
@@ -98,7 +99,7 @@ export interface IUser {
   verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
   address?: {
     province: string;
-    district: string;
+    district?: string;
     ward: string;
     street: string;
   };

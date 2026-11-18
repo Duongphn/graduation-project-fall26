@@ -6,6 +6,7 @@ import type {
   UserProfileDto,
 } from '../interfaces/user.ports.js';
 import type { UploadedImageFile } from '../interfaces/identity-verification.ports.js';
+import { FULL_NAME_PATTERN } from '../validations/auth.validation.js';
 
 export class UsersService {
   public constructor(
@@ -28,7 +29,7 @@ export class UsersService {
     if (user.address) {
       dto.address = {
         province: user.address.province,
-        district: user.address.district,
+        ...(user.address.district ? { district: user.address.district } : {}),
         ward: user.address.ward,
         street: user.address.street,
       };
@@ -77,8 +78,12 @@ export class UsersService {
     }
 
     if (patch.fullName !== undefined) {
-      if (typeof patch.fullName !== 'string' || patch.fullName.trim().length === 0) {
-        throw new AppError(400, 'INVALID_INPUT', 'fullName must be a non-empty string.');
+      if (typeof patch.fullName !== 'string' || !FULL_NAME_PATTERN.test(patch.fullName.trim())) {
+        throw new AppError(
+          400,
+          'INVALID_INPUT',
+          'fullName must have 2 to 50 letters and spaces (R03 III.6.1.1 (5)).',
+        );
       }
       user.fullName = patch.fullName.trim();
     }
@@ -90,8 +95,7 @@ export class UsersService {
         typeof addr !== 'object' ||
         typeof addr.province !== 'string' ||
         addr.province.trim().length === 0 ||
-        typeof addr.district !== 'string' ||
-        addr.district.trim().length === 0 ||
+        (addr.district !== undefined && typeof addr.district !== 'string') ||
         typeof addr.ward !== 'string' ||
         addr.ward.trim().length === 0 ||
         typeof addr.street !== 'string' ||
@@ -100,12 +104,14 @@ export class UsersService {
         throw new AppError(
           400,
           'INVALID_INPUT',
-          'Address must include valid non-empty province, district, ward, and street.',
+          'Address must include valid non-empty province, ward, and street.',
         );
       }
+      // R03 III.6.1.1 (10): province, ward and street; a district is kept only if one is sent.
+      const district = typeof addr.district === 'string' ? addr.district.trim() : '';
       user.address = {
         province: addr.province.trim(),
-        district: addr.district.trim(),
+        ...(district ? { district } : {}),
         ward: addr.ward.trim(),
         street: addr.street.trim(),
       };
