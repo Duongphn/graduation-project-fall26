@@ -333,7 +333,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { label: 'Thuê đồ chơi', to: browseToysPath({ type: 'rent' }) },
       { label: 'Mua đồ chơi cũ', to: browseToysPath({ type: 'sell' }) },
-      { label: 'Quyên góp từ thiện', to: PATHS.donations },
+      { label: 'Quyên góp từ thiện', to: PATHS.charityOrganizations },
       { label: 'AI tư vấn theo tuổi', to: PATHS.aiAdvisor },
     ],
   },

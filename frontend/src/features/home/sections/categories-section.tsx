@@ -51,7 +51,7 @@ export function CategoriesSection() {
                 const { icon: Icon, tone, image } = getCategoryVisual(category.slug)
                 return (
                   <li key={category.id} className="category-strip__item">
-                    <Link to={browseToysPath({ category: category.slug })} className="category-strip__link">
+                    <Link to={browseToysPath({ categoryId: category.id })} className="category-strip__link">
                       <span className={`category-strip__icon tone--${tone}`} aria-hidden>
                         {image ? (
                           <img src={image} alt="" className="category-strip__image" loading="lazy" decoding="async" />
