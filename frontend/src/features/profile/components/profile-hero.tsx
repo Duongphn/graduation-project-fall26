@@ -114,6 +114,7 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
               ref={inputRef}
               id="profile-avatar-input"
               type="file"
+              aria-label="Chọn ảnh đại diện"
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               className="sr-only"
               onChange={handleFile}

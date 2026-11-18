@@ -69,7 +69,7 @@ export function ToyModerationReviewPage() {
           <div className="flex flex-col gap-4">
             <ModerationWarnings warnings={toy.warnings} />
             <Card title={`Ảnh (${toy.images.length} ảnh, tối thiểu ${toy.minPhotos})`}>
-              <ImageGallery size={120} images={toy.images} />
+              <ImageGallery size={120} images={toy.images} label={toy.title} />
             </Card>
             <ToyDetailsCard toy={toy} />
           </div>
