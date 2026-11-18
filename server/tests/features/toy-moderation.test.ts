@@ -247,12 +247,12 @@ describe('detail', () => {
     const sale = await createPending({
       listingType: 'sell',
       priceOrRate: 250_000,
-      images: photos(3),
+      images: photos(2),
     });
     const enough = await createPending({
       listingType: 'sell',
       priceOrRate: 250_000,
-      images: photos(4),
+      images: photos(3),
     });
 
     const codes = (body: { data: { warnings: { code: string }[] } }) =>
@@ -261,7 +261,7 @@ describe('detail', () => {
     const b = await get(`/${String(sale._id)}`);
     const c = await get(`/${String(enough._id)}`);
     expect([a.body.data.minPhotos, b.body.data.minPhotos, c.body.data.minPhotos]).toEqual([
-      3, 4, 4,
+      3, 3, 3,
     ]);
     expect(codes(a.body)).toContain('TOO_FEW_PHOTOS');
     expect(codes(b.body)).toContain('TOO_FEW_PHOTOS');

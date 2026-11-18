@@ -40,6 +40,7 @@ interface FakeToy {
   ageRange: { minAge: number; maxAge: number };
   images: { url: string; publicId: string }[];
   quantity: number;
+  safetyDeclaredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   save(): Promise<FakeToy>;
@@ -246,8 +247,8 @@ const DEFAULT_IMAGE: ImageInput = {
 const images = (count: number, image: ImageInput = DEFAULT_IMAGE): ImageInput[] =>
   Array.from({ length: count }, () => image);
 
-// The fewest photos each listing type takes (GB-10): 3 for rent, 4 for sale.
-const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 4 };
+// The fewest photos each listing type takes (GB-10): 3 for rent and for sale.
+const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 3 };
 
 function postListing(
   ctx: Context,
@@ -277,6 +278,7 @@ function rentFields(overrides: Record<string, string> = {}): Record<string, stri
     priceOrRate: '20000',
     depositPrice: '300000',
     ageRange: JSON.stringify({ minAge: 3, maxAge: 8 }),
+    safetyDeclaration: 'true',
     ...overrides,
   };
 }
@@ -290,6 +292,7 @@ function sellFields(overrides: Record<string, string> = {}): Record<string, stri
     listingType: 'sell',
     priceOrRate: '250000',
     ageRange: JSON.stringify({ minAge: 6, maxAge: 12 }),
+    safetyDeclaration: 'true',
     ...overrides,
   };
 }
@@ -387,7 +390,7 @@ describe('POST /api/v1/toys', () => {
     });
   });
 
-  it('takes 3 to 8 photos for a rental and 4 to 8 for a sale (GB-10)', async () => {
+  it('takes 3 to 8 photos for a rental and for a sale (GB-10)', async () => {
     ctx.setActor(ctx.actor1);
     const tooFewRent = await postListing(ctx, rentFields(), images(2));
     expect(tooFewRent.status).toBe(400);
@@ -396,9 +399,13 @@ describe('POST /api/v1/toys', () => {
       message: 'Please upload at least 3 photos.',
     });
 
-    const tooFewSale = await postListing(ctx, sellFields(), images(3));
+    const tooFewSale = await postListing(ctx, sellFields(), images(2));
     expect(tooFewSale.status).toBe(400);
-    expect(tooFewSale.body.error.message).toBe('Please upload at least 4 photos.');
+    expect(tooFewSale.body.error.message).toBe('Please upload at least 3 photos.');
+
+    const tooManySale = await postListing(ctx, sellFields(), images(9));
+    expect(tooManySale.status).toBe(400);
+    expect(tooManySale.body.error.code).toBe('TOO_MANY_PHOTOS');
 
     const tooMany = await postListing(ctx, rentFields(), images(9));
     expect(tooMany.status).toBe(400);
@@ -410,7 +417,7 @@ describe('POST /api/v1/toys', () => {
     expect(ctx.uploads).toHaveLength(0);
 
     expect((await postListing(ctx, rentFields(), images(8))).status).toBe(201);
-    expect((await postListing(ctx, sellFields(), images(4))).status).toBe(201);
+    expect((await postListing(ctx, sellFields(), images(3))).status).toBe(201);
     expect((await postListing(ctx, sellFields(), images(8))).status).toBe(201);
   });
 
@@ -550,7 +557,9 @@ describe('field rules of the listing screens (R03 III.3.1.1, III.3.1.2)', () => 
     const listing = await createListing(ctx, ctx.actor1, rentFields());
 
     ctx.setActor(ctx.actor1);
-    const patch = (body: object) => request(ctx.app).patch(`/api/v1/toys/${listing.id}`).send(body);
+    const patch = (body: object) => request(ctx.app)
+        .patch(`/api/v1/toys/${listing.id}`)
+        .send({ safetyDeclaration: true, ...body });
     expectFieldError(await patch({ description: 'Too short.' }), 'description');
     // The stored daily price is 20.000 đ.
     expectFieldError(await patch({ depositPrice: 10000 }), 'depositPrice');
@@ -614,7 +623,9 @@ describe('contact details in the title or description (R03 GB-11, MSG22)', () =>
     const listing = await createListing(ctx, ctx.actor1, rentFields());
 
     ctx.setActor(ctx.actor1);
-    const patch = (body: object) => request(ctx.app).patch(`/api/v1/toys/${listing.id}`).send(body);
+    const patch = (body: object) => request(ctx.app)
+        .patch(`/api/v1/toys/${listing.id}`)
+        .send({ safetyDeclaration: true, ...body });
     expectContactError(await patch({ title: 'Inbox www.facebook.com/xego' }), 'title');
     expectContactError(
       await patch({ description: `${LONG}Hỏi thêm qua 0987654321 nhé.` }),
@@ -622,6 +633,92 @@ describe('contact details in the title or description (R03 GB-11, MSG22)', () =>
     );
     expect(ctx.store[0]?.title).toBe('Wooden Train');
     expect((await patch({ title: 'Tàu gỗ Momo' })).status).toBe(200);
+  });
+});
+
+describe('safety declaration of the Owner (UC05)', () => {
+  const storedToy = (id: string): FakeToy => {
+    const toy = ctx.store.find((doc) => doc._id.toString() === id);
+    if (!toy) throw new Error(`toy ${id} not stored`);
+    return toy;
+  };
+  const withoutDeclaration = (fields: Record<string, string>): Record<string, string> => {
+    const rest = { ...fields };
+    delete rest.safetyDeclaration;
+    return rest;
+  };
+
+  it('refuses a rent or sale listing without the declaration, and uploads nothing', async () => {
+    ctx.setActor(ctx.actor1);
+    for (const fields of [rentFields(), sellFields()]) {
+      const res = await postListing(ctx, withoutDeclaration(fields));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatchObject({
+        code: 'SAFETY_DECLARATION_REQUIRED',
+        message: 'Vui lòng xác nhận cam kết an toàn trước khi đăng tin.',
+        details: { field: 'safetyDeclaration' },
+      });
+    }
+    expect(ctx.uploads).toHaveLength(0);
+  });
+
+  it('takes only true as the declaration', async () => {
+    ctx.setActor(ctx.actor1);
+    for (const value of ['false', 'on', '1']) {
+      const res = await postListing(ctx, rentFields({ safetyDeclaration: value }));
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('SAFETY_DECLARATION_REQUIRED');
+    }
+    expect(ctx.uploads).toHaveLength(0);
+  });
+
+  it('stores when the Owner declared the toy safe', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    expect(Number.isNaN(Date.parse(String(listing.safetyDeclaredAt)))).toBe(false);
+    expect(storedToy(listing.id).safetyDeclaredAt).toBeInstanceOf(Date);
+  });
+
+  it('asks for the declaration again on every edit', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    const declaredAt = storedToy(listing.id).safetyDeclaredAt as Date;
+    const uploadsBefore = ctx.uploads.length;
+
+    ctx.setActor(ctx.actor1);
+    const titleOnly = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'New Title' });
+    expect(titleOnly.status).toBe(400);
+    expect(titleOnly.body.error.code).toBe('SAFETY_DECLARATION_REQUIRED');
+
+    const photoEdit = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .field('removeImagePublicIds', JSON.stringify([listing.images[0]?.publicId]))
+      .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
+    expect(photoEdit.status).toBe(400);
+    expect(photoEdit.body.error.code).toBe('SAFETY_DECLARATION_REQUIRED');
+    expect(ctx.uploads.length).toBe(uploadsBefore);
+    expect(ctx.deletions).toEqual([]);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const declared = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'New Title', safetyDeclaration: true });
+    expect(declared.status).toBe(200);
+    expect(storedToy(listing.id).safetyDeclaredAt!.getTime()).toBeGreaterThan(
+      declaredAt.getTime(),
+    );
+  });
+
+  it('edits a donation post without the declaration', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    Object.assign(storedToy(listing.id), { listingType: 'donate', depositPrice: undefined });
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ title: 'Donation Title' });
+    expect(res.status).toBe(200);
   });
 });
 
@@ -702,7 +799,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Updated Train', priceOrRate: 25000 });
+      .send({ safetyDeclaration: true, title: 'Updated Train', priceOrRate: 25000 });
 
     expect(res.status).toBe(200);
     expect(res.body.title).toBe('Updated Train');
@@ -717,7 +814,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Hijacked' });
+      .send({ safetyDeclaration: true, title: 'Hijacked' });
 
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('FORBIDDEN');
@@ -737,7 +834,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ removeImagePublicIds: JSON.stringify([listing.images[0]?.publicId]) });
+      .send({ safetyDeclaration: true, removeImagePublicIds: JSON.stringify([listing.images[0]?.publicId]) });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({
@@ -753,17 +850,19 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const tooFew = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ listingType: 'sell', priceOrRate: 250000 });
+      .send({ safetyDeclaration: true,
+        listingType: 'sell',
+        priceOrRate: 250000,
+        removeImagePublicIds: JSON.stringify([listing.images[0]?.publicId]),
+      });
     expect(tooFew.status).toBe(400);
-    expect(tooFew.body.error.message).toBe('Please upload at least 4 photos.');
+    expect(tooFew.body.error.message).toBe('Please upload at least 3 photos.');
 
     const enough = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .field('listingType', 'sell')
-      .field('priceOrRate', '250000')
-      .attach('images', JPEG, { filename: 'fourth.jpg', contentType: 'image/jpeg' });
+      .send({ safetyDeclaration: true, listingType: 'sell', priceOrRate: 250000 });
     expect(enough.status).toBe(200);
-    expect(enough.body.images).toHaveLength(4);
+    expect(enough.body.images).toHaveLength(3);
   });
 
   it('replaces an image and deletes the removed asset', async () => {
@@ -773,6 +872,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
+      .field('safetyDeclaration', 'true')
       .field('removeImagePublicIds', JSON.stringify([oldPublicId]))
       .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
 
@@ -791,6 +891,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
+      .field('safetyDeclaration', 'true')
       .field('title', 'Saved Before The Read')
       .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
 
@@ -810,6 +911,7 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
+      .field('safetyDeclaration', 'true')
       .field('title', 'Blocked Edit')
       .attach('images', PNG, { filename: 'new.png', contentType: 'image/png' });
 
@@ -848,7 +950,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     const before = Date.now();
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Updated Train' });
+      .send({ safetyDeclaration: true, title: 'Updated Train' });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('pending');
@@ -884,7 +986,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
 
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Clearer Photos' });
+      .send({ safetyDeclaration: true, title: 'Clearer Photos' });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('pending');
@@ -904,7 +1006,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Typo Fixed' });
+      .send({ safetyDeclaration: true, title: 'Typo Fixed' });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('pending');
@@ -920,6 +1022,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     ctx.setActor(ctx.actor1);
     const refused = await request(ctx.app)
       .patch(`/api/v1/toys/${approved.id}`)
+      .field('safetyDeclaration', 'true')
       .field('listingType', 'sell')
       .field('priceOrRate', '250000')
       .attach('images', JPEG, { filename: 'fourth.jpg', contentType: 'image/jpeg' });
@@ -931,12 +1034,12 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     // Still fixed after an edit sent it back to review, and the same type is still accepted.
     const edited = await request(ctx.app)
       .patch(`/api/v1/toys/${approved.id}`)
-      .send({ listingType: 'rent', title: 'Same Type' });
+      .send({ safetyDeclaration: true, listingType: 'rent', title: 'Same Type' });
     expect(edited.status).toBe(200);
     expect(edited.body.status).toBe('pending');
     const stillRefused = await request(ctx.app)
       .patch(`/api/v1/toys/${approved.id}`)
-      .send({ listingType: 'sell', priceOrRate: 250000 });
+      .send({ safetyDeclaration: true, listingType: 'sell', priceOrRate: 250000 });
     expect(stillRefused.status).toBe(400);
     expect(stillRefused.body.error.code).toBe('LISTING_TYPE_LOCKED');
   });
@@ -949,7 +1052,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ listingType: 'rent', priceOrRate: 20000, depositPrice: 300000 });
+      .send({ safetyDeclaration: true, listingType: 'rent', priceOrRate: 20000, depositPrice: 300000 });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({
       code: 'LISTING_TYPE_LOCKED',
@@ -964,7 +1067,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Gấu bông, gọi 0912345678' });
+      .send({ safetyDeclaration: true, title: 'Gấu bông, gọi 0912345678' });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({
       code: 'CONTACT_DETAILS_NOT_ALLOWED',
@@ -982,7 +1085,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${rejected.id}`)
-      .send({ listingType: 'rent', priceOrRate: 20000, depositPrice: 300000 });
+      .send({ safetyDeclaration: true, listingType: 'rent', priceOrRate: 20000, depositPrice: 300000 });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ listingType: 'rent', status: 'pending' });
   });
@@ -994,7 +1097,7 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
 
     const res = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ title: 'Still Hidden' });
+      .send({ safetyDeclaration: true, title: 'Still Hidden' });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('hidden');

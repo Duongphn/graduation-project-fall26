@@ -61,13 +61,17 @@ const postToy = (categoryId: string) =>
     .field('priceOrRate', '20000')
     .field('depositPrice', '300000')
     .field('ageRange', JSON.stringify({ minAge: 3, maxAge: 8 }))
+    .field('safetyDeclaration', 'true')
     // A rental takes at least 3 photos (GB-10).
     .attach('images', JPEG, { filename: 'toy-1.jpg', contentType: 'image/jpeg' })
     .attach('images', JPEG, { filename: 'toy-2.jpg', contentType: 'image/jpeg' })
     .attach('images', JPEG, { filename: 'toy-3.jpg', contentType: 'image/jpeg' });
 
 const patchToy = (toyId: string, body: object) =>
-  request(app).patch(`/api/v1/toys/${toyId}`).set('Authorization', OWNER).send(body);
+  request(app)
+    .patch(`/api/v1/toys/${toyId}`)
+    .set('Authorization', OWNER)
+    .send({ safetyDeclaration: true, ...body });
 
 // POST /donation-posts saves a 'donate' toy under the same category rules. A donation post has
 // 3 to 10 photos (R03 GB-10).
@@ -271,6 +275,7 @@ describe('a commit that fails once with a transient error', () => {
     const response = await request(app)
       .patch(`/api/v1/toys/${toy.id}`)
       .set('Authorization', OWNER)
+      .field('safetyDeclaration', 'true')
       .field('title', 'Tàu gỗ (đổi danh mục)')
       .field('categoryId', to)
       .field('removeImagePublicIds', JSON.stringify([removed]))
@@ -333,6 +338,7 @@ describe('another edit of the same toy saved during the upload', () => {
     const response = await request(app)
       .patch(`/api/v1/toys/${toy.id}`)
       .set('Authorization', OWNER)
+      .field('safetyDeclaration', 'true')
       .field('title', 'Tàu gỗ (mới)')
       .field('categoryId', to)
       .attach('images', JPEG, { filename: 'new.jpg', contentType: 'image/jpeg' });
@@ -357,6 +363,7 @@ describe('another edit of the same toy saved during the upload', () => {
     const response = await request(app)
       .patch(`/api/v1/toys/${toy.id}`)
       .set('Authorization', OWNER)
+      .field('safetyDeclaration', 'true')
       .field('title', 'Tàu gỗ (mới)')
       .attach('images', JPEG, { filename: 'new.jpg', contentType: 'image/jpeg' });
 
