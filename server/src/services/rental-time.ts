@@ -77,6 +77,9 @@ export function addHours(date: Date, hours: number): Date {
 /**
  * Validates dates per business rules.
  */
+/** The shortest rental (R03 III.2.2.1 (8): minimum 2 days). */
+export const MIN_RENTAL_DAYS = 2;
+
 export function assertBookablePeriod(
   period: RentalPeriod,
   now: Date,
@@ -93,6 +96,14 @@ export function assertBookablePeriod(
   }
 
   const days = inclusiveDays(period);
+  // R03 III.2.2.1 (8) and UC07: a rental lasts 2 to maxDays (30) days, counted inclusively.
+  if (days < MIN_RENTAL_DAYS) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `Thời gian thuê từ ${MIN_RENTAL_DAYS} đến ${settings.maxDays} ngày`,
+    );
+  }
   if (days > settings.maxDays) {
     throw new AppError(400, 'VALIDATION_ERROR', `Thời gian thuê tối đa là ${settings.maxDays} ngày`);
   }

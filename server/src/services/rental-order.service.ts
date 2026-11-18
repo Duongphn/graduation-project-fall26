@@ -691,7 +691,7 @@ export class RentalOrderService extends RentalOrderCore {
         );
       }
 
-      // Quá 72h thì đơn được coi là "Tốt" (UC11), nên không còn báo hư hỏng được
+      // Quá hạn kiểm tra (48 h, GB-22) thì đơn được coi là "Tốt" (UC12), nên không còn báo hư hỏng được
       this.assertBeforeDeadline(existing, 'SETTLEMENT', this.clock.now());
 
       const updated = await this.withUploadedPhotos(files, async (photos) => {
