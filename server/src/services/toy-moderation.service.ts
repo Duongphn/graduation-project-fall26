@@ -30,13 +30,11 @@ import {
   type ToyModerationQueueQuery,
   type ToyStatusCounts,
 } from '../validations/toy-moderation.validation.js';
+import { LISTING_PHOTO_LIMITS } from '../validations/toy-listing.validation.js';
 import { buildModerationWarnings } from './toy-moderation.warnings.js';
 
 // Admin moderation of toy posts (UC27): every new or edited post stays pending until an
 // Admin approves or rejects it (FE-03, GB-08). Nothing is approved automatically (LI-03).
-
-// Develop has no settings for these yet: one photo minimum for every listing type.
-const MIN_PHOTOS = 1;
 
 /** Moderation decisions on develop's toy statuses; a rejected post is hidden with a reason. */
 const toyTransitions: TransitionMap<ModerationToyStatus> = {
@@ -122,7 +120,8 @@ export const getDetail = async (id: string): Promise<ToyModerationDetail> => {
   ]);
   const owner = owners[0];
   const now = new Date();
-  const minPhotos = MIN_PHOTOS;
+  // GB-10: the same minimum the listing forms enforce (3 for rent and donation, 4 for sale).
+  const minPhotos = LISTING_PHOTO_LIMITS[toy.listingType].min;
 
   const item = toListItem(toy, category, owner);
   const warnings = buildModerationWarnings({
