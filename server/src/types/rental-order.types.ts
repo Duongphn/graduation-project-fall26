@@ -251,18 +251,23 @@ export interface RentalOrderItemPricingDto {
 export interface RentalOrderItemDto {
   id: string;
   code: string;
-  role: 'renter' | 'owner';
+  role: 'renter' | 'owner' | 'admin';
   status: RentalOrderStatus;
   period: DateRange;
   pricing: RentalOrderItemPricingDto;
   toy?: RentalToySummaryDto | undefined;
   counterpart?: RentalCounterpartDto | undefined;
+  // Admin xem đơn mình không tham gia thì không có counterpart mà có cả hai bên
+  renter?: RentalCounterpartDto | undefined;
+  owner?: RentalCounterpartDto | undefined;
   timer?: { kind: RentalTimerKind; dueAt: Date } | undefined;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface RentalOrderDetailDto extends RentalOrderDto {
+export interface RentalOrderDetailDto extends Omit<RentalOrderDto, 'pricing'> {
+  // Người thuê không nhận platformFee/platformFeeRate
+  pricing: RentalOrderItemPricingDto;
   renter?: RentalPartyProfileDto | undefined;
   owner?: RentalPartyProfileDto | undefined;
   toy?: RentalToySummaryDto | undefined;
