@@ -97,7 +97,7 @@ export function validateRentalListQuery(
 
   let group: RentalStatusGroup | undefined;
   if (q.group !== undefined && q.group !== '') {
-    if (typeof q.group !== 'string' || !(q.group in STATUS_GROUP_MAP)) {
+    if (typeof q.group !== 'string' || !Object.hasOwn(STATUS_GROUP_MAP, q.group)) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Nhóm trạng thái không hợp lệ.');
     }
     group = q.group as RentalStatusGroup;
