@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { computeLateFee, quotePricing, settlementEntries } from '../src/services/rental-pricing.js';
+import {
+  computeLateFee,
+  disputeCompensationCap,
+  disputePayout,
+  disputeSettlementEntries,
+  quotePricing,
+  settlementEntries,
+} from '../src/services/rental-pricing.js';
 import { parseDateOnly } from '../src/services/rental-time.js';
 import { DEFAULT_RENTAL_SETTINGS } from '../src/types/rental-order.types.js';
 
@@ -54,5 +61,56 @@ describe('rental-pricing', () => {
       expect(entries.map((e) => e.walletId)).toEqual(['E', 'O', 'P']);
       expect(entries.reduce((sum, e) => sum + e.amount, 0)).toBe(0);
     });
+  });
+});
+
+describe('dispute payout (UC19)', () => {
+  const base = { rentalFee: 100_000, depositAmount: 200_000, platformFee: 10_000, lateFee: 0 };
+  const wallets = { escrow: 'esc', owner: 'own', platform: 'plat', renter: 'ren' };
+
+  const check = (payout: { renter: number; owner: number; platform: number }) => {
+    expect(payout.renter + payout.owner + payout.platform).toBe(300_000);
+    expect(Math.min(payout.renter, payout.owner, payout.platform)).toBeGreaterThanOrEqual(0);
+    const entries = disputeSettlementEntries(payout, 300_000, wallets);
+    expect(entries.reduce((sum, e) => sum + e.amount, 0)).toBe(0);
+    expect(entries.every((e) => e.amount !== 0)).toBe(true);
+  };
+
+  it('owner claimant, no late fee', () => {
+    expect(disputeCompensationCap(base, 'owner')).toBe(200_000);
+    const payout = disputePayout(base, 'owner', 50_000);
+    expect(payout).toEqual({ owner: 140_000, platform: 10_000, renter: 150_000 });
+    check(payout);
+  });
+
+  it('owner claimant, with late fee', () => {
+    const amounts = { ...base, lateFee: 30_000 };
+    expect(disputeCompensationCap(amounts, 'owner')).toBe(170_000);
+    const payout = disputePayout(amounts, 'owner', 170_000);
+    expect(payout.renter).toBe(0);
+    check(payout);
+    try {
+      disputePayout(amounts, 'owner', 170_001);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toMatchObject({ statusCode: 400, code: 'COMPENSATION_TOO_HIGH', details: { max: 170_000 } });
+    }
+  });
+
+  it('owner claimant, late fee equals deposit', () => {
+    expect(disputeCompensationCap({ ...base, lateFee: 200_000 }, 'owner')).toBe(0);
+  });
+
+  it('renter claimant', () => {
+    expect(disputeCompensationCap(base, 'renter')).toBe(100_000);
+    const none = disputePayout(base, 'renter', 0);
+    expect(none).toEqual({ renter: 200_000, owner: 90_000, platform: 10_000 });
+    check(none);
+    const partial = disputePayout(base, 'renter', 40_000);
+    expect(partial).toEqual({ renter: 240_000, owner: 54_000, platform: 6_000 });
+    check(partial);
+    const full = disputePayout(base, 'renter', 100_000);
+    expect(full).toEqual({ renter: 300_000, owner: 0, platform: 0 });
+    check(full);
   });
 });
