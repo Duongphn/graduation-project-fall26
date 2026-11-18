@@ -1,5 +1,6 @@
 import { apiGet, apiGetPage, apiPost } from '../../services/http'
 import type {
+  SafetyChecklist,
   ToyModerationDecision,
   ToyModerationDetail,
   ToyModerationFilters,
@@ -19,8 +20,9 @@ export const toyModerationApi = {
 
   detail: (id: string) => apiGet<ToyModerationDetail>(`${BASE}/${id}`),
 
-  approve: (id: string, expectedUpdatedAt: string) =>
-    apiPost<ToyModerationDecision>(`${BASE}/${id}/approve`, { expectedUpdatedAt }),
+  // Every item of the safety checklist must be true, or the server answers 400 (GB-48).
+  approve: (id: string, expectedUpdatedAt: string, safetyChecklist: SafetyChecklist) =>
+    apiPost<ToyModerationDecision>(`${BASE}/${id}/approve`, { expectedUpdatedAt, safetyChecklist }),
 
   reject: (id: string, expectedUpdatedAt: string, reason: string) =>
     apiPost<ToyModerationDecision>(`${BASE}/${id}/reject`, { expectedUpdatedAt, reason }),

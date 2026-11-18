@@ -10,11 +10,36 @@ const parsePort = (value: string | undefined): number => {
   return port;
 };
 
+/**
+ * JWT secrets have no fallback: a fixed default would let anyone sign tokens (even Admin ones).
+ * Read lazily so scripts that never touch JWT (seed/backfill jobs) still run; the server calls
+ * assertRequiredSecrets() at start-up so a missing secret stops it before it listens.
+ */
+const JWT_SECRET_NAMES = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const;
+type JwtSecretName = (typeof JWT_SECRET_NAMES)[number];
+
+const requireSecret = (name: JwtSecretName): string => {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is not set. Add a long random value for it to server/.env before starting the server.`);
+  }
+  return value;
+};
+
+/** Throws an error naming the first missing JWT secret */
+export const assertRequiredSecrets = (): void => {
+  for (const name of JWT_SECRET_NAMES) requireSecret(name);
+};
+
 export const env = Object.freeze({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parsePort(process.env.PORT),
   mongoDbUri: process.env.MONGODB_URI ?? '',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  // Number of proxies in front of the API (1 on Render), so req.ip is the client's address.
+  trustProxy: Number(process.env.TRUST_PROXY ?? 0),
+  // Limit of each /auth action per client IP per minute (R5.4 TC-SEC-032); 0 turns it off.
+  authRateLimitPerMinute: Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE ?? (process.env.NODE_ENV === 'test' ? 0 : 10)),
 
   // Google OAuth
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
@@ -26,11 +51,15 @@ export const env = Object.freeze({
   emailUser: process.env.EMAIL_USER ?? '',
   emailAppPassword: process.env.EMAIL_APP_PASSWORD ?? '',
 
-  // JWT
-  jwtAccessSecret: process.env.JWT_ACCESS_SECRET ?? 'default_access_secret',
-  jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET ?? 'default_refresh_secret',
-  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+  // JWT (R04 III.1.1: access token 1 hour, refresh token 30 days)
+  get jwtAccessSecret(): string {
+    return requireSecret('JWT_ACCESS_SECRET');
+  },
+  jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '1h',
+  get jwtRefreshSecret(): string {
+    return requireSecret('JWT_REFRESH_SECRET');
+  },
+  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? '',

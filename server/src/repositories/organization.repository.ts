@@ -1,8 +1,15 @@
 import mongoose, { Types, type ClientSession, type FilterQuery } from 'mongoose';
 
+import { accentInsensitivePattern } from '../utils/text.js';
+
 import { writeAuditLog, type AuditEntry } from './audit-log.repository.js';
+import { Category } from '../models/category.model.js';
 import { DonationRequest } from '../models/donation-request.model.js';
-import { openDonationStatuses, type OrganizationStatus } from '../constants/organization-rules.js';
+import {
+  MAX_ORGANIZATION_SUGGESTIONS,
+  openDonationStatuses,
+  type OrganizationStatus,
+} from '../constants/organization-rules.js';
 import { Organization, type IOrganization } from '../models/organization.model.js';
 
 // Database access of the organization feature. Donation requests are only counted here; they
@@ -83,6 +90,22 @@ export const findOrganization = (
     .session(options.session ?? null)
     .lean<OrganizationRecord>();
 
+/**
+ * Another organization whose name is the same ignoring letter case and Vietnamese accents
+ * (I.3.2 Organization: the name is unique). `exceptId` skips the organization being edited.
+ */
+export const findOrganizationWithSameName = (
+  name: string,
+  exceptId?: Types.ObjectId | string,
+  session?: ClientSession,
+) =>
+  Organization.findOne({
+    name: { $regex: `^${accentInsensitivePattern(name)}$`, $options: 'i' },
+    ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+  })
+    .session(session ?? null)
+    .lean();
+
 export const insertOrganization = async (
   data: Record<string, unknown>,
   audit: (record: OrganizationRecord) => AuditEntry,
@@ -129,4 +152,72 @@ export const deleteOrganization = async (
 ): Promise<boolean> => {
   const result = await Organization.deleteOne({ _id: id }, { session });
   return result.deletedCount === 1;
+};
+
+/** The ids among `ids` that are Active categories (GB-53: needs name Active categories). */
+export const findActiveCategoryIds = async (ids: Types.ObjectId[]): Promise<Set<string>> => {
+  if (ids.length === 0) return new Set();
+  const rows = await Category.find({ _id: { $in: ids }, status: { $regex: /^active$/i } })
+    .select('_id')
+    .lean();
+  return new Set(rows.map((row) => String(row._id)));
+};
+
+/**
+ * GB-54: the organizations matching `filter`, those whose receiving point is in the province
+ * matched by `provincePattern` first, then by name.
+ */
+export const findSuggestedOrganizations = (
+  filter: FilterQuery<OrganizationRecord>,
+  provincePattern: string | undefined,
+) =>
+  Organization.aggregate<OrganizationRecord>([
+    { $match: filter },
+    {
+      $addFields: {
+        inDonorProvince: provincePattern
+          ? {
+              $regexMatch: {
+                input: { $ifNull: ['$receivingPoint.province', ''] },
+                regex: `^${provincePattern}$`,
+                options: 'i',
+              },
+            }
+          : false,
+      },
+    },
+    { $sort: { inDonorProvince: -1, name: 1 } },
+    { $limit: MAX_ORGANIZATION_SUGGESTIONS },
+    { $project: { inDonorProvince: 0 } },
+  ]);
+
+/**
+ * Writes the defaults of the 17/11/2026 fields on organizations saved before them (accepting
+ * on, remote area off, area served = province of the receiving point). Safe to run again: it
+ * only sets fields that are missing. updatedAt is left untouched.
+ */
+export const backfillOrganizationDefaults = async () => {
+  const options = { timestamps: false } as const;
+  const [accepting, remote, area] = await Promise.all([
+    Organization.updateMany(
+      { isAccepting: { $exists: false } },
+      { $set: { isAccepting: true } },
+      options,
+    ),
+    Organization.updateMany(
+      { isRemoteArea: { $exists: false } },
+      { $set: { isRemoteArea: false } },
+      options,
+    ),
+    Organization.updateMany(
+      { areaProvince: { $exists: false }, 'receivingPoint.province': { $exists: true } },
+      [{ $set: { areaProvince: '$receivingPoint.province' } }],
+      options,
+    ),
+  ]);
+  return {
+    isAccepting: accepting.modifiedCount,
+    isRemoteArea: remote.modifiedCount,
+    areaProvince: area.modifiedCount,
+  };
 };

@@ -8,7 +8,8 @@ const PURPOSES = [
   { value: 'sell', title: 'Bán lại', hint: 'Chuyển nhượng dọn nhà, thu tiền trọn gói.', icon: Tag },
 ] as const
 
-export function ListingPurposeSection() {
+/** `typeLocked`: tin đã được duyệt không đổi được loại tin (GB-09) */
+export function ListingPurposeSection({ typeLocked = false }: { typeLocked?: boolean }) {
   const { control, setValue } = useFormContext<ListingFormValues>()
   const listingType = useWatch({ control, name: 'listingType' })
 
@@ -27,6 +28,7 @@ export function ListingPurposeSection() {
               name="listingType"
               value={value}
               checked={listingType === value}
+              disabled={typeLocked}
               onChange={() => setValue('listingType', value, { shouldDirty: true, shouldValidate: true })}
               className="sr-only"
             />
@@ -43,6 +45,7 @@ export function ListingPurposeSection() {
           </label>
         ))}
       </div>
+      {typeLocked && <p className="tf-card__subtitle">Tin đã được duyệt nên không đổi được loại tin.</p>}
     </section>
   )
 }

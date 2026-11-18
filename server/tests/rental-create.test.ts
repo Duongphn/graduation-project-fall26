@@ -11,6 +11,14 @@ import {
 } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
 
+// Dates are relative to the real today (Vietnam time): the public availability endpoint checks
+// "from" against the real clock, so fixed dates fail once they are in the past.
+const DAY_MS = 86_400_000;
+const TODAY_VN = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+const day = (offset: number) =>
+  new Date(Date.parse(`${TODAY_VN}T00:00:00Z`) + offset * DAY_MS).toISOString().slice(0, 10);
+const CODE_DAY = TODAY_VN.slice(2).replaceAll('-', '');
+
 describe('UC06: Quote and Create Rental Order', () => {
   let app: any;
   let clock: FakeClock;
@@ -31,7 +39,7 @@ describe('UC06: Quote and Create Rental Order', () => {
   const unwrap = (res: request.Response) => res.body.data;
   const errorOf = (res: request.Response) => res.body.error;
 
-  const body35 = () => ({ toyId, startDate: '2026-11-05', endDate: '2026-11-07' });
+  const body35 = () => ({ toyId, startDate: day(4), endDate: day(6) });
 
   beforeAll(async () => {
     await startReplSet();
@@ -43,7 +51,7 @@ describe('UC06: Quote and Create Rental Order', () => {
 
   beforeEach(async () => {
     await resetDatabase();
-    clock = new FakeClock('2026-11-01T03:00:00Z');
+    clock = new FakeClock(`${day(0)}T03:00:00Z`);
     const built = buildRentalApp(clock);
     app = built.app;
     notifier = built.notifier;
@@ -84,14 +92,14 @@ describe('UC06: Quote and Create Rental Order', () => {
     expect(res.status).toBe(201);
     expect(unwrap(res)).toMatchObject({
       status: 'PENDING',
-      period: { startDate: '2026-11-05', endDate: '2026-11-07' },
-      timer: { kind: 'OWNER_RESPONSE', dueAt: '2026-11-02T03:00:00.000Z' },
+      period: { startDate: day(4), endDate: day(6) },
+      timer: { kind: 'OWNER_RESPONSE', dueAt: `${day(1)}T03:00:00.000Z` },
     });
-    expect(unwrap(res).code).toMatch(/^RO261101/);
+    expect(unwrap(res).code).toMatch(new RegExp(`^RO${CODE_DAY}`));
     expect(await OrderStatusHistory.countDocuments({ newStatus: 'PENDING' })).toBe(1);
     expect(notifier.sent.map((n: any) => n.userId)).toEqual([ownerId]);
-    const avail = await request(app).get(`/api/v1/toys/${toyId}/availability?from=2026-11-01&to=2026-11-30`);
-    expect(JSON.stringify(avail.body)).toContain('2026-11-05');
+    const avail = await request(app).get(`/api/v1/toys/${toyId}/availability?from=${day(0)}&to=${day(29)}`);
+    expect(JSON.stringify(avail.body)).toContain(day(4));
   });
 
   it('blocks renting own listing, unverified users and low trust', async () => {
@@ -114,30 +122,30 @@ describe('UC06: Quote and Create Rental Order', () => {
 
   it('rejects inactive, sell and missing toys with 404 TOY_NOT_FOUND', async () => {
     const missingId = new mongoose.Types.ObjectId().toString();
-    const resMissing = await create(renterAuth, { toyId: missingId, startDate: '2026-11-05', endDate: '2026-11-07' });
+    const resMissing = await create(renterAuth, { toyId: missingId, startDate: day(4), endDate: day(6) });
     expect(resMissing.status).toBe(404);
     expect(errorOf(resMissing).code).toBe('TOY_NOT_FOUND');
 
     const sellToy = await createRentToy(ownerId, { listingType: 'sell' });
-    const resSell = await create(renterAuth, { toyId: sellToy._id.toString(), startDate: '2026-11-05', endDate: '2026-11-07' });
+    const resSell = await create(renterAuth, { toyId: sellToy._id.toString(), startDate: day(4), endDate: day(6) });
     expect(resSell.status).toBe(404);
     expect(errorOf(resSell).code).toBe('TOY_NOT_FOUND');
 
     const hiddenToy = await createRentToy(ownerId, { status: 'hidden' });
-    const resHidden = await create(renterAuth, { toyId: hiddenToy._id.toString(), startDate: '2026-11-05', endDate: '2026-11-07' });
+    const resHidden = await create(renterAuth, { toyId: hiddenToy._id.toString(), startDate: day(4), endDate: day(6) });
     expect(resHidden.status).toBe(404);
     expect(errorOf(resHidden).code).toBe('TOY_NOT_FOUND');
   });
 
   it('rejects overlapping dates with conflicts and a suggestion', async () => {
     await create(renterAuth, body35());
-    const res = await create(otherRenterAuth, { toyId, startDate: '2026-11-06', endDate: '2026-11-08' });
+    const res = await create(otherRenterAuth, { toyId, startDate: day(5), endDate: day(7) });
     expect(res.status).toBe(409);
     expect(errorOf(res)).toMatchObject({
       code: 'RENTAL_DATES_UNAVAILABLE',
       details: {
-        conflicts: [{ startDate: '2026-11-05', endDate: '2026-11-07' }],
-        suggestion: { startDate: '2026-11-01', endDate: '2026-11-03' },
+        conflicts: [{ startDate: day(4), endDate: day(6) }],
+        suggestion: { startDate: day(0), endDate: day(2) },
       },
     });
   });
@@ -145,8 +153,8 @@ describe('UC06: Quote and Create Rental Order', () => {
   // Review Focus #3
   it('allows back-to-back bookings but not a shared day', async () => {
     await create(renterAuth, body35());
-    expect((await create(otherRenterAuth, { toyId, startDate: '2026-11-08', endDate: '2026-11-09' })).status).toBe(201);
-    expect((await create(thirdRenterAuth, { toyId, startDate: '2026-11-07', endDate: '2026-11-07' })).status).toBe(409);
+    expect((await create(otherRenterAuth, { toyId, startDate: day(7), endDate: day(8) })).status).toBe(201);
+    expect((await create(thirdRenterAuth, { toyId, startDate: day(5), endDate: day(6) })).status).toBe(409);
   });
 
   it('lets exactly one of two concurrent overlapping requests win', async () => {

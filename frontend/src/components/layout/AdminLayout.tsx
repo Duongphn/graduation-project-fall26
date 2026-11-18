@@ -1,16 +1,17 @@
-import { ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
+import { Badge, ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
 import { useState } from 'react'
-import { Outlet, useLocation, useNavigate, useNavigation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigation } from 'react-router-dom'
 
 import { adminMenuItems } from '../../routes/admin-menu'
 import { antdTheme } from '../../styles/theme'
+import { useAdminPendingCounts } from './useAdminPendingCounts'
 
 // Admin area shell: dark sidebar menu + content. Desktop-first (R01 LI-01).
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false)
-  const navigate = useNavigate()
   const navigation = useNavigation()
   const location = useLocation()
+  const pendingCounts = useAdminPendingCounts()
 
   // The longest menu path that prefixes the current URL is the selected entry.
   const selected =
@@ -19,25 +20,40 @@ export function AdminLayout() {
       .find((item) => location.pathname.startsWith(item.path))?.key ?? 'dashboard'
 
   return (
-    // The admin area keeps its own antd theme (palette.ts) inside the app-wide ThemeProvider.
-    <ConfigProvider theme={antdTheme}>
-    <Layout className="min-h-screen">
+    // The admin area keeps its own light antd theme (palette.ts) inside the app-wide
+    // ThemeProvider. `inherit: false`: in the site's dark mode, antd would otherwise merge the
+    // dark algorithm and dark tokens (modal and popup backgrounds, text on primary buttons) with
+    // this palette's dark text. `text-text` does the same for plain text, which would inherit
+    // the dark-mode body colour.
+    <ConfigProvider theme={{ ...antdTheme, inherit: false }}>
+    <Layout className="min-h-screen text-text">
       <Layout.Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} width={240}>
         <div className="flex h-16 items-center justify-center">
           <Typography.Text strong className="!text-lg !text-white">
-            {collapsed ? 'TF' : 'ToyFlow Admin'}
+            {collapsed ? 'TF' : 'Quản trị ToyFlow'}
           </Typography.Text>
         </div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[selected]}
-          items={adminMenuItems.map((item) => ({
-            key: item.key,
-            icon: item.icon,
-            label: item.label,
-            onClick: () => navigate(item.path),
-          }))}
+          // Real links: open in a new tab works and screen readers announce links.
+          items={adminMenuItems.map((item) => {
+            const pending = item.pendingCounter ? (pendingCounts[item.pendingCounter] ?? 0) : 0
+            return {
+              key: item.key,
+              icon: item.icon,
+              // Pending counter (L7): the queue replaces any "new post" notification to Admins.
+              label: pending ? (
+                <span className="flex items-center justify-between gap-2">
+                  <Link to={item.path}>{item.label}</Link>
+                  <Badge count={pending} overflowCount={99} title={`${pending} đang chờ duyệt`} />
+                </span>
+              ) : (
+                <Link to={item.path}>{item.label}</Link>
+              ),
+            }
+          })}
         />
       </Layout.Sider>
       <Layout>

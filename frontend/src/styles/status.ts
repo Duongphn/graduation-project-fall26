@@ -49,6 +49,7 @@ export const statusStyles = {
     completed: { label: 'Hoàn tất', tone: 'success' },
     rejected: { label: 'Bị từ chối', tone: 'error' },
     cancelled: { label: 'Đã huỷ', tone: 'default' },
+    expired: { label: 'Đã hết hạn', tone: 'default' },
   },
 } as const satisfies {
   toy: StatusMap<ToyStatus>

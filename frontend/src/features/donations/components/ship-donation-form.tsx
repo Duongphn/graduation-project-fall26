@@ -6,7 +6,7 @@ import { useForm, useWatch } from 'react-hook-form'
 
 import { FormField, ImageUploader } from '../../../components/common'
 import { handoverMethodLabels, handoverMethods, shippingCarriers } from '../constants'
-import { composeHandoverNote, shipDonationSchema, type ShipDonationValues } from '../schemas'
+import { shipDonationSchema, toHandoverInput, type ShipDonationValues } from '../schemas'
 import type { HandoverInput } from '../types'
 
 interface ShipDonationFormProps {
@@ -26,12 +26,7 @@ export function ShipDonationForm({ receiverName, loading, onSubmit }: ShipDonati
   })
   const method = useWatch({ control, name: 'method' })
 
-  const submit = handleSubmit((values) =>
-    onSubmit({
-      photos: values.photos.map(({ publicId, format }) => ({ publicId, format })),
-      note: composeHandoverNote(values),
-    }),
-  )
+  const submit = handleSubmit((values) => onSubmit(toHandoverInput(values)))
 
   return (
     <section aria-labelledby="ship-title" className="rounded-xl border border-tf-surface bg-white p-5 sm:p-6">
@@ -59,7 +54,7 @@ export function ShipDonationForm({ receiverName, loading, onSubmit }: ShipDonati
 
         {method === 'CARRIER' && (
           <div className="grid gap-x-4 sm:grid-cols-2">
-            <FormField control={control} name="carrier" label="Đơn vị vận chuyển" required>
+            <FormField control={control} name="carrier" label="Đơn vị vận chuyển">
               {(field) => (
                 <Select
                   value={field.value || undefined}
@@ -70,7 +65,7 @@ export function ShipDonationForm({ receiverName, loading, onSubmit }: ShipDonati
                 />
               )}
             </FormField>
-            <FormField control={control} name="trackingCode" label="Mã vận đơn" required>
+            <FormField control={control} name="trackingCode" label="Mã vận đơn">
               {(field) => (
                 <Input {...field} maxLength={30} placeholder="VD: GHNHCM88492048VN" autoComplete="off" />
               )}

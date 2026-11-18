@@ -120,9 +120,13 @@ export function CreateOrganizationRequestModal({ open, onClose }: CreateOrganiza
             loading={organizations.isFetching}
             placeholder="Tìm theo tên tổ chức"
             notFoundContent={organizations.isFetching ? 'Đang tìm…' : 'Không có tổ chức đang hoạt động phù hợp'}
+            // GB-55: an organization that is not accepting toys takes no new request.
             options={(organizations.data?.items ?? []).map((organization) => ({
               value: organization.id,
-              label: organization.name,
+              label: organization.isAccepting
+                ? organization.name
+                : `${organization.name} (tạm ngừng nhận)`,
+              disabled: !organization.isAccepting,
             }))}
           />
         )}

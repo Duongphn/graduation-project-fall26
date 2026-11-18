@@ -14,11 +14,27 @@ function revokeNewPhotoUrls(photos: ListingPhoto[]) {
   photos.forEach((photo) => photo.kind === 'new' && URL.revokeObjectURL(photo.url))
 }
 
+/** Số ảnh tối đa và định dạng nhận được; mặc định là giới hạn chung (form quyên góp dùng) */
+export interface PhotoRules {
+  maxImages: number
+  acceptedTypes: readonly string[]
+}
+
+const DEFAULT_RULES: PhotoRules = { maxImages: MAX_IMAGES, acceptedTypes: ACCEPTED_IMAGE_TYPES }
+
+/** Tên các định dạng để báo lỗi, vd. "JPG hoặc PNG" */
+export const formatNames = (types: readonly string[]) =>
+  types
+    .map((type) => (type === 'image/jpeg' ? 'JPG' : type === 'image/webp' ? 'WebP' : type.replace('image/', '').toUpperCase()))
+    .join(', ')
+    .replace(/, ([^,]*)$/, ' hoặc $1')
+
 /**
  * Ảnh đã lưu trên Cloudinary và ảnh mới chọn nằm chung một danh sách để hiển thị,
  * nhưng khi gửi PATCH backend cần tách: file mới (`images`) và publicId cần xoá.
  */
-export function useListingPhotos(initialImages: ToyImage[]) {
+export function useListingPhotos(initialImages: ToyImage[], rules: PhotoRules = DEFAULT_RULES) {
+  const { maxImages, acceptedTypes } = rules
   const [photos, setPhotos] = useState<ListingPhoto[]>(() => toExistingPhotos(initialImages))
   const [removedPublicIds, setRemovedPublicIds] = useState<string[]>([])
   const [rejections, setRejections] = useState<string[]>([])
@@ -33,15 +49,15 @@ export function useListingPhotos(initialImages: ToyImage[]) {
   const addFiles = useCallback((files: FileList | File[]) => {
     const problems: string[] = []
     const accepted: ListingPhoto[] = []
-    const slotsLeft = MAX_IMAGES - photosRef.current.length
+    const slotsLeft = maxImages - photosRef.current.length
 
     for (const file of Array.from(files)) {
-      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-        problems.push(`"${file.name}" không phải ảnh JPG, PNG hoặc WebP.`)
+      if (!acceptedTypes.includes(file.type)) {
+        problems.push(`"${file.name}" không phải ảnh ${formatNames(acceptedTypes)}.`)
       } else if (file.size > MAX_IMAGE_BYTES) {
         problems.push(`"${file.name}" lớn hơn 5 MB.`)
       } else if (accepted.length >= slotsLeft) {
-        problems.push(`Chỉ đăng được tối đa ${MAX_IMAGES} ảnh, đã bỏ qua "${file.name}".`)
+        problems.push(`Chỉ đăng được tối đa ${maxImages} ảnh, đã bỏ qua "${file.name}".`)
       } else {
         accepted.push({ kind: 'new', key: crypto.randomUUID(), url: URL.createObjectURL(file), file })
       }
@@ -49,7 +65,7 @@ export function useListingPhotos(initialImages: ToyImage[]) {
 
     setRejections(problems)
     if (accepted.length > 0) setPhotos((current) => [...current, ...accepted])
-  }, [])
+  }, [maxImages, acceptedTypes])
 
   const removePhoto = useCallback((key: string) => {
     const target = photosRef.current.find((photo) => photo.key === key)

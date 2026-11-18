@@ -28,6 +28,7 @@ const dayLabel = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-dig
 const shortDate = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' })
 const weekdayName = new Intl.DateTimeFormat('vi-VN', { weekday: 'long' })
 const deadlineLabel = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
   hour: '2-digit',
   minute: '2-digit',
   day: '2-digit',

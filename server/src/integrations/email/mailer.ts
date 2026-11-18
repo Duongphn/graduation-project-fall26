@@ -1,15 +1,28 @@
 import nodemailer from 'nodemailer';
 import { env } from '../../config/env.js';
 
-const transporter = nodemailer.createTransport({
-  host: env.emailHost,
-  port: env.emailPort,
-  secure: env.emailPort === 465, // true nếu 465, false nếu 587
-  auth: {
-    user: env.emailUser,
-    pass: env.emailAppPassword,
-  },
-});
+/**
+ * An unreachable or blocked SMTP server must fail fast: the web client gives up after 15 s, so
+ * every SMTP step stops after 8 s and the user gets MAIL_SEND_FAILED instead of a time-out
+ * (R03 IV.1.3 OTP row: show an error and let the user retry).
+ */
+export const OTP_SMTP_TIMEOUT_MS = 8_000;
+
+export const createOtpTransport = (timeoutMs: number = OTP_SMTP_TIMEOUT_MS) =>
+  nodemailer.createTransport({
+    host: env.emailHost,
+    port: env.emailPort,
+    secure: env.emailPort === 465, // true nếu 465, false nếu 587
+    auth: {
+      user: env.emailUser,
+      pass: env.emailAppPassword,
+    },
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
+  });
+
+const transporter = createOtpTransport();
 
 /** Nội dung email OTP theo mục đích sử dụng */
 const OTP_EMAIL_CONTENT = {

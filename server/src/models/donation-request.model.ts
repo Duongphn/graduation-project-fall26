@@ -1,6 +1,12 @@
 import mongoose, { type Model, Schema } from 'mongoose';
 
 import type { DonationStatus } from '../constants/donation-status.js';
+import {
+  handoverMethods,
+  receiptChannels,
+  type HandoverMethod,
+  type ReceiptChannel,
+} from '../constants/donation-request-transitions.js';
 
 /** Stored value of a donation status: develop's model stores lowercase ('pending' by default). */
 export type StoredDonationStatus = Lowercase<DonationStatus>;
@@ -51,6 +57,16 @@ const donationRequestSchema = new Schema(
     handovers: { type: [handoverSchema], default: [] },
     completedAt: { type: Date },
     cancellation: { type: cancellationSchema, default: undefined },
+    // GB-57 (R04 3.9 expired_at): when the expiry job (JOB-10) set the request to expired.
+    expiredAt: { type: Date },
+    // GB-58 (R04 3.9): set when the Donor hands the toy over; carrier fields are free text.
+    handoverMethod: { type: String, enum: handoverMethods },
+    carrierName: { type: String },
+    trackingCode: { type: String },
+    // GB-59 (R04 3.9): the organization's confirmation as recorded by the Admin.
+    confirmedBy: { type: String },
+    channel: { type: String, enum: receiptChannels },
+    receivedAt: { type: Date },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
@@ -109,6 +125,14 @@ export interface IDonationRequest {
   handovers: DonationHandover[];
   completedAt?: Date;
   cancellation?: DonationCancellation;
+  expiredAt?: Date;
+  handoverMethod?: HandoverMethod;
+  carrierName?: string;
+  trackingCode?: string;
+  /** The person at the organization who confirmed receipt (a name, not a user id). */
+  confirmedBy?: string;
+  channel?: ReceiptChannel;
+  receivedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

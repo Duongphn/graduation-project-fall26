@@ -15,7 +15,8 @@ describe('GET /api/v1/categories', () => {
       { _id: id1, name: 'B', slug: 'b', parent_id: null },
       { _id: id2, name: 'A', slug: 'a', parent_id: id1 },
     ]);
-    const sort = vi.fn().mockReturnValue({ lean });
+    const collation = vi.fn().mockReturnValue({ lean });
+    const sort = vi.fn().mockReturnValue({ collation });
     const find = vi.fn().mockReturnValue({ sort });
     const fakeModel = { find } as unknown as ConstructorParameters<typeof CategoryService>[0];
 
@@ -31,6 +32,7 @@ describe('GET /api/v1/categories', () => {
       { id: String(id2), name: 'A', slug: 'a', parentId: String(id1) },
     ]);
     expect(find).toHaveBeenCalledWith({ status: { $regex: /^active$/i } });
-    expect(sort).toHaveBeenCalledWith({ displayOrder: 1, name: 1 });
+    expect(sort).toHaveBeenCalledWith({ displayOrder: 1, name: 1, _id: 1 });
+    expect(collation).toHaveBeenCalledWith({ locale: 'vi' });
   });
 });

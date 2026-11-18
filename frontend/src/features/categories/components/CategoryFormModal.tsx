@@ -24,6 +24,9 @@ interface CategoryFormModalProps {
   onClose: () => void
 }
 
+export const DESCRIPTION_HINT =
+  'Ghi chú cho quản trị viên: loại đồ chơi và độ tuổi phù hợp. Người dùng không thấy mô tả này.'
+
 const toFormValues = (category?: AdminCategory): CategoryFormValues => ({
   name: category?.name ?? '',
   description: category?.description ?? '',
@@ -131,7 +134,9 @@ export function CategoryFormModal({ open, category, onClose }: CategoryFormModal
         control={control}
         name="description"
         label="Mô tả"
-        extra="Hiển thị cho người dùng khi chọn danh mục."
+        // GET /categories gives users only the id, name and slug: the description is a note for
+        // Admins (R04 3.12: what the category covers and the suitable ages).
+        extra={DESCRIPTION_HINT}
       >
         {(field) => (
           <Input.TextArea {...field} rows={3} maxLength={CATEGORY_DESCRIPTION_MAX} showCount />

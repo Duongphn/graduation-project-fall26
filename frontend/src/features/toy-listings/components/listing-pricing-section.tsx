@@ -4,7 +4,8 @@ import { FieldError, MoneyInput, RequiredMark, SectionTitle } from './listing-fo
 import type { ListingType } from '../toy-listing-api'
 import type { ListingFormValues } from '../toy-listing-schema'
 
-export function ListingPricingSection() {
+/** `typeLocked`: tin đã được duyệt không đổi được loại tin (GB-09) */
+export function ListingPricingSection({ typeLocked = false }: { typeLocked?: boolean }) {
   const {
     control,
     setValue,
@@ -22,10 +23,10 @@ export function ListingPricingSection() {
           Giá & Cọc
         </SectionTitle>
         <div className="tf-segmented" role="group" aria-label="Loại tin">
-          <button type="button" aria-pressed={isRent} className={isRent ? 'is-active' : ''} onClick={() => switchType('rent')}>
+          <button type="button" aria-pressed={isRent} className={isRent ? 'is-active' : ''} disabled={typeLocked} onClick={() => switchType('rent')}>
             Thuê
           </button>
-          <button type="button" aria-pressed={!isRent} className={!isRent ? 'is-active' : ''} onClick={() => switchType('sell')}>
+          <button type="button" aria-pressed={!isRent} className={!isRent ? 'is-active' : ''} disabled={typeLocked} onClick={() => switchType('sell')}>
             Bán lại
           </button>
         </div>

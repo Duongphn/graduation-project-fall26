@@ -147,16 +147,30 @@ export const donationAudience: Record<DonationStatus, readonly DonationParty[]> 
   received: [],
   completed: ['DONOR', 'REQUESTER'],
   cancelled: ['DONOR', 'REQUESTER'],
+  // JOB-10 (GB-57) notifies the Donor (MSG56); the receiving side is told as well.
+  expired: ['DONOR', 'REQUESTER'],
 };
 
+/**
+ * GB-56/GB-61: a request the Donor sent to an organization waits for the Admins, so its new
+ * PENDING status goes to them (the receiving side) instead of the Donor who sent it.
+ */
+const audienceOf = (event: DonationStatusChangedEvent): readonly DonationParty[] =>
+  event.to === 'pending' &&
+  event.receiverType === 'ORGANIZATION' &&
+  event.requestedBy === event.donorId
+    ? ['REQUESTER']
+    : donationAudience[event.to];
+
 // For an ORGANIZATION request, requestedBy is only the Admin who filed it on the
-// organization's behalf, so the requester side is the Admin team as a whole: `adminIds` (every
-// active Admin) replaces requestedBy. Organizations have no account of their own to notify.
+// organization's behalf (or the Donor who sent it), so the receiving side is the Admin team as a
+// whole: `adminIds` (every active Admin) replaces requestedBy. Organizations have no account of
+// their own to notify.
 export const donationRecipients = (
   event: DonationStatusChangedEvent,
   adminIds: readonly string[] = [],
 ): Array<{ party: DonationParty; userId: string }> =>
-  donationAudience[event.to]
+  audienceOf(event)
     .flatMap((party): Array<{ party: DonationParty; userId: string }> => {
       if (party === 'DONOR') return [{ party, userId: event.donorId }];
       if (event.receiverType === 'ORGANIZATION')
@@ -167,7 +181,7 @@ export const donationRecipients = (
 
 /** Whether the recipients of this event include the Admin team (see donationRecipients). */
 export const donationNeedsAdmins = (event: DonationStatusChangedEvent): boolean =>
-  event.receiverType === 'ORGANIZATION' && donationAudience[event.to].includes('REQUESTER');
+  event.receiverType === 'ORGANIZATION' && audienceOf(event).includes('REQUESTER');
 
 type DonationText = Pick<MessageSpec, 'title' | 'summary' | 'nextStep' | 'actionLabel'>;
 
@@ -179,6 +193,8 @@ const donationTexts = (
   toy: string,
   name: string,
   receiver: string,
+  code: string,
+  from: DonationStatus | undefined,
 ): DonationText => {
   const forDonor = party === 'DONOR';
   switch (status) {
@@ -243,8 +259,25 @@ const donationTexts = (
         nextStep: 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
+    // MSG56 (R03 V.2): "Your donation request {code} has expired. {reason}"; the reason is the
+    // event reason.
+    case 'expired': {
+      const request = code ? `Yêu cầu quyên góp ${code}` : 'Yêu cầu quyên góp';
+      return {
+        title: `${request} đã hết hạn`,
+        summary: `${request} (đồ chơi "${toy}"${receiver}) đã hết hạn.`,
+        nextStep:
+          forDonor && from === 'accepted'
+            ? 'Đồ chơi đã trở lại danh sách; bạn có thể tặng cho người nhận hoặc tổ chức khác.'
+            : 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
+        actionLabel: VIEW_REQUEST,
+      };
+    }
   }
 };
+
+/** Statuses whose notification carries the event reason (reject, cancel or expiry reason). */
+const WITH_REASON: readonly DonationStatus[] = ['rejected', 'cancelled', 'expired'];
 
 export const renderDonationStatusChanged = (
   event: DonationStatusChangedEvent,
@@ -257,13 +290,15 @@ export const renderDonationStatusChanged = (
     {
       type: 'DONATION_STATUS_CHANGED',
       target: { kind: 'DONATION_REQUEST', id: event.donationRequestId },
-      reason: event.to === 'rejected' || event.to === 'cancelled' ? event.reason : undefined,
+      reason: WITH_REASON.includes(event.to) ? event.reason : undefined,
       ...donationTexts(
         event.to,
         party,
         event.toyTitle,
         shorten(event.toyTitle, MAX_NAME),
         receiver,
+        event.code ?? '',
+        event.from,
       ),
     },
     context.appPublicUrl,

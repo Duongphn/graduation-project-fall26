@@ -79,7 +79,10 @@ async function homeLoader() {
 
 async function newListingLoader() {
   if (isGuest()) return null
-  await queryClient.query(categoriesQuery).catch(ignoreError) // GET /categories
+  await Promise.all([
+    queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (đã xác minh danh tính chưa)
+  ])
   return null
 }
 
@@ -94,6 +97,7 @@ async function walletLoader({ request }: LoaderFunctionArgs) {
 }
 
 async function profileLoader() {
+  if (isGuest()) return null
   await Promise.all([
     queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
     queryClient.query(latestVerificationQuery).catch(ignoreError), // GET /identity-verifications/my-latest
@@ -203,13 +207,21 @@ export const router = createBrowserRouter([
   {
     path: PATHS.profile,
     loader: profileLoader,
-    element: <ProfilePage />,
+    element: (
+      <RequireAuth>
+        <ProfilePage />
+      </RequireAuth>
+    ),
     HydrateFallback: PageLoadingFallback,
   },
   {
     path: PATHS.identityVerification,
     loader: profileLoader,
-    element: <IdentityVerificationPage />,
+    element: (
+      <RequireAuth>
+        <IdentityVerificationPage />
+      </RequireAuth>
+    ),
     HydrateFallback: PageLoadingFallback,
   },
   {

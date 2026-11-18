@@ -12,6 +12,7 @@ import {
   type MailMessage,
 } from '../../src/integrations/email/notification-mailer.js';
 import {
+  donationNeedsAdmins,
   donationRecipients,
   renderDonationStatusChanged,
   renderToyReviewed,
@@ -111,6 +112,31 @@ describe('notification templates', () => {
     expect(parties({ to: 'completed', changedBy: event.requestedBy })).toEqual(['DONOR']);
     expect(parties({ to: 'cancelled', changedBy: event.requestedBy })).toEqual(['DONOR']);
     expect(parties({ to: 'cancelled' })).toEqual(['DONOR', 'REQUESTER']);
+    // JOB-10 has no actor: both sides hear about an expiry (MSG56).
+    expect(parties({ to: 'expired' })).toEqual(['DONOR', 'REQUESTER']);
+  });
+
+  it('words an expiry as MSG56 with the request code and the reason', () => {
+    const event = donationEvent({
+      code: 'DN0A1B2C3D4E',
+      from: 'accepted',
+      to: 'expired',
+      reason: 'Yêu cầu đã hết hạn vì người quyên góp chưa gửi đồ chơi kịp thời.',
+    });
+    const forDonor = renderDonationStatusChanged(event, 'DONOR', context);
+    expect(forDonor.title).toBe('Yêu cầu quyên góp DN0A1B2C3D4E đã hết hạn');
+    expect(forDonor.body).toContain(
+      'Yêu cầu quyên góp DN0A1B2C3D4E (đồ chơi "Bộ xếp hình <gỗ>") đã hết hạn.',
+    );
+    expect(forDonor.body).toContain(
+      'Lý do: Yêu cầu đã hết hạn vì người quyên góp chưa gửi đồ chơi kịp thời.',
+    );
+    expect(forDonor.body).toContain('Đồ chơi đã trở lại danh sách');
+    expect(forDonor.target).toEqual({ kind: 'DONATION_REQUEST', id: event.donationRequestId });
+
+    const forRequester = renderDonationStatusChanged(event, 'REQUESTER', context);
+    expect(forRequester.title).toBe('Yêu cầu quyên góp DN0A1B2C3D4E đã hết hạn');
+    expect(forRequester.body).not.toContain('Đồ chơi đã trở lại danh sách');
   });
 
   it('sends the requester side of an ORGANIZATION request to every Admin but the actor', () => {
@@ -125,6 +151,31 @@ describe('notification templates', () => {
     expect(donationRecipients(event, [adminA, adminB])).toEqual([
       { party: 'REQUESTER', userId: adminB },
       { party: 'DONOR', userId: event.donorId },
+    ]);
+  });
+
+  it('sends a request the Donor sent to an organization to the Admins, not back to the Donor', () => {
+    const [adminA, adminB] = [String(newId()), String(newId())];
+    const donorId = String(newId());
+    const event = donationEvent({
+      receiverType: 'ORGANIZATION',
+      organizationId: String(newId()),
+      donorId,
+      requestedBy: donorId,
+      to: 'pending',
+      changedBy: donorId,
+    });
+    expect(donationNeedsAdmins(event)).toBe(true);
+    expect(donationRecipients(event, [adminA, adminB])).toEqual([
+      { party: 'REQUESTER', userId: adminA },
+      { party: 'REQUESTER', userId: adminB },
+    ]);
+    // The Admin decides it (GB-56): the Donor hears about the decision.
+    expect(
+      donationRecipients({ ...event, to: 'accepted', changedBy: adminA }, [adminA, adminB]),
+    ).toEqual([
+      { party: 'REQUESTER', userId: adminB },
+      { party: 'DONOR', userId: donorId },
     ]);
   });
 

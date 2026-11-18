@@ -11,6 +11,7 @@ import { sendCreated, sendPaginated, sendSuccess } from '../utils/response.js';
 import type {
   AdminOrganizationListQuery,
   CreateOrganizationBody,
+  OrganizationSuggestionQuery,
   PublicOrganizationListQuery,
   UpdateOrganizationBody,
 } from '../validations/organization.validation.js';
@@ -77,5 +78,10 @@ export const publicOrganizationsController = {
 
   get: async (_request: Request, response: Response) => {
     sendSuccess(response, await service.getPublicOrganization(organizationId(response)));
+  },
+
+  suggestions: async (_request: Request, response: Response) => {
+    const query = getValidatedQuery<OrganizationSuggestionQuery>(response);
+    sendSuccess(response, await service.suggestOrganizations(query));
   },
 };
