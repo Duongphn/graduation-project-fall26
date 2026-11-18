@@ -57,6 +57,8 @@ export interface ToyListingDto {
   status: ListingFilterStatus;
   location?: ToyLocation;
   moderation?: OwnerModerationView;
+  /** When the Owner last declared the toy safe (UC05); absent on older listings. */
+  safetyDeclaredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
