@@ -112,6 +112,10 @@ interface PortState {
   soldIds: Set<string>;
   /** Makes getSoldToyIds fail, like a database error after the toy was saved. */
   soldLookupFails?: boolean;
+  /** Calls of closePendingDonationRequests (D-06). */
+  closedDonationRequests: Array<{ toyId: string; ownerId: string; why: string; title: string }>;
+  /** Makes closePendingDonationRequests fail. */
+  closeDonationFails?: boolean;
 }
 
 function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state: PortState } {
@@ -120,6 +124,7 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
     categoryExists: options.categoryExists ?? true,
     unfinishedOrder: options.unfinishedOrder ?? false,
     soldIds: new Set<string>(options.soldIds ?? []),
+    closedDonationRequests: [],
   };
 
   const ports: ToyListingPorts = {
@@ -138,6 +143,11 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
       new Map(
         categoryIds.filter((id) => id === CATEGORY_ID).map((id) => [id, CATEGORY_NAME] as const),
       ),
+    closePendingDonationRequests: async (toyId, ownerId, why, title) => {
+      if (state.closeDonationFails) throw new Error('Closing the donation requests failed.');
+      state.closedDonationRequests.push({ toyId, ownerId, why, title });
+      return 1;
+    },
   };
 
   return { ports, state };
@@ -1014,6 +1024,35 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
     expect(res.body.error.code).toBe('ORDER_IN_PROGRESS');
   });
 
+  it('closes the pending donation requests of a hidden donation post (D-06)', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    (ctx.store[0] as { listingType: string }).listingType = 'donate';
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`);
+
+    expect(res.status).toBe(200);
+    expect(ctx.state.closedDonationRequests).toEqual([
+      { toyId: listing.id, ownerId: ctx.actor1.userId, why: 'HIDDEN', title: listing.title },
+    ]);
+  });
+
+  it('leaves donation requests alone for a rent listing, and when the hide is refused', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    ctx.setActor(ctx.actor1);
+    expect((await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`)).status).toBe(200);
+
+    const donation = await createListing(ctx, ctx.actor1, rentFields());
+    (ctx.store[1] as { listingType: string }).listingType = 'donate';
+    // GB-12/GB-60: an accepted or shipping donation request blocks the hide.
+    ctx.state.unfinishedOrder = true;
+    const blocked = await request(ctx.app).post(`/api/v1/toys/${donation.id}/hide`);
+
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('ORDER_IN_PROGRESS');
+    expect(ctx.state.closedDonationRequests).toEqual([]);
+  });
+
   it('returns 403 when hiding another owner listing', async () => {
     const listing = await createListing(ctx, ctx.actor2, rentFields());
 
@@ -1035,6 +1074,32 @@ describe('DELETE /api/v1/toys/:toyId', () => {
     expect(res.status).toBe(204);
     expect(ctx.store).toHaveLength(0);
     expect(ctx.deletions).toContainEqual(publicIds);
+  });
+
+  it('closes the pending donation requests of a deleted donation post (D-06)', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    (ctx.store[0] as { listingType: string }).listingType = 'donate';
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app).delete(`/api/v1/toys/${listing.id}`);
+
+    expect(res.status).toBe(204);
+    expect(ctx.store).toHaveLength(0);
+    expect(ctx.state.closedDonationRequests).toEqual([
+      { toyId: listing.id, ownerId: ctx.actor1.userId, why: 'DELETED', title: listing.title },
+    ]);
+  });
+
+  it('still deletes the donation post when closing its requests fails', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    (ctx.store[0] as { listingType: string }).listingType = 'donate';
+    ctx.state.closeDonationFails = true;
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app).delete(`/api/v1/toys/${listing.id}`);
+
+    expect(res.status).toBe(204);
+    expect(ctx.store).toHaveLength(0);
   });
 
   it('returns 403 when deleting another owner listing', async () => {

@@ -147,6 +147,8 @@ export const donationAudience: Record<DonationStatus, readonly DonationParty[]> 
   received: [],
   completed: ['DONOR', 'REQUESTER'],
   cancelled: ['DONOR', 'REQUESTER'],
+  // JOB-10 (GB-57) notifies the Donor (MSG56); the receiving side is told as well.
+  expired: ['DONOR', 'REQUESTER'],
 };
 
 /**
@@ -191,6 +193,8 @@ const donationTexts = (
   toy: string,
   name: string,
   receiver: string,
+  code: string,
+  from: DonationStatus | undefined,
 ): DonationText => {
   const forDonor = party === 'DONOR';
   switch (status) {
@@ -255,8 +259,25 @@ const donationTexts = (
         nextStep: 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
+    // MSG56 (R03 V.2): "Your donation request {code} has expired. {reason}"; the reason is the
+    // event reason.
+    case 'expired': {
+      const request = code ? `Yêu cầu quyên góp ${code}` : 'Yêu cầu quyên góp';
+      return {
+        title: `${request} đã hết hạn`,
+        summary: `${request} (đồ chơi "${toy}"${receiver}) đã hết hạn.`,
+        nextStep:
+          forDonor && from === 'accepted'
+            ? 'Đồ chơi đã trở lại danh sách; bạn có thể tặng cho người nhận hoặc tổ chức khác.'
+            : 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
+        actionLabel: VIEW_REQUEST,
+      };
+    }
   }
 };
+
+/** Statuses whose notification carries the event reason (reject, cancel or expiry reason). */
+const WITH_REASON: readonly DonationStatus[] = ['rejected', 'cancelled', 'expired'];
 
 export const renderDonationStatusChanged = (
   event: DonationStatusChangedEvent,
@@ -269,13 +290,15 @@ export const renderDonationStatusChanged = (
     {
       type: 'DONATION_STATUS_CHANGED',
       target: { kind: 'DONATION_REQUEST', id: event.donationRequestId },
-      reason: event.to === 'rejected' || event.to === 'cancelled' ? event.reason : undefined,
+      reason: WITH_REASON.includes(event.to) ? event.reason : undefined,
       ...donationTexts(
         event.to,
         party,
         event.toyTitle,
         shorten(event.toyTitle, MAX_NAME),
         receiver,
+        event.code ?? '',
+        event.from,
       ),
     },
     context.appPublicUrl,

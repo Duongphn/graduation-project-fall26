@@ -23,8 +23,14 @@ export function DonationProgress({
   perspective?: 'donor' | 'receiver'
 }) {
   const forReceiver = perspective === 'receiver'
-  if (request.status === 'rejected' || request.status === 'cancelled') {
-    const reason = request.status === 'rejected' ? request.rejectReason : request.cancellation?.note
+  if (request.status === 'rejected' || request.status === 'cancelled' || request.status === 'expired') {
+    const reason =
+      request.status === 'rejected'
+        ? request.rejectReason
+        : request.status === 'expired'
+          ? request.expiryReason
+          : request.cancellation?.note
+    const endedAt = request.status === 'expired' ? request.expiredAt : request.cancellation?.at
     return (
       <div className="flex items-start gap-3 rounded-xl border border-tf-surface bg-white p-4">
         <CircleX className="mt-0.5 size-5 shrink-0 text-tf-ink-muted" aria-hidden />
@@ -32,10 +38,14 @@ export function DonationProgress({
           <p className="font-semibold text-tf-ink">
             {request.status === 'rejected'
               ? 'Yêu cầu nhận đã bị từ chối'
-              : forReceiver
-                ? 'Yêu cầu nhận đã huỷ'
-                : 'Phiếu quyên góp đã huỷ'}
-            {request.cancellation && ` · ${formatDateTime(request.cancellation.at)}`}
+              : request.status === 'expired'
+                ? forReceiver
+                  ? 'Yêu cầu nhận đã hết hạn'
+                  : 'Phiếu quyên góp đã hết hạn'
+                : forReceiver
+                  ? 'Yêu cầu nhận đã huỷ'
+                  : 'Phiếu quyên góp đã huỷ'}
+            {endedAt && ` · ${formatDateTime(endedAt)}`}
           </p>
           {reason && <p className="text-tf-ink-muted">{reason}</p>}
         </div>

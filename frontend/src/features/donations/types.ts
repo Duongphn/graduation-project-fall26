@@ -99,6 +99,9 @@ export interface DonationRequest {
   decidedAt: string | null
   rejectReason: string | null
   completedAt: string | null
+  // GB-57: when the expiry job set the request to expired, and why (no decision / no handover in time)
+  expiredAt: string | null
+  expiryReason: string | null
   createdAt: string
   updatedAt: string
 }
@@ -154,6 +157,11 @@ export interface ConfirmReceivedInput {
 
 // The Donor hands the toy over: 1–10 own HANDOVER_PHOTO uploads and an optional note.
 export interface HandoverInput {
+  // GB-58: drop-off at the receiving point or a carrier chosen by the Donor.
+  handoverMethod?: 'drop_off' | 'carrier'
+  // Optional free text, only for a carrier.
+  carrierName?: string
+  trackingCode?: string
   photos: PrivatePhoto[]
   note?: string
 }

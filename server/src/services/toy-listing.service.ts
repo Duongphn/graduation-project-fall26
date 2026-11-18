@@ -539,6 +539,11 @@ export class ToyListingService {
 
     listing.status = 'hidden';
     const saved = await listing.save();
+    // D-06: a hidden donation post takes no new requests, so its pending ones are closed. A
+    // failure here fails the call; hiding again (the toy is already hidden) closes the rest.
+    if (isDonationPost(saved)) {
+      await this.ports.closePendingDonationRequests?.(toyId, actor.userId, 'HIDDEN', saved.title);
+    }
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
@@ -572,6 +577,19 @@ export class ToyListingService {
       .filter((id) => typeof id === 'string' && id.trim().length > 0);
 
     await this.toyModel.findByIdAndDelete(toyId);
+    // D-06: the pending requests of a deleted donation post are closed (the title is passed, as
+    // the toy can no longer be read). The toy is gone and the call cannot be repeated, so a
+    // failure is only logged: the expiry job (JOB-10) still closes what is left.
+    if (isDonationPost(listing)) {
+      await this.ports
+        .closePendingDonationRequests?.(toyId, actor.userId, 'DELETED', listing.title)
+        .catch((error: unknown) =>
+          console.error('Failed to close the pending donation requests of a deleted post:', {
+            toyId,
+            error,
+          }),
+        );
+    }
 
     if (publicIds.length > 0) {
       try {

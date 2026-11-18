@@ -2,9 +2,11 @@ import mongoose, { type ClientSession } from 'mongoose';
 
 import type { ToyListingPorts } from '../interfaces/toy-listing.ports.js';
 import Category from '../models/category.model.js';
+import { DonationRequest } from '../models/donation-request.model.js';
 import IdentityVerification from '../models/identity-verification.model.js';
 import PurchaseOrder from '../models/purchase-order.model.js';
 import RentalOrder from '../models/rental-order.model.js';
+import { closePendingRequestsForToy } from '../services/donation-request.lifecycle.js';
 import { withTransaction } from '../utils/transaction.js';
 
 const TERMINAL_ORDER_STATUS_REGEX = /^(completed|rejected|cancell?ed|expired)$/i;
@@ -77,13 +79,17 @@ export function createToyListingPorts(): ToyListingPorts {
         status: { $not: TERMINAL_ORDER_STATUS_REGEX },
       };
 
-      const [hasRental, hasPurchase] = await Promise.all([
+      const [hasRental, hasPurchase, hasDonation] = await Promise.all([
         RentalOrder.exists(unfinishedFilter),
         PurchaseOrder.exists(unfinishedFilter),
+        // GB-60: a donation post with an accepted or shipping request is being handed over.
+        DonationRequest.exists({ toyId, status: { $in: ['accepted', 'shipping'] } }),
       ]);
 
-      return Boolean(hasRental || hasPurchase);
+      return Boolean(hasRental || hasPurchase || hasDonation);
     },
+
+    closePendingDonationRequests: closePendingRequestsForToy,
 
     async getSoldToyIds(toyIds: string[]): Promise<Set<string>> {
       if (!toyIds || toyIds.length === 0) {

@@ -57,6 +57,8 @@ const donationRequestSchema = new Schema(
     handovers: { type: [handoverSchema], default: [] },
     completedAt: { type: Date },
     cancellation: { type: cancellationSchema, default: undefined },
+    // GB-57 (R04 3.9 expired_at): when the expiry job (JOB-10) set the request to expired.
+    expiredAt: { type: Date },
     // GB-58 (R04 3.9): set when the Donor hands the toy over; carrier fields are free text.
     handoverMethod: { type: String, enum: handoverMethods },
     carrierName: { type: String },
@@ -123,6 +125,7 @@ export interface IDonationRequest {
   handovers: DonationHandover[];
   completedAt?: Date;
   cancellation?: DonationCancellation;
+  expiredAt?: Date;
   handoverMethod?: HandoverMethod;
   carrierName?: string;
   trackingCode?: string;

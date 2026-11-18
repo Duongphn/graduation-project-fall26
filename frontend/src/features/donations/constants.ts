@@ -37,8 +37,8 @@ export const confirmReasonPresets = [
 export const donationSortFields = ['createdAt', 'updatedAt', 'status', 'code'] as const
 export type DonationSortField = (typeof donationSortFields)[number]
 
-// Donor hands a toy over (POST /donation-requests/:id/handover). The backend has no carrier or
-// tracking fields yet, so both are written at the top of the handover note (composeHandoverNote).
+// Donor hands a toy over (POST /donation-requests/:id/handover): the form's choices, sent as
+// handoverMethod 'carrier' or 'drop_off' with the optional carrierName and trackingCode (toHandoverInput).
 export const handoverMethods = ['CARRIER', 'SELF'] as const
 export type HandoverMethod = (typeof handoverMethods)[number]
 

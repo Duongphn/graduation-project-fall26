@@ -101,6 +101,9 @@ export function DonationParties({ request }: { request: DonationRequestDetail })
           {request.cancellation?.note && (
             <Descriptions.Item label="Lý do huỷ">{request.cancellation.note}</Descriptions.Item>
           )}
+          {request.expiryReason && (
+            <Descriptions.Item label="Lý do hết hạn">{request.expiryReason}</Descriptions.Item>
+          )}
         </Descriptions>
       </Card>
       {(request.handoverMethod || request.receipt) && (
