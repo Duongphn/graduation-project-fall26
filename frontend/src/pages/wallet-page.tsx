@@ -1,13 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { Pagination } from 'antd'
-import { ChevronRight, Home } from 'lucide-react'
-import { useEffect } from 'react'
+import { ChevronRight, Home, Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { QueryErrorAlert } from '../components/common'
+import { TopupDialog } from '../features/wallet/components/topup-dialog'
 import { WalletBalanceCards } from '../features/wallet/components/wallet-balance-cards'
 import { WalletHistoryFilters } from '../features/wallet/components/wallet-history-filters'
 import { WalletTransactionList } from '../features/wallet/components/wallet-transaction-list'
+import { parseTopupRequest } from '../features/wallet/topup-session'
 import {
   myWalletQuery,
   parseWalletHistorySearch,
@@ -22,6 +24,9 @@ import { PATHS } from '../routes/paths'
 export function WalletPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = parseWalletHistorySearch(searchParams)
+  // ?topup=50000&returnTo=/rentals/mine/… (từ khung thanh toán đơn thuê): mở sẵn hộp nạp tiền
+  const topupRequest = parseTopupRequest(searchParams)
+  const [topupOpen, setTopupOpen] = useState(false)
   const wallet = useQuery(myWalletQuery)
   const history = useQuery(walletTransactionsQuery(filters))
 
@@ -32,6 +37,13 @@ export function WalletPage() {
   const items = history.data?.items ?? []
   const total = history.data?.pagination.totalItems ?? 0
   const filtered = Boolean(filters.type || filters.direction)
+  const showTopup = topupOpen || topupRequest !== undefined
+
+  const closeTopup = () => {
+    setTopupOpen(false)
+    // Bỏ ?topup=&returnTo= khỏi URL, giữ bộ lọc lịch sử
+    if (searchParams.has('topup')) setSearchParams(toWalletHistorySearch(filters), { replace: true })
+  }
 
   return (
     <AccountLayout activeItem="wallet">
@@ -45,9 +57,18 @@ export function WalletPage() {
         </span>
       </nav>
 
-      <header className="mt-4">
-        <h1 className="text-2xl leading-tight font-bold tracking-[-0.02em] text-tf-ink">Ví ToyFlow</h1>
-        <p className="mt-1 text-sm text-tf-ink-muted">Số dư của bạn và mọi khoản tiền vào, ra khỏi ví.</p>
+      <header className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl leading-tight font-bold tracking-[-0.02em] text-tf-ink">Ví ToyFlow</h1>
+          <p className="mt-1 text-sm text-tf-ink-muted">Số dư của bạn và mọi khoản tiền vào, ra khỏi ví.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setTopupOpen(true)}
+          className="inline-flex h-10 items-center gap-2 self-start rounded-full bg-tf-primary px-4 text-sm font-bold text-white hover:bg-tf-primary-container sm:self-auto"
+        >
+          <Plus className="size-4" aria-hidden /> Nạp tiền
+        </button>
       </header>
 
       <div className="mt-4">
@@ -105,6 +126,10 @@ export function WalletPage() {
           />
         )}
       </section>
+
+      {showTopup && (
+        <TopupDialog onClose={closeTopup} initialAmount={topupRequest?.amount} returnTo={topupRequest?.returnTo} />
+      )}
     </AccountLayout>
   )
 }

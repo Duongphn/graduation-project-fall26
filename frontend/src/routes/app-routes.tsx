@@ -50,6 +50,7 @@ import { NewDonationPage } from '../pages/new-donation-page'
 import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
 import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
 import { WalletPage } from '../pages/wallet-page'
+import { WalletTopupResultPage } from '../pages/wallet-topup-result-page'
 import {
   myWalletQuery,
   parseWalletHistorySearch,
@@ -347,6 +348,14 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.walletTopupResult,
+    element: (
+      <RequireAuth>
+        <WalletTopupResultPage />
+      </RequireAuth>
+    ),
   },
   {
     path: PATHS.rentalRequests,

@@ -1,7 +1,10 @@
-import { apiGet, apiGetPage } from '../../services/http'
+import { apiGet, apiGetPage, apiPost } from '../../services/http'
 import type { Paginated } from '../../types/api'
 
-/** GET /wallets/me, GET /wallets/me/transactions — server/docs/api/wallets.md */
+/**
+ * GET /wallets/me, GET /wallets/me/transactions — server/docs/api/wallets.md
+ * POST /payments/vnpay/topup, GET /payments/vnpay/return (UC17) — server/docs/api/payments.md
+ */
 
 export interface WalletHoldings {
   /** Tiền thuê + tiền cọc của các đơn đã thanh toán, chưa quyết toán (đang ở tài khoản ký quỹ) */
@@ -43,9 +46,40 @@ export interface WalletTransactionParams {
   direction?: WalletTransactionDirection
 }
 
+/** Hạn mức một lần nạp qua VNPay (khớp backend) */
+export const TOPUP_MIN_AMOUNT = 10_000
+export const TOPUP_MAX_AMOUNT = 50_000_000
+
+/** POST /payments/vnpay/topup: giao dịch Pending và link sang cổng VNPay */
+export interface TopupCreated {
+  paymentCode: string
+  paymentUrl: string
+  amount: number
+  expiresAt: string
+}
+
+export type TopupStatus = 'pending' | 'success' | 'failed'
+
+/** GET /payments/vnpay/return: kết quả giao dịch sau khi VNPay chuyển về */
+export interface TopupResult {
+  paymentCode: string
+  amount: number
+  status: TopupStatus
+  /** Người dùng bấm Hủy trên VNPay (status vẫn là failed) */
+  cancelled: boolean
+  /** Số dư ví sau khi xử lý */
+  balance: number
+}
+
 export const walletApi = {
   // limit=1: màn hình chỉ cần số dư, lịch sử lấy ở /wallets/me/transactions
   me: () => apiGet<WalletSummary>('/wallets/me', { limit: 1 }),
   transactions: (params: WalletTransactionParams): Promise<Paginated<WalletTransaction>> =>
     apiGetPage<WalletTransaction>('/wallets/me/transactions', params),
+  createTopup: (amount: number) => apiPost<TopupCreated>('/payments/vnpay/topup', { amount }),
+  /**
+   * Gửi nguyên query VNPay trả về (`?vnp_Amount=…&vnp_SecureHash=…`) cho server kiểm tra chữ ký.
+   * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
+   */
+  confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay/return${search}`),
 }
