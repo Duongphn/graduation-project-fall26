@@ -82,7 +82,7 @@ export class UsersService {
         throw new AppError(
           400,
           'INVALID_INPUT',
-          'fullName must have 2 to 50 letters and spaces (R03 III.6.1.1 (5)).',
+          'Họ và tên chỉ gồm chữ cái và khoảng trắng, từ 2 đến 50 ký tự.',
         );
       }
       user.fullName = patch.fullName.trim();
