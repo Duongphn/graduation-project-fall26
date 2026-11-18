@@ -37,10 +37,12 @@ import {
 } from './repositories/toy-catalog.repository.js';
 import { createToyListingPorts } from './repositories/toy-listing.repository.js';
 import { WalletLedgerRepository } from './repositories/wallet-ledger.repository.js';
+import { DisputeService } from './services/dispute.service.js';
 import { setReviewStorage } from './services/identity-review.documents.js';
 import { setIdentityReviewService } from './services/identity-review.service.js';
 import { IdentityVerificationService } from './services/identity-verification.service.js';
 import { setNotificationMailer } from './services/notification.service.js';
+import { RentalDisputableOrders } from './services/rental-disputable-orders.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
@@ -80,6 +82,7 @@ export interface ContainerOverrides {
   rentalOrderService?: RentalOrderService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
+  disputeService?: DisputeService;
 }
 
 export interface Container {
@@ -95,6 +98,7 @@ export interface Container {
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
+  disputeService: DisputeService;
 }
 
 /**
@@ -175,6 +179,17 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       clock,
     );
 
+  const disputeService =
+    overrides.disputeService ??
+    new DisputeService({
+      orders: new RentalDisputableOrders(rentalDeps),
+      photos: rentalPhotoStorage,
+      notifier: rentalNotifier,
+      clock,
+      settings: rentalSettings,
+      codes: rentalOrderRepository,
+    });
+
   return {
     toyImageStorage,
     authService,
@@ -187,5 +202,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,
+    disputeService,
   };
 }

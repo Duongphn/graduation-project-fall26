@@ -9,6 +9,7 @@ import {
 import { createContainer } from './container.js';
 import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
+import { startDisputeResponseExpiryJob } from './jobs/dispute-response-expiry.job.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { createSocketServer } from './sockets/socket.js';
 
@@ -23,8 +24,10 @@ const startServer = async (): Promise<void> => {
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
 
   let stopScheduler: (() => void) | undefined;
+  let disputeExpiryJob: { stop: () => void } | undefined;
   if (env.rentalSchedulerEnabled) {
     stopScheduler = startRentalScheduler(container.rentalTimerService);
+    disputeExpiryJob = startDisputeResponseExpiryJob(container.disputeService);
     console.info('Rental scheduler started.');
   }
 
@@ -37,6 +40,7 @@ const startServer = async (): Promise<void> => {
     if (stopScheduler) {
       stopScheduler();
     }
+    disputeExpiryJob?.stop();
     donationExpiryJob?.stop();
     socketServer.close();
     httpServer.close(async () => {
