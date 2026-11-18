@@ -93,8 +93,7 @@ export class RentalOrderService extends RentalOrderCore {
 
     const isRenter = order.renterId.toString() === actor.userId;
     const isOwner = order.ownerId.toString() === actor.userId;
-    const actorRole = (actor as RequestActor & { role?: string }).role ?? actor.actorType;
-    const isAdmin = actorRole?.toLowerCase() === 'admin' || actorRole?.toUpperCase() === 'ADMIN';
+    const isAdmin = actor.actorType === 'ADMIN';
 
     if (role === 'any') {
       if (!isRenter && !isOwner && !isAdmin) {
@@ -346,8 +345,7 @@ export class RentalOrderService extends RentalOrderCore {
   public async get(actor: RequestActor, orderId: string): Promise<RentalOrderDetailDto> {
     const order = await this.loadForParty(actor, orderId, 'any');
 
-    const actorRole = (actor as RequestActor & { role?: string }).role ?? actor.actorType;
-    const isAdmin = actorRole?.toLowerCase() === 'admin' || actorRole?.toUpperCase() === 'ADMIN';
+    const isAdmin = actor.actorType === 'ADMIN';
     const isRenter = order.renterId.toString() === actor.userId;
 
     let effectiveRole: 'renter' | 'owner' | 'admin';
@@ -365,7 +363,7 @@ export class RentalOrderService extends RentalOrderCore {
       this.userModel.findById(order.ownerId).lean(),
       this.orderStatusHistoryModel
         .find({ orderType: 'RENTAL', orderId: order._id })
-        .sort({ occurredAt: 1 })
+        .sort({ occurredAt: 1, _id: 1 })
         .lean(),
     ]);
 
@@ -484,6 +482,7 @@ export class RentalOrderService extends RentalOrderCore {
       owner: ownerDto,
       timeline,
       financialBreakdown,
+      viewerRole: effectiveRole,
     });
   }
 
@@ -558,7 +557,7 @@ export class RentalOrderService extends RentalOrderCore {
     const order = await this.loadForParty(actor, orderId, 'any');
     const rows = await this.orderStatusHistoryModel
       .find({ orderType: 'RENTAL', orderId: order._id })
-      .sort({ occurredAt: 1 })
+      .sort({ occurredAt: 1, _id: 1 })
       .exec();
 
     return rows.map((r) => ({
