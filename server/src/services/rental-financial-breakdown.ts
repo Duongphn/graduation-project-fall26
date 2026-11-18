@@ -251,14 +251,8 @@ export function computeFinancialBreakdown(
     }
   }
 
-  let platformRevenue = 0;
-  if (order.status === 'COMPLETED') {
-    platformRevenue = platformFee;
-  } else if (order.status === 'DISPUTING' || isTerminal) {
-    platformRevenue = 0;
-  } else if (isPaid) {
-    platformRevenue = platformFee;
-  }
+  // Phí nền tảng chỉ vào ví platform khi quyết toán (postSettleLedger)
+  const platformRevenue = order.status === 'COMPLETED' ? platformFee : 0;
 
   const adminItems: AdminFinancialItemsDto = {
     rentalFee,
@@ -284,7 +278,7 @@ export function computeFinancialBreakdown(
       : 'Toàn cảnh tài chính đơn thuê đang trong tiến trình xử lý.',
   };
 
-  const adminBreakdown: AdminFinancialBreakdownDto = {
+  return {
     role: 'admin',
     currency,
     isEstimated,
@@ -296,13 +290,4 @@ export function computeFinancialBreakdown(
     platformRevenue,
     summary: adminSummary,
   };
-
-  // Provide nested aliases for convenience
-  Object.assign(adminBreakdown, {
-    renterView,
-    ownerView,
-    escrowStatus: isTerminal ? 'SETTLED' : isPaid ? 'HELD' : 'EMPTY',
-  });
-
-  return adminBreakdown;
 }
