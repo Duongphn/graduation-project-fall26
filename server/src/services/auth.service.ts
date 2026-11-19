@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import type { AuthMailer } from '../interfaces/auth.ports.js';
 import { AppError } from '../utils/app-error.js';
+import { phoneLookupForms } from '../utils/phone.js';
 import { OtpRequest } from '../models/otp-request.model.js';
 import { RefreshToken } from '../models/refresh-token.model.js';
 import { User } from '../models/user.model.js';
@@ -635,7 +636,9 @@ export class AuthService {
     if (await User.exists({ email })) {
       throw new AppError(409, 'EMAIL_EXISTS', 'Email này đã được sử dụng. Vui lòng chọn email khác.');
     }
-    if (await User.exists({ phone })) {
+    // The same number in another form (0912... / +84912...) is the same phone
+    const phoneForms = phoneLookupForms(phone);
+    if (await User.exists({ phone: { $in: phoneForms.length > 0 ? phoneForms : [phone] } })) {
       throw new AppError(409, 'PHONE_EXISTS', 'Số điện thoại này đã được sử dụng.');
     }
   }
@@ -668,20 +671,25 @@ export class AuthService {
    */
   public async login(dto: LoginDTO): Promise<LoginResponse> {
     const identifier = dto.identifier.trim();
-    const query = identifier.includes('@') ? { email: identifier.toLowerCase() } : { phone: identifier };
+    // A phone number may be typed as "0912 345 678" or "+84912345678" and stored as 0912... or +84...
+    const phoneForms = identifier.includes('@') ? [] : phoneLookupForms(identifier);
+    const query = identifier.includes('@')
+      ? { email: identifier.toLowerCase() }
+      : { phone: { $in: phoneForms.length > 0 ? phoneForms : [identifier] } };
+    const lockKey = phoneForms[0] ?? identifier;
 
     const user = await User.findOne(query);
 
     // GB-03/GB-05: a timed lock (5 failed sign-ins, or an Admin lock) blocks password sign-in
     // until lock.until; when it has passed the account is unlocked again (JOB-01 behaviour).
-    if ((user?.lock?.until && new Date(user.lock.until) > new Date()) || (!user && isUnknownLocked(identifier))) {
+    if ((user?.lock?.until && new Date(user.lock.until) > new Date()) || (!user && isUnknownLocked(lockKey))) {
       throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
     }
 
     const isPasswordValid = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
     if (!user || !isPasswordValid) {
       // GB-04: one message for an unknown account and for a wrong password, with the attempts left.
-      const failures = user ? await this.recordFailedLogin(user) : recordUnknownFailure(identifier);
+      const failures = user ? await this.recordFailedLogin(user) : recordUnknownFailure(lockKey);
       if (failures >= MAX_FAILED_LOGINS) {
         throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
       }
