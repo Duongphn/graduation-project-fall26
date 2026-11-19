@@ -98,7 +98,7 @@ describe('Wallet screen API', () => {
     expect(res.body.data).toMatchObject({ availableBalance: 0, holdingBalance: 0 });
   });
 
-  it('lists the history newest first with the pagination envelope', async () => {
+  it('lists the history newest first in the lead’s list shape', async () => {
     await fund(userId, 100_000);
     await fund(userId, 200_000);
     await fund(userId, 300_000);
@@ -108,47 +108,88 @@ describe('Wallet screen API', () => {
       .set(authHeader(userId));
 
     expect(res.status).toBe(200);
-    expect(res.body.data.map((t: { amount: number }) => t.amount)).toEqual([300_000, 200_000]);
-    expect(res.body.pagination).toMatchObject({
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      total: 3,
       page: 1,
       limit: 2,
-      totalItems: 3,
       totalPages: 2,
       hasNextPage: true,
       hasPrevPage: false,
     });
+    expect(res.body.data.items.map((t: { amount: number }) => t.amount)).toEqual([300_000, 200_000]);
+    expect(res.body.data.items[0]).toMatchObject({
+      type: 'credit',
+      reference: { kind: 'admin_credit' },
+      description: 'Test funding',
+    });
+    expect(res.body.data.items[0]).toHaveProperty('walletId');
+    expect(res.body.data.items[0]).toHaveProperty('postingKey');
+    expect(typeof res.body.data.items[0].createdAt).toBe('string');
 
     const page2 = await request(app)
       .get('/api/v1/wallets/me/transactions?page=2&limit=2')
       .set(authHeader(userId));
-    expect(page2.body.data.map((t: { amount: number }) => t.amount)).toEqual([100_000]);
+    expect(page2.body.data.items.map((t: { amount: number }) => t.amount)).toEqual([100_000]);
+    expect(page2.body.data).toMatchObject({ hasNextPage: false, hasPrevPage: true });
   });
 
-  it('filters by type and by direction', async () => {
+  it('uses 20 items per page by default', async () => {
+    const res = await request(app).get('/api/v1/wallets/me/transactions').set(authHeader(userId));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ items: [], total: 0, page: 1, limit: 20, totalPages: 1 });
+  });
+
+  it('filters by kind (type of transaction) and by type (direction)', async () => {
     await fund(userId, 500_000);
     await payRental(350_000);
 
     const rentals = await request(app)
-      .get('/api/v1/wallets/me/transactions?type=rental')
+      .get('/api/v1/wallets/me/transactions?kind=rental_order')
       .set(authHeader(userId));
-    expect(rentals.body.data).toHaveLength(1);
-    expect(rentals.body.data[0]).toMatchObject({
+    expect(rentals.body.data.items).toHaveLength(1);
+    expect(rentals.body.data.items[0]).toMatchObject({
       amount: 350_000,
       type: 'debit',
       reference: { kind: 'rental_order' },
     });
 
     const credits = await request(app)
-      .get('/api/v1/wallets/me/transactions?direction=credit')
+      .get('/api/v1/wallets/me/transactions?type=credit')
       .set(authHeader(userId));
-    expect(credits.body.data).toHaveLength(1);
-    expect(credits.body.data[0]).toMatchObject({ amount: 500_000, type: 'credit' });
+    expect(credits.body.data.items).toHaveLength(1);
+    expect(credits.body.data.items[0]).toMatchObject({ amount: 500_000, type: 'credit' });
+
+    const everything = await request(app)
+      .get('/api/v1/wallets/me/transactions?type=all&kind=all')
+      .set(authHeader(userId));
+    expect(everything.body.data.total).toBe(2);
 
     const topups = await request(app)
-      .get('/api/v1/wallets/me/transactions?type=topup')
+      .get('/api/v1/wallets/me/transactions?kind=payment')
       .set(authHeader(userId));
-    expect(topups.body.data).toEqual([]);
-    expect(topups.body.pagination.totalItems).toBe(0);
+    expect(topups.body.data).toMatchObject({ items: [], total: 0 });
+  });
+
+  it('filters by date range', async () => {
+    await fund(userId, 100_000);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const inRange = await request(app)
+      .get(`/api/v1/wallets/me/transactions?startDate=2000-01-01&endDate=2999-12-31`)
+      .set(authHeader(userId));
+    expect(inRange.body.data.total).toBe(1);
+
+    const before = await request(app)
+      .get(`/api/v1/wallets/me/transactions?endDate=2000-01-01`)
+      .set(authHeader(userId));
+    expect(before.body.data.total).toBe(0);
+
+    const reversed = await request(app)
+      .get(`/api/v1/wallets/me/transactions?startDate=${today}&endDate=2000-01-01`)
+      .set(authHeader(userId));
+    expect(reversed.status).toBe(400);
   });
 
   it('only shows the signed-in user’s own transactions', async () => {
@@ -158,14 +199,20 @@ describe('Wallet screen API', () => {
     const res = await request(app).get('/api/v1/wallets/me/transactions').set(authHeader(userId));
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual([]);
+    expect(res.body.data.items).toEqual([]);
   });
 
-  it('rejects an unknown filter and an anonymous request', async () => {
-    const bad = await request(app)
+  it('rejects a bad filter and an anonymous request', async () => {
+    const badType = await request(app)
       .get('/api/v1/wallets/me/transactions?type=gift')
       .set(authHeader(userId));
-    expect(bad.status).toBe(400);
+    expect(badType.status).toBe(400);
+    expect(badType.body.error.code).toBe('VALIDATION_ERROR');
+
+    const badLimit = await request(app)
+      .get('/api/v1/wallets/me/transactions?limit=500')
+      .set(authHeader(userId));
+    expect(badLimit.status).toBe(400);
 
     const anon = await request(app).get('/api/v1/wallets/me/transactions');
     expect(anon.status).toBe(401);

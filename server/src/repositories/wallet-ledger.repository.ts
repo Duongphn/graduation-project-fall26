@@ -208,10 +208,15 @@ export class WalletLedgerRepository implements WalletLedgerPort {
     options: TransactionFilter = {},
   ): Promise<{ items: IWalletTransaction[]; total: number }> {
     const skip = (page - 1) * limit;
+    const createdAt = {
+      ...(options.startDate ? { $gte: options.startDate } : {}),
+      ...(options.endDate ? { $lte: options.endDate } : {}),
+    };
     const filter = {
       walletId: new Types.ObjectId(walletId),
-      ...(options.kinds ? { 'reference.kind': { $in: [...options.kinds] } } : {}),
+      ...(options.kind ? { 'reference.kind': options.kind } : {}),
       ...(options.direction ? { type: options.direction } : {}),
+      ...(options.startDate || options.endDate ? { createdAt } : {}),
     };
 
     const [items, total] = await Promise.all([

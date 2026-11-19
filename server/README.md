@@ -25,7 +25,7 @@ Requests flow `routes → controllers → services → repositories / models`. S
 
 - Architecture and how to add a module: [`docs/backend-architecture.md`](docs/backend-architecture.md)
 - Collections: [`docs/models.md`](docs/models.md)
-- Endpoints: [`docs/api/`](docs/api/) (users, identity verification, toys, rentals, wallets)
+- Endpoints: [`docs/api/`](docs/api/) (users, identity verification, toys, rentals, wallets, payments)
 - Response format: [`docs/api-conventions.md`](docs/api-conventions.md)
 
 ## Business modules

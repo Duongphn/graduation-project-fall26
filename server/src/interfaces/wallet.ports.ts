@@ -1,8 +1,5 @@
 import { type ClientSession } from 'mongoose';
-import {
-  type LedgerReferenceKind,
-  type WalletTransactionDirection,
-} from '../constants/wallet-transaction.js';
+import { type LedgerReferenceKind } from '../constants/wallet-transaction.js';
 import { type IWallet, type IWalletTransaction } from '../models/index.js';
 
 export type SystemWalletType = 'platform' | 'escrow' | 'external';
@@ -25,16 +22,22 @@ export interface LedgerReference {
   id: string;
 }
 
-/** Optional filters of a wallet statement. */
+/** Optional filters of a wallet statement (same as the lead's listByWalletId). */
 export interface TransactionFilter {
-  kinds?: readonly LedgerReferenceKind[] | undefined;
-  direction?: WalletTransactionDirection | undefined;
+  /** reference.kind, e.g. rental_order or payment */
+  kind?: string | undefined;
+  direction?: 'credit' | 'debit' | undefined;
+  /** createdAt range, both ends included */
+  startDate?: Date | undefined;
+  endDate?: Date | undefined;
 }
 
 /** Money of a user that is not spendable yet but still theirs (VND). */
 export interface WalletHoldings {
   /** Rent + deposit of their paid, unsettled rentals (held in escrow). */
   rentals: number;
+  /** Their withdrawal requests not paid out yet (held in escrow). */
+  withdrawals: number;
 }
 
 export interface WalletHoldingsPort {

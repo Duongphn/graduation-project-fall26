@@ -10,6 +10,7 @@ import { createContainer } from './container.js';
 import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
+import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
 import { setNotificationPusher } from './services/notification.service.js';
 import { createSocketPusher, createSocketServer } from './sockets/socket.js';
 
@@ -20,6 +21,7 @@ const startServer = async (): Promise<void> => {
   const donationExpiryJob = startDonationExpiryJob();
 
   const container = createContainer();
+  const paymentExpiryJob = startPaymentExpiryJob(container.paymentService);
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
   setNotificationPusher(createSocketPusher(socketServer));
@@ -40,6 +42,7 @@ const startServer = async (): Promise<void> => {
       stopScheduler();
     }
     donationExpiryJob?.stop();
+    paymentExpiryJob?.stop();
     socketServer.close();
     httpServer.close(async () => {
       await disconnectDatabase();

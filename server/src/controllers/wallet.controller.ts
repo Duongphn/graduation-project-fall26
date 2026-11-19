@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { getValidatedQuery } from '../middlewares/validate.js';
 import { type WalletService } from '../services/wallet.service.js';
-import { sendPaginated } from '../utils/response.js';
+import { sendSuccess } from '../utils/response.js';
 import {
   validateAdminCreditInput,
   validateWalletPaginationQuery,
@@ -32,8 +32,8 @@ export class WalletController {
   ): Promise<void> => {
     try {
       const query = getValidatedQuery<WalletTransactionListQuery>(res);
-      const { items, total } = await this.service.listMyTransactions(req.auth!, query);
-      sendPaginated(res, items, query, total);
+      // { success, data: { items, total, page, limit, totalPages, hasNextPage, hasPrevPage } } như API của lead
+      sendSuccess(res, await this.service.listMyTransactions(req.auth!, query));
     } catch (err) {
       next(err);
     }

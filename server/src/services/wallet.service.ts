@@ -1,10 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import mongoose, { type Model } from 'mongoose';
-import {
-  type WalletTransactionDirection,
-  type WalletTransactionType,
-  walletTransactionTypeKinds,
-} from '../constants/wallet-transaction.js';
+import { type WalletTransactionListType } from '../constants/wallet-transaction.js';
 import {
   type WalletHoldings,
   type WalletHoldingsPort,
@@ -41,11 +37,40 @@ export interface WalletSummaryDto {
   limit: number;
 }
 
+/** Query of GET /wallets/me/transactions, same names as the lead's API. */
 export interface TransactionListQuery {
   page: number;
   limit: number;
-  type?: WalletTransactionType | undefined;
-  direction?: WalletTransactionDirection | undefined;
+  /** all (default) | credit | debit */
+  type?: WalletTransactionListType | undefined;
+  /** reference.kind, e.g. rental_order, payment; `all` = no filter */
+  kind?: string | undefined;
+  startDate?: Date | undefined;
+  endDate?: Date | undefined;
+}
+
+/** One line of the wallet history, same fields as the lead's WalletTransactionDto. */
+export interface WalletStatementItemDto {
+  id: string;
+  walletId: string;
+  entryKey: string;
+  postingKey: string;
+  amount: number;
+  type: 'credit' | 'debit';
+  reference?: { kind?: string | undefined; id?: string | undefined } | undefined;
+  description?: string | undefined;
+  createdAt: string;
+}
+
+/** Response data of GET /wallets/me/transactions, same as the lead's PaginatedTransactionsDto. */
+export interface PaginatedTransactionsDto {
+  items: WalletStatementItemDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 }
 
 export interface AdminCreditDto {
@@ -96,7 +121,7 @@ export class WalletService {
     return {
       balance: wallet.balance,
       availableBalance: wallet.balance,
-      holdingBalance: holdings.rentals,
+      holdingBalance: holdings.rentals + holdings.withdrawals,
       holdings,
       currency: wallet.currency,
       transactions: items.map((t) => this.toTransactionDto(t)),
@@ -106,17 +131,48 @@ export class WalletService {
     };
   }
 
-  /** History of the signed-in user's wallet, newest first, filtered by type and direction. */
+  private toStatementDto(t: IWalletTransaction): WalletStatementItemDto {
+    return {
+      id: t._id.toString(),
+      walletId: t.walletId.toString(),
+      entryKey: t.entryKey,
+      postingKey: t.postingKey,
+      amount: t.amount,
+      type: t.type,
+      ...(t.reference
+        ? { reference: { kind: t.reference.kind, id: t.reference.id?.toString() } }
+        : {}),
+      ...(t.description ? { description: t.description } : {}),
+      createdAt: t.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * History of the signed-in user's wallet, newest first (View Wallet Transactions).
+   * Filters and response follow the lead's GET /wallets/me/transactions.
+   */
   public async listMyTransactions(
     actor: RequestActor,
     query: TransactionListQuery,
-  ): Promise<{ items: WalletTransactionItemDto[]; total: number }> {
+  ): Promise<PaginatedTransactionsDto> {
     const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
     const { items, total } = await this.ledger.listTransactions(wallet.id, query.page, query.limit, {
-      kinds: query.type ? walletTransactionTypeKinds[query.type] : undefined,
-      direction: query.direction,
+      kind: query.kind && query.kind !== 'all' ? query.kind : undefined,
+      direction: query.type && query.type !== 'all' ? query.type : undefined,
+      startDate: query.startDate,
+      endDate: query.endDate,
     });
-    return { items: items.map((t) => this.toTransactionDto(t)), total };
+    const totalPages = Math.ceil(total / query.limit) || 1;
+
+    return {
+      items: items.map((t) => this.toStatementDto(t)),
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages,
+      hasNextPage: query.page < totalPages,
+      hasPrevPage: query.page > 1,
+    };
   }
 
   public async adminCredit(

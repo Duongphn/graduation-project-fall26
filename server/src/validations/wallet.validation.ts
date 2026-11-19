@@ -1,7 +1,4 @@
-import {
-  walletTransactionDirections,
-  walletTransactionTypes,
-} from '../constants/wallet-transaction.js';
+import { WITHDRAWAL_LIMITS, walletTransactionListTypes } from '../constants/wallet-transaction.js';
 import { AppError } from '../utils/app-error.js';
 import { MAX_PAGE_LIMIT } from './common.validation.js';
 import { z } from './zod.js';
@@ -81,13 +78,63 @@ export function validateWalletPaginationQuery(query: unknown): WalletPaginationQ
   return { page, limit };
 }
 
-/** GET /wallets/me/transactions: newest first, filtered by type ("Loại") and direction. */
+const isoDate = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'Ngày không hợp lệ.')
+  .transform((value) => new Date(value));
+
+/**
+ * GET /wallets/me/transactions, same query as the lead's API: `type` all | credit | debit,
+ * `kind` = reference.kind (rental_order, payment, withdrawal…, `all` = no filter), optional date range.
+ */
 export const walletTransactionListQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(10),
-    type: z.enum(walletTransactionTypes).optional(),
-    direction: z.enum(walletTransactionDirections).optional(),
+    limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(20),
+    type: z.enum(walletTransactionListTypes).optional(),
+    kind: z.string().trim().min(1).max(50).optional(),
+    startDate: isoDate.optional(),
+    endDate: isoDate.optional(),
+  })
+  .refine((query) => !query.startDate || !query.endDate || query.startDate <= query.endDate, {
+    message: 'Ngày bắt đầu không được sau ngày kết thúc.',
+    path: ['startDate'],
+  });
+export type WalletTransactionListQuery = z.infer<typeof walletTransactionListQuerySchema>;
+
+const vnd = (value: number) => value.toLocaleString('vi-VN');
+
+/** POST /wallets/withdrawals (same body and rules as the lead's withdrawalRequestSchema) */
+export const withdrawalBodySchema = z
+  .object({
+    amount: z
+      .number({ error: 'Số tiền rút phải là số nguyên.' })
+      .int('Số tiền rút phải là số nguyên.')
+      .min(WITHDRAWAL_LIMITS.MIN_AMOUNT, `Số tiền rút tối thiểu là ${vnd(WITHDRAWAL_LIMITS.MIN_AMOUNT)} VNĐ.`)
+      .max(WITHDRAWAL_LIMITS.MAX_AMOUNT, `Số tiền rút tối đa cho một lần là ${vnd(WITHDRAWAL_LIMITS.MAX_AMOUNT)} VNĐ.`),
+    bankInfo: z
+      .object({
+        bankName: z.string().trim().min(2, 'Tên ngân hàng phải có ít nhất 2 ký tự.').max(100, 'Tên ngân hàng quá dài.'),
+        accountNumber: z
+          .string()
+          .trim()
+          .regex(/^[0-9]{6,25}$/, 'Số tài khoản chỉ bao gồm số (từ 6 đến 25 chữ số).'),
+        accountHolderName: z
+          .string()
+          .trim()
+          .min(2, 'Tên chủ tài khoản phải có ít nhất 2 ký tự.')
+          .max(100, 'Tên chủ tài khoản quá dài.')
+          .transform((value) => value.toUpperCase()),
+      })
+      .strict(),
   })
   .strict();
-export type WalletTransactionListQuery = z.infer<typeof walletTransactionListQuerySchema>;
+export type WithdrawalBody = z.infer<typeof withdrawalBodySchema>;
+
+/** GET /wallets/withdrawals: newest first, 20 per page by default (like the lead's API) */
+export const withdrawalListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(20),
+});
+export type WithdrawalListQuery = z.infer<typeof withdrawalListQuerySchema>;
