@@ -1,0 +1,178 @@
+import { apiGet, apiPost } from '../../services/http'
+import type { Paginated } from '../../types/api'
+
+/**
+ * API ví theo backend của lead (nhánh wallet-*):
+ * - GET /wallets/me, GET /wallets/me/transactions
+ * - POST /payments/topup/vnpay, GET /payments/vnpay-return (UC17)
+ * - POST /payments/topup/payos, GET /payments/payos-return (UC17, chuyển khoản VietQR qua PayOS)
+ * - POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
+ */
+
+export interface WalletSummary {
+  /** Bằng availableBalance (giữ cho code cũ) */
+  balance: number
+  /** Dùng được ngay */
+  availableBalance: number
+  /** Đã rời số dư nhưng vẫn là tiền của bạn: tiền thuê + cọc chưa quyết toán, lệnh rút đang chờ */
+  holdingBalance: number
+  currency: string
+}
+
+/** Nhóm "Loại" trên màn hình lịch sử */
+export const walletTransactionTypes = ['rental', 'topup', 'withdrawal', 'admin_credit'] as const
+export type WalletTransactionType = (typeof walletTransactionTypes)[number]
+
+/** Nhóm "Loại" → `reference.kind` mà backend ghi cho giao dịch đó (tham số `kind`) */
+export const WALLET_TYPE_KINDS: Record<WalletTransactionType, string> = {
+  rental: 'rental_order',
+  topup: 'payment',
+  withdrawal: 'withdrawal',
+  admin_credit: 'admin_credit',
+}
+
+export const walletTransactionDirections = ['credit', 'debit'] as const
+export type WalletTransactionDirection = (typeof walletTransactionDirections)[number]
+
+export interface WalletTransaction {
+  id: string
+  amount: number
+  /** credit: tiền vào ví, debit: tiền ra khỏi ví */
+  type: WalletTransactionDirection
+  description?: string
+  /** kind: rental_order | payment (nạp VNPay) | withdrawal | admin_credit | adjustment… */
+  reference?: { kind?: string; id?: string }
+  createdAt: string
+}
+
+/** Tham số của GET /wallets/me/transactions: `type` là chiều tiền, `kind` là loại giao dịch */
+export interface WalletTransactionParams {
+  page: number
+  limit: number
+  type?: WalletTransactionDirection
+  kind?: string
+}
+
+/** GET /wallets/me/transactions và GET /wallets/withdrawals trả danh sách trong `data` */
+interface ListPage<T> {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+  hasNextPage?: boolean
+  hasPrevPage?: boolean
+}
+
+/** Đổi danh sách của backend về dạng Paginated dùng chung của frontend */
+export const toPaginated = <T,>(page: ListPage<T>): Paginated<T> => ({
+  items: page.items,
+  pagination: {
+    page: page.page,
+    limit: page.limit,
+    totalItems: page.total,
+    totalPages: page.totalPages,
+    hasNextPage: page.hasNextPage ?? page.page < page.totalPages,
+    hasPrevPage: page.hasPrevPage ?? page.page > 1,
+  },
+})
+
+/** Hạn mức một lần nạp qua VNPay (khớp validateTopupInput ở backend) */
+export const TOPUP_MIN_AMOUNT = 10_000
+export const TOPUP_MAX_AMOUNT = 100_000_000
+
+/** POST /payments/topup/vnpay: giao dịch Pending và link sang cổng VNPay */
+export interface TopupCreated {
+  paymentUrl: string
+  paymentCode: string
+  amount: number
+}
+
+/** Cổng nạp tiền: VNPay (thẻ ngân hàng) hoặc PayOS (chuyển khoản quét VietQR) */
+export type TopupGateway = 'vnpay' | 'payos'
+
+/** POST /payments/topup/payos: giao dịch Pending và trang thanh toán PayOS (có mã VietQR) */
+export interface PayosTopupCreated {
+  checkoutUrl: string
+  /** Nội dung mã VietQR */
+  qrCode: string
+  paymentCode: string
+  amount: number
+  expiresAt: string
+}
+
+/**
+ * Kết quả GET /payments/vnpay-return và /payments/payos-return. invalid_checksum: chữ ký sai (link bị sửa),
+ * not_found: không có giao dịch, cancelled: người dùng bấm Hủy, pending: tiền chưa về (PayOS).
+ */
+export type TopupStatus = 'success' | 'failed' | 'cancelled' | 'pending' | 'invalid_checksum' | 'not_found'
+
+export interface TopupResult {
+  success: boolean
+  status: TopupStatus
+  paymentCode?: string
+  amount?: number
+  /** Câu thông báo của server */
+  message: string
+}
+
+/** Hạn mức một lệnh rút (khớp WITHDRAWAL_LIMITS ở backend) */
+export const WITHDRAWAL_MIN_AMOUNT = 50_000
+export const WITHDRAWAL_MAX_AMOUNT = 20_000_000
+
+export interface BankInfo {
+  bankName: string
+  accountNumber: string
+  /** In hoa, không dấu (server cũng tự in hoa) */
+  accountHolderName: string
+}
+
+/** pending: đang chờ, tiền đã tạm trừ · approved: đã duyệt · completed: đã chuyển khoản · rejected: bị từ chối, tiền hoàn về ví */
+export type WithdrawalStatus = 'pending' | 'approved' | 'completed' | 'rejected'
+
+export interface WithdrawalRequest {
+  id: string
+  code?: string
+  amount: number
+  bankInfo: BankInfo
+  status: WithdrawalStatus
+  /** Ghi chú của Admin, vd. lý do từ chối */
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateWithdrawalInput {
+  amount: number
+  bankInfo: BankInfo
+}
+
+export type WithdrawalPage = ListPage<WithdrawalRequest>
+
+/** Backend để availableBalance / holdingBalance là tuỳ chọn: thiếu thì lấy balance / 0 */
+type WalletResponse = Omit<WalletSummary, 'availableBalance' | 'holdingBalance'> &
+  Partial<Pick<WalletSummary, 'availableBalance' | 'holdingBalance'>>
+
+export const toWalletSummary = (wallet: WalletResponse): WalletSummary => ({
+  ...wallet,
+  availableBalance: wallet.availableBalance ?? wallet.balance,
+  holdingBalance: wallet.holdingBalance ?? 0,
+})
+
+export const walletApi = {
+  me: async () => toWalletSummary(await apiGet<WalletResponse>('/wallets/me')),
+  transactions: async (params: WalletTransactionParams): Promise<Paginated<WalletTransaction>> =>
+    toPaginated(await apiGet<ListPage<WalletTransaction>>('/wallets/me/transactions', params)),
+  createTopup: (amount: number) => apiPost<TopupCreated>('/payments/topup/vnpay', { amount }),
+  /**
+   * Gửi nguyên query VNPay trả về (`?vnp_Amount=…&vnp_SecureHash=…`) cho server kiểm tra chữ ký.
+   * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
+   */
+  confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay-return${search}`),
+  createPayosTopup: (amount: number) => apiPost<PayosTopupCreated>('/payments/topup/payos', { amount }),
+  /** Server hỏi PayOS trạng thái giao dịch `orderCode` rồi cộng tiền nếu đã thanh toán */
+  confirmPayosReturn: (orderCode: string) => apiGet<TopupResult>('/payments/payos-return', { orderCode }),
+  /** UC18: tạo lệnh rút Pending, server tạm trừ số tiền khỏi số dư khả dụng */
+  createWithdrawal: (input: CreateWithdrawalInput) => apiPost<WithdrawalRequest>('/wallets/withdrawals', input),
+  myWithdrawals: (params: { page: number; limit: number }) => apiGet<WithdrawalPage>('/wallets/withdrawals', params),
+}
