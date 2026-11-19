@@ -24,6 +24,11 @@ export const PATHS = {
   rentalRequest: '/rentals/requests/:orderId',
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
+  wallet: '/wallet',
+  /** VNPay chuyển về đây sau khi thanh toán (VNPAY_RETURN_URL ở server) */
+  walletTopupResult: '/wallet/topup/result',
+  /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */
+  walletTopupPayosResult: '/wallet/topup/payos-result',
   notifications: '/notifications',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',

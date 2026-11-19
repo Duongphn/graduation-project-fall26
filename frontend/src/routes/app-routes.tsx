@@ -50,6 +50,13 @@ import { MyDonationsPage } from '../pages/my-donations-page'
 import { NewDonationPage } from '../pages/new-donation-page'
 import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
 import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
+import { WalletPage } from '../pages/wallet-page'
+import { WalletTopupResultPage } from '../pages/wallet-topup-result-page'
+import {
+  myWalletQuery,
+  parseWalletHistorySearch,
+  walletTransactionsQuery,
+} from '../features/wallet/wallet-queries'
 import { RentalRequestDetailPage } from '../pages/rental-request-detail-page'
 import { RentalOrdersListPage } from '../pages/rental-requests-page'
 import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
@@ -77,6 +84,16 @@ async function newListingLoader() {
   await Promise.all([
     queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
     queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (đã xác minh danh tính chưa)
+  ])
+  return null
+}
+
+async function walletLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const filters = parseWalletHistorySearch(new URL(request.url).searchParams)
+  await Promise.all([
+    queryClient.query(myWalletQuery).catch(ignoreError), // GET /wallets/me
+    queryClient.query(walletTransactionsQuery(filters)).catch(ignoreError), // GET /wallets/me/transactions?type=&direction=&page=
   ])
   return null
 }
@@ -322,6 +339,32 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.wallet,
+    loader: walletLoader,
+    element: (
+      <RequireAuth>
+        <WalletPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.walletTopupResult,
+    element: (
+      <RequireAuth>
+        <WalletTopupResultPage gateway="vnpay" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.walletTopupPayosResult,
+    element: (
+      <RequireAuth>
+        <WalletTopupResultPage gateway="payos" />
+      </RequireAuth>
+    ),
   },
   {
     path: PATHS.rentalRequests,
