@@ -2,6 +2,8 @@ import mongoose, { Schema } from 'mongoose';
 
 const withdrawalRequestSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    // Mã hiển thị cho người dùng, vd. WD1763452800000123
+    code: { type: String },
     amount: { type: Number, required: true },
     bankInfo: {
         bankName: { type: String, required: true },
