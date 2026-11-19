@@ -11,7 +11,7 @@ import {
 import { identityDetailSchema } from '../../src/validations/identity-review.validation.js';
 import { IdentityVerification } from '../../src/models/identity-verification.model.js';
 import type { IdentityImageStorage } from '../../src/interfaces/identity-verification.ports.js';
-import { DefaultIdentityVerificationEvents } from '../../src/integrations/events/identity-verification-events.js';
+import { IdentityReviewNotifications } from '../../src/integrations/events/identity-review-notifications.js';
 import { Notification } from '../../src/models/notification.model.js';
 import { setIdentityReviewService } from '../../src/services/identity-review.service.js';
 import { IdentityVerificationService } from '../../src/services/identity-verification.service.js';
@@ -49,7 +49,7 @@ beforeAll(() => {
       undefined,
       undefined,
       fakeStorage,
-      new DefaultIdentityVerificationEvents(),
+      new IdentityReviewNotifications(),
     ),
   );
 });
@@ -258,15 +258,10 @@ describe('decisions', () => {
     expect(String(stored?.reviewedBy)).toBe(ADMIN_ID);
     expect((await User.findById(user._id).lean())?.idCardNumber).toBe(verification.idCardNumber);
     expect(await AuditLog.countDocuments({ action: 'identity.verify' })).toBe(1);
-    // Develop's DefaultIdentityVerificationEvents writes the in-app notification.
-    expect(await Notification.countDocuments({ userId: user._id })).toBe(1);
+    // One event per decision; the notifications feature turns it into the in-app notification.
     await vi.waitFor(() => expect(events).toHaveLength(1));
-    expect(events[0]).toMatchObject({
-      verificationId: String(verification._id),
-      userId: String(user._id),
-      decision: 'verified',
-      reviewedBy: ADMIN_ID,
-    });
+    expect(events[0]).toMatchObject({ userId: String(user._id), decision: 'verified' });
+    expect(await Notification.countDocuments({ userId: user._id })).toBe(0);
   });
 
   it('rejects with a reason and validates the bodies', async () => {

@@ -1,6 +1,5 @@
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
 import { notFound } from '../utils/http-errors.js';
-import { domainEvents } from '../utils/domain-events.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { zeroFilledCounts } from '../utils/counts.js';
 import { toSkipLimit } from '../utils/response.js';
@@ -137,16 +136,8 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
     }),
   );
 
-  // For other subscribers (e.g. email). The in-app notification is already written by
-  // develop's DefaultIdentityVerificationEvents.
-  domainEvents.publish({
-    type: 'IDENTITY_REVIEWED',
-    verificationId: receipt.id,
-    userId,
-    decision,
-    reviewedBy,
-    ...(reason ? { reason } : {}),
-  });
+  // The user's notification (in-app, pushed and emailed) comes from the IDENTITY_REVIEWED event
+  // that develop's review publishes through IdentityReviewNotifications (container.ts).
 
   return {
     id: receipt.id,
