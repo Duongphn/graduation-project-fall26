@@ -17,7 +17,7 @@ import {
   suggestFreeRange,
   vnToday,
 } from './rental-time.js';
-import { toRentalOrderDto } from './rental-order.mapper.js';
+import { toRentalHistoryEntryDto, toRentalOrderDto } from './rental-order.mapper.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
 import {
   type RentalHistoryEntryDto,
@@ -33,7 +33,7 @@ import {
   type SettleRentalInput,
 } from '../validations/rental-order.validation.js';
 import { AppError } from '../utils/app-error.js';
-import { validateToyImage } from '../utils/image-validation.js';
+import { withUploadedPhotos } from './photo-upload.js';
 import { RentalOrderCore } from './rental-order-core.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
@@ -48,20 +48,6 @@ interface RentEligibility {
 
 /** Hành động do Renter/Owner gọi qua API (UC06–UC11). */
 export class RentalOrderService extends RentalOrderCore {
-  /** Như notifyParty: lỗi thông báo không được làm hỏng hành động đã commit. */
-  private async notifyAdmins(title: string, body: string): Promise<void> {
-    try {
-      const admins = await this.userModel.find({ role: 'ADMIN' }).select('_id').lean();
-      await Promise.all(
-        admins.map((admin) =>
-          this.notifier.notify({ userId: admin._id.toString(), title, body }).catch(() => {}),
-        ),
-      );
-    } catch {
-      // Swallows error
-    }
-  }
-
   public async loadForParty(
     actor: RequestActor,
     orderId: string,
@@ -408,40 +394,7 @@ export class RentalOrderService extends RentalOrderCore {
       .sort({ occurredAt: 1 })
       .exec();
 
-    return rows.map((r) => ({
-      oldStatus: (r.oldStatus as RentalOrderStatus) ?? undefined,
-      newStatus: r.newStatus as RentalOrderStatus,
-      changedBy: r.changedBy.toString(),
-      notes: r.notes ?? undefined,
-      occurredAt: r.occurredAt,
-    }));
-  }
-
-  private async uploadPhotos(files: Express.Multer.File[]): Promise<ToyImage[]> {
-    if (!files || files.length === 0) {
-      throw new AppError(400, 'INVALID_IMAGE_UPLOAD', 'Vui lòng cung cấp ít nhất 1 ảnh chụp.');
-    }
-    if (files.length > 10) {
-      throw new AppError(400, 'INVALID_IMAGE_UPLOAD', 'Chỉ được tải lên tối đa 10 ảnh chụp.');
-    }
-
-    for (const file of files) {
-      validateToyImage(file.buffer, file.mimetype);
-    }
-
-    const uploaded: ToyImage[] = [];
-    try {
-      for (const file of files) {
-        const item = await this.photos.upload(file.buffer, file.mimetype);
-        uploaded.push(item);
-      }
-      return uploaded;
-    } catch (err) {
-      if (uploaded.length > 0) {
-        await this.photos.delete(uploaded.map((p) => p.publicId)).catch(() => {});
-      }
-      throw err;
-    }
+    return rows.map(toRentalHistoryEntryDto);
   }
 
   /**
@@ -452,23 +405,7 @@ export class RentalOrderService extends RentalOrderCore {
     files: Express.Multer.File[],
     work: (photos: ToyImage[]) => Promise<T>,
   ): Promise<T> {
-    const photos = await this.uploadPhotos(files);
-    try {
-      return await work(photos);
-    } catch (err) {
-      if (photos.length > 0) {
-        await this.photos.delete(photos.map((p) => p.publicId)).catch(() => {});
-      }
-      throw err;
-    }
-  }
-
-  /**
-   * Thao tác làm đổi kết cục (duyệt đơn, báo hư hỏng) phải xảy ra trước hạn của timer tương ứng,
-   * kể cả khi scheduler chưa kịp chạy. Dùng làm `filter` cho transition và để chặn sớm.
-   */
-  private beforeDeadline(kind: RentalTimerKind, now: Date): Record<string, unknown> {
-    return { 'timer.kind': kind, 'timer.dueAt': { $gt: now } };
+    return withUploadedPhotos(this.photos, files, { min: 1, max: 10 }, work);
   }
 
   private assertBeforeDeadline(order: RentalOrderDoc, kind: RentalTimerKind, now: Date): void {
@@ -628,11 +565,16 @@ export class RentalOrderService extends RentalOrderCore {
     return toRentalOrderDto(updated);
   }
 
+  /** Role and status checks shared by the DAMAGED path, which is handled by the dispute module. */
+  public async assertCanSettle(actor: RequestActor, orderId: string): Promise<void> {
+    const existing = await this.loadForParty(actor, orderId, 'owner');
+    this.assertStatus(existing, 'RETURNING');
+  }
+
   public async settle(
     actor: RequestActor,
     orderId: string,
     input: SettleRentalInput,
-    files: Express.Multer.File[] = [],
   ): Promise<RentalOrderDto> {
     const existing = await this.loadForParty(actor, orderId, 'owner');
     this.assertStatus(existing, 'RETURNING');
@@ -673,83 +615,7 @@ export class RentalOrderService extends RentalOrderCore {
       return toRentalOrderDto(updated);
     }
 
-    if (input.result === 'DAMAGED') {
-      if (!files || files.length === 0) {
-        throw new AppError(
-          400,
-          'INVALID_IMAGE_UPLOAD',
-          'Vui lòng tải lên từ 1 đến 10 ảnh bằng chứng hư hại.',
-        );
-      }
-
-      const description = input.description;
-      if (!description) {
-        throw new AppError(
-          400,
-          'VALIDATION_ERROR',
-          'Mô tả hư hại phải có độ dài từ 10 đến 1000 ký tự.',
-        );
-      }
-
-      // Quá hạn kiểm tra (48 h, GB-22) thì đơn được coi là "Tốt" (UC12), nên không còn báo hư hỏng được
-      this.assertBeforeDeadline(existing, 'SETTLEMENT', this.clock.now());
-
-      const updated = await this.withUploadedPhotos(files, async (photos) => {
-        const now = this.clock.now();
-        const disputeId = new Types.ObjectId();
-
-        return this.transition({
-          orderId,
-          from: 'RETURNING',
-          to: 'DISPUTING',
-          changedBy: actor.userId,
-          filter: this.beforeDeadline('SETTLEMENT', now),
-          inTransaction: async (order, session) => {
-            const disputeCode = 'DP' + this.repository.generateCode(now).slice(2);
-            await this.disputeModel.create(
-              [
-                {
-                  _id: disputeId,
-                  code: disputeCode,
-                  orderType: 'rental_order',
-                  orderId: order._id,
-                  claimantId: order.ownerId,
-                  respondentId: order.renterId,
-                  reason: 'DAMAGED_ON_RETURN',
-                  description,
-                  status: 'open',
-                  openedAt: now,
-                },
-              ],
-              { session },
-            );
-          },
-          set: {
-            settlement: {
-              result: 'DAMAGED',
-              evidencePhotos: photos,
-              description,
-              settledAt: now,
-              disputeId,
-            },
-          },
-        });
-      });
-
-      await this.notifyParty(
-        updated,
-        'renter',
-        'Đơn thuê có khiếu nại đồ chơi bị hỏng',
-        'Chủ đồ chơi đã báo cáo đồ chơi bị hư hỏng khi nhận lại. Một khiếu nại đã được mở để giải quyết.',
-      );
-      await this.notifyAdmins(
-        'Khiếu nại hư hỏng đồ chơi mới',
-        `Đơn thuê ${updated.code} có báo cáo hư hỏng đồ chơi từ chủ đồ chơi.`,
-      );
-
-      return toRentalOrderDto(updated);
-    }
-
+    // DAMAGED goes through DisputeService.open (see RentalOrderController.settle)
     throw new AppError(400, 'VALIDATION_ERROR', 'Kết quả quyết toán phải là GOOD hoặc DAMAGED.');
   }
 }

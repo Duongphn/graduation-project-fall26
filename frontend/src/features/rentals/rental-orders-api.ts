@@ -74,6 +74,8 @@ export interface RentalOrder {
     autoSettled?: boolean
     disputeId?: string
   }
+  /** Có khi đơn đã có khiếu nại (người thuê hoặc chủ đồ mở) */
+  disputeId?: string
 }
 
 export type SettlementResult = 'GOOD' | 'DAMAGED'
@@ -210,33 +212,122 @@ export const useRentalReturn = (orderId: string) =>
     invalidateOnConflict: true,
   })
 
-/** Mô tả hư hỏng: 10–1000 ký tự như server */
-export const DAMAGE_DESCRIPTION_MIN = 10
-export const DAMAGE_DESCRIPTION_MAX = 1000
-
-export type SettleInput = { result: 'GOOD' } | { result: 'DAMAGED'; photos: File[]; description: string }
-
-const SETTLE_SUCCESS: Record<SettlementResult, string> = {
-  GOOD: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
-  DAMAGED: 'Đã báo hư hỏng và mở khiếu nại. Tiền cọc được giữ nguyên cho đến khi ToyFlow giải quyết.',
-}
-
 /**
- * Chủ đồ quyết toán đơn đang trả (RETURNING): GOOD gửi JSON; DAMAGED gửi multipart với 1–10 ảnh bằng
- * chứng (`photos`) và mô tả. Sau đó tải lại đơn và ví (tiền thuê vừa vào ví khi GOOD).
+ * Chủ đồ xác nhận đồ trả về còn tốt (RETURNING → COMPLETED): tiền thuê vào ví chủ đồ, cọc hoàn cho người
+ * thuê. Báo hư hỏng đi qua khiếu nại (useOpenRentalDispute) để chọn được lý do.
  */
 export const useRentalSettle = (orderId: string) =>
   useApiMutation({
-    mutationFn: (input: SettleInput) => {
-      if (input.result === 'GOOD') return apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' })
-      const form = new FormData()
-      form.append('result', 'DAMAGED')
-      form.append('description', input.description.trim())
-      input.photos.forEach((file) => form.append('photos', file))
-      return apiPostForm<RentalOrder>(`/rentals/${orderId}/settle`, form)
-    },
-    successMessage: (_data, input) => SETTLE_SUCCESS[input.result],
+    mutationFn: () => apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' }),
+    successMessage: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
     invalidate: [rentalKeys.all, walletKeys.me],
+    invalidateOnConflict: true,
+  })
+
+/** Lý do khiếu nại server nhận, theo vai người gửi */
+export type ComplaintRole = 'renter' | 'owner'
+export const COMPLAINT_REASONS = {
+  renter: ['DAMAGED_ON_RECEIPT', 'MISSING_PARTS', 'NOT_AS_DESCRIBED', 'OTHER'],
+  owner: ['DAMAGED_ON_RETURN', 'MISSING_PARTS', 'OTHER'],
+} as const satisfies Record<ComplaintRole, readonly string[]>
+export type ComplaintReason = (typeof COMPLAINT_REASONS)[ComplaintRole][number]
+
+/** Mô tả khiếu nại: 10–1000 ký tự như server */
+export const COMPLAINT_DESCRIPTION_MIN = 10
+export const COMPLAINT_DESCRIPTION_MAX = 1000
+
+/**
+ * Người thuê khiếu nại trong 24 giờ kể từ lúc xác nhận nhận đồ (renterComplaintHours của server).
+ * Server là bên quyết định cuối: hết hạn thì trả COMPLAINT_WINDOW_CLOSED.
+ */
+export const RENTER_COMPLAINT_HOURS = 24
+
+export interface OpenComplaintInput {
+  reason: ComplaintReason
+  description: string
+  photos: File[]
+}
+
+/**
+ * Gửi khiếu nại (POST /rentals/:id/disputes, multipart): đơn chuyển sang Đang khiếu nại, tiền thuê và cọc
+ * nằm nguyên trong ví ký quỹ đến khi quản trị viên phán quyết. Mỗi đơn chỉ có một khiếu nại.
+ */
+export const useOpenRentalDispute = (orderId: string) =>
+  useApiMutation({
+    mutationFn: ({ reason, description, photos }: OpenComplaintInput) => {
+      const form = new FormData()
+      form.append('reason', reason)
+      form.append('description', description.trim())
+      photos.forEach((file) => form.append('photos', file))
+      return apiPostForm<unknown>(`/rentals/${orderId}/disputes`, form)
+    },
+    successMessage: 'Đã gửi khiếu nại. Tiền thuê và tiền cọc được ToyFlow giữ cho đến khi có phán quyết.',
+    invalidate: [rentalKeys.all, walletKeys.me],
+    invalidateOnConflict: true,
+  })
+
+/** open: chờ bên bị khiếu nại phản hồi; under_review: quản trị viên xem xét; resolved/closed: đã xong */
+export type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'closed'
+export type DisputeVerdict = 'CLAIMANT_FAVORED' | 'RESPONDENT_FAVORED' | 'PARTIAL'
+
+/** Khiếu nại như một bên của đơn thấy (GET /disputes/:id) */
+export interface RentalDispute {
+  id: string
+  code: string
+  orderId: string
+  claimantId: string
+  respondentId: string
+  claimantRole: ComplaintRole
+  reason: ComplaintReason
+  description: string
+  evidencePhotos: ToyImage[]
+  status: DisputeStatus
+  openedAt: string
+  /** Hạn phản hồi 72 giờ; mất đi khi đã phản hồi hoặc đã chuyển sang xem xét */
+  responseDueAt?: string
+  response?: { message: string; photos: ToyImage[]; respondedAt: string }
+  reviewStartedAt?: string
+  /** true khi hết hạn mà bên bị khiếu nại không phản hồi */
+  responseMissed?: boolean
+  resolution?: {
+    verdict: DisputeVerdict
+    compensation: number
+    reason: string
+    resolvedAt: string
+    payout: { renter: number; owner: number }
+  }
+}
+
+export const disputeKeys = {
+  detail: (disputeId: string) => ['disputes', disputeId] as const,
+}
+
+export const disputeQuery = (disputeId: string) =>
+  queryOptions({
+    queryKey: disputeKeys.detail(disputeId),
+    queryFn: () => apiGet<RentalDispute>(`/disputes/${disputeId}`),
+    staleTime: 15_000,
+    retry: false,
+  })
+
+/** Phản hồi khiếu nại: 10–1000 ký tự như server, ảnh không bắt buộc (tối đa 10) */
+export const RESPONSE_MESSAGE_MIN = 10
+export const RESPONSE_MESSAGE_MAX = 1000
+
+/**
+ * Bên bị khiếu nại phản hồi một lần trong 72 giờ (POST /disputes/:id/response, multipart `message`,
+ * `photos`): khiếu nại chuyển sang Đang xem xét và quản trị viên được báo.
+ */
+export const useRespondDispute = (disputeId: string) =>
+  useApiMutation({
+    mutationFn: ({ message, photos }: { message: string; photos: File[] }) => {
+      const form = new FormData()
+      form.append('message', message.trim())
+      photos.forEach((file) => form.append('photos', file))
+      return apiPostForm<RentalDispute>(`/disputes/${disputeId}/response`, form)
+    },
+    successMessage: 'Đã gửi phản hồi. Quản trị viên ToyFlow sẽ xem xét ảnh và giải thích của cả hai bên.',
+    invalidate: [disputeKeys.detail(disputeId), rentalKeys.all],
     invalidateOnConflict: true,
   })
 

@@ -1,6 +1,13 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import type { RentalOrder, RentalStatus } from './rental-orders-api'
+import {
+  RENTER_COMPLAINT_HOURS,
+  type ComplaintReason,
+  type DisputeStatus,
+  type DisputeVerdict,
+  type RentalOrder,
+  type RentalStatus,
+} from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
 export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
@@ -42,6 +49,35 @@ export const RENTER_STATUS_FILTERS: readonly RentalStatus[] = [
   'REJECTED',
   'EXPIRED',
 ]
+
+/** Hạn khiếu nại của người thuê: 24 giờ sau lúc xác nhận nhận đồ; null khi chưa nhận */
+export const renterComplaintDueAt = (rentalStartedAt: string | undefined): string | null =>
+  rentalStartedAt
+    ? new Date(new Date(rentalStartedAt).getTime() + RENTER_COMPLAINT_HOURS * 3_600_000).toISOString()
+    : null
+
+/** Nhãn và gợi ý của từng lý do khiếu nại */
+export const COMPLAINT_REASON_META: Record<ComplaintReason, { label: string; hint: string }> = {
+  DAMAGED_ON_RECEIPT: { label: 'Hư hỏng khi nhận', hint: 'Đồ chơi đã hỏng, nứt, vỡ lúc bạn nhận' },
+  DAMAGED_ON_RETURN: { label: 'Hư hỏng khi trả về', hint: 'Đồ chơi bị hỏng so với ảnh lúc giao' },
+  MISSING_PARTS: { label: 'Thiếu chi tiết', hint: 'Thiếu phụ kiện, linh kiện so với lúc giao' },
+  NOT_AS_DESCRIBED: { label: 'Không đúng mô tả', hint: 'Khác ảnh hoặc mô tả trên tin đăng' },
+  OTHER: { label: 'Lý do khác', hint: 'Ghi rõ vấn đề trong phần mô tả' },
+}
+
+/** Trạng thái khiếu nại; tông dùng chung class .rental-status--{tone} */
+export const DISPUTE_STATUS_META: Record<DisputeStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' }> = {
+  open: { label: 'Chờ phản hồi', tone: 'wait' },
+  under_review: { label: 'Đang xem xét', tone: 'go' },
+  resolved: { label: 'Đã giải quyết', tone: 'done' },
+  closed: { label: 'Đã đóng', tone: 'stop' },
+}
+
+export const DISPUTE_VERDICT_LABELS: Record<DisputeVerdict, string> = {
+  CLAIMANT_FAVORED: 'Chấp nhận khiếu nại',
+  RESPONDENT_FAVORED: 'Bác khiếu nại',
+  PARTIAL: 'Chấp nhận một phần',
+}
 
 /** Lý do từ chối gợi ý — chủ đồ vẫn sửa được (5–500 ký tự như server) */
 export const OWNER_REJECT_REASON_PRESETS = [

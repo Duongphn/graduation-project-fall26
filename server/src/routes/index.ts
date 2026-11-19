@@ -10,6 +10,7 @@ import {
   donationRequestsRouter,
   donorProfileRouter,
 } from './donation-request.routes.js';
+import './dispute.openapi.js';
 import './health.openapi.js';
 import { adminIdentityReviewRouter } from './identity-review.routes.js';
 import { notificationsRouter } from './notification.routes.js';
@@ -20,6 +21,8 @@ import { createAuthRouter } from './auth.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
+import { createAdminDisputeRouter } from './dispute-admin.routes.js';
+import { createDisputeRouter } from './dispute.routes.js';
 import { createRentalOrderRouter } from './rental-order.routes.js';
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
@@ -47,7 +50,12 @@ export function createApiRouter(container: Container): Router {
   );
 
   router.use(createWalletRouter(container.walletService));
-  router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
+  router.use(
+    '/rentals',
+    createRentalOrderRouter(container.rentalOrderService, container.disputeService),
+  );
+
+  router.use('/disputes', createDisputeRouter(container.disputeService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).
   router.use('/admin/categories', authenticate, adminCategoriesRouter);
@@ -55,6 +63,7 @@ export function createApiRouter(container: Container): Router {
   router.use('/admin/toys', authenticate, adminToyModerationRouter);
   router.use('/admin/identity-verifications', authenticate, adminIdentityReviewRouter);
   router.use('/admin/donation-requests', authenticate, adminDonationRequestsRouter);
+  router.use('/admin/disputes', authenticate, createAdminDisputeRouter(container.disputeService));
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);

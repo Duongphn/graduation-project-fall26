@@ -1,5 +1,7 @@
+import { type RentalOrderStatus } from '../constants/rental-order-status.js';
+import { type IOrderStatusHistory } from '../models/order-status-history.model.js';
 import { type IRentalOrder, type RentalOrderDoc } from '../models/rental-order.model.js';
-import { type RentalOrderDto } from '../types/rental-order.types.js';
+import { type RentalHistoryEntryDto, type RentalOrderDto } from '../types/rental-order.types.js';
 import { formatDateOnly } from './rental-time.js';
 
 /** Chuyển document đơn thuê sang DTO trả về API; nhóm con rỗng (chưa giao, chưa trả…) bị bỏ. */
@@ -54,7 +56,18 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
             disputeId: doc.settlement.disputeId?.toString() ?? undefined,
           }
         : undefined,
+    disputeId: doc.disputeId?.toString() ?? undefined,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+  };
+}
+
+export function toRentalHistoryEntryDto(r: IOrderStatusHistory): RentalHistoryEntryDto {
+  return {
+    oldStatus: (r.oldStatus as RentalOrderStatus) ?? undefined,
+    newStatus: r.newStatus as RentalOrderStatus,
+    changedBy: r.changedBy.toString(),
+    notes: r.notes ?? undefined,
+    occurredAt: r.occurredAt,
   };
 }
