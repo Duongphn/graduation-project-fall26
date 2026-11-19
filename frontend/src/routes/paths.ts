@@ -24,6 +24,7 @@ export const PATHS = {
   rentalRequest: '/rentals/requests/:orderId',
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
+  notifications: '/notifications',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
@@ -63,6 +64,7 @@ export const adminPaths = {
   organizations: `${ADMIN_ROOT}/organizations`,
   donationRequests: `${ADMIN_ROOT}/donation-requests`,
   donationRequest: (id: string) => `${ADMIN_ROOT}/donation-requests/${id}`,
+  notifications: `${ADMIN_ROOT}/notifications`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.

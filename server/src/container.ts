@@ -9,8 +9,8 @@ import {
   createDefaultToyImageStorage,
 } from './integrations/cloudinary/default-storages.js';
 import type { ToyImageStorage } from './interfaces/toy-listing.ports.js';
-import { DefaultIdentityVerificationEvents } from './integrations/events/identity-verification-events.js';
-import { NotificationRentalNotifier } from './integrations/events/rental-order-notifier.js';
+import { IdentityReviewNotifications } from './integrations/events/identity-review-notifications.js';
+import { RentalOrderNotifications } from './integrations/events/rental-order-notifications.js';
 import type {
   IdentityImageStorage,
   IdentityVerificationEvents,
@@ -117,7 +117,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       IdentityVerification,
       User,
       identityImageStorage,
-      overrides.identityVerificationEvents ?? new DefaultIdentityVerificationEvents(),
+      overrides.identityVerificationEvents ?? new IdentityReviewNotifications(),
     );
 
   // Admin identity review: develop's service for the decision; document links only with real
@@ -149,7 +149,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const rentalPhotoStorage =
     overrides.rentalPhotoStorage ?? createDefaultRentalPhotoStorage();
   const rentalNotifier =
-    overrides.rentalNotifier ?? new NotificationRentalNotifier();
+    overrides.rentalNotifier ?? new RentalOrderNotifications();
   const clock = overrides.clock ?? systemClock;
   const rentalSettings = overrides.rentalSettings ?? new SystemSettingService();
   const rentalOrderRepository =

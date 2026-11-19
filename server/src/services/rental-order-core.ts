@@ -153,7 +153,13 @@ export class RentalOrderCore {
   ): Promise<void> {
     try {
       const targetUserId = to === 'renter' ? order.renterId.toString() : order.ownerId.toString();
-      await this.notifier.notify({ userId: targetUserId, title, body });
+      await this.notifier.notify({
+        userId: targetUserId,
+        title,
+        body,
+        orderId: order._id.toString(),
+        party: to,
+      });
     } catch {
       // Swallows error
     }

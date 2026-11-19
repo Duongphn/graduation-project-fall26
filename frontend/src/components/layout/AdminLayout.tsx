@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate, useNavigation } from 'react-router-dom'
 
 import { logout } from '../../features/auth/auth-api'
-import { PATHS } from '../../routes/paths'
-
+import { NotificationMenu } from '../../layouts/site/notification-menu'
 import { adminMenuItems } from '../../routes/admin-menu'
+import { adminPaths, PATHS } from '../../routes/paths'
 import { antdTheme } from '../../styles/theme'
 import { useAdminPendingCounts } from './useAdminPendingCounts'
 
@@ -62,8 +62,10 @@ export function AdminLayout() {
         />
       </Layout.Sider>
       <Layout>
-        {/* Top bar: back to the site and log out (the admin area has no other way out). */}
-        <Layout.Header className="flex items-center justify-end gap-2 !bg-white !px-6 shadow-sm">
+        {/* Top bar: the notification bell (UC26, same as the user header), back to the site and
+            log out (the admin area has no other way out). */}
+        <Layout.Header className="flex items-center justify-end gap-2 !bg-white !px-6 !leading-none shadow-sm">
+          <NotificationMenu allPath={adminPaths.notifications} />
           <Link to={PATHS.home}>
             <Button type="text" icon={<HomeOutlined />}>
               Về trang chủ

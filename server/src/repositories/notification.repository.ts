@@ -4,12 +4,15 @@ import { Organization } from '../models/organization.model.js';
 import { User } from '../models/user.model.js';
 import type { NotificationType } from '../constants/notification-types.js';
 import { Notification } from '../models/notification.model.js';
+import { NotificationPreference } from '../models/notification-preference.model.js';
 
 export interface NotificationRecord {
   _id: Types.ObjectId;
-  type: NotificationType;
+  // Free string in the model: older records may hold a type that is no longer used.
+  type: string;
   title: string;
   body: string;
+  link?: string;
   isRead: boolean;
   createdAt: Date;
 }
@@ -19,6 +22,7 @@ export interface NewNotification {
   type: NotificationType;
   title: string;
   body: string;
+  link?: string;
 }
 
 const projection = { userId: 0 } as const;
@@ -29,10 +33,10 @@ export const findRecipientEmail = async (userId: string): Promise<string | null 
   return user ? (user.email ?? null) : undefined;
 };
 
-/** Every active Admin (the requester side of an ORGANIZATION donation request). */
+/** Every active Admin (notify(to: 'ADMINS'), the receiving side of an organization's request). */
 export const findActiveAdminIds = async (): Promise<string[]> =>
-  (await User.find({ role: 'ADMIN', status: 'ACTIVE' }).select({ _id: 1 }).lean()).map(
-    (user) => String(user._id),
+  (await User.find({ role: 'ADMIN', status: 'ACTIVE' }).select({ _id: 1 }).lean()).map((user) =>
+    String(user._id),
   );
 
 export const findOrganizationName = async (organizationId: string): Promise<string | undefined> => {
@@ -42,17 +46,18 @@ export const findOrganizationName = async (organizationId: string): Promise<stri
   return organization?.name;
 };
 
-export const insertNotification = async (data: NewNotification): Promise<string> => {
+export const insertNotification = async (data: NewNotification): Promise<NotificationRecord> => {
   const [created] = await Notification.create([
     {
       userId: new Types.ObjectId(data.userId),
       type: data.type,
       title: data.title,
       body: data.body,
+      ...(data.link ? { link: data.link } : {}),
     },
   ]);
   if (!created) throw new Error('Notification was not created.');
-  return String(created._id);
+  return created.toObject<NotificationRecord>();
 };
 
 export const findUserNotifications = async (
@@ -91,4 +96,26 @@ export const markAllRead = async (userId: string): Promise<number> => {
     { $set: { isRead: true } },
   );
   return result.modifiedCount;
+};
+
+export const findMutedTypes = async (userId: string): Promise<string[]> => {
+  const preference = await NotificationPreference.findOne({ userId: new Types.ObjectId(userId) })
+    .select({ mutedTypes: 1 })
+    .lean<{ mutedTypes?: string[] }>();
+  return preference?.mutedTypes ?? [];
+};
+
+export const isTypeMuted = async (userId: string, type: NotificationType): Promise<boolean> =>
+  (await NotificationPreference.exists({
+    userId: new Types.ObjectId(userId),
+    mutedTypes: type,
+  })) !== null;
+
+export const saveMutedTypes = async (userId: string, mutedTypes: string[]): Promise<string[]> => {
+  const saved = await NotificationPreference.findOneAndUpdate(
+    { userId: new Types.ObjectId(userId) },
+    { $set: { mutedTypes } },
+    { upsert: true, new: true, projection: { mutedTypes: 1 } },
+  ).lean<{ mutedTypes?: string[] }>();
+  return saved?.mutedTypes ?? [];
 };

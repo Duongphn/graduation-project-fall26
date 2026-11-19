@@ -11,7 +11,7 @@ import {
 import { identityDetailSchema } from '../../src/validations/identity-review.validation.js';
 import { IdentityVerification } from '../../src/models/identity-verification.model.js';
 import type { IdentityImageStorage } from '../../src/interfaces/identity-verification.ports.js';
-import { DefaultIdentityVerificationEvents } from '../../src/integrations/events/identity-verification-events.js';
+import { IdentityReviewNotifications } from '../../src/integrations/events/identity-review-notifications.js';
 import { Notification } from '../../src/models/notification.model.js';
 import { setIdentityReviewService } from '../../src/services/identity-review.service.js';
 import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
@@ -50,7 +50,7 @@ beforeAll(() => {
       undefined,
       undefined,
       fakeStorage,
-      new DefaultIdentityVerificationEvents(),
+      new IdentityReviewNotifications(),
     ),
   );
 });

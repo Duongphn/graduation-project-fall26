@@ -2,14 +2,23 @@ import type { Request, Response } from 'express';
 
 import type { IdParams } from '../validations/common.validation.js';
 import { getRequestUserId } from '../utils/admin-context.js';
-import { getValidatedParams, getValidatedQuery } from '../middlewares/validate.js';
+import {
+  getValidatedBody,
+  getValidatedParams,
+  getValidatedQuery,
+} from '../middlewares/validate.js';
 import { sendPaginated, sendSuccess } from '../utils/response.js';
-import type { ListNotificationsQuery } from '../validations/notification.validation.js';
+import type {
+  ListNotificationsQuery,
+  UpdateNotificationPreferencesBody,
+} from '../validations/notification.validation.js';
 import {
   countMyUnreadNotifications,
+  getMyNotificationPreferences,
   listMyNotifications,
   markAllMyNotificationsRead,
   markMyNotificationRead,
+  updateMyNotificationPreferences,
 } from '../services/notification.service.js';
 
 export const listNotifications = async (request: Request, response: Response): Promise<void> => {
@@ -34,4 +43,23 @@ export const markAllNotificationsRead = async (
   sendSuccess(response, await markAllMyNotificationsRead(getRequestUserId(request)), {
     message: 'Đã đánh dấu tất cả thông báo là đã đọc.',
   });
+};
+
+export const getNotificationPreferences = async (
+  request: Request,
+  response: Response,
+): Promise<void> => {
+  sendSuccess(response, await getMyNotificationPreferences(getRequestUserId(request)));
+};
+
+export const updateNotificationPreferences = async (
+  request: Request,
+  response: Response,
+): Promise<void> => {
+  const { mutedTypes } = getValidatedBody<UpdateNotificationPreferencesBody>(request);
+  sendSuccess(
+    response,
+    await updateMyNotificationPreferences(getRequestUserId(request), mutedTypes),
+    { message: 'Đã lưu cài đặt thông báo.' },
+  );
 };

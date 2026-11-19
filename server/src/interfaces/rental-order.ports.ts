@@ -7,6 +7,10 @@ export interface RentalNotification {
   userId: string;
   title: string;
   body: string;
+  /** The booking, so the notification opens it (UC26). */
+  orderId?: string;
+  /** The recipient's side of the booking: decides which page the link opens. */
+  party?: 'renter' | 'owner';
 }
 
 export interface RentalNotifier {
