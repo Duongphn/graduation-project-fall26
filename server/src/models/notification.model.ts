@@ -6,6 +6,8 @@ export interface INotification {
   title: string;
   body: string;
   type: string;
+  /** App path the notification opens, e.g. /rentals/mine/<id> (R04 3.20 link). */
+  link?: string;
   isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -17,6 +19,7 @@ const notificationSchema = new Schema(
     title: { type: String, required: true },
     body: { type: String, required: true },
     type: { type: String, required: true },
+    link: { type: String },
     isRead: { type: Boolean, required: true, default: false },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },

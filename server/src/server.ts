@@ -10,7 +10,8 @@ import { createContainer } from './container.js';
 import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
-import { createSocketServer } from './sockets/socket.js';
+import { setNotificationPusher } from './services/notification.service.js';
+import { createSocketPusher, createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
   assertRequiredSecrets();
@@ -21,6 +22,7 @@ const startServer = async (): Promise<void> => {
   const container = createContainer();
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
+  setNotificationPusher(createSocketPusher(socketServer));
 
   let stopScheduler: (() => void) | undefined;
   if (env.rentalSchedulerEnabled) {

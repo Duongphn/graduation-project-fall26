@@ -52,7 +52,24 @@ export type ActorType = (typeof actorTypes)[number]
 export const handoverSteps = ['DONOR_SENT', 'RECEIVER_RECEIVED'] as const
 export type HandoverStep = (typeof handoverSteps)[number]
 
-export const notificationTypes = ['IDENTITY_REVIEWED', 'TOY_REVIEWED', 'DONATION_STATUS_CHANGED'] as const
+// notifications.type (server constants/notification-types.ts).
+export const notificationTypes = [
+  'RENTAL_ORDER',
+  'PURCHASE_ORDER',
+  'PAYMENT',
+  'WALLET',
+  'DISPUTE',
+  'TOY_REVIEWED',
+  'IDENTITY_REVIEWED',
+  'DONATION_STATUS_CHANGED',
+  'ACCOUNT',
+  'VIOLATION_REPORT',
+  'CHAT_MESSAGE',
+  'VOUCHER',
+  'REVIEW',
+  'REMINDER',
+  'SYSTEM',
+] as const
 export type NotificationType = (typeof notificationTypes)[number]
 
 // POST /uploads/signature purposes (server/src/features/uploads/uploads.schemas.ts).

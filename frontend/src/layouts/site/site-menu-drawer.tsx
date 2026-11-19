@@ -45,7 +45,7 @@ export function SiteMenuDrawer({ open, onClose }: SiteMenuDrawerProps) {
           <ul className="site-menu__list">
             {categories.data.map((category) => (
               <li key={category.id}>
-                <Link to={browseToysPath({ category: category.slug })} className="site-menu__category" onClick={onClose}>
+                <Link to={browseToysPath({ categoryId: category.id })} className="site-menu__category" onClick={onClose}>
                   <span className="site-menu__category-name">{category.name}</span>
                   <ChevronRight className="site-menu__chevron" aria-hidden />
                 </Link>

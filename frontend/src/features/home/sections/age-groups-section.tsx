@@ -14,7 +14,7 @@ export function AgeGroupsSection() {
         <ul className="home-ages__grid">
           {AGE_GROUPS.map((group) => (
             <li key={group.title}>
-              <Link to={browseToysPath({ minAge: group.minAge, maxAge: group.maxAge })} className="home-card age-tile">
+              <Link to={browseToysPath({ ageMin: group.minAge, ageMax: group.maxAge })} className="home-card age-tile">
                 <span className="age-tile__text">
                   {!group.image && <IconBadge icon={group.icon} tone={group.tone} />}
                   <span className="age-tile__label">{group.title}</span>

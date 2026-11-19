@@ -3,6 +3,7 @@ import {
   domainEvents,
   type DonationStatusChangedEvent,
   type IdentityReviewedEvent,
+  type NotifyEvent,
   type ToyReviewedEvent,
 } from '../utils/domain-events.js';
 import {
@@ -10,10 +11,14 @@ import {
   donationRecipients,
   renderDonationStatusChanged,
   renderIdentityReviewed,
+  renderNotify,
   renderToyReviewed,
   type TemplateContext,
 } from './notification.templates.js';
-import { findActiveAdminIds, findOrganizationName } from '../repositories/notification.repository.js';
+import {
+  findActiveAdminIds,
+  findOrganizationName,
+} from '../repositories/notification.repository.js';
 import { createNotifier, describeError, type NotifierOptions } from './notification.service.js';
 
 type Unsubscribe = () => void;
@@ -35,6 +40,17 @@ const organizationNameOf = async (organizationId: string | undefined) => {
   }
 };
 
+/** User ids of a notify() call: 'ADMINS' is every active Admin; the actor is left out. */
+export const resolveRecipients = async (event: Pick<NotifyEvent, 'to' | 'actorId'>) => {
+  const ids =
+    event.to === 'ADMINS'
+      ? await findActiveAdminIds()
+      : typeof event.to === 'string'
+        ? [event.to]
+        : event.to;
+  return [...new Set(ids)].filter((id) => id && id !== event.actorId);
+};
+
 // The handlers never throw: the action that published the event has committed, so a failure is
 // only logged (one line, no personal data).
 export const createNotificationHandlers = (options: SubscribeOptions = {}) => {
@@ -51,6 +67,16 @@ export const createNotificationHandlers = (options: SubscribeOptions = {}) => {
     };
 
   return {
+    notify: guard(async (event: NotifyEvent) => {
+      const recipients = await resolveRecipients(event);
+      if (recipients.length === 0) return;
+      const message = renderNotify(event, context);
+      const results = await Promise.allSettled(
+        recipients.map((userId) => notifier.notifyUser(userId, message)),
+      );
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed) throw failed.reason;
+    }),
     toyReviewed: guard((event: ToyReviewedEvent) =>
       notifier.notifyUser(event.ownerId, renderToyReviewed(event, context)),
     ),
@@ -87,6 +113,7 @@ export const subscribeNotifications = (options: SubscribeOptions = {}): Unsubscr
   active?.();
   const handlers = createNotificationHandlers(options);
   const offs = [
+    domainEvents.subscribe('NOTIFY', handlers.notify),
     domainEvents.subscribe('TOY_REVIEWED', handlers.toyReviewed),
     domainEvents.subscribe('IDENTITY_REVIEWED', handlers.identityReviewed),
     domainEvents.subscribe('DONATION_STATUS_CHANGED', handlers.donationStatusChanged),

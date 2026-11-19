@@ -80,3 +80,34 @@ describe('timed lock (TC-SEC-007)', () => {
     }
   });
 });
+
+describe('sign-in by phone in any written form', () => {
+  it('finds the account whether the phone is typed with spaces, with +84 or 84', async () => {
+    for (const identifier of ['0912345678', '0912 345 678', '+84912345678', '84912345678', '+84 912 345 678']) {
+      const res = await signIn(identifier, PASSWORD);
+      expect(res.status, identifier).toBe(200);
+      expect(res.body.data.user.email).toBe('an@example.com');
+    }
+  });
+
+  it('finds an account saved as +84 when the user types 0912...', async () => {
+    await User.updateOne({ email: 'an@example.com' }, { $set: { phone: '+84912345678' } });
+    expect((await signIn('0912345678', PASSWORD)).status).toBe(200);
+  });
+
+  it('counts wrong passwords typed in different forms against the same account', async () => {
+    await signIn('0912345678', 'Wrong#123');
+    const res = await signIn('+84912345678', 'Wrong#123');
+    expect(res.body.error.message).toContain('còn 3 lần thử');
+  });
+});
+
+describe('registration refuses a phone already used in another form', () => {
+  it('answers PHONE_EXISTS for +84912345678 when 0912345678 is taken', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'binh@example.com', password: 'Test@1234', fullName: 'Tran Binh', phone: '+84912345678' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('PHONE_EXISTS');
+  });
+});

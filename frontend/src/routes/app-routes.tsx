@@ -21,6 +21,7 @@ import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
+import { NotificationsPage } from '../pages/notifications-page'
 import { ProfilePage } from '../pages/profile-page'
 import { RegisterPage } from '../pages/register-page'
 import { ToyDetailPage } from '../pages/toy-detail-page'
@@ -386,6 +387,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <RentalRequestDetailPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.notifications,
+    element: (
+      <RequireAuth>
+        <NotificationsPage />
       </RequireAuth>
     ),
   },

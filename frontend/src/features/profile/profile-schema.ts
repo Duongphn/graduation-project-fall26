@@ -3,7 +3,12 @@ import { z } from 'zod'
 /** Khớp kiểm tra của backend: họ tên và từng phần địa chỉ đều phải khác rỗng sau khi trim */
 
 export const personalInfoSchema = z.object({
-  fullName: z.string().trim().min(1, 'Nhập họ và tên để người thuê, người mua biết bạn là ai.').max(100, 'Họ và tên tối đa 100 ký tự.'),
+  // Khớp FULL_NAME_PATTERN của backend (R03 III.6.1.1 (5)): 2–50 chữ cái và khoảng trắng
+  fullName: z
+    .string()
+    .trim()
+    .min(1, 'Nhập họ và tên để người thuê, người mua biết bạn là ai.')
+    .regex(/^[\p{L} ]{2,50}$/u, 'Họ và tên chỉ gồm chữ cái và khoảng trắng, từ 2 đến 50 ký tự.'),
 })
 
 export type PersonalInfoValues = z.infer<typeof personalInfoSchema>

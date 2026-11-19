@@ -34,5 +34,16 @@ export const adminRoute: RouteObject = {
       ),
     },
     ...adminRoutes,
+    // Unknown /admin/... link: stay in the admin area instead of the site's catch-all (home page).
+    {
+      path: '*',
+      element: (
+        <Result
+          status="404"
+          title="Không tìm thấy trang"
+          subTitle="Đường dẫn này không có trong khu quản trị. Chọn chức năng ở menu bên trái."
+        />
+      ),
+    },
   ],
 }
