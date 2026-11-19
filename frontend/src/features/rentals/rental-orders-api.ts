@@ -210,32 +210,56 @@ export const useRentalReturn = (orderId: string) =>
     invalidateOnConflict: true,
   })
 
-/** Mô tả hư hỏng: 10–1000 ký tự như server */
-export const DAMAGE_DESCRIPTION_MIN = 10
-export const DAMAGE_DESCRIPTION_MAX = 1000
-
-export type SettleInput = { result: 'GOOD' } | { result: 'DAMAGED'; photos: File[]; description: string }
-
-const SETTLE_SUCCESS: Record<SettlementResult, string> = {
-  GOOD: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
-  DAMAGED: 'Đã báo hư hỏng và mở khiếu nại. Tiền cọc được giữ nguyên cho đến khi ToyFlow giải quyết.',
-}
-
 /**
- * Chủ đồ quyết toán đơn đang trả (RETURNING): GOOD gửi JSON; DAMAGED gửi multipart với 1–10 ảnh bằng
- * chứng (`photos`) và mô tả. Sau đó tải lại đơn và ví (tiền thuê vừa vào ví khi GOOD).
+ * Chủ đồ xác nhận đồ trả về còn tốt (RETURNING → COMPLETED): tiền thuê vào ví chủ đồ, cọc hoàn cho người
+ * thuê. Báo hư hỏng đi qua khiếu nại (useOpenRentalDispute) để chọn được lý do.
  */
 export const useRentalSettle = (orderId: string) =>
   useApiMutation({
-    mutationFn: (input: SettleInput) => {
-      if (input.result === 'GOOD') return apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' })
+    mutationFn: () => apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' }),
+    successMessage: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
+    invalidate: [rentalKeys.all, walletKeys.me],
+    invalidateOnConflict: true,
+  })
+
+/** Lý do khiếu nại server nhận, theo vai người gửi */
+export type ComplaintRole = 'renter' | 'owner'
+export const COMPLAINT_REASONS = {
+  renter: ['DAMAGED_ON_RECEIPT', 'MISSING_PARTS', 'NOT_AS_DESCRIBED', 'OTHER'],
+  owner: ['DAMAGED_ON_RETURN', 'MISSING_PARTS', 'OTHER'],
+} as const satisfies Record<ComplaintRole, readonly string[]>
+export type ComplaintReason = (typeof COMPLAINT_REASONS)[ComplaintRole][number]
+
+/** Mô tả khiếu nại: 10–1000 ký tự như server */
+export const COMPLAINT_DESCRIPTION_MIN = 10
+export const COMPLAINT_DESCRIPTION_MAX = 1000
+
+/**
+ * Người thuê khiếu nại trong 24 giờ kể từ lúc xác nhận nhận đồ (renterComplaintHours của server).
+ * Server là bên quyết định cuối: hết hạn thì trả COMPLAINT_WINDOW_CLOSED.
+ */
+export const RENTER_COMPLAINT_HOURS = 24
+
+export interface OpenComplaintInput {
+  reason: ComplaintReason
+  description: string
+  photos: File[]
+}
+
+/**
+ * Gửi khiếu nại (POST /rentals/:id/disputes, multipart): đơn chuyển sang Đang khiếu nại, tiền thuê và cọc
+ * nằm nguyên trong ví ký quỹ đến khi quản trị viên phán quyết. Mỗi đơn chỉ có một khiếu nại.
+ */
+export const useOpenRentalDispute = (orderId: string) =>
+  useApiMutation({
+    mutationFn: ({ reason, description, photos }: OpenComplaintInput) => {
       const form = new FormData()
-      form.append('result', 'DAMAGED')
-      form.append('description', input.description.trim())
-      input.photos.forEach((file) => form.append('photos', file))
-      return apiPostForm<RentalOrder>(`/rentals/${orderId}/settle`, form)
+      form.append('reason', reason)
+      form.append('description', description.trim())
+      photos.forEach((file) => form.append('photos', file))
+      return apiPostForm<unknown>(`/rentals/${orderId}/disputes`, form)
     },
-    successMessage: (_data, input) => SETTLE_SUCCESS[input.result],
+    successMessage: 'Đã gửi khiếu nại. Tiền thuê và tiền cọc được ToyFlow giữ cho đến khi có phán quyết.',
     invalidate: [rentalKeys.all, walletKeys.me],
     invalidateOnConflict: true,
   })

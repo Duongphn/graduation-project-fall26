@@ -1,21 +1,11 @@
-import { App, Input } from 'antd'
-import { BadgeCheck, Clock, PackageX, Scale, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { useId, useState } from 'react'
+import { App } from 'antd'
+import { BadgeCheck, Clock, PackageX, Scale, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
 import { ImageGallery } from '../../../components/common'
 import { formatVnd } from '../../toy-listings/format-vnd'
-import { useListingPhotos } from '../../toy-listings/hooks/use-listing-photos'
-import type { ToyImage } from '../../toy-listings/toy-listing-api'
-import {
-  DAMAGE_DESCRIPTION_MAX,
-  DAMAGE_DESCRIPTION_MIN,
-  useRentalSettle,
-  type RentalOrderDetail,
-  type SettlementResult,
-} from '../rental-orders-api'
+import { useRentalSettle, type RentalOrderDetail, type SettlementResult } from '../rental-orders-api'
 import { formatDateTime } from '../rental-display'
-import { RentalPhotoPicker } from './rental-photo-picker'
-
-const NO_PHOTOS: ToyImage[] = []
+import { RentalComplaintForm } from './rental-complaint-form'
 
 /** Tiền ký quỹ chia khi đồ còn tốt, theo bút toán của server: chủ đồ R − F + L, người thuê D − L */
 const goodSplit = (order: RentalOrderDetail) => {
@@ -58,7 +48,7 @@ function GoodSplit({ order, isOwner }: { order: RentalOrderDetail; isOwner: bool
 
 const CHOICES: { value: SettlementResult; title: string; hint: string; icon: typeof BadgeCheck }[] = [
   { value: 'GOOD', title: 'Còn tốt', hint: 'Như lúc giao, đủ phụ kiện', icon: BadgeCheck },
-  { value: 'DAMAGED', title: 'Có hư hỏng', hint: 'Giữ cọc, mở khiếu nại', icon: PackageX },
+  { value: 'DAMAGED', title: 'Có vấn đề', hint: 'Hư hỏng, thiếu chi tiết: mở khiếu nại', icon: PackageX },
 ]
 
 /**
@@ -68,44 +58,20 @@ const CHOICES: { value: SettlementResult; title: string; hint: string; icon: typ
  */
 export function RentalSettlePanel({ order, remaining }: { order: RentalOrderDetail; remaining: string | null }) {
   const { modal } = App.useApp()
-  const descriptionId = useId()
   const canReportDamage = Boolean(remaining)
   const [choice, setChoice] = useState<SettlementResult>('GOOD')
-  const photos = useListingPhotos(NO_PHOTOS)
-  const [description, setDescription] = useState('')
-  const [touched, setTouched] = useState(false)
   const settle = useRentalSettle(order.id)
   const damaged = choice === 'DAMAGED' && canReportDamage
   const { ownerGets, renterRefund } = goodSplit(order)
-  const descriptionLength = description.trim().length
-  const descriptionError =
-    touched && descriptionLength < DAMAGE_DESCRIPTION_MIN
-      ? `Mô tả rõ hư hỏng, ít nhất ${DAMAGE_DESCRIPTION_MIN} ký tự.`
-      : null
 
-  const confirm = () => {
-    if (!damaged) {
-      modal.confirm({
-        title: 'Xác nhận đồ chơi còn tốt?',
-        content: `${formatVnd(ownerGets)} vào ví của bạn, ${formatVnd(renterRefund)} tiền cọc hoàn cho người thuê và đơn hoàn tất. Không thể báo hư hỏng sau bước này.`,
-        okText: 'Quyết toán',
-        cancelText: 'Xem lại',
-        onOk: () => settle.mutateAsync({ result: 'GOOD' }).catch(() => undefined),
-      })
-      return
-    }
-    setTouched(true)
-    const files = photos.newFiles
-    if (files.length === 0 || descriptionLength < DAMAGE_DESCRIPTION_MIN) return
+  const confirmGood = () =>
     modal.confirm({
-      title: 'Báo hư hỏng và mở khiếu nại?',
-      content: `Tiền thuê và tiền cọc tiếp tục được ToyFlow giữ cho đến khi khiếu nại được giải quyết. ${files.length} ảnh bằng chứng và mô tả của bạn được gửi cho người thuê và quản trị viên.`,
-      okText: 'Mở khiếu nại',
-      okButtonProps: { danger: true },
+      title: 'Xác nhận đồ chơi còn tốt?',
+      content: `${formatVnd(ownerGets)} vào ví của bạn, ${formatVnd(renterRefund)} tiền cọc hoàn cho người thuê và đơn hoàn tất. Không thể báo hư hỏng sau bước này.`,
+      okText: 'Quyết toán',
       cancelText: 'Xem lại',
-      onOk: () => settle.mutateAsync({ result: 'DAMAGED', photos: files, description }).catch(() => undefined),
+      onOk: () => settle.mutateAsync().catch(() => undefined),
     })
-  }
 
   return (
     <section className={`rental-handover ${damaged ? 'rental-settle--damaged' : ''}`} aria-labelledby="settle-title">
@@ -152,59 +118,26 @@ export function RentalSettlePanel({ order, remaining }: { order: RentalOrderDeta
       )}
 
       {damaged ? (
-        <>
-          <RentalPhotoPicker
-            label="Ảnh bằng chứng hư hỏng"
-            photos={photos.photos}
-            rejections={photos.rejections}
-            missing={touched && photos.photos.length === 0}
-            disabled={settle.isPending}
-            onAddFiles={photos.addFiles}
-            onRemove={photos.removePhoto}
-          />
-          <div className="rental-return__note">
-            <label htmlFor={descriptionId}>Mô tả hư hỏng</label>
-            <Input.TextArea
-              id={descriptionId}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              onBlur={() => setTouched(true)}
-              maxLength={DAMAGE_DESCRIPTION_MAX}
-              showCount
-              autoSize={{ minRows: 3, maxRows: 6 }}
-              status={descriptionError ? 'error' : undefined}
-              aria-invalid={Boolean(descriptionError)}
-              aria-describedby={descriptionError ? `${descriptionId}-error` : undefined}
-              disabled={settle.isPending}
-              placeholder="VD: Gãy càng trước bên trái, mất 1 bánh xe dự phòng so với ảnh lúc giao."
-            />
-            {descriptionError && (
-              <p id={`${descriptionId}-error`} className="rental-photos__errors">
-                {descriptionError}
-              </p>
-            )}
-          </div>
-        </>
+        // Báo hư hỏng là mở khiếu nại: chọn lý do, ảnh bằng chứng và mô tả
+        <RentalComplaintForm orderId={order.id} role="owner" />
       ) : (
-        <GoodSplit order={order} isOwner />
+        <>
+          <GoodSplit order={order} isOwner />
+          <button
+            type="button"
+            className="rental-btn rental-btn--primary rental-handover__submit"
+            disabled={settle.isPending}
+            onClick={confirmGood}
+          >
+            <BadgeCheck aria-hidden />
+            {settle.isPending ? 'Đang gửi…' : 'Xác nhận còn tốt, quyết toán'}
+          </button>
+          <p className="rental-pay__escrow">
+            <ShieldCheck aria-hidden />
+            Tiền được chuyển ngay từ ví ký quỹ ToyFlow khi bạn xác nhận.
+          </p>
+        </>
       )}
-
-      <button
-        type="button"
-        className={`rental-btn rental-handover__submit ${damaged ? 'rental-btn--danger' : 'rental-btn--primary'}`}
-        disabled={settle.isPending}
-        onClick={confirm}
-      >
-        {damaged ? <ShieldAlert aria-hidden /> : <BadgeCheck aria-hidden />}
-        {settle.isPending ? 'Đang gửi…' : damaged ? 'Báo hư hỏng và mở khiếu nại' : 'Xác nhận còn tốt, quyết toán'}
-      </button>
-
-      <p className="rental-pay__escrow">
-        <ShieldCheck aria-hidden />
-        {damaged
-          ? 'Cọc được giữ nguyên trong ví ký quỹ. Quản trị viên xem ảnh của cả hai bên trước khi quyết định.'
-          : 'Tiền được chuyển ngay từ ví ký quỹ ToyFlow khi bạn xác nhận.'}
-      </p>
     </section>
   )
 }

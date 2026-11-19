@@ -8,6 +8,7 @@ import { profileQuery } from '../features/profile/profile-queries'
 import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
+import { RentalComplaintPanel } from '../features/rentals/components/rental-complaint-form'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
 import { RentalSettlePanel, RentalSettlementRecord } from '../features/rentals/components/rental-settle-panel'
 import {
@@ -236,10 +237,17 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
       ? 'Tiền thuê sau phí nền tảng (cộng phí trả trễ nếu có) đã vào ví của bạn. Xem chi tiết ở mục Quyết toán.'
       : `${formatVnd(refund)} tiền cọc đã được hoàn vào ví của bạn. Cảm ơn bạn đã giữ gìn đồ chơi.`
   } else if (order.status === 'DISPUTING') {
-    title = isOwner ? 'Đã mở khiếu nại hư hỏng' : 'Chủ đồ báo đồ chơi bị hư hỏng'
-    text = isOwner
-      ? 'Quản trị viên ToyFlow sẽ xem ảnh lúc giao, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền cọc.'
-      : 'Tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp lúc nhận và lúc trả là căn cứ bảo vệ bạn.'
+    // Chủ đồ mở khiếu nại lúc quyết toán (có settlement DAMAGED); còn lại là người thuê mở lúc nhận đồ
+    const ownerClaimed = order.settlement?.result === 'DAMAGED'
+    const viewerClaimed = ownerClaimed ? isOwner : isRenter
+    title = viewerClaimed
+      ? 'Bạn đã gửi khiếu nại'
+      : ownerClaimed
+        ? 'Chủ đồ đã gửi khiếu nại'
+        : 'Người thuê đã gửi khiếu nại'
+    text = viewerClaimed
+      ? 'Bên kia được báo để phản hồi. Quản trị viên ToyFlow xem ảnh lúc giao, lúc nhận, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền. Tiền thuê và tiền cọc được giữ trong ví ký quỹ đến khi có phán quyết.'
+      : 'Tiền thuê và tiền cọc được giữ trong ví ký quỹ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp ở các bước giao nhận là căn cứ bảo vệ bạn.'
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
@@ -339,6 +347,7 @@ export function RentalRequestDetailPage() {
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
               <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              {isRenter && order.status === 'IN_USE' && <RentalComplaintPanel order={order} now={now} />}
             </aside>
 
             <div className="rental-detail__main">
