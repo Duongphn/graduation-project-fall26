@@ -25,6 +25,7 @@ import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
 import { createUsersRouter } from './user.routes.js';
 import { createPaymentRouter } from './payment.routes.js';
+import { createPurchaseOrderRouter } from './purchase-order.routes.js';
 import { createWalletRouter } from './wallet.routes.js';
 
 export function createApiRouter(container: Container): Router {
@@ -51,6 +52,7 @@ export function createApiRouter(container: Container): Router {
   // UC17 VNPay top-up: /payments/topup/vnpay, /vnpay-return, /vnpay-ipn, /:code/status
   router.use('/payments', createPaymentRouter(container.paymentService, container.payosTopupService));
   router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
+  router.use('/purchase-orders', createPurchaseOrderRouter(container.purchaseOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).
   router.use('/admin/categories', authenticate, adminCategoriesRouter);

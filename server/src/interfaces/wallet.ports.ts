@@ -36,6 +36,8 @@ export interface TransactionFilter {
 export interface WalletHoldings {
   /** Rent + deposit of their paid, unsettled rentals (held in escrow). */
   rentals: number;
+  /** Purchases of their paid, unsettled buy-now orders (held in escrow). */
+  purchases?: number;
   /** Their withdrawal requests not paid out yet (held in escrow). */
   withdrawals: number;
 }

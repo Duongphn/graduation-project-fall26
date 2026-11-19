@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bookmark, ChevronRight, Flag, Home, MessageCircle, ShoppingBag } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useIsSignedIn } from '../hooks/use-is-signed-in'
+import { profileQuery } from '../features/profile/profile-queries'
+import { BuyNowDialog } from '../features/purchase-orders/components/buy-now-dialog'
 import { RequestDonationCard } from '../features/donations/components/request-donation-card'
 import { RentalBookingCard } from '../features/toy-catalog/components/rental-booking-card'
 import { SimilarToys } from '../features/toy-catalog/components/similar-toys'
@@ -142,23 +145,57 @@ function OwnerCard({ toy }: { toy: ToyDetail }) {
 }
 
 function BuyCard({ toy }: { toy: ToyDetail }) {
+  const [buyDialogOpen, setBuyDialogOpen] = useState(false)
+  const isSignedIn = useIsSignedIn()
+  const profile = useQuery(profileQuery)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const isOwner = Boolean(profile.data && profile.data.id === toy.owner.id)
+
+  const handleBuyClick = () => {
+    if (!isSignedIn) {
+      navigate(`${PATHS.login}?returnTo=${encodeURIComponent(location.pathname)}`)
+      return
+    }
+    setBuyDialogOpen(true)
+  }
+
   return (
-    <section className="tf-card booking-card" aria-label="Mua lại">
-      <p className="booking-card__price">
-        <strong>{formatVnd(toy.priceOrRate)}</strong>
-      </p>
-      <p className="booking-card__row">
-        <span>Tình trạng</span>
-        <strong>{toy.condition}</strong>
-      </p>
-      <button type="button" className="tf-btn tf-btn--primary" disabled aria-describedby="buy-note">
-        <ShoppingBag aria-hidden />
-        Mua món này
-      </button>
-      <p id="buy-note" className="booking-card__note">
-        Đặt mua trực tuyến sắp ra mắt. Giá ở trên là giá chủ đồ chơi đăng.
-      </p>
-    </section>
+    <>
+      <section className="tf-card booking-card" aria-label="Mua lại">
+        <p className="booking-card__price">
+          <strong>{formatVnd(toy.priceOrRate)}</strong>
+        </p>
+        <p className="booking-card__row">
+          <span>Tình trạng</span>
+          <strong>{toy.condition}</strong>
+        </p>
+        {isOwner ? (
+          <button type="button" className="tf-btn tf-btn--soft" disabled>
+            Món đồ của bạn
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="tf-btn tf-btn--primary"
+            onClick={handleBuyClick}
+          >
+            <ShoppingBag aria-hidden />
+            Mua món này
+          </button>
+        )}
+        <p id="buy-note" className="booking-card__note">
+          Thanh toán an toàn qua Ví ToyFlow vào Escrow. Nhận hàng hài lòng mới chuyển tiền cho người bán.
+        </p>
+      </section>
+
+      <BuyNowDialog
+        toy={toy}
+        open={buyDialogOpen}
+        onClose={() => setBuyDialogOpen(false)}
+      />
+    </>
   )
 }
 
