@@ -9,6 +9,7 @@ import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/ren
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
 import { RentalComplaintPanel } from '../features/rentals/components/rental-complaint-form'
+import { RentalDisputePanel } from '../features/rentals/components/rental-dispute-panel'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
 import { RentalSettlePanel, RentalSettlementRecord } from '../features/rentals/components/rental-settle-panel'
 import {
@@ -277,6 +278,8 @@ export function RentalRequestDetailPage() {
   const now = useNow()
   const isOwner = Boolean(order && profile.data && order.ownerId === profile.data.id)
   const isRenter = Boolean(order && profile.data && order.renterId === profile.data.id)
+  // Người thuê mở khiếu nại: disputeId ở đơn; chủ đồ mở lúc quyết toán: còn có ở settlement
+  const disputeId = order?.disputeId ?? order?.settlement?.disputeId
   // Breadcrumb quay về đúng danh sách của vai trò người xem
   const backTo = isRenter
     ? { to: PATHS.myRentals, label: 'Đơn thuê của tôi' }
@@ -346,8 +349,12 @@ export function RentalRequestDetailPage() {
 
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
-              <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              {/* Đang khiếu nại: panel khiếu nại đã nói rõ ai làm gì tiếp, không lặp khối thông báo chung */}
+              {!(disputeId && order.status === 'DISPUTING') && (
+                <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              )}
               {isRenter && order.status === 'IN_USE' && <RentalComplaintPanel order={order} now={now} />}
+              {disputeId && <RentalDisputePanel disputeId={disputeId} viewerId={profile.data?.id} now={now} />}
             </aside>
 
             <div className="rental-detail__main">

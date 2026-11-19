@@ -1,6 +1,13 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import { RENTER_COMPLAINT_HOURS, type ComplaintReason, type RentalOrder, type RentalStatus } from './rental-orders-api'
+import {
+  RENTER_COMPLAINT_HOURS,
+  type ComplaintReason,
+  type DisputeStatus,
+  type DisputeVerdict,
+  type RentalOrder,
+  type RentalStatus,
+} from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
 export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
@@ -56,6 +63,20 @@ export const COMPLAINT_REASON_META: Record<ComplaintReason, { label: string; hin
   MISSING_PARTS: { label: 'Thiếu chi tiết', hint: 'Thiếu phụ kiện, linh kiện so với lúc giao' },
   NOT_AS_DESCRIBED: { label: 'Không đúng mô tả', hint: 'Khác ảnh hoặc mô tả trên tin đăng' },
   OTHER: { label: 'Lý do khác', hint: 'Ghi rõ vấn đề trong phần mô tả' },
+}
+
+/** Trạng thái khiếu nại; tông dùng chung class .rental-status--{tone} */
+export const DISPUTE_STATUS_META: Record<DisputeStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' }> = {
+  open: { label: 'Chờ phản hồi', tone: 'wait' },
+  under_review: { label: 'Đang xem xét', tone: 'go' },
+  resolved: { label: 'Đã giải quyết', tone: 'done' },
+  closed: { label: 'Đã đóng', tone: 'stop' },
+}
+
+export const DISPUTE_VERDICT_LABELS: Record<DisputeVerdict, string> = {
+  CLAIMANT_FAVORED: 'Chấp nhận khiếu nại',
+  RESPONDENT_FAVORED: 'Bác khiếu nại',
+  PARTIAL: 'Chấp nhận một phần',
 }
 
 /** Lý do từ chối gợi ý — chủ đồ vẫn sửa được (5–500 ký tự như server) */

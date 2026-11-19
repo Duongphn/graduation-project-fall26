@@ -1528,6 +1528,82 @@
   }
 
   /* Hai lựa chọn tình trạng như hai ô đánh dấu trên phiếu kiểm hàng */
+  /* ---------- Panel khiếu nại: nội dung hai bên, tiến trình, phán quyết ---------- */
+  .rental-dispute.is-loading {
+    min-height: 160px;
+    background: var(--rp-sunken);
+  }
+
+  .rental-dispute__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .rental-dispute__head .rental-decision__title {
+    margin: 0;
+  }
+
+  .rental-dispute__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rp-rule);
+  }
+
+  .rental-dispute__heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rp-ink);
+  }
+
+  .rental-dispute__heading time {
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: var(--rp-muted);
+  }
+
+  .rental-dispute__progress {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--rp-ink);
+    background: var(--rp-sunken);
+  }
+
+  .rental-dispute__progress svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
+    color: var(--rp-navy);
+  }
+
+  .rental-dispute__respond {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rp-rule);
+  }
+
+  .rental-dispute__respond .rental-decision__title {
+    margin: 0;
+  }
+
   /* ---------- Khiếu nại: lý do dạng danh sách chọn một, rồi ảnh + mô tả ---------- */
   .rental-complaint__form {
     display: flex;
