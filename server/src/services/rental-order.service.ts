@@ -17,6 +17,7 @@ import {
   suggestFreeRange,
   vnToday,
 } from './rental-time.js';
+import { notificationLinks } from './notification.links.js';
 import { toRentalOrderDto } from './rental-order.mapper.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
 import {
@@ -49,12 +50,14 @@ interface RentEligibility {
 /** Hành động do Renter/Owner gọi qua API (UC06–UC11). */
 export class RentalOrderService extends RentalOrderCore {
   /** Như notifyParty: lỗi thông báo không được làm hỏng hành động đã commit. */
-  private async notifyAdmins(title: string, body: string): Promise<void> {
+  private async notifyAdmins(title: string, body: string, link?: string): Promise<void> {
     try {
       const admins = await this.userModel.find({ role: 'ADMIN' }).select('_id').lean();
       await Promise.all(
         admins.map((admin) =>
-          this.notifier.notify({ userId: admin._id.toString(), title, body }).catch(() => {}),
+          this.notifier
+            .notify({ userId: admin._id.toString(), title, body, ...(link ? { link } : {}) })
+            .catch(() => {}),
         ),
       );
     } catch {
@@ -696,6 +699,7 @@ export class RentalOrderService extends RentalOrderCore {
 
       const updated = await this.withUploadedPhotos(files, async (photos) => {
         const now = this.clock.now();
+        const s = await this.settings.getRentalSettings();
         const disputeId = new Types.ObjectId();
 
         return this.transition({
@@ -719,6 +723,8 @@ export class RentalOrderService extends RentalOrderCore {
                   description,
                   status: 'open',
                   openedAt: now,
+                  // Người thuê có 72 giờ phản hồi, sau đó Admin quyết định (GB-24, UC19)
+                  timer: { dueAt: new Date(now.getTime() + s.disputeReplyHours * 3_600_000) },
                 },
               ],
               { session },
@@ -745,6 +751,9 @@ export class RentalOrderService extends RentalOrderCore {
       await this.notifyAdmins(
         'Khiếu nại hư hỏng đồ chơi mới',
         `Đơn thuê ${updated.code} có báo cáo hư hỏng đồ chơi từ chủ đồ chơi.`,
+        updated.settlement?.disputeId
+          ? notificationLinks.adminDispute(updated.settlement.disputeId.toString())
+          : undefined,
       );
 
       return toRentalOrderDto(updated);

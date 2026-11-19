@@ -21,6 +21,7 @@ export class SystemSettingService {
       'minTrustScore',
       'maxDays',
       'bookingWindowDays',
+      'disputeReplyHours',
     ];
 
     const dbKeys = keys.map((k) => `rental.${k}`);

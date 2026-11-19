@@ -41,6 +41,7 @@ import { setReviewStorage } from './services/identity-review.documents.js';
 import { setIdentityReviewService } from './services/identity-review.service.js';
 import { IdentityVerificationService } from './services/identity-verification.service.js';
 import { setNotificationMailer } from './services/notification.service.js';
+import { RentalDisputeService } from './services/rental-dispute.service.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
@@ -78,6 +79,7 @@ export interface ContainerOverrides {
   toyCatalogService?: ToyCatalogService;
   walletService?: WalletService;
   rentalOrderService?: RentalOrderService;
+  rentalDisputeService?: RentalDisputeService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
 }
@@ -92,6 +94,7 @@ export interface Container {
   toyCatalogService: ToyCatalogService;
   walletService: WalletService;
   rentalOrderService: RentalOrderService;
+  rentalDisputeService: RentalDisputeService;
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
@@ -164,6 +167,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     repository: rentalOrderRepository,
   };
   const rentalOrderService = overrides.rentalOrderService ?? new RentalOrderService(rentalDeps);
+  const rentalDisputeService =
+    overrides.rentalDisputeService ?? new RentalDisputeService(rentalDeps);
   const rentalSystemService =
     overrides.rentalSystemService ?? new RentalSystemService(rentalDeps);
 
@@ -184,6 +189,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     toyCatalogService,
     walletService,
     rentalOrderService,
+    rentalDisputeService,
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,

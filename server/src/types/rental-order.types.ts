@@ -1,3 +1,4 @@
+import { type DisputeRuling } from '../constants/dispute-ruling.js';
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 
@@ -12,6 +13,8 @@ export interface RentalSettings {
   minTrustScore: number;
   maxDays: number;
   bookingWindowDays: number;
+  /** Hạn bên bị khiếu nại phản hồi trước khi Admin quyết định (GB-24) */
+  disputeReplyHours: number;
 }
 
 export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
@@ -25,7 +28,20 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   minTrustScore: 30,
   maxDays: 30,
   bookingWindowDays: 180,
+  disputeReplyHours: 72,
 };
+
+/** Phán quyết khiếu nại lưu trên đơn thuê (UC19). */
+export interface RentalRulingSummary {
+  ruling: DisputeRuling;
+  compensationAmount: number;
+  rentRefundAmount: number;
+  ownerAmount: number;
+  renterAmount: number;
+  platformFee: number;
+  adminDecision: string;
+  resolvedAt: Date;
+}
 
 export interface RentalPeriod {
   startDate: Date;
@@ -80,6 +96,7 @@ export interface RentalOrderDto {
     settledAt: Date;
     autoSettled?: boolean | undefined;
     disputeId?: string | undefined;
+    resolution?: RentalRulingSummary | undefined;
   } | undefined;
   createdAt: Date;
   updatedAt: Date;
