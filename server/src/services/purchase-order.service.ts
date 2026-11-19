@@ -11,6 +11,8 @@ import { withTransaction } from '../repositories/transaction.js';
 import { AppError } from '../utils/app-error.js';
 import { notify } from '../utils/notify.js';
 import {
+  type ConfirmReceivedInput,
+  type ConfirmShippingInput,
   type CreateBuyNowInput,
   type QuotePurchasePricingInput,
 } from '../validations/purchase-order.validation.js';
@@ -50,6 +52,13 @@ export interface PurchaseOrderDto {
     street?: string | undefined;
     notes?: string | undefined;
   } | undefined;
+  shippingInfo?: {
+    carrierName: string;
+    trackingCode?: string | undefined;
+    photos?: Array<{ url: string; publicId?: string | undefined }> | undefined;
+    shippedAt?: string | undefined;
+    note?: string | undefined;
+  } | undefined;
   pricing: {
     itemPrice: number;
     shippingFee: number;
@@ -59,6 +68,14 @@ export interface PurchaseOrderDto {
   };
   status: string;
   paidAt?: string | undefined;
+  shippedAt?: string | undefined;
+  completedAt?: string | undefined;
+  settlement?: {
+    settledAt: string;
+    sellerReceived: number;
+    platformFee: number;
+    autoSettled?: boolean | undefined;
+  } | undefined;
   timer?: {
     dueAt?: string | undefined;
   } | undefined;
@@ -362,6 +379,176 @@ export class PurchaseOrderService {
     };
   }
 
+  /**
+   * Seller xác nhận gửi hàng (PAID -> SHIPPING)
+   * Lưu ảnh đóng gói + mã vận đơn + đặt timer tự động nhận hàng
+   */
+  public async confirmShipping(
+    actor: RequestActor,
+    orderId: string,
+    input: ConfirmShippingInput,
+  ): Promise<PurchaseOrderDto> {
+    if (!Types.ObjectId.isValid(orderId)) {
+      throw new AppError(400, 'INVALID_ORDER_ID', 'Mã đơn hàng không hợp lệ.');
+    }
+
+    const order = await this.purchaseOrderModel.findById(orderId);
+    if (!order) {
+      throw new AppError(404, 'ORDER_NOT_FOUND', 'Không tìm thấy đơn hàng.');
+    }
+
+    if (order.sellerId.toString() !== actor.userId && actor.actorType !== 'ADMIN') {
+      throw new AppError(403, 'FORBIDDEN', 'Chỉ người bán mới có quyền xác nhận gửi hàng.');
+    }
+
+    if (order.status !== 'PAID') {
+      throw new AppError(
+        400,
+        'INVALID_ORDER_STATUS',
+        `Không thể gửi hàng cho đơn đang ở trạng thái ${order.status}. Đơn phải ở trạng thái PAID.`,
+      );
+    }
+
+    const now = new Date();
+    // 7 ngày tự động hoàn tất nếu người mua không bấm xác nhận và không khiếu nại
+    const autoConfirmDueAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    order.status = 'SHIPPING';
+    order.shippedAt = now;
+    order.shippingInfo = {
+      carrierName: input.carrierName,
+      trackingCode: input.trackingCode,
+      photos: input.photos,
+      shippedAt: now,
+      note: input.note,
+    };
+    order.timer = { dueAt: autoConfirmDueAt };
+
+    await order.save();
+
+    // Thông báo cho Người mua
+    notify({
+      type: 'PURCHASE_ORDER',
+      to: [order.buyerId.toString()],
+      title: 'Đơn hàng đang được giao',
+      body: `Người bán đã gửi đơn hàng ${order.code} qua ${input.carrierName}${input.trackingCode ? ` (Mã vận đơn: ${input.trackingCode})` : ''}. Vui lòng theo dõi nhận hàng.`,
+      link: `/purchases/${order._id.toString()}`,
+      actorId: actor.userId,
+    });
+
+    return this.toDto(order);
+  }
+
+  /**
+   * Buyer bấm "Đã nhận & Hài lòng" (SHIPPING -> COMPLETED)
+   * Chuyển tiền từ Escrow cho Seller (trừ 5% hoa hồng) + Đánh dấu tin Sold
+   */
+  public async confirmReceived(
+    actor: RequestActor,
+    orderId: string,
+    _input?: ConfirmReceivedInput,
+  ): Promise<PurchaseOrderDto> {
+    if (!Types.ObjectId.isValid(orderId)) {
+      throw new AppError(400, 'INVALID_ORDER_ID', 'Mã đơn hàng không hợp lệ.');
+    }
+
+    const now = new Date();
+
+    const updatedOrder = await withTransaction(async (session: ClientSession) => {
+      const order = await this.purchaseOrderModel.findById(orderId).session(session);
+      if (!order) {
+        throw new AppError(404, 'ORDER_NOT_FOUND', 'Không tìm thấy đơn hàng.');
+      }
+
+      if (order.buyerId.toString() !== actor.userId && actor.actorType !== 'ADMIN') {
+        throw new AppError(403, 'FORBIDDEN', 'Chỉ người mua mới có quyền xác nhận đã nhận hàng.');
+      }
+
+      if (order.status !== 'SHIPPING') {
+        throw new AppError(
+          400,
+          'INVALID_ORDER_STATUS',
+          `Chỉ có thể xác nhận nhận hàng khi đơn đang ở trạng thái SHIPPING (hiện tại: ${order.status}).`,
+        );
+      }
+
+      const itemPrice = order.pricing?.itemPrice ?? order.price;
+      const shippingFee = order.pricing?.shippingFee ?? 0;
+      const platformFee = order.pricing?.platformFee ?? Math.round(itemPrice * 0.05);
+      const totalPayable = order.pricing?.totalPayable ?? (itemPrice + shippingFee);
+      const sellerNet = order.pricing?.sellerNet ?? (itemPrice - platformFee);
+      const platformAmount = platformFee + shippingFee;
+
+      // 1. Lấy ví escrow, ví người bán, ví platform
+      const [escrowWallet, sellerWallet, platformWallet] = await Promise.all([
+        this.ledger.getOrCreateSystemWallet('escrow', session),
+        this.ledger.getOrCreateUserWallet(order.sellerId.toString(), session),
+        this.ledger.getOrCreateSystemWallet('platform', session),
+      ]);
+
+      // 2. Bút toán quyết toán sổ cái kép: Escrow -(totalPayable), Seller +(sellerNet), Platform +(platformAmount)
+      const ledgerEntries = [
+        { walletId: escrowWallet.id, amount: -totalPayable },
+        { walletId: sellerWallet.id, amount: sellerNet },
+      ];
+      if (platformAmount > 0) {
+        ledgerEntries.push({ walletId: platformWallet.id, amount: platformAmount });
+      }
+
+      await this.ledger.post(
+        `purchase_order_settle_${order._id.toString()}`,
+        { kind: 'purchase_order', id: order._id.toString() },
+        ledgerEntries,
+        session,
+        `Quyết toán tiền đơn mua đồ chơi #${order.code} cho người bán (đã trừ phí sàn 5%)`,
+      );
+
+      // 3. Cập nhật đơn hàng sang COMPLETED
+      order.status = 'COMPLETED';
+      order.completedAt = now;
+      order.settlement = {
+        settledAt: now,
+        sellerReceived: sellerNet,
+        platformFee,
+        autoSettled: false,
+      };
+      order.timer = undefined;
+      await order.save({ session });
+
+      // 4. Khóa vĩnh viễn tin đăng đồ chơi (Đã bán)
+      await this.toyModel.updateOne(
+        { _id: order.toyId },
+        { $set: { status: 'hidden', quantity: 0 } },
+        { session },
+      );
+
+      return order;
+    });
+
+    const sellerNetAmount = updatedOrder.settlement?.sellerReceived ?? updatedOrder.price;
+
+    // 5. Gửi thông báo sau khi commit transaction thành công
+    notify({
+      type: 'PURCHASE_ORDER',
+      to: [updatedOrder.sellerId.toString()],
+      title: 'Đơn hàng hoàn tất - Tiền đã vào ví',
+      body: `Người mua đã xác nhận nhận hàng đơn ${updatedOrder.code}. Số tiền ${sellerNetAmount.toLocaleString('vi-VN')} đ đã được cộng vào ví của bạn.`,
+      link: `/purchases/${updatedOrder._id.toString()}`,
+      actorId: actor.userId,
+    });
+
+    notify({
+      type: 'PURCHASE_ORDER',
+      to: [actor.userId],
+      title: 'Đơn mua đã hoàn tất',
+      body: `Cảm ơn bạn đã xác nhận nhận hàng đơn ${updatedOrder.code}. Giao dịch đã kết thúc thành công!`,
+      link: `/purchases/${updatedOrder._id.toString()}`,
+      actorId: actor.userId,
+    });
+
+    return this.toDto(updatedOrder);
+  }
+
   private toDto(doc: IPurchaseOrder): PurchaseOrderDto {
     let parsedItemDetails: { title: string; condition?: string; image?: string } = { title: 'Đồ chơi' };
     try {
@@ -384,6 +571,25 @@ export class PurchaseOrderService {
         }
       : undefined;
 
+    const shippingInfo = doc.shippingInfo
+      ? {
+          carrierName: doc.shippingInfo.carrierName,
+          trackingCode: doc.shippingInfo.trackingCode,
+          photos: doc.shippingInfo.photos?.map((p) => ({ url: p.url, publicId: p.publicId })),
+          shippedAt: doc.shippingInfo.shippedAt?.toISOString(),
+          note: doc.shippingInfo.note,
+        }
+      : undefined;
+
+    const settlement = doc.settlement
+      ? {
+          settledAt: doc.settlement.settledAt.toISOString(),
+          sellerReceived: doc.settlement.sellerReceived,
+          platformFee: doc.settlement.platformFee,
+          autoSettled: doc.settlement.autoSettled,
+        }
+      : undefined;
+
     return {
       id: doc._id.toString(),
       code: doc.code,
@@ -393,6 +599,7 @@ export class PurchaseOrderService {
       itemDetails: parsedItemDetails,
       deliveryMethod: doc.deliveryMethod,
       deliveryInfo,
+      shippingInfo,
       pricing: doc.pricing ?? {
         itemPrice: doc.price,
         shippingFee: 0,
@@ -402,6 +609,9 @@ export class PurchaseOrderService {
       },
       status: doc.status,
       paidAt: doc.paidAt?.toISOString(),
+      shippedAt: doc.shippedAt?.toISOString(),
+      completedAt: doc.completedAt?.toISOString(),
+      settlement,
       timer: doc.timer?.dueAt ? { dueAt: doc.timer.dueAt.toISOString() } : undefined,
       createdAt: doc.createdAt?.toISOString?.() ?? new Date().toISOString(),
     };

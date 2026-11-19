@@ -11,6 +11,26 @@ export interface PurchaseDeliveryInfo {
   notes?: string;
 }
 
+export interface PurchasePhoto {
+  url: string;
+  publicId?: string | undefined;
+}
+
+export interface PurchaseShippingInfo {
+  carrierName: string;
+  trackingCode?: string | undefined;
+  photos?: PurchasePhoto[] | undefined;
+  shippedAt?: Date | undefined;
+  note?: string | undefined;
+}
+
+export interface PurchaseSettlement {
+  settledAt: Date;
+  sellerReceived: number;
+  platformFee: number;
+  autoSettled?: boolean | undefined;
+}
+
 export interface PurchasePricing {
   itemPrice: number;
   shippingFee: number;
@@ -28,6 +48,35 @@ const deliveryInfoSchema = new Schema(
     ward: { type: String },
     street: { type: String },
     notes: { type: String },
+  },
+  { _id: false },
+);
+
+const photoSchema = new Schema(
+  {
+    url: { type: String, required: true },
+    publicId: { type: String },
+  },
+  { _id: false },
+);
+
+const shippingInfoSchema = new Schema(
+  {
+    carrierName: { type: String, default: '' },
+    trackingCode: { type: String, default: '' },
+    photos: { type: [photoSchema], default: [] },
+    shippedAt: { type: Date },
+    note: { type: String },
+  },
+  { _id: false },
+);
+
+const settlementSchema = new Schema(
+  {
+    settledAt: { type: Date, required: true },
+    sellerReceived: { type: Number, required: true },
+    platformFee: { type: Number, required: true },
+    autoSettled: { type: Boolean, default: false },
   },
   { _id: false },
 );
@@ -53,6 +102,7 @@ const purchaseOrderSchema = new Schema(
     price: { type: Number, required: true },
     deliveryMethod: { type: String, required: true, enum: ['DELIVERY', 'LOCAL_PICKUP'] },
     deliveryInfo: { type: deliveryInfoSchema },
+    shippingInfo: { type: shippingInfoSchema },
     pricing: { type: pricingSchema },
     status: {
       type: String,
@@ -61,8 +111,10 @@ const purchaseOrderSchema = new Schema(
       default: 'PENDING',
     },
     paidAt: { type: Date },
+    shippedAt: { type: Date },
     completedAt: { type: Date },
     cancelledAt: { type: Date },
+    settlement: { type: settlementSchema },
     timer: {
       dueAt: { type: Date },
     },
@@ -90,14 +142,17 @@ export interface IPurchaseOrder {
   price: number;
   deliveryMethod: string;
   deliveryInfo?: PurchaseDeliveryInfo;
+  shippingInfo?: PurchaseShippingInfo;
   pricing?: PurchasePricing;
   status: ResaleOrderStatus;
   paidAt?: Date;
+  shippedAt?: Date;
   completedAt?: Date;
   cancelledAt?: Date;
+  settlement?: PurchaseSettlement | undefined;
   timer?: {
-    dueAt?: Date;
-  };
+    dueAt?: Date | undefined;
+  } | undefined;
   createdAt: Date;
   updatedAt: Date;
 }

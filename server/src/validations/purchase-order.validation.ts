@@ -66,3 +66,25 @@ export const createBuyNowSchema = z
 
 export type QuotePurchasePricingInput = z.infer<typeof quotePurchasePricingSchema>;
 export type CreateBuyNowInput = z.infer<typeof createBuyNowSchema>;
+
+export const confirmShippingSchema = z.object({
+  carrierName: z.string().trim().min(1, 'Vui lòng cung cấp đơn vị vận chuyển hoặc cách giao hàng.'),
+  trackingCode: z.string().trim().optional().default(''),
+  photos: z
+    .array(
+      z.object({
+        url: z.string().url('URL ảnh không hợp lệ.'),
+        publicId: z.string().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
+  note: z.string().trim().max(500, 'Ghi chú tối đa 500 ký tự.').optional(),
+});
+
+export const confirmReceivedSchema = z.object({
+  note: z.string().trim().max(500, 'Ghi chú tối đa 500 ký tự.').optional(),
+});
+
+export type ConfirmShippingInput = z.infer<typeof confirmShippingSchema>;
+export type ConfirmReceivedInput = z.infer<typeof confirmReceivedSchema>;

@@ -1,6 +1,8 @@
 import { type NextFunction, type Request, type Response } from 'express';
 import { type PurchaseOrderService } from '../services/purchase-order.service.js';
 import {
+  confirmReceivedSchema,
+  confirmShippingSchema,
   createBuyNowSchema,
   quotePurchasePricingSchema,
 } from '../validations/purchase-order.validation.js';
@@ -26,6 +28,38 @@ export class PurchaseOrderController {
       res.status(201).json({
         success: true,
         message: 'Thanh toán mua hàng thành công vào Escrow.',
+        data: order,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public ship = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = req.auth!;
+      const orderId = String(req.params.orderId ?? '');
+      const input = confirmShippingSchema.parse(req.body);
+      const order = await this.service.confirmShipping(actor, orderId, input);
+      res.status(200).json({
+        success: true,
+        message: 'Xác nhận gửi hàng thành công.',
+        data: order,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public receive = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = req.auth!;
+      const orderId = String(req.params.orderId ?? '');
+      const input = confirmReceivedSchema.parse(req.body ?? {});
+      const order = await this.service.confirmReceived(actor, orderId, input);
+      res.status(200).json({
+        success: true,
+        message: 'Xác nhận đã nhận hàng thành công. Tiền đã được quyết toán cho người bán.',
         data: order,
       });
     } catch (err) {

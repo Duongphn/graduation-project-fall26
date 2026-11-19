@@ -20,6 +20,12 @@ export function createPurchaseOrderRouter(service: PurchaseOrderService): Router
   // Danh sách đơn tôi đã bán
   router.get('/sold', authenticate, requireActor, controller.listSold);
 
+  // Seller xác nhận gửi hàng, cung cấp mã vận đơn và ảnh (PAID -> SHIPPING)
+  router.post('/:orderId/ship', authenticate, requireActor, controller.ship);
+
+  // Buyer xác nhận đã nhận hàng & hài lòng (SHIPPING -> COMPLETED, quyết toán Escrow)
+  router.post('/:orderId/receive', authenticate, requireActor, controller.receive);
+
   // Xem chi tiết đơn mua
   router.get('/:orderId', authenticate, requireActor, controller.getDetail);
 
