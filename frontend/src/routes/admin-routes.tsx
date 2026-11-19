@@ -19,4 +19,7 @@ export const adminRoutes: RouteObject[] = [
   // Donation requests (FE-02, BF-04)
   { path: adminChildPath(adminPaths.donationRequests), ...lazyPage(() => import('../features/donations/pages/AdminDonationRequestsPage'), 'AdminDonationRequestsPage') },
   { path: adminChildPath(adminPaths.donationRequests, '/:id'), ...lazyPage(() => import('../features/donations/pages/AdminDonationRequestDetailPage'), 'AdminDonationRequestDetailPage') },
+  // Rental disputes (UC19)
+  { path: adminChildPath(adminPaths.disputes), ...lazyPage(() => import('../features/dispute-resolution/pages/DisputeQueuePage'), 'DisputeQueuePage') },
+  { path: adminChildPath(adminPaths.disputes, '/:id'), ...lazyPage(() => import('../features/dispute-resolution/pages/DisputeCaseFilePage'), 'DisputeCaseFilePage') },
 ]

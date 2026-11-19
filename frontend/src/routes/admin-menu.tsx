@@ -2,6 +2,7 @@ import {
   AppstoreOutlined,
   AuditOutlined,
   DashboardOutlined,
+  ExceptionOutlined,
   GiftOutlined,
   HeartOutlined,
   IdcardOutlined,
@@ -30,4 +31,5 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'categories', label: 'Danh mục đồ chơi', icon: <AppstoreOutlined />, path: adminPaths.categories },
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
   { key: 'donation-requests', label: 'Yêu cầu nhận tặng', icon: <GiftOutlined />, path: adminPaths.donationRequests },
+  { key: 'disputes', label: 'Khiếu nại', icon: <ExceptionOutlined />, path: adminPaths.disputes },
 ]

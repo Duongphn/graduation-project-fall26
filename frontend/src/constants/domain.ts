@@ -33,6 +33,10 @@ export const donationStatuses = [
 ] as const
 export type DonationStatus = (typeof donationStatuses)[number]
 
+// disputes.status: open (waiting for the respondent) → under_review (Admin) → resolved
+export const disputeStatuses = ['open', 'under_review', 'resolved', 'closed'] as const
+export type DisputeStatusValue = (typeof disputeStatuses)[number]
+
 // Categories and organizations.
 export const visibilityStatuses = ['active', 'hidden'] as const
 export type VisibilityStatus = (typeof visibilityStatuses)[number]
