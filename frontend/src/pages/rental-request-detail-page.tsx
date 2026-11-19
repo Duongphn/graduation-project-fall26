@@ -5,17 +5,14 @@ import { Link, useParams } from 'react-router-dom'
 
 import { QueryErrorAlert, ReasonModal } from '../components/common'
 import { profileQuery } from '../features/profile/profile-queries'
-import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
+import { RentalFinancialBreakdown } from '../features/rentals/components/rental-financial-breakdown'
+import { RentalPeriod, RentalStatusBadge, RentalThumb } from '../features/rentals/components/rental-parts'
+import { RentalTimeline } from '../features/rentals/components/rental-timeline'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
 import { RentalSettlePanel, RentalSettlementRecord } from '../features/rentals/components/rental-settle-panel'
-import {
-  rentalDetailQuery,
-  rentalHistoryQuery,
-  useOwnerRentalDecision,
-  type RentalOrderDetail,
-} from '../features/rentals/rental-orders-api'
+import { rentalDetailQuery, useOwnerRentalDecision, type RentalOrderDetail } from '../features/rentals/rental-orders-api'
 import {
   describeReturnDue,
   estimateLateFee,
@@ -26,7 +23,6 @@ import {
   RENTAL_STATUS_META,
   useNow,
 } from '../features/rentals/rental-display'
-import { toyDetailQuery } from '../features/toy-catalog/toy-catalog-queries'
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { SiteLayout } from '../layouts/site/site-layout'
 import { PATHS } from '../routes/paths'
@@ -262,24 +258,26 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
 export function RentalRequestDetailPage() {
   const { orderId = '' } = useParams()
   const detail = useQuery(rentalDetailQuery(orderId))
-  const history = useQuery(rentalHistoryQuery(orderId))
   const profile = useQuery(profileQuery)
   const order = detail.data
-  const toy = useQuery({ ...toyDetailQuery(order?.toyId ?? ''), enabled: Boolean(order) })
   const now = useNow()
   const isOwner = Boolean(order && profile.data && order.ownerId === profile.data.id)
   const isRenter = Boolean(order && profile.data && order.renterId === profile.data.id)
-  // Breadcrumb quay về đúng danh sách của vai trò người xem
+  // Breadcrumb quay về đúng danh sách của vai trò người xem; quản trị viên không tham gia đơn về tab Tất cả
+  const isAdminViewer = order?.financialBreakdown?.role === 'admin'
   const backTo = isRenter
     ? { to: PATHS.myRentals, label: 'Đơn thuê của tôi' }
-    : { to: PATHS.rentalRequests, label: 'Yêu cầu thuê nhận được' }
+    : isAdminViewer && !isOwner
+      ? { to: `${PATHS.myRentals}?role=all`, label: 'Tất cả đơn thuê' }
+      : { to: PATHS.rentalRequests, label: 'Yêu cầu thuê nhận được' }
 
   useEffect(() => {
     document.title = `${order ? `Đơn thuê ${order.code}` : 'Đơn thuê'} | ToyFlow`
   }, [order])
 
   const pricing = order?.pricing
-  const ownerReceives = pricing ? pricing.rentalFee - pricing.platformFee : 0
+  // Đếm ngược của bước hiện tại (hạn phản hồi, thanh toán, xác nhận…) hiện ngay ở đầu trang
+  const remainingNow = order?.timer ? formatRemaining(order.timer.dueAt, now) : null
 
   return (
     <SiteLayout>
@@ -318,17 +316,20 @@ export function RentalRequestDetailPage() {
         {order && pricing && (
           <div className="rental-detail">
             <header className="rental-detail__head">
-              <RentalToyImage toyId={order.toyId} className="rental-detail__thumb" />
+              <RentalThumb src={order.toy?.primaryImage} className="rental-detail__thumb" />
               <div className="rental-detail__heading">
                 <p className="rental-detail__meta">
                   <span className="rental-row__code">{order.code}</span>
                   <RentalStatusBadge status={order.status} />
+                  {remainingNow && (
+                    <span className="rental-detail__timer">
+                      <Clock aria-hidden /> {remainingNow}
+                    </span>
+                  )}
                 </p>
                 <h1 className="rental-detail__title">
-                  {toy.data ? (
-                    <Link to={toyDetailPath(order.toyId)}>{toy.data.title}</Link>
-                  ) : toy.isPending ? (
-                    'Yêu cầu thuê đồ chơi'
+                  {order.toy ? (
+                    <Link to={toyDetailPath(order.toyId)}>{order.toy.name}</Link>
                   ) : (
                     'Tin đồ chơi đã ẩn hoặc bị xoá'
                   )}
@@ -360,7 +361,7 @@ export function RentalRequestDetailPage() {
 
               <section className="rental-block" aria-labelledby="money-title">
                 <h2 id="money-title" className="rental-section-title">
-                  Chi phí
+                  Giá thuê
                 </h2>
                 <dl className="rental-money">
                   <div>
@@ -378,52 +379,15 @@ export function RentalRequestDetailPage() {
                     <dd>{formatVnd(pricing.totalPayable)}</dd>
                   </div>
                 </dl>
-                {isOwner && !order.settlement && (
-                  <dl className="rental-money rental-money--owner">
-                    <div>
-                      <dt>Tiền thuê</dt>
-                      <dd>{formatVnd(pricing.rentalFee)}</dd>
-                    </div>
-                    <div>
-                      <dt>Phí nền tảng {Math.round(pricing.platformFeeRate * 1000) / 10}%</dt>
-                      <dd>−{formatVnd(pricing.platformFee)}</dd>
-                    </div>
-                    <div className="rental-money__total">
-                      <dt>Dự kiến bạn nhận khi hoàn tất</dt>
-                      <dd>{formatVnd(ownerReceives)}</dd>
-                    </div>
-                  </dl>
-                )}
-                {isOwner && !order.settlement && (
-                  <p className="rental-block__note">
-                    Tiền nằm trong ví ký quỹ ToyFlow cho đến khi bạn nhận lại đồ. Phí trả trễ (nếu có) được cộng thêm
-                    cho bạn khi quyết toán.
-                  </p>
-                )}
               </section>
+
+              {order.financialBreakdown && <RentalFinancialBreakdown breakdown={order.financialBreakdown} />}
 
               <section className="rental-block" aria-labelledby="history-title">
                 <h2 id="history-title" className="rental-section-title">
                   Lịch sử đơn
                 </h2>
-                {history.isError ? (
-                  <QueryErrorAlert error={history.error} onRetry={() => void history.refetch()} />
-                ) : history.isPending ? (
-                  <span className="rental-skeleton-text" aria-hidden="true" />
-                ) : (
-                  <ol className="rental-history">
-                    {history.data.map((entry, index) => (
-                      <li key={`${entry.occurredAt}-${index}`}>
-                        <span className="rental-history__dot" aria-hidden="true" />
-                        <span className="rental-history__body">
-                          <strong>{RENTAL_STATUS_META[entry.newStatus].label}</strong>
-                          {entry.notes && <span>{entry.notes}</span>}
-                        </span>
-                        <time dateTime={entry.occurredAt}>{formatDateTime(entry.occurredAt)}</time>
-                      </li>
-                    ))}
-                  </ol>
-                )}
+                <RentalTimeline entries={order.timeline ?? []} />
               </section>
             </div>
           </div>
