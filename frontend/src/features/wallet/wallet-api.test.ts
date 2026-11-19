@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as http from '../../services/http'
-import { toPaginated, walletApi } from './wallet-api'
+import { toPaginated, toWalletSummary, walletApi } from './wallet-api'
 import { walletTransactionsQuery } from './wallet-queries'
 
 // Calls must match the lead's backend: paths, query names and the `data.items` list shape.
@@ -26,6 +26,18 @@ describe('wallet API calls', () => {
       type: 'credit',
       kind: 'payment',
     })
+  })
+
+  it('falls back to the balance when the backend leaves out the split balances', () => {
+    expect(toWalletSummary({ balance: 300_000, currency: 'VND' })).toEqual({
+      balance: 300_000,
+      availableBalance: 300_000,
+      holdingBalance: 0,
+      currency: 'VND',
+    })
+    expect(
+      toWalletSummary({ balance: 300_000, availableBalance: 300_000, holdingBalance: 50_000, currency: 'VND' }),
+    ).toMatchObject({ holdingBalance: 50_000 })
   })
 
   it('turns the backend list into the shared pagination shape', () => {

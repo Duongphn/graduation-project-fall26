@@ -64,6 +64,18 @@ describe('WithdrawDialog', () => {
     expect(onCreated).toHaveBeenCalledWith(created)
   })
 
+  it('moves focus to the confirm button and back to the amount when editing', async () => {
+    renderDialog()
+    await fillForm('500000')
+    await userEvent.click(screen.getByRole('button', { name: 'Tiếp tục' }))
+
+    expect(screen.getByRole('button', { name: 'Xác nhận rút tiền' })).toHaveFocus()
+
+    await userEvent.click(screen.getByRole('button', { name: /Sửa thông tin/ }))
+    expect(screen.getByLabelText('Số tiền rút')).toHaveFocus()
+    expect(screen.getByLabelText('Số tiền rút')).toHaveValue('500.000')
+  })
+
   it('blocks an amount above the available balance', async () => {
     const createWithdrawal = vi.spyOn(walletApi, 'createWithdrawal')
     renderDialog(300_000)

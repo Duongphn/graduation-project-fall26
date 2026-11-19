@@ -44,6 +44,14 @@ export function WalletPage() {
 
   const items = history.data?.items ?? []
   const total = history.data?.pagination.totalItems ?? 0
+  const totalPages = history.data?.pagination.totalPages
+
+  // ?page=9 của lịch sử chỉ có 2 trang (link cũ, gõ tay): về trang cuối, thay URL để Back không quay lại trang rỗng
+  useEffect(() => {
+    if (totalPages === undefined || history.isPlaceholderData) return
+    const last = Math.max(1, totalPages)
+    if (filters.page > last) setSearchParams(toWalletHistorySearch({ ...filters, page: last }), { replace: true })
+  }, [filters, history.isPlaceholderData, setSearchParams, totalPages])
   const filtered = Boolean(filters.type || filters.direction)
   const showTopup = topupOpen || topupRequest !== undefined
   const recentWithdrawals = withdrawals.data?.items ?? []

@@ -135,8 +135,18 @@ export interface CreateWithdrawalInput {
 
 export type WithdrawalPage = ListPage<WithdrawalRequest>
 
+/** Backend để availableBalance / holdingBalance là tuỳ chọn: thiếu thì lấy balance / 0 */
+type WalletResponse = Omit<WalletSummary, 'availableBalance' | 'holdingBalance'> &
+  Partial<Pick<WalletSummary, 'availableBalance' | 'holdingBalance'>>
+
+export const toWalletSummary = (wallet: WalletResponse): WalletSummary => ({
+  ...wallet,
+  availableBalance: wallet.availableBalance ?? wallet.balance,
+  holdingBalance: wallet.holdingBalance ?? 0,
+})
+
 export const walletApi = {
-  me: () => apiGet<WalletSummary>('/wallets/me'),
+  me: async () => toWalletSummary(await apiGet<WalletResponse>('/wallets/me')),
   transactions: async (params: WalletTransactionParams): Promise<Paginated<WalletTransaction>> =>
     toPaginated(await apiGet<ListPage<WalletTransaction>>('/wallets/me/transactions', params)),
   createTopup: (amount: number) => apiPost<TopupCreated>('/payments/topup/vnpay', { amount }),
