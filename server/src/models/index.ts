@@ -1,3 +1,4 @@
+export { Address, type IAddress } from './address.model.js';
 export { AiRequest } from './ai-request.model.js';
 export { AuditLog } from './audit-log.model.js';
 export { Category, type ICategory } from './category.model.js';

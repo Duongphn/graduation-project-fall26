@@ -4,6 +4,7 @@ Every MongoDB collection has one Mongoose model in `src/models/<name>.model.ts`,
 
 | File | Model name | Used by | Notes |
 |---|---|---|---|
+| `address.model.ts` | `Address` | users | Delivery address book (R04 3.26): `status` `active` or `hidden` (deleting hides), at most one active `isDefault` per user (`user_default_address_unique`). API: `docs/api/users.md`. |
 | `ai-request.model.ts` | `AiRequest` | — | Scaffold. |
 | `audit-log.model.ts` | `AuditLog` | — | Scaffold. |
 | `category.model.ts` | `Category` | categories, toy catalog, toy listings | Admin API `/admin/categories` (UC30, screens Category List and Category Detail). `status` is `active` or `hidden` (R04 3.12 Active, Hidden); a category that a toy uses can only be hidden, never deleted (`409 CATEGORY_IN_USE`). The name is unique ignoring case: the service checks it, while the `name_unique` index is case-sensitive. Public `GET /categories` lists active categories, in the same order as the Admin list (`displayOrder`, then the name in Vietnamese order). The list is flat: no code sets `parent_id`, so it stays `null`. Default categories (`src/constants/default-categories.ts`): run `npm run db:seed-categories` once per database; the `system_settings` marker `CATEGORIES_SEEDED` then stops any reseed, so a deleted or renamed category never comes back. |

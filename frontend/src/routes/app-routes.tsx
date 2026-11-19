@@ -16,7 +16,7 @@ import {
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
 import { ForgotPasswordPage } from '../pages/forgot-password-page'
-import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
+import { addressesQuery, latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
 import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
@@ -88,6 +88,15 @@ async function profileLoader() {
   await Promise.all([
     queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
     queryClient.query(latestVerificationQuery).catch(ignoreError), // GET /identity-verifications/my-latest
+  ])
+  return null
+}
+
+async function myProfileLoader() {
+  if (isGuest()) return null
+  await Promise.all([
+    profileLoader(),
+    queryClient.query(addressesQuery).catch(ignoreError), // GET /users/addresses
   ])
   return null
 }
@@ -195,7 +204,7 @@ export const router = createBrowserRouter([
   { path: PATHS.privacy, element: <PrivacyPage /> },
   {
     path: PATHS.profile,
-    loader: profileLoader,
+    loader: myProfileLoader,
     element: (
       <RequireAuth>
         <ProfilePage />

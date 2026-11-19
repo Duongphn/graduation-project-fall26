@@ -1,4 +1,17 @@
-import { CalendarCheck, Gift, HandHeart, Heart, LogOut, Package, Plus, ReceiptText, UserRound } from 'lucide-react'
+import {
+  Bell,
+  CalendarCheck,
+  Gift,
+  HandHeart,
+  Heart,
+  IdCard,
+  LogOut,
+  Package,
+  Plus,
+  ReceiptText,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PATHS } from '../../routes/paths'
 import { logout } from '../../features/auth/auth-api'
@@ -17,6 +30,16 @@ export function AccountMenu() {
     >
       {(close) => (
         <nav aria-label="Tài khoản" className="account-menu__links">
+          {/* R03 UC03/UC04/UC26: hồ sơ, xác minh danh tính và thông báo mở từ menu tài khoản */}
+          <Link to={PATHS.profile} className="account-menu__link" onClick={close}>
+            <IdCard aria-hidden /> Hồ sơ của tôi
+          </Link>
+          <Link to={PATHS.identityVerification} className="account-menu__link" onClick={close}>
+            <ShieldCheck aria-hidden /> Xác minh danh tính
+          </Link>
+          <Link to={PATHS.notifications} className="account-menu__link" onClick={close}>
+            <Bell aria-hidden /> Thông báo
+          </Link>
           <Link to={PATHS.myListings} className="account-menu__link" onClick={close}>
             <Package aria-hidden /> Tin đăng của tôi
           </Link>
