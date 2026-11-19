@@ -237,6 +237,10 @@
     @apply mt-1.5 size-2 shrink-0 rounded-full bg-tf-primary dark:bg-sky-300;
   }
 
+  .notification-menu__all {
+    @apply mt-2 block rounded-xl px-3 py-2 text-center text-sm font-semibold text-tf-primary hover:bg-site-page focus-ring dark:text-sky-300 dark:hover:bg-night-800;
+  }
+
   .notification-menu__body {
     @apply line-clamp-2 leading-5;
   }
