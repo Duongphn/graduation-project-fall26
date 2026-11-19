@@ -15,6 +15,8 @@ import {
   donationNeedsAdmins,
   donationRecipients,
   renderDonationStatusChanged,
+  renderIdentityReviewed,
+  renderNotify,
   renderToyReviewed,
 } from '../../src/services/notification.templates.js';
 import { Organization } from '../../src/models/organization.model.js';
@@ -83,11 +85,12 @@ describe('notification templates', () => {
       context,
     );
     expect(message.type).toBe('TOY_REVIEWED');
-    expect(message.target).toEqual({ kind: 'TOY', id: '67098e1b34e12c001a123456' });
+    // A rejected listing opens its editor, where the Admin's reason is shown.
+    expect(message.link).toBe('/listings/67098e1b34e12c001a123456/edit');
     expect(message.body).toContain('Lý do: Ảnh bị mờ.');
-    expect(message.email.html).toContain('Xe &lt;b&gt;');
-    expect(message.email.text).toContain(
-      'https://toyflow.test/my/listings/67098e1b34e12c001a123456',
+    expect(message.email?.html).toContain('Xe &lt;b&gt;');
+    expect(message.email?.text).toContain(
+      'https://toyflow.test/listings/67098e1b34e12c001a123456/edit',
     );
   });
 
@@ -98,7 +101,69 @@ describe('notification templates', () => {
     });
     expect(message.title).toContain('Cảm ơn bạn đã quyên góp');
     expect(message.body).toContain('cho Mái ấm Hoa Mai');
-    expect(message.target.kind).toBe('DONATION_REQUEST');
+    expect(message.link).toMatch(/^\/donations\/[0-9a-f]{24}$/);
+  });
+
+  it('links the requester side to the user page, or the Admin page for an organization', () => {
+    const event = donationEvent({ to: 'shipping', from: 'accepted' });
+    const id = event.donationRequestId;
+    expect(renderDonationStatusChanged(event, 'REQUESTER', context).link).toBe(
+      `/donation-requests/${id}`,
+    );
+    expect(
+      renderDonationStatusChanged({ ...event, receiverType: 'ORGANIZATION' }, 'REQUESTER', context)
+        .link,
+    ).toBe(`/admin/donation-requests/${id}`);
+  });
+
+  it('links an approved toy to its public page and the identity result to the profile', () => {
+    const toyId = String(newId());
+    const approved = renderToyReviewed(
+      {
+        type: 'TOY_REVIEWED',
+        toyId,
+        ownerId: String(newId()),
+        toyTitle: 'Xe',
+        decision: 'approved',
+        reviewedBy: String(newId()),
+      },
+      context,
+    );
+    expect(approved.link).toBe(`/toys/${toyId}`);
+    const identity = renderIdentityReviewed(
+      { type: 'IDENTITY_REVIEWED', userId: String(newId()), decision: 'verified' },
+      context,
+    );
+    expect(identity.link).toBe('/profile/verification');
+    expect(identity.email?.text).toContain('https://toyflow.test/profile/verification');
+  });
+
+  it('emails a notify() message only for important types or when asked', () => {
+    const base = {
+      title: 'Yêu cầu thuê mới',
+      body: 'Bạn có yêu cầu thuê mới.',
+      link: '/rentals/requests/1',
+    };
+    expect(
+      renderNotify({ ...base, notificationType: 'RENTAL_ORDER' }, context).email,
+    ).toBeUndefined();
+    expect(renderNotify({ ...base, notificationType: 'DISPUTE' }, context).email?.subject).toBe(
+      '[ToyFlow] Yêu cầu thuê mới',
+    );
+    expect(
+      renderNotify({ ...base, notificationType: 'RENTAL_ORDER', email: true }, context).email?.text,
+    ).toContain('https://toyflow.test/rentals/requests/1');
+  });
+
+  it('keeps only app paths as links', () => {
+    const message = (link: string) =>
+      renderNotify({ notificationType: 'SYSTEM', title: 'T', body: 'B', link }, context);
+    expect(message('https://evil.test/x').link).toBeUndefined();
+    expect(message('//evil.test/x').link).toBeUndefined();
+    expect(message('/wallet').link).toBe('/wallet');
+    expect(message('https://evil.test/x').email?.text).toContain(
+      'Mở ToyFlow: https://toyflow.test/',
+    );
   });
 
   it('notifies the right parties and never the actor', () => {
