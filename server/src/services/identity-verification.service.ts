@@ -274,6 +274,7 @@ export class IdentityVerificationService {
     adminId: string,
     verificationId: string,
     input: { action: 'approve' | 'reject'; rejectionReason?: string },
+    options: { notify?: boolean } = {},
   ): Promise<ReviewReceipt> {
     if (!adminId || !mongoose.Types.ObjectId.isValid(adminId)) {
       throw new AppError(400, 'INVALID_ADMIN_ID', 'Invalid admin ID.');
@@ -327,7 +328,7 @@ export class IdentityVerificationService {
       throw new AppError(
         409,
         'SUBMISSION_NOT_PENDING',
-        'Only pending verification submissions can be reviewed.',
+        'Hồ sơ này đã được xử lý, vui lòng tải lại danh sách.',
       );
     }
 
@@ -356,7 +357,9 @@ export class IdentityVerificationService {
       }
     }
 
-    if (this.events) {
+    // notify: false when the caller sends its own notification (admin review publishes
+    // IDENTITY_REVIEWED), so the user does not get the same news twice.
+    if (this.events && options.notify !== false) {
       await this.events
         .publishStatusChanged(
           updatedDoc.userId.toString(),

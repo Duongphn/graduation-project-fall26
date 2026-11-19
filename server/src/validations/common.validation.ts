@@ -78,9 +78,14 @@ export const isoDateTimeSchema = z.iso.datetime({ offset: true }).openapi({
 });
 
 /** The reason an Admin must give when rejecting or hiding something. */
-export const reasonSchema = z.string().trim().min(5).max(500).openapi({
-  example: 'Ảnh chưa rõ, vui lòng chụp lại mặt sau CCCD.',
-});
+export const reasonSchema = z
+  .string({ error: 'Vui lòng nhập lý do.' })
+  .trim()
+  .min(5, { error: 'Lý do cần ít nhất 5 ký tự.' })
+  .max(500, { error: 'Lý do tối đa 500 ký tự.' })
+  .openapi({
+    example: 'Ảnh chưa rõ, vui lòng chụp lại mặt sau CCCD.',
+  });
 
 /** A Vietnamese mobile number, returned in E.164 form (+84...). */
 export const vietnamPhoneSchema = z

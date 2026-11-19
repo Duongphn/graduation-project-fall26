@@ -26,7 +26,8 @@ export const PATHS = {
   myRental: '/rentals/mine/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
-  donations: '/donations',
+  // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
+  donations: '/#do-choi-quyen-gop',
   favorites: '/favorites',
   aiAdvisor: '/ai-advisor',
   help: '/help',
@@ -76,12 +77,15 @@ export const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId'
 export interface BrowseToysFilters {
   type?: 'rent' | 'sell'
   q?: string
-  category?: string
-  minAge?: number
-  maxAge?: number
+  categoryId?: string
+  ageMin?: number
+  ageMax?: number
 }
 
-/** /toys?type=rent&minAge=3 … — bỏ qua tham số rỗng để URL gọn */
+/**
+ * /toys?type=rent&ageMin=3 … — bỏ qua tham số rỗng để URL gọn.
+ * Tên tham số phải khớp parseCatalogSearch (catalog-search-params.ts), nếu không trang /toys bỏ qua bộ lọc.
+ */
 export function browseToysPath(filters: BrowseToysFilters = {}) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(filters)) {

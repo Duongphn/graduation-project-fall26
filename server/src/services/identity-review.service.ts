@@ -123,10 +123,16 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
   const reviewedBy = context.actor.actorId;
 
   // Develop's review: 404 NOT_FOUND, 409 SUBMISSION_NOT_PENDING when already decided.
-  const receipt = await createReviewService().review(reviewedBy, id, {
-    action: decision === 'verified' ? 'approve' : 'reject',
-    ...(reason ? { rejectionReason: reason } : {}),
-  });
+  // notify: false, the user is notified once through IDENTITY_REVIEWED below.
+  const receipt = await createReviewService().review(
+    reviewedBy,
+    id,
+    {
+      action: decision === 'verified' ? 'approve' : 'reject',
+      ...(reason ? { rejectionReason: reason } : {}),
+    },
+    { notify: false },
+  );
   const verification = await repository.findVerificationById(id);
   const userId = verification ? String(verification.userId) : '';
 
@@ -137,8 +143,7 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
     }),
   );
 
-  // For other subscribers (e.g. email). The in-app notification is already written by
-  // develop's DefaultIdentityVerificationEvents.
+  // The notification subscriber turns this into the in-app notification and the email.
   domainEvents.publish({
     type: 'IDENTITY_REVIEWED',
     verificationId: receipt.id,
