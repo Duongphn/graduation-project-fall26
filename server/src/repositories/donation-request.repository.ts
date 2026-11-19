@@ -278,6 +278,20 @@ export const findDonationToyIdsByTitle = async (pattern: string, limit = 500) =>
 export const countCompletedByDonor = (donorId: string) =>
   DonationRequest.countDocuments({ donorId: oid(donorId), status: 'completed' });
 
+/**
+ * One-off (npm run db:backfill-expired-donations): before 18/11/2026 the expiry job saved an
+ * expired request as cancelled with cancellation.reason EXPIRED. Moves those to the expired
+ * status (R04 3.9) with expiredAt = the cancellation date. Safe to run again.
+ */
+export const backfillExpiredStatus = async (): Promise<number> =>
+  (
+    await DonationRequest.updateMany(
+      { status: 'cancelled', 'cancellation.reason': 'EXPIRED', 'cancellation.actorType': 'SYSTEM' },
+      [{ $set: { status: 'expired', expiredAt: '$cancellation.at' } }, { $unset: 'cancellation' }],
+      { timestamps: false },
+    )
+  ).modifiedCount;
+
 // ---- Related documents for the DTOs (one query per collection) --------------------------------
 
 const unique = (ids: Array<Types.ObjectId | null | undefined>) => [

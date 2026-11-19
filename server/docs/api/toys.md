@@ -142,6 +142,7 @@ These endpoints require an authenticated user actor (`request.auth`). An Admin a
 - `PATCH /api/v1/toys/:toyId`: Edit an owned listing and add/remove images. If another save changed the listing's images after this request read the listing (for example a second tab saving during the upload) and this edit would overwrite them, the edit is refused with `409 LISTING_CHANGED`: nothing is stored and its new images are deleted. Reload the listing and try again.
 - `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
+- For a donation post, an `accepted` or `shipping` donation request counts as an unfinished order (`409 ORDER_IN_PROGRESS`, GB-12, GB-60). Hiding or deleting it rejects its `pending` donation requests with the reason "Người quyên góp đã ẩn/xóa đồ chơi này." and notifies the requesters (D-06).
 
 Field rules (R03 III.3.1.1 and III.3.1.2, R04 `toys`), on create and on the fields an edit sends:
 
@@ -158,8 +159,14 @@ Contact details (R03 GB-11, MSG22), on create and on the fields an edit sends, f
 
 Photo rules (R03 GB-10, MSG20, MSG21):
 
-- A rental listing has 3 to 8 photos and a sale listing 4 to 8, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.
+- A rental or sale listing has 3 to 8 photos, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.
 - Photos are JPG, PNG or WebP, checked on the file content: any other type, or a file whose content does not match its type, gives `400 INVALID_IMAGE_FORMAT`. A file over 5 MB gives `400 INVALID_IMAGE_UPLOAD` ("Each image must be at most 5 MB."). Nothing is uploaded.
+
+Safety declaration (UC05):
+
+- `POST /toys` and every `PATCH /toys/:toyId` of a rent or sale listing need `safetyDeclaration`: `"true"` in multipart form data or `true` in JSON. It says the Owner ticked every safety commitment of the form. An edit asks for it again because the edit sends the listing back to review.
+- A missing declaration, or any other value (`"false"`, `"on"`, `"1"`), gives `400 SAFETY_DECLARATION_REQUIRED` "Vui lòng xác nhận cam kết an toàn trước khi đăng tin." with `details: { field: "safetyDeclaration" }`. Nothing is uploaded or stored.
+- Listing responses carry `safetyDeclaredAt`, the time of the last declaration; older listings have none. A donation post edited here needs no declaration.
 
 Review rules (R03 GB-08, BF-02/BF-03 alternative 1a):
 

@@ -96,7 +96,8 @@ export const canConfirmReceipt = (record: DonationRecord, actor: DonationActor) 
 /**
  * The move of the toy that goes with a request move, if any. Develop's toys have no
  * reserved/donated statuses: an accepted toy is 'hidden' (off the catalog) and stays hidden once
- * donated; a cancelled accepted/shipping request puts it back to 'active'.
+ * donated; a cancelled accepted/shipping request, or an expired accepted one (GB-57), puts it
+ * back to 'active'.
  */
 export const toyMoveFor = (
   from: StoredDonationStatus,
@@ -106,6 +107,7 @@ export const toyMoveFor = (
   if (to === 'cancelled' && (from === 'accepted' || from === 'shipping')) {
     return { from: 'hidden', to: 'active' };
   }
+  if (to === 'expired' && from === 'accepted') return { from: 'hidden', to: 'active' };
   return undefined;
 };
 
@@ -117,6 +119,7 @@ export const auditActionFor = (to: StoredDonationStatus) =>
       accepted: 'donation.accept',
       rejected: 'donation.reject',
       cancelled: 'donation.cancel',
+      expired: 'donation.expire',
       shipping: 'donation.hand_over',
       received: 'donation.confirm_received',
       completed: 'donation.confirm_received',

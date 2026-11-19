@@ -162,12 +162,14 @@ export function ToyModerationQueuePage() {
             defaultValue={q}
             allowClear
             placeholder="Tìm theo tên, mô tả hoặc mã tin"
+            aria-label="Tìm tin đăng theo tên, mô tả hoặc mã tin"
             onSearch={(value) => setFilter('q', value.trim() || undefined)}
           />
         </div>
         <Select<ListingType>
           allowClear
           placeholder="Loại tin"
+          aria-label="Lọc theo loại tin"
           className="w-40"
           value={listingType}
           options={toOptions(listingTypeLabels)}
@@ -177,6 +179,7 @@ export function ToyModerationQueuePage() {
           allowClear
           showSearch={{ optionFilterProp: 'label' }}
           placeholder="Danh mục"
+          aria-label="Lọc theo danh mục"
           className="w-60"
           loading={categories.isLoading}
           value={categoryId}

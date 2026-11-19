@@ -1,5 +1,7 @@
 import mongoose, { Types, type ClientSession, type FilterQuery } from 'mongoose';
 
+import { accentInsensitivePattern } from '../utils/text.js';
+
 import { writeAuditLog, type AuditEntry } from './audit-log.repository.js';
 import { Category } from '../models/category.model.js';
 import { DonationRequest } from '../models/donation-request.model.js';
@@ -87,6 +89,22 @@ export const findOrganization = (
   Organization.findOne({ _id: id, ...(options.status ? { status: options.status } : {}) })
     .session(options.session ?? null)
     .lean<OrganizationRecord>();
+
+/**
+ * Another organization whose name is the same ignoring letter case and Vietnamese accents
+ * (I.3.2 Organization: the name is unique). `exceptId` skips the organization being edited.
+ */
+export const findOrganizationWithSameName = (
+  name: string,
+  exceptId?: Types.ObjectId | string,
+  session?: ClientSession,
+) =>
+  Organization.findOne({
+    name: { $regex: `^${accentInsensitivePattern(name)}$`, $options: 'i' },
+    ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+  })
+    .session(session ?? null)
+    .lean();
 
 export const insertOrganization = async (
   data: Record<string, unknown>,

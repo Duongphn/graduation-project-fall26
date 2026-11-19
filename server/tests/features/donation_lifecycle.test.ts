@@ -13,7 +13,16 @@ import {
   adminDonationRequestsRouter,
   donationRequestsRouter,
 } from '../../src/routes/donation-request.routes.js';
-import { expireStaleRequests } from '../../src/services/donation-request.lifecycle.js';
+import {
+  EXPIRED_HANDOVER_REASON,
+  EXPIRED_PENDING_REASON,
+  expireStaleRequests,
+  TOY_WITHDRAWN_REASON,
+} from '../../src/services/donation-request.lifecycle.js';
+import { backfillExpiredStatus } from '../../src/repositories/donation-request.repository.js';
+import { createToyListingPorts } from '../../src/repositories/toy-listing.repository.js';
+import { ToyListingService } from '../../src/services/toy-listing.service.js';
+import { domainEvents, type DonationStatusChangedEvent } from '../../src/utils/domain-events.js';
 import { IdentityVerification } from '../../src/models/identity-verification.model.js';
 import { Organization } from '../../src/models/organization.model.js';
 import { Toy } from '../../src/models/toy.model.js';
@@ -163,7 +172,7 @@ describe('locked donor (D-07, GB-05)', () => {
   });
 });
 
-describe('expiry job (D-05, R03 job 9)', () => {
+describe('expiry job (JOB-10, GB-57)', () => {
   it('expires pending requests once timer.dueAt has passed', async () => {
     const id = await create();
     const now = new Date();
@@ -171,8 +180,10 @@ describe('expiry job (D-05, R03 job 9)', () => {
     const later = new Date(now.getTime() + 14 * DAY + 1000);
     expect(await expireStaleRequests(later)).toEqual({ expiredPending: 1, expiredAccepted: 0 });
     const doc = await requestDoc(id);
-    expect(doc?.status).toBe('cancelled');
-    expect(doc?.cancellation).toMatchObject({ reason: 'EXPIRED', actorType: 'SYSTEM' });
+    // R04 3.9: its own Expired status with expired_at, not a cancellation.
+    expect(doc?.status).toBe('expired');
+    expect(doc?.expiredAt?.getTime()).toBe(later.getTime());
+    expect(doc?.cancellation).toBeUndefined();
     expect(doc?.timer?.dueAt).toBeUndefined();
     // Idempotent: a second run finds nothing.
     expect(await expireStaleRequests(later)).toEqual({ expiredPending: 0, expiredAccepted: 0 });
@@ -183,10 +194,109 @@ describe('expiry job (D-05, R03 job 9)', () => {
     expect(await toyStatus()).toBe('hidden');
     const later = new Date(Date.now() + 15 * DAY);
     expect(await expireStaleRequests(later)).toEqual({ expiredPending: 0, expiredAccepted: 1 });
-    expect((await requestDoc(id))?.status).toBe('cancelled');
+    expect((await requestDoc(id))?.status).toBe('expired');
     expect(await toyStatus()).toBe('active');
     // The toy can be requested again.
     await create('other');
+  });
+
+  it('shows the expiry with its reason and date to both sides', async () => {
+    const pendingId = await create();
+    const later = new Date(Date.now() + 15 * DAY);
+    await expireStaleRequests(later);
+
+    const res = await get('receiver', `/donation-requests/${pendingId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      status: 'expired',
+      expiredAt: later.toISOString(),
+      expiryReason: EXPIRED_PENDING_REASON,
+      cancellation: null,
+    });
+    expect(res.body.data.history.at(-1)).toMatchObject({
+      fromStatus: 'pending',
+      toStatus: 'expired',
+      actorType: 'SYSTEM',
+      actorId: null,
+      reason: EXPIRED_PENDING_REASON,
+    });
+
+    const acceptedId = await accepted('other');
+    await expireStaleRequests(new Date(Date.now() + 30 * DAY));
+    const detail = (await get('donor', `/donation-requests/${acceptedId}`)).body.data;
+    expect(detail.expiryReason).toBe(EXPIRED_HANDOVER_REASON);
+    expect(detail.history.map((row: { toStatus: string }) => row.toStatus)).toEqual([
+      'pending',
+      'accepted',
+      'expired',
+    ]);
+  });
+
+  it('publishes the expiry (MSG56) with the request code and reason, from no user', async () => {
+    const id = await create();
+    const events: DonationStatusChangedEvent[] = [];
+    const stop = domainEvents.subscribe('DONATION_STATUS_CHANGED', (event) => {
+      events.push(event);
+    });
+    try {
+      await expireStaleRequests(new Date(Date.now() + 15 * DAY));
+    } finally {
+      stop();
+    }
+    const doc = await requestDoc(id);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      donationRequestId: id,
+      code: doc?.code,
+      from: 'pending',
+      to: 'expired',
+      reason: EXPIRED_PENDING_REASON,
+    });
+    expect(events[0]?.changedBy).toBeUndefined();
+  });
+
+  it('the backfill moves old cancelled+EXPIRED requests to expired, and nothing else', async () => {
+    const old = await create();
+    const userCancelled = await create('other');
+    const at = new Date('2026-11-10T03:00:00.000Z');
+    await DonationRequest.updateOne(
+      { _id: old },
+      {
+        $set: {
+          status: 'cancelled',
+          cancellation: { reason: 'EXPIRED', actorType: 'SYSTEM', note: 'old', at },
+        },
+        $unset: { timer: 1 },
+      },
+    );
+    await DonationRequest.updateOne(
+      { _id: userCancelled },
+      {
+        $set: {
+          status: 'cancelled',
+          cancellation: { reason: 'CANCELLED_BY_USER', actorType: 'USER', at },
+        },
+      },
+    );
+
+    expect(await backfillExpiredStatus()).toBe(1);
+    const moved = await requestDoc(old);
+    expect(moved?.status).toBe('expired');
+    expect(moved?.expiredAt?.toISOString()).toBe(at.toISOString());
+    expect(moved?.cancellation).toBeUndefined();
+    expect((await requestDoc(userCancelled))?.status).toBe('cancelled');
+    // Safe to run again.
+    expect(await backfillExpiredStatus()).toBe(0);
+  });
+
+  it('an expired request cannot be accepted or cancelled any more', async () => {
+    const id = await create();
+    await expireStaleRequests(new Date(Date.now() + 15 * DAY));
+    expect((await post('donor', `/donation-requests/${id}/accept`)).status).toBe(409);
+    expect(
+      (await post('receiver', `/donation-requests/${id}/cancel`, { note: 'Không cần nữa' })).status,
+    ).toBe(409);
+    expect((await requestDoc(id))?.status).toBe('expired');
   });
 
   it('never expires shipping requests', async () => {
@@ -211,9 +321,74 @@ describe('expiry job (D-05, R03 job 9)', () => {
       expect(doc?.status).toBe('accepted');
       expect(await toyStatus()).toBe('hidden');
     } else {
-      expect(doc?.status).toBe('cancelled');
+      expect(doc?.status).toBe('expired');
       expect(await toyStatus()).toBe('active');
     }
+  });
+});
+
+describe('the Donor hides or deletes a donation post (D-06)', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('hiding rejects the pending requests with the reason and tells the requesters', async () => {
+    const first = await create('receiver');
+    const second = await create('other');
+    const events: DonationStatusChangedEvent[] = [];
+    const stop = domainEvents.subscribe('DONATION_STATUS_CHANGED', (event) => {
+      events.push(event);
+    });
+    try {
+      await listings.hide(donor(), toyId);
+    } finally {
+      stop();
+    }
+
+    expect(await toyStatus()).toBe('hidden');
+    for (const id of [first, second]) {
+      expect(await requestDoc(id)).toMatchObject({
+        status: 'rejected',
+        rejectReason: TOY_WITHDRAWN_REASON.HIDDEN,
+      });
+    }
+    expect(events.map((event) => [event.to, event.changedBy, event.reason])).toEqual([
+      ['rejected', ids.donor, TOY_WITHDRAWN_REASON.HIDDEN],
+      ['rejected', ids.donor, TOY_WITHDRAWN_REASON.HIDDEN],
+    ]);
+  });
+
+  it('deleting rejects the pending requests with the toy title kept in the event', async () => {
+    const id = await create();
+    const events: DonationStatusChangedEvent[] = [];
+    const stop = domainEvents.subscribe('DONATION_STATUS_CHANGED', (event) => {
+      events.push(event);
+    });
+    try {
+      await listings.delete(donor(), toyId);
+    } finally {
+      stop();
+    }
+
+    expect(await Toy.findById(toyId)).toBeNull();
+    expect(await requestDoc(id)).toMatchObject({
+      status: 'rejected',
+      rejectReason: TOY_WITHDRAWN_REASON.DELETED,
+    });
+    expect(events[0]).toMatchObject({ to: 'rejected', toyTitle: 'Wooden train set' });
+  });
+
+  it('an accepted request blocks hiding and deleting (GB-12, GB-60)', async () => {
+    const id = await accepted();
+    await expect(listings.hide(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'ORDER_IN_PROGRESS',
+    });
+    await expect(listings.delete(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'ORDER_IN_PROGRESS',
+    });
+    expect((await requestDoc(id))?.status).toBe('accepted');
+    expect(await Toy.findById(toyId)).not.toBeNull();
   });
 });
 

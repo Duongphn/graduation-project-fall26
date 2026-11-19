@@ -2,6 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 
 export interface IRefreshToken {
   userId: mongoose.Types.ObjectId;
+  /** SHA-256 (hex) của Refresh Token — không lưu token gốc (R04 III.1.1, refresh_token_hash) */
   token: string;
   expiresAt: Date;
   createdAt?: Date;

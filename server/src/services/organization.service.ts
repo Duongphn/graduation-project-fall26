@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 
-import { Types, type FilterQuery } from 'mongoose';
+import { Types, type ClientSession, type FilterQuery } from 'mongoose';
 
 import {
   adminAuditEntry,
@@ -32,6 +32,7 @@ import {
   deleteOrganization,
   findActiveCategoryIds,
   findOrganization,
+  findOrganizationWithSameName,
   findOrganizationsPage,
   findSuggestedOrganizations,
   insertOrganization,
@@ -63,16 +64,24 @@ const nameTaken = () =>
     { field: 'name', message: 'Đã có tổ chức khác dùng tên này.' },
   ]);
 
-// The "name_unique" index is the single guard for duplicate names.
+// The name is unique ignoring letter case and accents: the service checks that inside the write
+// transaction, and the "name_unique" index still guards exact duplicates written concurrently.
 const rethrowDuplicateName = (error: unknown): never => {
   throw isDuplicateKeyError(error, 'name_unique') ? nameTaken() : error;
 };
 
-const auditEntry = (
-  context: AdminContext,
-  action: AuditEntry['action'],
-  id: string,
-): AuditEntry => adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
+const assertNameFree = async (
+  name: string | undefined,
+  exceptId: Types.ObjectId | string | undefined,
+  session: ClientSession,
+) => {
+  if (name !== undefined && (await findOrganizationWithSameName(name, exceptId, session))) {
+    throw nameTaken();
+  }
+};
+
+const auditEntry = (context: AdminContext, action: AuditEntry['action'], id: string): AuditEntry =>
+  adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
 
 /** API body (camelCase) -> develop's stored fields. */
 const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
@@ -156,7 +165,7 @@ export const listOrganizationsForAdmin = async (query: AdminOrganizationListQuer
   const counts = await countRequestsByOrganization(items.map((item) => item._id));
   return {
     items: items.map((item) =>
-toAdminOrganization(item, counts.get(String(item._id)) ?? noRequests),
+      toAdminOrganization(item, counts.get(String(item._id)) ?? noRequests),
     ),
     total,
   };
@@ -175,8 +184,9 @@ export const createOrganization = async (
 ): Promise<AdminOrganizationDto> => {
   await assertActiveCategories(body.categoryIds);
   try {
-    const record = await withTransaction((session) =>
-      insertOrganization(
+    const record = await withTransaction(async (session) => {
+      await assertNameFree(body.name, undefined, session);
+      return insertOrganization(
         {
           ...toStored(body),
           areaProvince: body.areaProvince ?? body.receivingPoint.province,
@@ -186,8 +196,8 @@ export const createOrganization = async (
         },
         (created) => auditEntry(context, 'organization.create', String(created._id)),
         session,
-      ),
-    );
+      );
+    });
     return toAdminOrganization(record, noRequests);
   } catch (error) {
     return rethrowDuplicateName(error);
@@ -204,6 +214,7 @@ export const updateOrganization = async (
     const { record, counts } = await withTransaction(async (session) => {
       const before = await findOrganization(id, { session });
       if (!before) throw organizationNotFound();
+      await assertNameFree(body.name, before._id, session);
       const set = toStored(body);
       const after = await updateOrganizationFields(before._id, set, [], session);
       if (!after) throw organizationNotFound();
@@ -302,19 +313,14 @@ export const deleteOrganizationById = async (id: string, context: AdminContext):
       );
     }
     if (!(await deleteOrganization(record._id, session))) throw organizationNotFound();
-    await writeAuditLog(
-      auditEntry(context, 'organization.delete', id),
-      session,
-    );
+    await writeAuditLog(auditEntry(context, 'organization.delete', id), session);
   });
 };
 
 // ---------- Donors (public) ----------
 
 /** GB-52: Active organizations that are accepting toys, with the Donor's filters. */
-export const listPublicOrganizations = async (
-  query: PublicOrganizationListQuery,
-) => {
+export const listPublicOrganizations = async (query: PublicOrganizationListQuery) => {
   const filter: FilterQuery<OrganizationRecord> = {
     ...visibleToDonors,
     ...searchFilter(query.q, ['name', 'address', 'support_criteria']),

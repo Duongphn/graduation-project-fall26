@@ -212,6 +212,7 @@ describe('NotificationsPanel (the full list)', () => {
 })
 
 describe('AdminLayout', () => {
+  // The whole admin shell renders here, which is slow under a full parallel test run.
   it('shows the bell to Admins, with the Admin list page', async () => {
     const user = userEvent.setup()
     renderAt(null, '/admin')
@@ -222,5 +223,5 @@ describe('AdminLayout', () => {
       'href',
       '/admin/notifications',
     )
-  })
+  }, 15_000)
 })

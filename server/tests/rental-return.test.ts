@@ -104,10 +104,10 @@ describe('UC10: Rental Return with Late Fee', () => {
       note: 'Đồ chơi còn rất mới, bé chơi rất thích!',
     });
     expect(data.returnInfo.photos).toHaveLength(1);
-    // Settlement timer is now + 72h -> 2026-11-10T10:00:00.000Z
+    // Settlement timer is now + 48h (GB-22) -> 2026-11-09T10:00:00.000Z
     expect(data.timer).toEqual({
       kind: 'SETTLEMENT',
-      dueAt: '2026-11-10T10:00:00.000Z',
+      dueAt: '2026-11-09T10:00:00.000Z',
     });
 
     const ownerNotif = notifier.sent.find(

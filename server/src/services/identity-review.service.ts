@@ -1,4 +1,5 @@
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
+import { domainEvents } from '../utils/domain-events.js';
 import { notFound } from '../utils/http-errors.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { zeroFilledCounts } from '../utils/counts.js';
@@ -122,10 +123,16 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
   const reviewedBy = context.actor.actorId;
 
   // Develop's review: 404 NOT_FOUND, 409 SUBMISSION_NOT_PENDING when already decided.
-  const receipt = await createReviewService().review(reviewedBy, id, {
-    action: decision === 'verified' ? 'approve' : 'reject',
-    ...(reason ? { rejectionReason: reason } : {}),
-  });
+  // notify: false, the user is notified once through IDENTITY_REVIEWED below.
+  const receipt = await createReviewService().review(
+    reviewedBy,
+    id,
+    {
+      action: decision === 'verified' ? 'approve' : 'reject',
+      ...(reason ? { rejectionReason: reason } : {}),
+    },
+    { notify: false },
+  );
   const verification = await repository.findVerificationById(id);
   const userId = verification ? String(verification.userId) : '';
 
@@ -136,8 +143,15 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
     }),
   );
 
-  // The user's notification (in-app, pushed and emailed) comes from the IDENTITY_REVIEWED event
-  // that develop's review publishes through IdentityReviewNotifications (container.ts).
+  // The notification subscriber turns this into the in-app notification and the email.
+  domainEvents.publish({
+    type: 'IDENTITY_REVIEWED',
+    verificationId: receipt.id,
+    userId,
+    decision,
+    reviewedBy,
+    ...(reason ? { reason } : {}),
+  });
 
   return {
     id: receipt.id,

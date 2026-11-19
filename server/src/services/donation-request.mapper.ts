@@ -4,6 +4,16 @@ import { maskPhone } from '../utils/phone.js';
 import { maskEmail } from '../utils/privacy.js';
 import { counterpartOf, deciderOf, receiverTypeOf } from './donation-request.policy.js';
 import type { DonationRecord, Relations } from '../repositories/donation-request.repository.js';
+import { EXPIRED_HANDOVER_REASON, EXPIRED_PENDING_REASON } from './donation-request.lifecycle.js';
+
+/**
+ * Why the expiry job set the request to expired (GB-57): an accepted request (decided) missed
+ * the handover deadline, a pending one the decision deadline. null while not expired.
+ */
+const expiryReasonOf = (record: DonationRecord): string | null => {
+  if (record.status !== 'expired') return null;
+  return record.decidedAt ? EXPIRED_HANDOVER_REASON : EXPIRED_PENDING_REASON;
+};
 
 /** Who reads the DTO: Admin views get masked contacts, user views the D-03 counterpart. */
 export interface DonationView {
@@ -144,6 +154,8 @@ export const toDonationRequestDto = (
     decidedAt: iso(record.decidedAt),
     rejectReason: record.rejectReason ?? null,
     completedAt: iso(record.completedAt),
+    expiredAt: iso(record.expiredAt),
+    expiryReason: expiryReasonOf(record),
     createdAt: iso(record.createdAt)!,
     updatedAt: iso(record.updatedAt)!,
   };
@@ -151,7 +163,7 @@ export const toDonationRequestDto = (
 
 /**
  * The status timeline, rebuilt from the request's own fields (develop's donation_requests keeps
- * no separate history): created, decided, handed over, completed or cancelled.
+ * no separate history): created, decided, handed over, completed, cancelled or expired.
  */
 const historyOf = (record: DonationRecord, relations: Relations) => {
   // An Admin decides or confirms for organizations, or creates a request for one (GB-56).
@@ -210,6 +222,10 @@ const historyOf = (record: DonationRecord, relations: Relations) => {
       reason: record.cancellation.note ?? record.cancellation.reason,
       at: iso(record.cancellation.at)!,
     });
+  }
+  // Set by the expiry job (JOB-10): no actor.
+  if (record.status === 'expired') {
+    push('expired', record.expiredAt, undefined, expiryReasonOf(record) ?? undefined);
   }
   return rows;
 };

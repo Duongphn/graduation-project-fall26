@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import { inVietnam } from '../../../utils/dayjs'
 import { CircleAlert, Clock3, RefreshCw, ShieldAlert, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
@@ -13,7 +13,7 @@ const META: Record<ResultStatus, { title: string; badge: string; icon: LucideIco
   rejected: { title: 'Hồ sơ chưa được duyệt', badge: 'Bị từ chối', icon: ShieldAlert },
 }
 
-const formatTime = (iso: string) => dayjs(iso).format('HH:mm DD/MM/YYYY')
+const formatTime = (iso: string) => inVietnam(iso).format('HH:mm DD/MM/YYYY')
 
 /** Câu mô tả dưới tiêu đề, kèm mốc thời gian thật của lần nộp gần nhất */
 function Summary({ status, latest }: { status: ResultStatus; latest: LatestVerification | null }) {

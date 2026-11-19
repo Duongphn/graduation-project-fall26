@@ -29,7 +29,7 @@ export function isListingStatus(value: string | null): value is ListingStatus {
 /** Mã hiển thị ngắn gọn cho tin đăng, vd. #TF-8A42C */
 export const displayCode = (toyId: string) => `#TF-${toyId.slice(-5).toUpperCase()}`
 
-const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })
 
 export const formatDate = (iso: string) => dateFormatter.format(new Date(iso))
 export function parseMyListingsSearch(searchParams: URLSearchParams) {

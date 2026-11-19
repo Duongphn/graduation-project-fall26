@@ -80,7 +80,7 @@ export async function submitIdentityVerification(payload: IdentityVerificationPa
 const PROFILE_ERROR_MESSAGES: Record<string, string> = {
   UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem hồ sơ.',
   USER_NOT_FOUND: 'Không tìm thấy tài khoản. Vui lòng đăng nhập lại.',
-  FILE_TOO_LARGE: 'Có ảnh lớn hơn 5 MB. Hãy chọn ảnh nhỏ hơn.',
+  FILE_TOO_LARGE: 'Ảnh quá lớn (ảnh đại diện tối đa 2 MB, ảnh CCCD tối đa 8 MB). Hãy chọn ảnh nhỏ hơn.',
   INVALID_IMAGE_TYPE: 'Ảnh không đúng định dạng JPG, PNG hoặc WebP. Hãy chọn ảnh khác.',
   STORAGE_ERROR: 'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau ít phút.',
   MISSING_REQUIRED_IMAGE: 'Thiếu ảnh. Hãy chọn đủ mặt trước, mặt sau CCCD và ảnh chân dung.',

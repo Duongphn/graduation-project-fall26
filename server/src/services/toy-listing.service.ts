@@ -17,6 +17,7 @@ import {
   assertListingFieldRules,
   assertListingPhotoCount,
   assertNoContactDetails,
+  assertSafetyDeclared,
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
@@ -112,6 +113,7 @@ export class ToyListingService {
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
       ...(doc.moderation ? { moderation: toOwnerModerationView(doc.moderation) } : {}),
+      ...(doc.safetyDeclaredAt ? { safetyDeclaredAt: doc.safetyDeclaredAt } : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -136,6 +138,7 @@ export class ToyListingService {
     const validatedInput = validateCreateToyListingInput(input);
     assertListingFieldRules(validatedInput);
     assertNoContactDetails(validatedInput);
+    assertSafetyDeclared(validatedInput.listingType, validatedInput.safetyDeclaration);
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
@@ -188,6 +191,7 @@ export class ToyListingService {
             ageRange: validatedInput.ageRange,
             images: uploadedAssets,
             quantity: 1,
+            safetyDeclaredAt: new Date(),
           }).save({ session }),
       );
       if (!touched) {
@@ -328,6 +332,12 @@ export class ToyListingService {
     }
 
     const effectiveListingType = validatedInput.listingType ?? listing.listingType;
+    // UC05: every edit of a rent or sale listing goes back to review, so the Owner declares the
+    // toy safe again; checked before any upload.
+    assertSafetyDeclared(
+      isDonationPost(listing) ? 'donate' : effectiveListingType,
+      validatedInput.safetyDeclaration,
+    );
     if (effectiveListingType === 'sell') {
       if (validatedInput.depositPrice !== undefined) {
         throw new AppError(
@@ -427,6 +437,7 @@ export class ToyListingService {
       }
 
       toy.images = [...remainingImages, ...newUploadedAssets];
+      if (!isDonationPost(toy)) toy.safetyDeclaredAt = submittedAt;
 
       // GB-08: an edited listing waits for the Admin again, also a rejected one sent again
       // (BF-02 1a, BF-03 1a). A listing its Owner hid stays hidden, and donation posts keep the
@@ -539,6 +550,11 @@ export class ToyListingService {
 
     listing.status = 'hidden';
     const saved = await listing.save();
+    // D-06: a hidden donation post takes no new requests, so its pending ones are closed. A
+    // failure here fails the call; hiding again (the toy is already hidden) closes the rest.
+    if (isDonationPost(saved)) {
+      await this.ports.closePendingDonationRequests?.(toyId, actor.userId, 'HIDDEN', saved.title);
+    }
 
     const soldSet = await this.ports.getSoldToyIds([toyId]);
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
@@ -572,6 +588,19 @@ export class ToyListingService {
       .filter((id) => typeof id === 'string' && id.trim().length > 0);
 
     await this.toyModel.findByIdAndDelete(toyId);
+    // D-06: the pending requests of a deleted donation post are closed (the title is passed, as
+    // the toy can no longer be read). The toy is gone and the call cannot be repeated, so a
+    // failure is only logged: the expiry job (JOB-10) still closes what is left.
+    if (isDonationPost(listing)) {
+      await this.ports
+        .closePendingDonationRequests?.(toyId, actor.userId, 'DELETED', listing.title)
+        .catch((error: unknown) =>
+          console.error('Failed to close the pending donation requests of a deleted post:', {
+            toyId,
+            error,
+          }),
+        );
+    }
 
     if (publicIds.length > 0) {
       try {

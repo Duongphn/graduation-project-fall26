@@ -53,6 +53,46 @@ const RESET_TOKEN_EXPIRES_IN = '15m';
 /** Hạn của mã đổi sau đăng nhập Google — Frontend đổi ngay khi được chuyển về nên chỉ cần ngắn */
 const GOOGLE_LOGIN_CODE_TTL_SECONDS = 60;
 
+/** Chỉ lưu SHA-256 của Refresh Token trong DB (R04 III.1.1) — lộ DB cũng không dùng được token */
+const hashRefreshToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
+
+/** GB-03: 5 consecutive failed sign-ins lock the account for 15 minutes (MSG13). */
+const MAX_FAILED_LOGINS = 5;
+const LOCK_MINUTES = 15;
+const LOCKED_MESSAGE = 'Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.';
+
+/**
+ * Failed sign-ins for identifiers without an account, kept in memory only so that the answer for
+ * an unknown account looks the same as for a wrong password (GB-04).
+ */
+const unknownFailures = new Map<string, { count: number; at: number; lockedUntil?: number }>();
+const isUnknownLocked = (identifier: string): boolean =>
+  (unknownFailures.get(identifier.toLowerCase())?.lockedUntil ?? 0) > Date.now();
+const recordUnknownFailure = (identifier: string): number => {
+  const key = identifier.toLowerCase();
+  const now = Date.now();
+  const previous = unknownFailures.get(key);
+  const count = previous && now - previous.at < LOCK_MINUTES * 60_000 ? previous.count + 1 : 1;
+  if (unknownFailures.size > 10_000) unknownFailures.clear();
+  unknownFailures.set(
+    key,
+    count >= MAX_FAILED_LOGINS
+      ? { count: 0, at: now, lockedUntil: now + LOCK_MINUTES * 60_000 }
+      : { count, at: now },
+  );
+  return count;
+};
+
+/**
+ * GB-02: an OTP expires after 5 minutes and at most 5 codes are sent per hour to one email (per
+ * purpose). Records are kept a little over an hour so the hourly count still sees them.
+ * R03 III.1.1.1 (14): 5 wrong codes in a row cancel the active code.
+ */
+const OTP_TTL_MS = 5 * 60 * 1000;
+const OTP_PURGE_MS = 65 * 60 * 1000;
+const OTP_HOURLY_LIMIT = 5;
+const OTP_MAX_WRONG_ATTEMPTS = 5;
+
 interface TempTokenPayload {
   email: string;
   type: 'google_2fa_pending';
@@ -68,6 +108,10 @@ interface ResetTokenPayload {
   email: string;
   type: 'password_reset';
 }
+
+/** True only when NODE_ENV is "development" in the process environment (no default). */
+export const isExplicitDevelopment = (): boolean =>
+  process.env.NODE_ENV === 'development' && env.nodeEnv === 'development';
 
 export class AuthService {
   public constructor(private readonly mailer: AuthMailer) {}
@@ -86,21 +130,7 @@ export class AuthService {
       { expiresIn: env.jwtAccessExpiresIn } as jwt.SignOptions
     );
 
-    const refreshToken = jwt.sign(
-      {
-        userId: String(user._id),
-        jti: crypto.randomUUID(),
-      },
-      env.jwtRefreshSecret,
-      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
-    );
-
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await RefreshToken.create({
-      userId: user._id,
-      token: refreshToken,
-      expiresAt: refreshExpiresAt,
-    });
+    const refreshToken = await this.createRefreshToken(user._id);
 
     return {
       user: {
@@ -116,6 +146,56 @@ export class AuthService {
         refreshToken,
       },
     };
+  }
+
+  /**
+   * Ký Refresh Token mới và lưu hash của nó; hạn của bản ghi lấy từ chính `exp` của token
+   * để DB (TTL index) và JWT luôn hết hạn cùng lúc
+   */
+  private async createRefreshToken(userId: unknown): Promise<string> {
+    const refreshToken = jwt.sign(
+      {
+        userId: String(userId),
+        jti: crypto.randomUUID(),
+      },
+      env.jwtRefreshSecret,
+      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
+    );
+
+    const { exp } = jwt.decode(refreshToken) as { exp: number };
+    await RefreshToken.create({
+      userId,
+      token: hashRefreshToken(refreshToken),
+      expiresAt: new Date(exp * 1000),
+    });
+
+    return refreshToken;
+  }
+
+  /** GB-02: refuses a 6th code within one hour for the same email and purpose (no email is sent) */
+  private async assertOtpHourlyLimit(identifier: string, purpose: string): Promise<void> {
+    const sentInLastHour = await OtpRequest.countDocuments({
+      identifier,
+      purpose,
+      createdAt: { $gt: new Date(Date.now() - 60 * 60 * 1000) },
+    });
+    if (sentInLastHour >= OTP_HOURLY_LIMIT) {
+      throw new AppError(
+        429,
+        'OTP_HOURLY_LIMIT',
+        'Bạn đã yêu cầu quá 5 mã xác minh trong một giờ. Vui lòng thử lại sau.',
+      );
+    }
+  }
+
+  /** A wrong code counts against every active code of the email; the 5th wrong code cancels them */
+  private async recordWrongOtp(identifier: string, purpose: string): Promise<void> {
+    const active = { identifier, purpose, is_used: false, expires_at: { $gt: new Date() } };
+    await OtpRequest.updateMany(active, { $inc: { attempts: 1 } });
+    await OtpRequest.updateMany(
+      { ...active, attempts: { $gte: OTP_MAX_WRONG_ATTEMPTS } },
+      { $set: { is_used: true } },
+    );
   }
 
   /** Chặn đăng nhập nếu tài khoản bị khóa vĩnh viễn hoặc tạm thời */
@@ -220,6 +300,7 @@ export class AuthService {
 
   /** Sinh OTP 6 số (hạn 5 phút), lưu DB và gửi về Gmail */
   private async sendGoogleOtp(email: string): Promise<void> {
+    await this.assertOtpHourlyLimit(email, 'google_login_2fa');
     const otpCode = crypto.randomInt(100_000, 1_000_000).toString();
 
     await OtpRequest.create({
@@ -227,8 +308,8 @@ export class AuthService {
       otp_code: otpCode,
       purpose: 'google_login_2fa',
       is_used: false,
-      expires_at: new Date(Date.now() + 5 * 60 * 1000),
-      purgeAt: new Date(Date.now() + 10 * 60 * 1000),
+      expires_at: new Date(Date.now() + OTP_TTL_MS),
+      purgeAt: new Date(Date.now() + OTP_PURGE_MS),
     });
 
     try {
@@ -325,6 +406,7 @@ export class AuthService {
     );
 
     if (!otpRecord) {
+      await this.recordWrongOtp(decoded.email, 'google_login_2fa');
       throw new AppError(400, 'INVALID_OTP', 'Mã OTP không chính xác hoặc đã hết hạn.');
     }
 
@@ -389,7 +471,10 @@ export class AuthService {
    * Nhập thẳng email để server gửi OTP thật về Gmail mà không cần Google idToken
    */
   public async devLoginWithEmail(email: string): Promise<GoogleLoginResponse> {
-    if (env.nodeEnv !== 'development') {
+    // Only when NODE_ENV is set to "development" on purpose: env.nodeEnv falls back to
+    // "development" when the variable is missing, and a host where it was forgotten must not
+    // open this shortcut (R03 III.1.2.1 (10); R5.2 ITC_SEC_21).
+    if (!isExplicitDevelopment()) {
       throw new AppError(403, 'FORBIDDEN', 'Chức năng chỉ hỗ trợ ở môi trường development.');
     }
 
@@ -482,6 +567,7 @@ export class AuthService {
     );
 
     if (!otpRecord?.payload) {
+      await this.recordWrongOtp(normalizedEmail, 'register');
       throw new AppError(400, 'INVALID_OTP', 'Mã OTP không chính xác hoặc đã hết hạn.');
     }
 
@@ -530,6 +616,11 @@ export class AuthService {
       throw new AppError(429, 'OTP_RESEND_TOO_SOON', `Vui lòng chờ ${waitSeconds} giây trước khi gửi lại mã.`);
     }
 
+    // A new code replaces the old one: earlier codes of this sign-up stop working
+    await OtpRequest.updateMany(
+      { identifier: normalizedEmail, purpose: 'register', is_used: false },
+      { $set: { is_used: true } },
+    );
     await this.sendRegistrationOtp(normalizedEmail, latest.payload as PendingRegistration);
 
     return {
@@ -549,8 +640,9 @@ export class AuthService {
     }
   }
 
-  /** Sinh OTP đăng ký (hạn 10 phút), lưu kèm thông tin chờ xác minh và gửi về Email */
+  /** Sinh OTP đăng ký (hạn 5 phút, tối đa 5 mã/giờ), lưu kèm thông tin chờ xác minh và gửi về Email */
   private async sendRegistrationOtp(email: string, pending: PendingRegistration): Promise<void> {
+    await this.assertOtpHourlyLimit(email, 'register');
     const otpCode = crypto.randomInt(100_000, 1_000_000).toString();
 
     await OtpRequest.create({
@@ -558,8 +650,8 @@ export class AuthService {
       otp_code: otpCode,
       purpose: 'register',
       is_used: false,
-      expires_at: new Date(Date.now() + 10 * 60 * 1000),
-      purgeAt: new Date(Date.now() + 30 * 60 * 1000),
+      expires_at: new Date(Date.now() + OTP_TTL_MS),
+      purgeAt: new Date(Date.now() + OTP_PURGE_MS),
       payload: pending,
     });
 
@@ -578,18 +670,55 @@ export class AuthService {
     const identifier = dto.identifier.trim();
     const query = identifier.includes('@') ? { email: identifier.toLowerCase() } : { phone: identifier };
 
-    // Dùng chung một thông báo lỗi để không lộ việc tài khoản có tồn tại hay không
     const user = await User.findOne(query);
-    const isPasswordValid = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
-    if (!user || !isPasswordValid) {
-      throw new AppError(401, 'INVALID_CREDENTIALS', 'Số điện thoại/email hoặc mật khẩu không chính xác.');
+
+    // GB-03/GB-05: a timed lock (5 failed sign-ins, or an Admin lock) blocks password sign-in
+    // until lock.until; when it has passed the account is unlocked again (JOB-01 behaviour).
+    if ((user?.lock?.until && new Date(user.lock.until) > new Date()) || (!user && isUnknownLocked(identifier))) {
+      throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
     }
 
-    if (user.status !== 'ACTIVE') {
-      throw new AppError(403, 'USER_INACTIVE', 'Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.');
+    const isPasswordValid = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
+    if (!user || !isPasswordValid) {
+      // GB-04: one message for an unknown account and for a wrong password, with the attempts left.
+      const failures = user ? await this.recordFailedLogin(user) : recordUnknownFailure(identifier);
+      if (failures >= MAX_FAILED_LOGINS) {
+        throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
+      }
+      const attemptsLeft = MAX_FAILED_LOGINS - failures;
+      throw new AppError(
+        401,
+        'INVALID_CREDENTIALS',
+        `Số điện thoại/email hoặc mật khẩu không chính xác. Bạn còn ${attemptsLeft} lần thử.`,
+        { attemptsLeft },
+      );
+    }
+
+    // A temporary lock (lock.until) blocks a password sign-in too, not only Google (GB-03, GB-05)
+    this.assertUserActive(user);
+
+    if (user.failedLogins?.count || user.lock?.until) {
+      await User.updateOne({ _id: user._id }, { $set: { 'failedLogins.count': 0 }, $unset: { 'lock.until': 1 } });
     }
 
     return this.issueSession(user);
+  }
+
+  /** Adds one failed sign-in; the 5th in a row locks the account for 15 minutes (GB-03). */
+  private async recordFailedLogin(user: UserDocument): Promise<number> {
+    const updated = await User.findOneAndUpdate(
+      { _id: user._id },
+      { $inc: { 'failedLogins.count': 1 }, $set: { 'failedLogins.lastAt': new Date() } },
+      { new: true },
+    );
+    const count = updated?.failedLogins?.count ?? 1;
+    if (count >= MAX_FAILED_LOGINS) {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { 'lock.until': new Date(Date.now() + LOCK_MINUTES * 60_000), 'failedLogins.count': 0 } },
+      );
+    }
+    return count;
   }
 
   /**
@@ -624,10 +753,12 @@ export class AuthService {
       return response;
     }
 
-    // Sinh mã OTP 6 số (hạn 10 phút). Giữ bản ghi lâu hơn hạn resetToken để bước đổi mật khẩu còn tìm thấy
+    await this.assertOtpHourlyLimit(normalizedEmail, 'reset_password');
+
+    // Sinh mã OTP 6 số (hạn 5 phút). Giữ bản ghi lâu hơn hạn resetToken để bước đổi mật khẩu còn tìm thấy
     const otpCode = crypto.randomInt(100_000, 1_000_000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    const purgeAt = new Date(Date.now() + 30 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+    const purgeAt = new Date(Date.now() + OTP_PURGE_MS);
 
     await OtpRequest.create({
       identifier: normalizedEmail,
@@ -666,6 +797,7 @@ export class AuthService {
     });
 
     if (!otpRecord) {
+      await this.recordWrongOtp(normalizedEmail, 'reset_password');
       throw new AppError(400, 'INVALID_OTP', 'Mã OTP không chính xác hoặc đã hết hạn.');
     }
 
@@ -729,8 +861,9 @@ export class AuthService {
    * Làm mới Access Token bằng Refresh Token (Token Rotation)
    */
   public async refreshToken(token: string): Promise<RefreshTokenResponse> {
-    // 1. Kiểm tra tính hợp lệ của Refresh Token trong Database
-    const storedToken = await RefreshToken.findOne({ token });
+    // 1. Lấy và xóa ngay bản ghi (theo hash) một cách nguyên tử — token cũ chỉ dùng được một lần,
+    //    kể cả khi hai request làm mới gửi cùng lúc. Mọi nhánh lỗi bên dưới cũng đều thu hồi token này
+    const storedToken = await RefreshToken.findOneAndDelete({ token: hashRefreshToken(token) });
     if (!storedToken) {
       throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã bị thu hồi.');
     }
@@ -740,21 +873,17 @@ export class AuthService {
     try {
       decoded = jwt.verify(token, env.jwtRefreshSecret) as { userId: string };
     } catch {
-      // Nếu token hết hạn hoặc sai chữ ký, xóa khỏi DB luôn
-      await RefreshToken.deleteOne({ token });
+      // Token hết hạn hoặc sai chữ ký (bản ghi đã bị xóa ở bước 1)
       throw new AppError(401, 'EXPIRED_REFRESH_TOKEN', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
 
     // 3. Kiểm tra User có còn active không
     const user = await User.findById(decoded.userId);
     if (!user || user.status !== 'ACTIVE') {
-      await RefreshToken.deleteOne({ token });
       throw new AppError(403, 'USER_INACTIVE', 'Tài khoản không tồn tại hoặc đã bị khóa.');
     }
 
-    // 4. Token Rotation: Xóa token cũ và cấp token mới
-    await RefreshToken.deleteOne({ token });
-
+    // 4. Token Rotation: token cũ đã bị xóa ở bước 1, cấp token mới
     const newAccessToken = jwt.sign(
       {
         userId: String(user._id),
@@ -765,21 +894,7 @@ export class AuthService {
       { expiresIn: env.jwtAccessExpiresIn } as jwt.SignOptions
     );
 
-    const newRefreshToken = jwt.sign(
-      {
-        userId: String(user._id),
-        jti: crypto.randomUUID(),
-      },
-      env.jwtRefreshSecret,
-      { expiresIn: env.jwtRefreshExpiresIn } as jwt.SignOptions
-    );
-
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await RefreshToken.create({
-      userId: user._id,
-      token: newRefreshToken,
-      expiresAt: refreshExpiresAt,
-    });
+    const newRefreshToken = await this.createRefreshToken(user._id);
 
     return {
       accessToken: newAccessToken,
@@ -788,22 +903,31 @@ export class AuthService {
   }
 
   /**
-   * Đăng xuất tài khoản (Xóa Refresh Token khỏi DB)
+   * Đăng xuất tài khoản (Xóa Refresh Token khỏi DB).
+   * Đăng xuất mọi thiết bị chỉ chạy với Refresh Token đúng chữ ký và còn trong DB — nếu không,
+   * ai cũng có thể tự tạo token mang userId của người khác để đá họ khỏi mọi phiên
    */
   public async logout(token: string, allDevices = false): Promise<{ message: string }> {
+    const tokenHash = hashRefreshToken(token);
+
     if (allDevices) {
+      const invalid = new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã bị thu hồi.');
+      let decoded: { userId?: string };
       try {
-        const decoded = jwt.decode(token) as { userId?: string } | null;
-        if (decoded?.userId) {
-          await RefreshToken.deleteMany({ userId: decoded.userId });
-          return { message: 'Đã đăng xuất thành công khỏi tất cả các thiết bị!' };
-        }
+        decoded = jwt.verify(token, env.jwtRefreshSecret) as { userId?: string };
       } catch {
-        // Fallback xóa token đơn lẻ nếu decode lỗi
+        throw invalid;
       }
+      if (!decoded.userId || !(await RefreshToken.exists({ token: tokenHash, userId: decoded.userId }))) {
+        throw invalid;
+      }
+
+      await RefreshToken.deleteMany({ userId: decoded.userId });
+      return { message: 'Đã đăng xuất thành công khỏi tất cả các thiết bị!' };
     }
 
-    await RefreshToken.deleteOne({ token });
+    // Đăng xuất một thiết bị: token lạ hoặc đã thu hồi thì không có gì để xóa (idempotent)
+    await RefreshToken.deleteOne({ token: tokenHash });
     return {
       message: 'Đăng xuất thành công!',
     };

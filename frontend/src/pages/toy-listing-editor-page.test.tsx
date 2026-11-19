@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
@@ -73,6 +73,12 @@ const renderEditor = (url: string, listing?: ToyListing) => {
   return { router, user: userEvent.setup() }
 }
 
+// UC05: every save of a rent or sale listing needs all safety commitments ticked.
+const tickSafety = async (user: ReturnType<typeof userEvent.setup>) => {
+  for (const box of within(screen.getByRole('group', { name: /Cam kết an toàn/ })).getAllByRole('checkbox')) {
+    if (!(box as HTMLInputElement).checked) await user.click(box)
+  }
+}
 const categorySelect = () => screen.getByRole('combobox', { name: /^Danh mục/ })
 
 beforeAll(() => {
@@ -104,6 +110,7 @@ describe('ToyListingEditorPage', () => {
     await user.paste(saved.description)
     await user.type(screen.getByRole('textbox', { name: /^Giá thuê theo ngày/ }), '20000')
     await user.type(screen.getByRole('textbox', { name: /^Tiền cọc bảo chứng/ }), '300000')
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Đăng tin' }))
 
     expect(await screen.findByText('Đăng tin thành công! Tin đang ở trạng thái chờ duyệt.')).toBeInTheDocument()
@@ -113,7 +120,8 @@ describe('ToyListingEditorPage', () => {
     expect((post.mock.calls[0]?.[1] as FormData).get('categoryId')).toBe(WOOD.id)
     // The "just created" state is dropped, so reloading the edit page shows no toast.
     await waitFor(() => expect(router.state.location.state).toBeNull())
-  })
+    // Fills in the whole form, photos and safety commitments included: slow under a full parallel run.
+  }, 15_000)
 
   it('reloads the categories and clears the choice when the server says the chosen one is no longer active', async () => {
     // An Admin hid "Xe điều khiển" after the page loaded the categories.
@@ -122,6 +130,7 @@ describe('ToyListingEditorPage', () => {
     const { user } = renderEditor(toyListingEditPath(saved.id), saved)
 
     await user.selectOptions(categorySelect(), 'Xe điều khiển')
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
 
     expect(
@@ -158,6 +167,7 @@ describe('ToyListingEditorPage', () => {
     )
     const { user } = renderEditor(toyListingEditPath(saved.id), saved)
 
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
 
     expect(
@@ -169,6 +179,7 @@ describe('ToyListingEditorPage', () => {
     patch.mockResolvedValue({ data: { ...saved, status: 'pending' } })
     const { user } = renderEditor(toyListingEditPath(saved.id), { ...saved, status: 'active' })
 
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
 
     expect(

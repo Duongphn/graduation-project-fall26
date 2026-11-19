@@ -1,6 +1,6 @@
 import { CircleCheck, ImagePlus, RefreshCw, X } from 'lucide-react'
 import { useEffect, useMemo, type ChangeEvent } from 'react'
-import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../toy-listings/toy-listing-schema'
+import { ACCEPTED_IMAGE_TYPES, MAX_IDENTITY_IMAGE_BYTES } from '../../toy-listings/toy-listing-schema'
 import { pickTitle } from '../identity-image-title'
 
 interface IdentityImageSlotProps {
@@ -25,7 +25,7 @@ export function IdentityImageSlot({ id, label, hint, file, error, disabled, port
     event.target.value = '' // cho phép chọn lại cùng một file
     if (!picked) return
     if (!ACCEPTED_IMAGE_TYPES.includes(picked.type)) return onChange(null, `"${picked.name}" không phải ảnh JPG, PNG hoặc WebP.`)
-    if (picked.size > MAX_IMAGE_BYTES) return onChange(null, `"${picked.name}" lớn hơn 5 MB. Hãy chọn ảnh nhỏ hơn.`)
+    if (picked.size > MAX_IDENTITY_IMAGE_BYTES) return onChange(null, `"${picked.name}" lớn hơn 8 MB. Hãy chọn ảnh nhỏ hơn.`)
     onChange(picked)
   }
 

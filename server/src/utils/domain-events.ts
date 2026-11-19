@@ -31,6 +31,8 @@ export interface IdentityReviewedEvent {
 export interface DonationStatusChangedEvent {
   type: 'DONATION_STATUS_CHANGED';
   donationRequestId: string;
+  // The request code (DN…), shown in MSG56.
+  code?: string;
   toyId: string;
   toyTitle: string;
   donorId: string;

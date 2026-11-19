@@ -23,6 +23,8 @@ export interface IToy {
   ageRange: ToyAgeRange;
   images: ToyImage[];
   quantity: number;
+  /** When the Owner last declared the toy safe (UC05): on create and on every edit. */
+  safetyDeclaredAt?: Date | undefined;
   bookingVersion: number;
   createdAt: Date;
   updatedAt: Date;
@@ -92,6 +94,8 @@ export const toySchema = new Schema<IToy>(
       },
     ],
     quantity: { type: Number, required: true, default: 1 },
+    // Not required: older listings and donation posts have none (UC05).
+    safetyDeclaredAt: { type: Date },
     bookingVersion: { type: Number, required: true, default: 0 },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },

@@ -18,7 +18,7 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   ownerResponseHours: 24,
   paymentHours: 12,
   receiptAutoConfirmHours: 48,
-  settlementHours: 72,
+  settlementHours: 48, // GB-22: the Owner inspects within 48 hours
   returnReminderHours: 24,
   platformFeeRate: 0.1,
   lateFeeMultiplier: 1.0,

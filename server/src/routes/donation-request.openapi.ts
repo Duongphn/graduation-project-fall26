@@ -146,7 +146,8 @@ register({
     'While accepted or shipping, `counterpartContact` gives the full name and full phone of ' +
     'the other party (Donor: the requesting user or the organization; requesting user: the ' +
     'Donor). ' +
-    'null before acceptance and after completed / cancelled / rejected. 404 for anyone else.',
+    'null before acceptance and after completed / cancelled / rejected / expired. 404 for anyone ' +
+    'else.',
   params: idParamsSchema,
   response: donationRequestDetailSchema,
   errors: [400, 401, 404],

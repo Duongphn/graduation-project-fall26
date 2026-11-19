@@ -15,11 +15,14 @@ import type {
  * - Assets are uploaded with `type: 'authenticated'` into folder `toyflow/identity`.
  * - Authorized delivery uses short-lived expiring signed URLs generated via Cloudinary's
  *   `cloudinary.utils.private_download_url` (or `cloudinary.url` with `sign_url: true, type: 'authenticated'`).
- * - Default expiration window is 3600 seconds (1 hour).
+ * - Default expiration window is 600 seconds (10 minutes, SRS IV.1.3 / SDS III.1.3).
  * - Standard public URLs (`https://res.cloudinary.com/.../upload/...`) are never returned or stored for identity documents.
  * - Resource deletion explicitly specifies `{ type: 'authenticated' }` to ensure Cloudinary resolves
  *   and removes authenticated assets cleanly.
  */
+
+/** Signed identity-document links expire after 10 minutes. */
+export const IDENTITY_LINK_TTL_SECONDS = 600;
 
 export interface CloudinaryIdentityStorageOptions {
   client?: CloudinaryClient;
@@ -36,11 +39,11 @@ export class CloudinaryIdentityStorage implements IdentityImageStorage {
     if (options && 'uploader' in options) {
       this.client = options;
       this.folder = 'toyflow/identity';
-      this.expiresInSeconds = 3600;
+      this.expiresInSeconds = IDENTITY_LINK_TTL_SECONDS;
     } else {
       this.client = options?.client ?? configureCloudinary();
       this.folder = options?.folder ?? 'toyflow/identity';
-      this.expiresInSeconds = options?.expiresInSeconds ?? 3600;
+      this.expiresInSeconds = options?.expiresInSeconds ?? IDENTITY_LINK_TTL_SECONDS;
     }
   }
 

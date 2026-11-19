@@ -14,6 +14,7 @@ import type { IdentityImageStorage } from '../../src/interfaces/identity-verific
 import { IdentityReviewNotifications } from '../../src/integrations/events/identity-review-notifications.js';
 import { Notification } from '../../src/models/notification.model.js';
 import { setIdentityReviewService } from '../../src/services/identity-review.service.js';
+import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
 import { IdentityVerificationService } from '../../src/services/identity-verification.service.js';
 import { User } from '../../src/models/user.model.js';
 import { domainEvents } from '../../src/utils/domain-events.js';
@@ -247,6 +248,7 @@ describe('decisions', () => {
     domainEvents.subscribe('IDENTITY_REVIEWED', (event) => {
       events.push(event);
     });
+    const off = subscribeNotifications({ mailer: { send: () => Promise.resolve({ delivered: false }) } });
     const user = await createUser();
     const verification = await createVerification(user._id);
 
@@ -258,10 +260,20 @@ describe('decisions', () => {
     expect(String(stored?.reviewedBy)).toBe(ADMIN_ID);
     expect((await User.findById(user._id).lean())?.idCardNumber).toBe(verification.idCardNumber);
     expect(await AuditLog.countDocuments({ action: 'identity.verify' })).toBe(1);
-    // One event per decision; the notifications feature turns it into the in-app notification.
     await vi.waitFor(() => expect(events).toHaveLength(1));
-    expect(events[0]).toMatchObject({ userId: String(user._id), decision: 'verified' });
-    expect(await Notification.countDocuments({ userId: user._id })).toBe(0);
+    // Only one in-app notification: IDENTITY_REVIEWED, not also develop's IDENTITY_VERIFICATION.
+    await vi.waitFor(async () =>
+      expect(await Notification.find({ userId: user._id }, { type: 1, _id: 0 }).lean()).toEqual([
+        { type: 'IDENTITY_REVIEWED' },
+      ]),
+    );
+    off();
+    expect(events[0]).toMatchObject({
+      verificationId: String(verification._id),
+      userId: String(user._id),
+      decision: 'verified',
+      reviewedBy: ADMIN_ID,
+    });
   });
 
   it('rejects with a reason and validates the bodies', async () => {

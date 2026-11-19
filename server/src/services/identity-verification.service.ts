@@ -1,5 +1,6 @@
 import mongoose, { type Model } from 'mongoose';
 import { AppError } from '../utils/app-error.js';
+import { duplicateKeyFields } from '../utils/mongo-errors.js';
 import {
   IdentityVerification,
   type IIdentityVerification,
@@ -273,6 +274,7 @@ export class IdentityVerificationService {
     adminId: string,
     verificationId: string,
     input: { action: 'approve' | 'reject'; rejectionReason?: string },
+    options: { notify?: boolean } = {},
   ): Promise<ReviewReceipt> {
     if (!adminId || !mongoose.Types.ObjectId.isValid(adminId)) {
       throw new AppError(400, 'INVALID_ADMIN_ID', 'Invalid admin ID.');
@@ -326,7 +328,7 @@ export class IdentityVerificationService {
       throw new AppError(
         409,
         'SUBMISSION_NOT_PENDING',
-        'Only pending verification submissions can be reviewed.',
+        'Hồ sơ này đã được xử lý, vui lòng tải lại danh sách.',
       );
     }
 
@@ -336,10 +338,28 @@ export class IdentityVerificationService {
       if (input.action === 'approve') {
         user.idCardNumber = updatedDoc.idCardNumber;
       }
-      await user.save();
+      try {
+        await user.save();
+      } catch (error) {
+        // GB-01 (one person, one account): the ID number is already verified on another
+        // account (unique index on users.idCardNumber). Put the request back to pending so the
+        // request and the user keep the same status, and answer 409 without the number.
+        if (!duplicateKeyFields(error).includes('idCardNumber')) throw error;
+        await this.verificationModel.findOneAndUpdate(
+          { _id: updatedDoc._id, status: targetStatus },
+          { status: 'pending', $unset: { reviewedBy: 1, reviewedAt: 1, rejectionReason: 1 } },
+        );
+        throw new AppError(
+          409,
+          'ID_CARD_ALREADY_VERIFIED',
+          'Số CCCD/CMND này đã được xác minh cho một tài khoản khác.',
+        );
+      }
     }
 
-    if (this.events) {
+    // notify: false when the caller sends its own notification (admin review publishes
+    // IDENTITY_REVIEWED), so the user does not get the same news twice.
+    if (this.events && options.notify !== false) {
       await this.events
         .publishStatusChanged(
           updatedDoc.userId.toString(),

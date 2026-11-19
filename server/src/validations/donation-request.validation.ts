@@ -283,6 +283,12 @@ export const donationRequestSchema = z
     decidedAt: isoDateTimeSchema.nullable(),
     rejectReason: z.string().nullable(),
     completedAt: isoDateTimeSchema.nullable(),
+    expiredAt: isoDateTimeSchema.nullable().openapi({
+      description: 'GB-57: when the expiry job (JOB-10) set the request to expired.',
+    }),
+    expiryReason: z.string().nullable().openapi({
+      description: 'Why it expired (no decision, or no handover, in time); null otherwise.',
+    }),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
   })
