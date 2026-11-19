@@ -11,6 +11,8 @@ const paymentSchema = new Schema(
     gatewayTransactionNo: { type: String },
     // vnp_ResponseCode of the result: '00' success, '24' cancelled by the user… (status stays 'failed')
     gatewayResponseCode: { type: String },
+    // PayOS paymentLinkId of the checkout page
+    gatewayLinkId: { type: String },
     status: { type: String, required: true, default: 'pending' },
     expiresAt: { type: Date },
   },

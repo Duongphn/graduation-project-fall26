@@ -78,4 +78,11 @@ export const env = Object.freeze({
   vnpayUrl: process.env.VNPAY_URL ?? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
   // The frontend page VNPay sends the browser back to; it forwards the query to GET /payments/vnpay-return
   vnpayReturnUrl: process.env.VNPAY_RETURN_URL ?? 'http://localhost:5173/wallet/topup/result',
+
+  // PayOS (UC17 top-up by bank transfer QR, real money). Empty keys: POST /payments/topup/payos returns 503.
+  payosClientId: process.env.PAYOS_CLIENT_ID?.trim() ?? '',
+  payosApiKey: process.env.PAYOS_API_KEY?.trim() ?? '',
+  payosChecksumKey: process.env.PAYOS_CHECKSUM_KEY?.trim() ?? '',
+  // Frontend page PayOS sends the browser back to (paid or cancelled); it calls GET /payments/payos-return
+  payosReturnUrl: process.env.PAYOS_RETURN_URL ?? 'http://localhost:5173/wallet/topup/payos-result',
 });

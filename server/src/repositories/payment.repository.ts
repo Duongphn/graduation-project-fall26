@@ -14,6 +14,7 @@ export interface PaymentRecord {
   gateway: string;
   gatewayTransactionNo?: string;
   gatewayResponseCode?: string;
+  gatewayLinkId?: string;
   status: PaymentStatus;
   expiresAt?: Date;
   createdAt: Date;
@@ -25,6 +26,7 @@ const PaymentModel = Payment as unknown as Model<PaymentRecord>;
 
 export interface NewTopupPayment {
   code: string;
+  gateway: 'vnpay' | 'payos';
   userId: string;
   walletId: string;
   amount: number;
@@ -40,7 +42,7 @@ export class PaymentRepository {
       orderType: 'wallet_topup',
       orderId: new Types.ObjectId(input.walletId),
       amount: input.amount,
-      gateway: 'vnpay',
+      gateway: input.gateway,
       status: 'pending',
       expiresAt: input.expiresAt,
     });
@@ -68,10 +70,23 @@ export class PaymentRepository {
     ).lean()) as PaymentRecord | null;
   }
 
-  /** Pending top-ups whose link expired before `before` become failed; returns how many */
-  public async failExpired(before: Date): Promise<number> {
+  /** Records the PayOS link id on the pending payment (for support lookups) */
+  public async setGatewayLinkId(code: string, linkId: string): Promise<void> {
+    await PaymentModel.updateOne({ code }, { $set: { gatewayLinkId: linkId } });
+  }
+
+  /** Pending top-ups of `gateway` whose link expired before `before` (oldest first) */
+  public async listExpiredPending(gateway: 'vnpay' | 'payos', before: Date, limit = 50): Promise<PaymentRecord[]> {
+    return (await PaymentModel.find({ gateway, status: 'pending', expiresAt: { $lt: before } })
+      .sort({ expiresAt: 1 })
+      .limit(limit)
+      .lean()) as PaymentRecord[];
+  }
+
+  /** Pending top-ups of `gateway` whose link expired before `before` become failed; returns how many */
+  public async failExpired(gateway: 'vnpay' | 'payos', before: Date): Promise<number> {
     const result = await PaymentModel.updateMany(
-      { status: 'pending', expiresAt: { $lt: before } },
+      { gateway, status: 'pending', expiresAt: { $lt: before } },
       { $set: { status: 'failed', gatewayResponseCode: 'expired' } },
     );
     return result.modifiedCount;

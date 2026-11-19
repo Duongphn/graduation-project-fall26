@@ -1,8 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
-import { getValidatedParams } from '../middlewares/validate.js';
+import { getValidatedParams, getValidatedQuery } from '../middlewares/validate.js';
 import type { PaymentService } from '../services/payment.service.js';
+import type { PayosTopupService } from '../services/payos-topup.service.js';
 import { sendSuccess } from '../utils/response.js';
-import type { PaymentCodeParams, TopupBody } from '../validations/payment.validation.js';
+import type {
+  PaymentCodeParams,
+  PayosReturnQuery,
+  PayosTopupBody,
+  TopupBody,
+} from '../validations/payment.validation.js';
 
 /** Client IP for vnp_IpAddr (req.ip honours TRUST_PROXY behind Render) */
 const clientIpOf = (req: Request) => {
@@ -10,9 +16,41 @@ const clientIpOf = (req: Request) => {
   return ip === '::1' ? '127.0.0.1' : ip.replace(/^::ffff:/, '');
 };
 
-/** UC17: VNPay top-up endpoints (routes/payment.routes.ts) */
+/** UC17: VNPay and PayOS top-up endpoints (routes/payment.routes.ts) */
 export class PaymentController {
-  public constructor(private readonly service: PaymentService) {}
+  public constructor(
+    private readonly service: PaymentService,
+    private readonly payos: PayosTopupService,
+  ) {}
+
+  public createPayosTopup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { amount } = req.body as PayosTopupBody;
+      sendSuccess(res, await this.payos.createTopup(req.auth!, amount), { status: 201 });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** The frontend PayOS result page: asks PayOS for the status and settles the payment */
+  public handlePayosReturn = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderCode } = getValidatedQuery<PayosReturnQuery>(res);
+      const result = await this.payos.confirmReturn(req.auth!, orderCode);
+      res.status(200).json({ success: result.success, data: result });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** PayOS server-to-server notification of a paid transfer */
+  public handlePayosWebhook = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      sendSuccess(res, await this.payos.handleWebhook(req.body));
+    } catch (err) {
+      next(err);
+    }
+  };
 
   public createTopup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

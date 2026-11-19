@@ -31,6 +31,26 @@ describe('TopupDialog', () => {
     sessionStorage.clear()
   })
 
+  it('starts on PayOS (bank transfer QR) and sends the user to the PayOS checkout', async () => {
+    const createPayosTopup = vi.spyOn(walletApi, 'createPayosTopup').mockResolvedValue({
+      checkoutUrl: 'https://pay.payos.vn/web/1763600000123',
+      qrCode: '000201010212',
+      paymentCode: '1763600000123',
+      amount: 100_000,
+      expiresAt: '2026-11-20T10:15:00.000Z',
+    })
+    const createTopup = vi.spyOn(walletApi, 'createTopup')
+    renderDialog()
+
+    expect(screen.getByRole('radio', { name: /Chuyển khoản QR/ })).toBeChecked()
+    await userEvent.click(screen.getByRole('button', { name: /100\.000/ }))
+    await userEvent.click(screen.getByRole('button', { name: /qua PayOS/ }))
+
+    expect(createPayosTopup).toHaveBeenCalledWith(100_000)
+    expect(createTopup).not.toHaveBeenCalled()
+    expect(gateway).toHaveBeenCalledWith('https://pay.payos.vn/web/1763600000123')
+  })
+
   it('creates a pending top-up and sends the user to VNPay', async () => {
     const createTopup = vi.spyOn(walletApi, 'createTopup').mockResolvedValue({
       paymentCode: 'TOPUP1',
@@ -39,6 +59,7 @@ describe('TopupDialog', () => {
     })
     renderDialog({ returnTo: '/rentals/mine/1' })
 
+    await userEvent.click(screen.getByRole('radio', { name: /Thẻ ngân hàng/ }))
     await userEvent.click(screen.getByRole('button', { name: /200\.000/ }))
     await userEvent.click(screen.getByRole('button', { name: /qua VNPay/ }))
 
@@ -55,7 +76,7 @@ describe('TopupDialog', () => {
     await userEvent.type(input, '5000')
     expect(input).toHaveValue('5.000')
 
-    await userEvent.click(screen.getByRole('button', { name: /VNPay/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Tiếp tục với/ }))
     expect(screen.getByText(/tối thiểu/)).toBeInTheDocument()
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(createTopup).not.toHaveBeenCalled()
@@ -67,14 +88,14 @@ describe('TopupDialog', () => {
   })
 
   it('shows the server error and stays open', async () => {
-    vi.spyOn(walletApi, 'createTopup').mockRejectedValue(
-      new ApiError(503, 'PAYMENT_GATEWAY_UNAVAILABLE', 'Cổng VNPay chưa được cấu hình.'),
+    vi.spyOn(walletApi, 'createPayosTopup').mockRejectedValue(
+      new ApiError(503, 'PAYMENT_GATEWAY_NOT_CONFIGURED', 'Cổng PayOS chưa được cấu hình.'),
     )
     renderDialog({ initialAmount: 100_000 })
 
-    await userEvent.click(screen.getByRole('button', { name: /qua VNPay/ }))
+    await userEvent.click(screen.getByRole('button', { name: /qua PayOS/ }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cổng VNPay chưa được cấu hình.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cổng PayOS chưa được cấu hình.')
     expect(gateway).not.toHaveBeenCalled()
   })
 

@@ -6,14 +6,18 @@ import {
 import type { VNPayConfig, VNPayPaymentGateway } from '../interfaces/payment.ports.js';
 import type { WalletLedgerPort } from '../interfaces/wallet.ports.js';
 import type { PaymentRecord, PaymentRepository } from '../repositories/payment.repository.js';
-import { withTransaction } from '../repositories/transaction.js';
 import type { RequestActor } from '../types/request-actor.js';
 import { AppError } from '../utils/app-error.js';
+import {
+  isCancelledPayment,
+  toReturnResult,
+  TopupSettlement,
+  type TopupReturnResult,
+} from './topup-settlement.js';
+
+export type { TopupReturnResult, TopupReturnStatus } from './topup-settlement.js';
 
 const MINUTE = 60_000;
-
-/** VNPay code when the user presses "Huỷ" on the payment page */
-const VNPAY_CANCELLED = '24';
 
 export interface TopupInput {
   amount: number;
@@ -25,17 +29,6 @@ export interface TopupResult {
   paymentUrl: string;
   paymentCode: string;
   amount: number;
-}
-
-export type TopupReturnStatus = 'success' | 'failed' | 'cancelled' | 'invalid_checksum' | 'not_found';
-
-/** GET /payments/vnpay-return (same fields as the lead's API) */
-export interface TopupReturnResult {
-  success: boolean;
-  status: TopupReturnStatus;
-  paymentCode?: string | undefined;
-  amount?: number | undefined;
-  message: string;
 }
 
 /** Answer VNPay expects from the IPN URL */
@@ -63,24 +56,24 @@ type Settlement =
   /** Another call (IPN, Return URL or the expiry job) settled it before */
   | { kind: 'already'; payment: PaymentRecord };
 
-const isCancelled = (payment: PaymentRecord) =>
-  payment.status === 'failed' && payment.gatewayResponseCode === VNPAY_CANCELLED;
-
 /**
  * UC17 Top up wallet via VNPay sandbox. A top-up starts as a pending payment; the IPN
- * (server-to-server) or the Return URL (browser) settles it: checksum, amount, then in one
- * MongoDB transaction pending → success and the ledger posting external → user. Only one call can
- * move it out of pending, so the wallet is credited once. Failed or cancelled payments become
- * 'failed' (vnp_ResponseCode kept in gatewayResponseCode).
+ * (server-to-server) or the Return URL (browser) settles it: checksum, amount, then
+ * TopupSettlement (pending → success and the ledger posting in one transaction, once).
+ * Failed or cancelled payments become 'failed' (vnp_ResponseCode kept in gatewayResponseCode).
  */
 export class PaymentService {
+  private readonly settlement: TopupSettlement;
+
   public constructor(
     private readonly payments: PaymentRepository,
     private readonly ledger: WalletLedgerPort,
     private readonly gateway: VNPayPaymentGateway,
     private readonly config: VNPayConfig,
     private readonly now: () => Date = () => new Date(),
-  ) {}
+  ) {
+    this.settlement = new TopupSettlement(payments, ledger);
+  }
 
   public async createTopupPayment(actor: RequestActor, input: TopupInput, clientIp: string): Promise<TopupResult> {
     if (!this.config.tmnCode || !this.config.hashSecret) {
@@ -95,6 +88,7 @@ export class PaymentService {
 
     await this.payments.createTopup({
       code,
+      gateway: 'vnpay',
       userId: actor.userId,
       walletId: wallet.id,
       amount: input.amount,
@@ -155,11 +149,11 @@ export class PaymentService {
           message: 'Số tiền giao dịch không khớp.',
         };
       default:
-        return this.toReturnResult(result.payment);
+        return toReturnResult(result.payment);
     }
   }
 
-  /** GET /payments/:code/status — only the owner of the payment */
+  /** GET /payments/:code/status — only the owner of the payment (VNPay or PayOS) */
   public async getPaymentStatus(actor: RequestActor, code: string): Promise<PaymentStatusDto> {
     const payment = await this.payments.findByCode(code);
     if (!payment || payment.userId.toString() !== actor.userId) {
@@ -169,34 +163,17 @@ export class PaymentService {
       code: payment.code,
       amount: payment.amount,
       status: payment.status,
-      cancelled: isCancelled(payment),
+      cancelled: isCancelledPayment(payment),
       gateway: payment.gateway,
       createdAt: payment.createdAt.toISOString(),
       expiresAt: payment.expiresAt ? payment.expiresAt.toISOString() : null,
     };
   }
 
-  /** Expiry job: top-ups still pending well after their link expired become failed */
+  /** Expiry job: VNPay top-ups still pending well after their link expired become failed */
   public async expireStalePayments(): Promise<{ expired: number }> {
     const before = new Date(this.now().getTime() - TOPUP_EXPIRY_GRACE_MINUTES * MINUTE);
-    return { expired: await this.payments.failExpired(before) };
-  }
-
-  private toReturnResult(payment: PaymentRecord): TopupReturnResult {
-    const base = { paymentCode: payment.code, amount: payment.amount };
-    if (payment.status === 'success') {
-      return { ...base, success: true, status: 'success', message: 'Nạp tiền vào ví thành công.' };
-    }
-    if (isCancelled(payment)) {
-      return { ...base, success: false, status: 'cancelled', message: 'Giao dịch nạp tiền đã bị hủy bởi người dùng.' };
-    }
-    return {
-      ...base,
-      success: false,
-      status: 'failed',
-      message:
-        payment.gatewayResponseCode === 'expired' ? 'Giao dịch nạp tiền đã hết hạn.' : 'Giao dịch nạp tiền thất bại.',
-    };
+    return { expired: await this.payments.failExpired('vnpay', before) };
   }
 
   private async settle(query: Record<string, unknown>): Promise<Settlement> {
@@ -206,7 +183,7 @@ export class PaymentService {
 
     const code = typeof query.vnp_TxnRef === 'string' ? query.vnp_TxnRef : '';
     const payment = code ? await this.payments.findByCode(code) : null;
-    if (!payment) return { kind: 'not_found' };
+    if (!payment || payment.gateway !== 'vnpay') return { kind: 'not_found' };
 
     if (Math.round(Number(query.vnp_Amount) / 100) !== payment.amount) {
       return { kind: 'amount_mismatch', payment };
@@ -215,52 +192,18 @@ export class PaymentService {
 
     const responseCode = typeof query.vnp_ResponseCode === 'string' ? query.vnp_ResponseCode : '';
     const paid = responseCode === '00' && query.vnp_TransactionStatus === '00';
-
-    if (!paid) {
-      const failed = await this.payments.claimPending(code, {
-        status: 'failed',
-        gatewayResponseCode: responseCode || 'unknown',
-      });
-      return failed ? { kind: 'settled', payment: failed } : this.already(code, payment);
-    }
-
-    // Wallets are created before the transaction: a duplicate-key upsert inside it would abort it
-    const [userWallet, externalWallet] = await Promise.all([
-      this.ledger.getOrCreateUserWallet(payment.userId.toString()),
-      this.ledger.getOrCreateSystemWallet('external'),
-    ]);
     const transactionNo = typeof query.vnp_TransactionNo === 'string' ? query.vnp_TransactionNo : '';
 
-    const credited = await withTransaction(async (session) => {
-      const claimed = await this.payments.claimPending(
-        code,
-        {
-          status: 'success',
+    const settled = paid
+      ? await this.settlement.credit(payment, {
           gatewayResponseCode: responseCode,
           // '0' is what VNPay sends when there is no bank transaction
-          ...(transactionNo && transactionNo !== '0' ? { gatewayTransactionNo: transactionNo } : {}),
-        },
-        session,
-      );
-      if (!claimed) return null;
+          gatewayTransactionNo: transactionNo && transactionNo !== '0' ? transactionNo : undefined,
+        })
+      : await this.settlement.fail(payment, responseCode || 'unknown');
 
-      await this.ledger.post(
-        `topup:${code}`,
-        { kind: 'payment', id: payment._id.toString() },
-        [
-          { walletId: externalWallet.id, amount: -payment.amount },
-          { walletId: userWallet.id, amount: payment.amount },
-        ],
-        session,
-        `Nạp tiền ví qua VNPay (${code})`,
-      );
-      return claimed;
-    });
-
-    return credited ? { kind: 'settled', payment: credited } : this.already(code, payment);
-  }
-
-  private async already(code: string, fallback: PaymentRecord): Promise<Settlement> {
-    return { kind: 'already', payment: (await this.payments.findByCode(code)) ?? fallback };
+    return settled
+      ? { kind: 'settled', payment: settled }
+      : { kind: 'already', payment: await this.settlement.current(payment) };
   }
 }

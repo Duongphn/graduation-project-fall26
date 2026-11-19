@@ -5,6 +5,7 @@ import type { Paginated } from '../../types/api'
  * API ví theo backend của lead (nhánh wallet-*):
  * - GET /wallets/me, GET /wallets/me/transactions
  * - POST /payments/topup/vnpay, GET /payments/vnpay-return (UC17)
+ * - POST /payments/topup/payos, GET /payments/payos-return (UC17, chuyển khoản VietQR qua PayOS)
  * - POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
  */
 
@@ -87,11 +88,24 @@ export interface TopupCreated {
   amount: number
 }
 
+/** Cổng nạp tiền: VNPay (thẻ ngân hàng) hoặc PayOS (chuyển khoản quét VietQR) */
+export type TopupGateway = 'vnpay' | 'payos'
+
+/** POST /payments/topup/payos: giao dịch Pending và trang thanh toán PayOS (có mã VietQR) */
+export interface PayosTopupCreated {
+  checkoutUrl: string
+  /** Nội dung mã VietQR */
+  qrCode: string
+  paymentCode: string
+  amount: number
+  expiresAt: string
+}
+
 /**
- * Kết quả GET /payments/vnpay-return. invalid_checksum: chữ ký sai (link bị sửa),
- * not_found: không có giao dịch, cancelled: người dùng bấm Hủy trên VNPay.
+ * Kết quả GET /payments/vnpay-return và /payments/payos-return. invalid_checksum: chữ ký sai (link bị sửa),
+ * not_found: không có giao dịch, cancelled: người dùng bấm Hủy, pending: tiền chưa về (PayOS).
  */
-export type TopupStatus = 'success' | 'failed' | 'cancelled' | 'invalid_checksum' | 'not_found'
+export type TopupStatus = 'success' | 'failed' | 'cancelled' | 'pending' | 'invalid_checksum' | 'not_found'
 
 export interface TopupResult {
   success: boolean
@@ -155,6 +169,9 @@ export const walletApi = {
    * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
    */
   confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay-return${search}`),
+  createPayosTopup: (amount: number) => apiPost<PayosTopupCreated>('/payments/topup/payos', { amount }),
+  /** Server hỏi PayOS trạng thái giao dịch `orderCode` rồi cộng tiền nếu đã thanh toán */
+  confirmPayosReturn: (orderCode: string) => apiGet<TopupResult>('/payments/payos-return', { orderCode }),
   /** UC18: tạo lệnh rút Pending, server tạm trừ số tiền khỏi số dư khả dụng */
   createWithdrawal: (input: CreateWithdrawalInput) => apiPost<WithdrawalRequest>('/wallets/withdrawals', input),
   myWithdrawals: (params: { page: number; limit: number }) => apiGet<WithdrawalPage>('/wallets/withdrawals', params),

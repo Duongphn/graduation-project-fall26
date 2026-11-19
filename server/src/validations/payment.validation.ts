@@ -21,3 +21,13 @@ export const paymentCodeParamsSchema = z.object({
   code: z.string().trim().regex(/^[A-Za-z0-9_-]{1,64}$/, 'Mã giao dịch không hợp lệ.'),
 });
 export type PaymentCodeParams = z.infer<typeof paymentCodeParamsSchema>;
+
+/** POST /payments/topup/payos: same limits as the VNPay top-up */
+export const payosTopupBodySchema = topupBodySchema.pick({ amount: true }).strict();
+export type PayosTopupBody = z.infer<typeof payosTopupBodySchema>;
+
+/** GET /payments/payos-return?orderCode= (PayOS also adds code, id, cancel, status: ignored) */
+export const payosReturnQuerySchema = z.object({
+  orderCode: z.string().trim().regex(/^\d{1,16}$/, 'Mã giao dịch không hợp lệ.'),
+});
+export type PayosReturnQuery = z.infer<typeof payosReturnQuerySchema>;

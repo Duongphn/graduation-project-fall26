@@ -49,7 +49,7 @@ export function createApiRouter(container: Container): Router {
 
   router.use(createWalletRouter(container.walletService, container.withdrawalService));
   // UC17 VNPay top-up: /payments/topup/vnpay, /vnpay-return, /vnpay-ipn, /:code/status
-  router.use('/payments', createPaymentRouter(container.paymentService));
+  router.use('/payments', createPaymentRouter(container.paymentService, container.payosTopupService));
   router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).

@@ -58,6 +58,17 @@ describe('wallet API calls', () => {
     expect(apiGet).toHaveBeenCalledWith('/payments/vnpay-return?vnp_TxnRef=TOPUP1&vnp_SecureHash=abc')
   })
 
+  it('creates a PayOS top-up and asks the server about its order code', async () => {
+    const apiPost = vi.spyOn(http, 'apiPost').mockResolvedValue({})
+    const apiGet = vi.spyOn(http, 'apiGet').mockResolvedValue({})
+
+    await walletApi.createPayosTopup(100_000)
+    await walletApi.confirmPayosReturn('1763600000123')
+
+    expect(apiPost).toHaveBeenCalledWith('/payments/topup/payos', { amount: 100_000 })
+    expect(apiGet).toHaveBeenCalledWith('/payments/payos-return', { orderCode: '1763600000123' })
+  })
+
   it('uses the lead’s withdrawal paths', async () => {
     const apiPost = vi.spyOn(http, 'apiPost').mockResolvedValue({})
     const apiGet = vi.spyOn(http, 'apiGet').mockResolvedValue({})

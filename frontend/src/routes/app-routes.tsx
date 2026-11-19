@@ -354,7 +354,15 @@ export const router = createBrowserRouter([
     path: PATHS.walletTopupResult,
     element: (
       <RequireAuth>
-        <WalletTopupResultPage />
+        <WalletTopupResultPage gateway="vnpay" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.walletTopupPayosResult,
+    element: (
+      <RequireAuth>
+        <WalletTopupResultPage gateway="payos" />
       </RequireAuth>
     ),
   },

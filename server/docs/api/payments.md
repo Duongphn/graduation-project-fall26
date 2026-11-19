@@ -1,4 +1,4 @@
-# Payments — VNPay wallet top-up (UC17)
+# Payments — wallet top-up through VNPay or PayOS (UC17)
 
 A top-up starts as a **pending** payment. The user pays on VNPay; VNPay then reports the result
 twice — the **IPN** (server to server) and the **Return URL** (browser → frontend page →
@@ -17,7 +17,7 @@ Paths and response fields are the same as the lead's wallet branches (`feature/w
 | `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET` | Sandbox merchant code and hash secret (https://sandbox.vnpayment.vn). Empty → top-up returns `503 PAYMENT_GATEWAY_NOT_CONFIGURED` |
 | `VNPAY_URL` | Payment page, default `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` |
 | `VNPAY_RETURN_URL` | Frontend page VNPay redirects to, default `http://localhost:5173/wallet/topup/result` |
-| `PAYMENT_EXPIRY_JOB_ENABLED`, `PAYMENT_EXPIRY_JOB_INTERVAL_MINUTES` | Job that fails top-ups still pending 15 minutes after their link expired (default on, every 5 minutes) |
+| `PAYMENT_EXPIRY_JOB_ENABLED`, `PAYMENT_EXPIRY_JOB_INTERVAL_MINUTES` | Job (default on, every 5 minutes) for top-ups still pending 15 minutes after their link expired: VNPay ones become failed; PayOS ones are checked with PayOS first — paid → credited, otherwise failed |
 
 The IPN URL is set in the VNPay merchant portal: `https://<public host>/api/v1/payments/vnpay-ipn`.
 Locally VNPay cannot reach the server; the Return URL still settles the payment.
@@ -77,3 +77,58 @@ Locally VNPay cannot reach the server; the Return URL still settles the payment.
 - **Method / Path**: `GET /api/v1/payments/:code/status`
 - **Auth**: User token, owner of the payment only (others get `404 PAYMENT_NOT_FOUND`)
 - **Response (`200 OK`)**: `{ code, amount, status, cancelled, gateway, createdAt, expiresAt }`
+
+---
+
+## PayOS — bank transfer by VietQR (real money)
+
+The user scans a VietQR with any banking app; the money goes to the bank account linked to the
+PayOS channel. The payment starts **pending** (`gateway: payos`, `code` = the numeric PayOS
+`orderCode`). It is settled — wallet credited once through the same transaction as VNPay — by:
+
+- the **webhook** PayOS posts for each paid transfer (signature checked by the official SDK
+  `@payos/node` with the checksum key; the amount must match), or
+- the **return page**: PayOS sends the browser to `PAYOS_RETURN_URL`, the frontend calls
+  `GET /payments/payos-return`, and the server asks PayOS for the link status. This works where
+  PayOS cannot reach the server (local development).
+
+Cancelled, expired or failed links become `failed` (`gatewayResponseCode` = PayOS status,
+`CANCELLED` shown as cancelled). Partly paid links (`UNDERPAID`) are not credited.
+
+### Configuration (`server/.env`)
+
+| Variable | Meaning |
+|---|---|
+| `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY` | Keys of the PayOS payment channel (https://my.payos.vn). Missing → `503 PAYMENT_GATEWAY_NOT_CONFIGURED` |
+| `PAYOS_RETURN_URL` | Frontend page PayOS redirects to after paying or cancelling, default `http://localhost:5173/wallet/topup/payos-result` |
+
+Webhook URL to confirm in the PayOS dashboard: `https://<public host>/api/v1/payments/payos-webhook`.
+
+### 5. Start a PayOS top-up
+- **Method / Path**: `POST /api/v1/payments/topup/payos`
+- **Auth**: User token
+- **Body**: `{ "amount": 100000 }` — same limits as VNPay (10,000 – 100,000,000 VND)
+- **Response (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "checkoutUrl": "https://pay.payos.vn/web/...",
+      "qrCode": "00020101021238...",
+      "paymentCode": "1763600000123",
+      "amount": 100000,
+      "expiresAt": "2026-11-20T10:15:00.000Z"
+    }
+  }
+  ```
+  The transfer note is `NAP VI <orderCode>`; the link expires after 15 minutes.
+- **Errors**: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `502 PAYOS_GATEWAY_ERROR` (PayOS refused or unreachable; the payment is marked failed), `503 PAYMENT_GATEWAY_NOT_CONFIGURED`.
+
+### 6. PayOS return result
+- **Method / Path**: `GET /api/v1/payments/payos-return?orderCode=1763600000123` (PayOS also adds `code`, `id`, `cancel`, `status`, ignored)
+- **Auth**: User token, owner of the payment (others get `status: not_found`)
+- **Response (`200 OK`)**: same shape as the VNPay return; `status` is `success` | `pending` (transfer not arrived yet — the page checks again) | `cancelled` | `failed` | `not_found`.
+
+### 7. PayOS webhook
+- **Method / Path**: `POST /api/v1/payments/payos-webhook`
+- **Auth**: none; the SDK checks the signature. Wrong signature → `400 INVALID_WEBHOOK_SIGNATURE`; otherwise always `200 { success: true, data: { received: true } }` (unknown orders, the confirmation test webhook and amount mismatches are ignored).
