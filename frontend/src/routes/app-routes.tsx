@@ -23,7 +23,9 @@ import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
 import { NotificationsPage } from '../pages/notifications-page'
 import { ProfilePage } from '../pages/profile-page'
+import { PrivacyPage } from '../pages/privacy-page'
 import { RegisterPage } from '../pages/register-page'
+import { TermsPage } from '../pages/terms-page'
 import { ToyDetailPage } from '../pages/toy-detail-page'
 import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
 import { ToySearchPage } from '../pages/toy-search-page'
@@ -189,6 +191,8 @@ export const router = createBrowserRouter([
   { path: PATHS.login, element: <LoginPage /> },
   { path: PATHS.register, element: <RegisterPage /> },
   { path: PATHS.forgotPassword, element: <ForgotPasswordPage /> },
+  { path: PATHS.terms, element: <TermsPage /> },
+  { path: PATHS.privacy, element: <PrivacyPage /> },
   {
     path: PATHS.profile,
     loader: profileLoader,

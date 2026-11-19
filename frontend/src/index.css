@@ -16,6 +16,7 @@
 @import './features/rentals/rentals.css';
 @import './layouts/site/site-layout.css';
 @import './features/home/home.css';
+@import './features/legal/legal.css';
 @import './features/ai-chat/ai-chat.css';
 
 /* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
