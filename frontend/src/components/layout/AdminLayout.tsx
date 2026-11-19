@@ -2,7 +2,9 @@ import { Badge, ConfigProvider, Layout, Menu, Progress, Typography } from 'antd'
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigation } from 'react-router-dom'
 
+import { NotificationMenu } from '../../layouts/site/notification-menu'
 import { adminMenuItems } from '../../routes/admin-menu'
+import { adminPaths } from '../../routes/paths'
 import { antdTheme } from '../../styles/theme'
 import { useAdminPendingCounts } from './useAdminPendingCounts'
 
@@ -57,6 +59,10 @@ export function AdminLayout() {
         />
       </Layout.Sider>
       <Layout>
+        {/* Admins receive notifications too (UC26): the same bell as the user header. */}
+        <Layout.Header className="flex items-center justify-end !bg-white !px-6 !leading-none shadow-sm">
+          <NotificationMenu allPath={adminPaths.notifications} />
+        </Layout.Header>
         {/* Thin bar while a lazy page is loading. */}
         {navigation.state === 'loading' && (
           <Progress percent={100} status="active" showInfo={false} size="small" className="!m-0 !leading-none" />
