@@ -224,7 +224,7 @@ All error responses adhere to the standard envelope `{ "success": false, "error"
 | `INVALID_IMAGE_FORMAT` | 400 | Uploaded file signature does not match JPEG, PNG, or WebP |
 | `CANNOT_RENT_OWN_LISTING` | 403 | Owner attempts to rent their own toy listing |
 | `USER_NOT_VERIFIED` | 403 | Renter has not completed identity verification (UC03) |
-| `RENTER_RESTRICTED` | 403 | Renter trust score is below minimum threshold (< 30) |
+| `RENTER_RESTRICTED` | 403 | GB-29 / MSG28: the Renter's trust score is below `rental.minTrustScore` (default 50) and the toy's deposit is above `rental.trustDepositLimit` (default 500,000 VND). Toys with a deposit at or below the limit can still be rented |
 | `FORBIDDEN_RENTAL_ACTION` | 403 | Party invokes an endpoint restricted to the opposite role (e.g. Renter calls `ship` or Owner calls `pay`) |
 | `TOY_NOT_FOUND` | 404 | Toy listing does not exist, is inactive, or listingType is not 'rent' |
 | `RENTAL_NOT_FOUND` | 404 | Rental order ID does not exist or caller is not a party to the order |

@@ -131,9 +131,19 @@ export class RentalOrderService extends RentalOrderCore {
       throw new AppError(403, 'CANNOT_RENT_OWN_LISTING', 'Không thể thuê đồ chơi của chính mình.');
     }
 
+    // GB-29: chỉ chặn khi điểm dưới ngưỡng VÀ tiền cọc trên mức Admin đặt (MSG28)
     const score = user.trust?.score;
-    if (score !== undefined && score !== null && score < settings.minTrustScore) {
-      throw new AppError(403, 'RENTER_RESTRICTED', 'Điểm tin cậy không đủ điều kiện thuê đồ chơi.');
+    if (
+      score !== undefined &&
+      score !== null &&
+      score < settings.minTrustScore &&
+      (toy.depositPrice ?? 0) > settings.trustDepositLimit
+    ) {
+      throw new AppError(
+        403,
+        'RENTER_RESTRICTED',
+        'Điểm tin cậy của bạn quá thấp để thuê đồ chơi này.',
+      );
     }
 
     const startDate = parseDateOnly(input.startDate);

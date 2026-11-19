@@ -10,7 +10,10 @@ export interface RentalSettings {
   returnReminderHours: number;
   platformFeeRate: number;
   lateFeeMultiplier: number;
+  /** GB-29: điểm tin cậy tối thiểu để thuê đồ có tiền cọc cao */
   minTrustScore: number;
+  /** GB-29: tiền cọc (VND) trên mức này mới áp dụng ngưỡng điểm tin cậy */
+  trustDepositLimit: number;
   maxDays: number;
   bookingWindowDays: number;
   /** Hạn bên bị khiếu nại phản hồi trước khi Admin quyết định (GB-24) */
@@ -25,7 +28,8 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   returnReminderHours: 24,
   platformFeeRate: 0.1,
   lateFeeMultiplier: 1.0,
-  minTrustScore: 30,
+  minTrustScore: 50,
+  trustDepositLimit: 500_000,
   maxDays: 30,
   bookingWindowDays: 180,
   disputeReplyHours: 72,

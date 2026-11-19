@@ -19,6 +19,7 @@ export class SystemSettingService {
       'platformFeeRate',
       'lateFeeMultiplier',
       'minTrustScore',
+      'trustDepositLimit',
       'maxDays',
       'bookingWindowDays',
       'disputeReplyHours',
