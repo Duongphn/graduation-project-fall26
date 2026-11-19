@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      # Project toyflow-staging in the Vercel team fe-hl-mck (ids are not secret).
+      # Project toyflow-staging in the Vercel team ToyFlow (slug toyflow-vn; ids are not secret).
       VERCEL_ORG_ID: team_rlt3Ao7w7htSLT1e58iMvwMH
       VERCEL_PROJECT_ID: prj_KwPwCWVxL1wF3RxXa1LKO2bYVXEj
     defaults:
