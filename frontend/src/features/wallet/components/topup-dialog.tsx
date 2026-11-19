@@ -1,7 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
 import { CreditCard, QrCode, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 
+import { walletPayosCheckoutPath } from '../../../routes/paths'
 import { ApiError } from '../../../services/api-error'
 import { formatVnd, vndInputFormatter, vndInputParser } from '../../toy-listings/format-vnd'
 import { goToPaymentGateway, rememberTopupReturn, topupAmountError } from '../topup-session'
@@ -14,7 +16,7 @@ const GATEWAYS: Array<{ value: TopupGateway; label: string; hint: string; icon: 
   {
     value: 'payos',
     label: 'Chuyển khoản QR',
-    hint: 'Quét mã VietQR bằng app ngân hàng bất kỳ',
+    hint: 'Quét mã VietQR ngay trên ToyFlow bằng app ngân hàng bất kỳ',
     icon: QrCode,
     name: 'PayOS',
   },
@@ -27,11 +29,14 @@ const GATEWAYS: Array<{ value: TopupGateway; label: string; hint: string; icon: 
   },
 ]
 
-/** Tạo giao dịch Pending ở cổng đã chọn, trả về trang thanh toán của cổng đó */
+/**
+ * Tạo giao dịch Pending ở cổng đã chọn. PayOS: trang mã VietQR của ToyFlow (ở lại trong ứng dụng);
+ * VNPay: trang thanh toán của VNPay.
+ */
 const startTopup = async ({ gateway, amount }: { gateway: TopupGateway; amount: number }) =>
   gateway === 'payos'
-    ? (await walletApi.createPayosTopup(amount)).checkoutUrl
-    : (await walletApi.createTopup(amount)).paymentUrl
+    ? { inApp: true as const, to: walletPayosCheckoutPath((await walletApi.createPayosTopup(amount)).paymentCode) }
+    : { inApp: false as const, to: (await walletApi.createTopup(amount)).paymentUrl }
 
 interface TopupDialogProps {
   onClose: () => void
@@ -52,12 +57,14 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
   const [gateway, setGateway] = useState<TopupGateway>('payos')
   const [touched, setTouched] = useState(false)
   const gatewayName = GATEWAYS.find((option) => option.value === gateway)?.name ?? ''
+  const navigate = useNavigate()
 
   const topup = useMutation({
     mutationFn: startTopup,
-    onSuccess: (checkoutUrl) => {
+    onSuccess: ({ inApp, to }) => {
       rememberTopupReturn(returnTo)
-      goToPaymentGateway(checkoutUrl)
+      if (inApp) navigate(to)
+      else goToPaymentGateway(to)
     },
   })
   // Đã có link VNPay: giữ trạng thái "đang chuyển" tới khi trình duyệt rời trang
@@ -180,7 +187,9 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
           className="inline-flex h-11 items-center justify-center rounded-full bg-tf-primary px-5 text-sm font-bold text-white hover:bg-tf-primary-container disabled:opacity-60"
         >
           {busy
-            ? `Đang chuyển sang ${gatewayName}…`
+            ? gateway === 'payos'
+              ? 'Đang tạo mã QR…'
+              : `Đang chuyển sang ${gatewayName}…`
             : amount && !error
               ? `Nạp ${formatVnd(amount)} qua ${gatewayName}`
               : `Tiếp tục với ${gatewayName}`}
@@ -189,7 +198,7 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
         <p className="flex items-start gap-2 text-xs text-tf-ink-muted">
           <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
           {gateway === 'payos'
-            ? 'Bạn sẽ được chuyển sang trang PayOS có mã VietQR. Quét mã và chuyển khoản đúng số tiền, nội dung đã điền sẵn.'
+            ? 'ToyFlow hiện mã VietQR để bạn quét bằng app ngân hàng; tiền vào ví tự động khi chuyển khoản thành công.'
             : 'Bạn sẽ được chuyển sang trang VNPay để thanh toán.'}{' '}
           Nếu huỷ hoặc thanh toán không thành công, số dư ví không bị trừ.
         </p>

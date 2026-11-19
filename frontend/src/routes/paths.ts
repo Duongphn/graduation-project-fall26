@@ -29,6 +29,8 @@ export const PATHS = {
   walletTopupResult: '/wallet/topup/result',
   /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */
   walletTopupPayosResult: '/wallet/topup/payos-result',
+  /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */
+  walletPayosCheckout: '/wallet/topup/payos/:code',
   notifications: '/notifications',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
@@ -55,6 +57,11 @@ export const myDonationRequestPath = (requestId: string) =>
   PATHS.myDonationRequest.replace(':requestId', requestId)
 
 export const myDonationPath = (requestId: string) => PATHS.myDonation.replace(':requestId', requestId)
+
+export const walletPayosCheckoutPath = (code: string) => PATHS.walletPayosCheckout.replace(':code', code)
+
+export const walletPayosResultPath = (code: string) =>
+  `${PATHS.walletTopupPayosResult}?${new URLSearchParams({ orderCode: code }).toString()}`
 
 // Paths of the admin pages: admin-routes, admin-menu and every feature link use these.
 export const ADMIN_ROOT = '/admin'

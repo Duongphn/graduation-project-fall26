@@ -50,6 +50,12 @@ export interface PayOSLink {
   /** VietQR content any banking app can scan */
   qrCode: string;
   paymentLinkId: string;
+  /** Receiving bank (NAPAS BIN, e.g. 970422 = MB) and account */
+  bin: string;
+  accountNumber: string;
+  accountName: string;
+  /** Transfer note PayOS expects */
+  description: string;
 }
 
 export interface PayOSLinkState {
@@ -73,6 +79,7 @@ export interface PayOSWebhookData {
 export interface PayOSGateway {
   createPaymentLink(input: PayOSCreateLinkInput): Promise<PayOSLink>;
   getPaymentLink(orderCode: number): Promise<PayOSLinkState>;
+  cancelPaymentLink(orderCode: number, reason: string): Promise<void>;
   /** Throws when the signature does not match */
   verifyWebhook(body: unknown): Promise<PayOSWebhookData>;
 }

@@ -5,7 +5,8 @@ import type { Paginated } from '../../types/api'
  * API ví theo backend của lead (nhánh wallet-*):
  * - GET /wallets/me, GET /wallets/me/transactions
  * - POST /payments/topup/vnpay, GET /payments/vnpay-return (UC17)
- * - POST /payments/topup/payos, GET /payments/payos-return (UC17, chuyển khoản VietQR qua PayOS)
+ * - POST /payments/topup/payos, GET /payments/payos/:code, POST /payments/payos/:code/cancel,
+ *   GET /payments/payos-return (UC17, chuyển khoản VietQR qua PayOS)
  * - POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
  */
 
@@ -91,14 +92,25 @@ export interface TopupCreated {
 /** Cổng nạp tiền: VNPay (thẻ ngân hàng) hoặc PayOS (chuyển khoản quét VietQR) */
 export type TopupGateway = 'vnpay' | 'payos'
 
-/** POST /payments/topup/payos: giao dịch Pending và trang thanh toán PayOS (có mã VietQR) */
-export interface PayosTopupCreated {
-  checkoutUrl: string
-  /** Nội dung mã VietQR */
-  qrCode: string
+/**
+ * POST /payments/topup/payos, GET /payments/payos/:code: thông tin chuyển khoản để ToyFlow tự hiện
+ * mã VietQR (không phải rời sang trang PayOS)
+ */
+export interface PayosCheckout {
   paymentCode: string
   amount: number
+  status: TopupStatus
   expiresAt: string
+  /** Nội dung mã VietQR, app ngân hàng nào cũng quét được */
+  qrCode: string
+  /** Trang thanh toán của PayOS (dự phòng) */
+  checkoutUrl: string
+  /** Mã BIN NAPAS của ngân hàng nhận (970422 = MB…) */
+  bankBin: string
+  accountNumber: string
+  accountName: string
+  /** Nội dung chuyển khoản */
+  description: string
 }
 
 /**
@@ -169,7 +181,10 @@ export const walletApi = {
    * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
    */
   confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay-return${search}`),
-  createPayosTopup: (amount: number) => apiPost<PayosTopupCreated>('/payments/topup/payos', { amount }),
+  createPayosTopup: (amount: number) => apiPost<PayosCheckout>('/payments/topup/payos', { amount }),
+  getPayosCheckout: (code: string) => apiGet<PayosCheckout>(`/payments/payos/${code}`),
+  /** Huỷ link PayOS; nếu tiền đã về trong lúc đó, server vẫn cộng tiền và trả success */
+  cancelPayosTopup: (code: string) => apiPost<TopupResult>(`/payments/payos/${code}/cancel`),
   /** Server hỏi PayOS trạng thái giao dịch `orderCode` rồi cộng tiền nếu đã thanh toán */
   confirmPayosReturn: (orderCode: string) => apiGet<TopupResult>('/payments/payos-return', { orderCode }),
   /** UC18: tạo lệnh rút Pending, server tạm trừ số tiền khỏi số dư khả dụng */

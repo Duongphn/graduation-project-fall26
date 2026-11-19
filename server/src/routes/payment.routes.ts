@@ -7,6 +7,7 @@ import type { PaymentService } from '../services/payment.service.js';
 import type { PayosTopupService } from '../services/payos-topup.service.js';
 import {
   paymentCodeParamsSchema,
+  payosCodeParamsSchema,
   payosReturnQuerySchema,
   payosTopupBodySchema,
   topupBodySchema,
@@ -42,6 +43,20 @@ export function createPaymentRouter(service: PaymentService, payos: PayosTopupSe
     requireActor,
     validateRequest({ query: payosReturnQuerySchema }),
     controller.handlePayosReturn,
+  );
+  router.get(
+    '/payos/:code',
+    authenticate,
+    requireActor,
+    validateRequest({ params: payosCodeParamsSchema }),
+    controller.getPayosCheckout,
+  );
+  router.post(
+    '/payos/:code/cancel',
+    authenticate,
+    requireActor,
+    validateRequest({ params: payosCodeParamsSchema }),
+    controller.cancelPayosTopup,
   );
   // Public: the SDK checks PayOS's signature with the checksum key
   router.post('/payos-webhook', controller.handlePayosWebhook);

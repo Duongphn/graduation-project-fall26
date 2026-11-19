@@ -31,3 +31,9 @@ export const payosReturnQuerySchema = z.object({
   orderCode: z.string().trim().regex(/^\d{1,16}$/, 'Mã giao dịch không hợp lệ.'),
 });
 export type PayosReturnQuery = z.infer<typeof payosReturnQuerySchema>;
+
+/** /payments/payos/:code (the numeric PayOS orderCode) */
+export const payosCodeParamsSchema = z.object({
+  code: z.string().trim().regex(/^\d{1,16}$/, 'Mã giao dịch không hợp lệ.'),
+});
+export type PayosCodeParams = z.infer<typeof payosCodeParamsSchema>;

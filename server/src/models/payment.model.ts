@@ -13,6 +13,15 @@ const paymentSchema = new Schema(
     gatewayResponseCode: { type: String },
     // PayOS paymentLinkId of the checkout page
     gatewayLinkId: { type: String },
+    // PayOS transfer details shown on ToyFlow's own QR page
+    checkout: {
+      qrCode: { type: String },
+      checkoutUrl: { type: String },
+      bin: { type: String },
+      accountNumber: { type: String },
+      accountName: { type: String },
+      description: { type: String },
+    },
     status: { type: String, required: true, default: 'pending' },
     expiresAt: { type: Date },
   },

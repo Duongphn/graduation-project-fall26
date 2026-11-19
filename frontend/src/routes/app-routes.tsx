@@ -52,6 +52,7 @@ import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail
 import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
 import { WalletPage } from '../pages/wallet-page'
 import { WalletTopupResultPage } from '../pages/wallet-topup-result-page'
+import { WalletPayosCheckoutPage } from '../pages/wallet-payos-checkout-page'
 import {
   myWalletQuery,
   parseWalletHistorySearch,
@@ -355,6 +356,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <WalletTopupResultPage gateway="vnpay" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.walletPayosCheckout,
+    element: (
+      <RequireAuth>
+        <WalletPayosCheckoutPage />
       </RequireAuth>
     ),
   },
