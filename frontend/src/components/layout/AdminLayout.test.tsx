@@ -184,3 +184,49 @@ describe('AdminLayout on a phone', () => {
     expect(screen.queryByRole('button', { name: 'Mở menu quản trị' })).not.toBeInTheDocument()
   })
 })
+
+// Admin review 20/11 #2: /admin/notifications and unknown /admin/... links lit up "Tổng quan".
+describe('AdminLayout selected menu entry', () => {
+  const renderSelected = (url: string) => {
+    const page = (text: string) => <p>{text}</p>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/admin',
+          element: <AdminLayout />,
+          children: [
+            { index: true, element: page('Trang tổng quan') },
+            { path: 'toys/:id', element: page('Trang chi tiết tin') },
+            { path: 'disputes', element: page('Trang khiếu nại') },
+            { path: 'notifications', element: page('Trang thông báo') },
+            { path: '*', element: page('Không tìm thấy trang') },
+          ],
+        },
+      ],
+      { initialEntries: [url] },
+    )
+    renderWithProviders(<RouterProvider router={router} />)
+  }
+  const selectedEntries = () =>
+    [...document.querySelectorAll('.ant-menu-item-selected')].map((item) => item.textContent)
+
+  it.each([
+    ['/admin/notifications', 'Trang thông báo'],
+    ['/admin/link-la', 'Không tìm thấy trang'],
+  ])('selects no entry on %s', async (url, text) => {
+    renderSelected(url)
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(selectedEntries()).toEqual([])
+  })
+
+  it.each([
+    ['/admin', 'Trang tổng quan', 'Tổng quan'],
+    ['/admin/', 'Trang tổng quan', 'Tổng quan'],
+    ['/admin/toys/64b000000000000000000001', 'Trang chi tiết tin', 'Duyệt tin đăng'],
+    ['/admin/disputes', 'Trang khiếu nại', 'Giải quyết khiếu nại'],
+  ])('selects only the matching entry on %s', async (url, text, label) => {
+    renderSelected(url)
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(selectedEntries()).toEqual([label])
+  })
+})

@@ -6,7 +6,7 @@ import { Link, Outlet, useLocation, useNavigate, useNavigation } from 'react-rou
 import { logout } from '../../features/auth/auth-api'
 import { NotificationMenu } from '../../layouts/site/notification-menu'
 import { adminMenuItems } from '../../routes/admin-menu'
-import { adminPaths, PATHS } from '../../routes/paths'
+import { ADMIN_ROOT, adminPaths, PATHS } from '../../routes/paths'
 import { antdTheme } from '../../styles/theme'
 import { useAdminPendingCounts } from './useAdminPendingCounts'
 
@@ -20,11 +20,12 @@ export function AdminLayout() {
   const navigate = useNavigate()
   const pendingCounts = useAdminPendingCounts()
 
-  // The longest menu path that prefixes the current URL is the selected entry.
-  const selected =
-    [...adminMenuItems]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((item) => location.pathname.startsWith(item.path))?.key ?? 'dashboard'
+  // The entry whose page (or one of its sub-pages) is open; none on pages outside the menu
+  // (notifications, unknown links). "Tổng quan" is /admin itself only, not every /admin/... URL.
+  const pathname = location.pathname.replace(/\/+$/, '') || '/'
+  const isOpen = (path: string) =>
+    pathname === path || (path !== ADMIN_ROOT && pathname.startsWith(`${path}/`))
+  const selectedKeys = adminMenuItems.filter((item) => isOpen(item.path)).map((item) => item.key)
 
   return (
     // The admin area keeps its own light antd theme (palette.ts) inside the app-wide
@@ -54,7 +55,7 @@ export function AdminLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[selected]}
+          selectedKeys={selectedKeys}
           // On a phone the open menu covers the page: close it once an entry is picked.
           onClick={() => {
             if (narrow) setCollapsed(true)
