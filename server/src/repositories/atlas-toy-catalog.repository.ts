@@ -10,6 +10,7 @@ import {
 } from '../models/rental-order.model.js';
 import { Toy, type IToy } from '../models/toy.model.js';
 import { User, type IUser } from '../models/user.model.js';
+import { toRatingSummary } from '../services/review.mapper.js';
 import { AppError } from '../utils/app-error.js';
 import type {
   OccupiedRentalPeriod,
@@ -51,6 +52,7 @@ interface AggregationToyDoc {
     type?: string;
     coordinates?: [number, number];
   };
+  rating?: { sum: number; count: number };
   createdAt: Date | string;
 }
 
@@ -283,6 +285,7 @@ export class AtlasToyCatalogRepository implements ToyCatalogReadPort {
             maxAge: doc.ageRange?.maxAge ?? 0,
           },
           condition: doc.condition,
+          rating: toRatingSummary(doc.rating),
           location: doc.location?.coordinates
             ? {
                 type: doc.location.type || 'Point',
@@ -347,6 +350,7 @@ export class AtlasToyCatalogRepository implements ToyCatalogReadPort {
         maxAge: toy.ageRange?.maxAge ?? 0,
       },
       condition: toy.condition,
+      rating: toRatingSummary(toy.rating),
       location: toy.location?.coordinates
         ? {
             type: toy.location.type || 'Point',

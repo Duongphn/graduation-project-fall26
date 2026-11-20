@@ -2,6 +2,7 @@ import mongoose, { type FilterQuery, type Model } from 'mongoose';
 import PurchaseOrder from '../models/purchase-order.model.js';
 import RentalOrder from '../models/rental-order.model.js';
 import { Toy, type IToy } from '../models/toy.model.js';
+import { toRatingSummary } from '../services/review.mapper.js';
 import type {
   CatalogToyRecord,
   ToyCatalogFilter,
@@ -19,12 +20,13 @@ const CATALOG_PROJECTION = {
   depositPrice: 1,
   ageRange: 1,
   'images.url': 1,
+  rating: 1,
   createdAt: 1,
 } as const;
 
 type CatalogLeanToy = Pick<
   IToy,
-  'categoryId' | 'title' | 'condition' | 'listingType' | 'priceOrRate' | 'depositPrice' | 'ageRange' | 'createdAt'
+  'categoryId' | 'title' | 'condition' | 'listingType' | 'priceOrRate' | 'depositPrice' | 'ageRange' | 'createdAt' | 'rating'
 > & { _id: mongoose.Types.ObjectId; images?: { url: string }[] };
 
 const toObjectIds = (ids: string[]) =>
@@ -64,6 +66,7 @@ function toRecord(doc: CatalogLeanToy): CatalogToyRecord {
     depositPrice: doc.depositPrice,
     ageRange: { minAge: doc.ageRange.minAge, maxAge: doc.ageRange.maxAge },
     images: (doc.images ?? []).map((image) => ({ url: image.url })),
+    rating: toRatingSummary(doc.rating),
     createdAt: doc.createdAt,
   };
 }

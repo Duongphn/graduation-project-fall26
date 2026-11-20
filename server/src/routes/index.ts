@@ -11,6 +11,8 @@ import {
   donorProfileRouter,
 } from './donation-request.routes.js';
 import './dispute.openapi.js';
+import './review.openapi.js';
+import './trust-review.openapi.js';
 import './health.openapi.js';
 import { adminIdentityReviewRouter } from './identity-review.routes.js';
 import { notificationsRouter } from './notification.routes.js';
@@ -23,6 +25,8 @@ import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
 import { createAdminDisputeRouter } from './dispute-admin.routes.js';
 import { createDisputeRouter } from './dispute.routes.js';
+import { createAdminTrustReviewRouter } from './trust-review-admin.routes.js';
+import { createToyReviewsRouter, createUserReviewsRouter } from './review.routes.js';
 import { createRentalOrderRouter } from './rental-order.routes.js';
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
@@ -39,9 +43,11 @@ export function createApiRouter(container: Container): Router {
   // Thứ tự quan trọng: router đăng tin đứng trước router công khai để /toys/mine không bị
   // hiểu là GET /toys/:toyId. Router đăng tin chỉ gắn requireActor trên từng route,
   // nên khách vẫn đi tiếp tới GET /toys, /toys/showcase, /toys/:toyId… mà không cần đăng nhập.
+  router.use('/toys', createToyReviewsRouter(container.reviewService));
   router.use('/toys', createToyListingRouter(container.toyListingService));
   router.use('/toys', createToyCatalogRouter(container.toyCatalogService));
 
+  router.use('/users', createUserReviewsRouter(container.reviewService));
   router.use('/users', authenticate, createUsersRouter(container.usersService));
   router.use(
     '/identity-verifications',
@@ -52,7 +58,11 @@ export function createApiRouter(container: Container): Router {
   router.use(createWalletRouter(container.walletService));
   router.use(
     '/rentals',
-    createRentalOrderRouter(container.rentalOrderService, container.disputeService),
+    createRentalOrderRouter(
+      container.rentalOrderService,
+      container.disputeService,
+      container.reviewService,
+    ),
   );
 
   router.use('/disputes', createDisputeRouter(container.disputeService));
@@ -64,6 +74,11 @@ export function createApiRouter(container: Container): Router {
   router.use('/admin/identity-verifications', authenticate, adminIdentityReviewRouter);
   router.use('/admin/donation-requests', authenticate, adminDonationRequestsRouter);
   router.use('/admin/disputes', authenticate, createAdminDisputeRouter(container.disputeService));
+  router.use(
+    '/admin/trust-reviews',
+    authenticate,
+    createAdminTrustReviewRouter(container.trustReviewService),
+  );
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);
