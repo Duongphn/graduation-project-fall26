@@ -315,4 +315,30 @@ describe('NewDonationPage', () => {
     expect(await screen.findByText('Hiện chưa có tổ chức nào phù hợp với lựa chọn của bạn.')).toBeInTheDocument()
     expect(chosen(screen.getByRole('radio', { name: /Để ToyFlow ghép/ }))).toBe(true)
   }, 30_000)
+
+  // GB-06: R03 chặn ngay khi mở Donation Request Form với người chưa xác minh (như form đăng tin)
+  it('blocks the form on open for an unverified user (MSG17) and links to identity verification', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/categories') return { data: [WOOD] }
+      if (url === '/users/profile') return { data: { success: true, data: { id: 'u1', verificationStatus: 'unverified' } } }
+      throw httpError(404, 'NOT_FOUND', 'Not found')
+    })
+    renderPage()
+
+    expect(await screen.findByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Xác minh danh tính' })).toHaveAttribute('href', PATHS.identityVerification)
+    expect(screen.queryByRole('button', { name: 'Xác nhận & tạo phiếu quyên góp' })).toBeNull()
+  })
+
+  it('shows the form to a verified user', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/categories') return { data: [WOOD] }
+      if (url === '/users/profile') return { data: { success: true, data: { id: 'u1', verificationStatus: 'verified' } } }
+      throw httpError(404, 'NOT_FOUND', 'Not found')
+    })
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Xác nhận & tạo phiếu quyên góp' })).toBeInTheDocument()
+    expect(screen.queryByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeNull()
+  })
 })

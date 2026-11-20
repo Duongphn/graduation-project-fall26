@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Form } from 'antd'
-import { ChevronRight, CircleCheck, Home } from 'lucide-react'
+import { ChevronRight, CircleCheck, Home, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -25,6 +25,7 @@ import {
 import { handoverMethodValues } from '../features/donations/schemas'
 import { useCategoryNames } from '../features/organizations/hooks'
 import { organizationDetailQuery, organizationSuggestionsQuery } from '../features/organizations/public-queries'
+import { profileQuery } from '../features/profile/profile-queries'
 import { ListingPhotoUploader } from '../features/toy-listings/components/listing-photo-uploader'
 import { useListingPhotos } from '../features/toy-listings/hooks/use-listing-photos'
 import { CONTACT_DETAILS_MESSAGES } from '../features/toy-listings/contact-details'
@@ -60,6 +61,10 @@ export function NewDonationPage() {
   })
 
   const categories = useQuery(categoriesQuery)
+  // GB-06 / MSG17: chỉ người đã xác minh danh tính mới quyên góp; chặn ngay khi mở form như form đăng tin.
+  // Không tải được hồ sơ thì vẫn hiện form: backend vẫn chặn bằng USER_NOT_VERIFIED.
+  const profileResult = useQuery(profileQuery)
+  const mustVerify = profileResult.data !== undefined && profileResult.data.verificationStatus !== 'verified'
   const categoryNames = useCategoryNames()
   // GB-54: tổ chức gợi ý theo danh mục và độ tuổi của đồ chơi, tỉnh của địa chỉ mặc định đứng đầu
   const addresses = useQuery({ ...addressesQuery, retry: false })
@@ -208,6 +213,29 @@ export function NewDonationPage() {
                 Xem trong Tin đăng của tôi
               </Link>
             </div>
+          </section>
+        </div>
+      </SiteLayout>
+    )
+  }
+
+  if (mustVerify) {
+    return (
+      <SiteLayout>
+        <div className="home-container py-10">
+          <section
+            role="alert"
+            className="mx-auto flex max-w-xl flex-col items-center gap-3 rounded-xl border border-tf-surface bg-white p-8 text-center dark:border-night-700 dark:bg-night-900"
+          >
+            <ShieldAlert className="size-12 text-tf-tertiary" aria-hidden />
+            <h1 className="text-2xl font-bold text-tf-ink dark:text-slate-100">Tạo phiếu quyên góp</h1>
+            <p className="text-sm leading-6 text-tf-ink-muted dark:text-slate-300">Vui lòng xác minh danh tính trước khi tiếp tục.</p>
+            <Link
+              to={PATHS.identityVerification}
+              className="mt-2 inline-flex h-10 items-center rounded-full bg-tf-primary px-5 text-sm font-bold text-white"
+            >
+              Xác minh danh tính
+            </Link>
           </section>
         </div>
       </SiteLayout>

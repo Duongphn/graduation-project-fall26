@@ -168,6 +168,7 @@ async function newDonationLoader({ request }: LoaderFunctionArgs) {
   const organizationId = new URL(request.url).searchParams.get('organizationId')
   await Promise.all([
     queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (đã xác minh danh tính chưa)
     queryClient.query(organizationListQuery({ page: 1 })).catch(ignoreError), // GET /organizations
     organizationId && queryClient.query(organizationDetailQuery(organizationId)).catch(ignoreError),
   ])
