@@ -424,6 +424,29 @@ describe('handover, receipt and cancel', () => {
     expect(done.body.data.donor.phone).toMatch(/\*/);
     const stored = await DonationRequest.findById(id).lean();
     expect(stored).toMatchObject({ confirmedBy: 'Chị Lan', channel: 'phone' });
+    // MSG55 carries the received date the Admin entered.
+    expect(events.find((event) => event.to === 'completed')?.receivedAt).toBe(
+      new Date(`${today}T00:00:00+07:00`).toISOString(),
+    );
+  });
+
+  // MSG54: the accepted notice names the handover deadline.
+  it('puts the handover deadline on the accepted event', async () => {
+    const sent = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId, handoverMethod: 'carrier' });
+    expect(sent.status).toBe(201);
+    const id = sent.body.data.id as string;
+    const accepted = await request(app)
+      .post(`/admin/donation-requests/${id}/accept`)
+      .set(as(admin, 'ADMIN'));
+    expect(accepted.status).toBe(200);
+    const stored = await DonationRequest.findById(id).lean();
+    expect(stored?.timer?.dueAt).toBeInstanceOf(Date);
+    expect(events.find((event) => event.to === 'accepted')?.handoverDueAt).toBe(
+      stored?.timer?.dueAt?.toISOString(),
+    );
   });
 
   it('cancel after accept returns the toy to ACTIVE', async () => {

@@ -96,6 +96,14 @@ export const buildEvent = (
   to,
   ...(reason ? { reason } : {}),
   ...(changedBy ? { changedBy } : {}),
+  // MSG54 names the handover deadline, MSG55 the received date (the Admin's date for an
+  // organization, else the confirmation time).
+  ...(to === 'accepted' && record.timer?.dueAt
+    ? { handoverDueAt: record.timer.dueAt.toISOString() }
+    : {}),
+  ...(to === 'completed' && (record.receivedAt ?? record.completedAt)
+    ? { receivedAt: (record.receivedAt ?? record.completedAt)!.toISOString() }
+    : {}),
 });
 
 export const transition = async (command: TransitionCommand): Promise<DonationRecord> => {
