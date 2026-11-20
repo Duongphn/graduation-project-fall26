@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Drawer } from 'antd'
 import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { SITE_NAV } from '../../features/home/home-content'
 import { homeCategoriesQuery, selectRootCategories } from '../../features/home/home-queries'
-import { browseToysPath } from '../../routes/paths'
+import { browseToysPath, PATHS } from '../../routes/paths'
 import { SiteBrand } from './site-brand'
 
 interface SiteMenuDrawerProps {
@@ -13,12 +14,31 @@ interface SiteMenuDrawerProps {
 
 const SKELETON_COUNT = 6
 
-/** Menu trượt từ trái (nút 3 gạch): danh mục đồ chơi lấy từ API */
+/** Màn hẹp không có menu chính ở header: đưa các mục chính và trang tổ chức từ thiện vào đây */
+const MAIN_LINKS = [...SITE_NAV, { label: 'Tổ chức từ thiện', to: PATHS.charityOrganizations }]
+
+/** Menu trượt từ trái (nút 3 gạch): mục chính (thuê, mua lại, quyên góp, tổ chức) và danh mục đồ chơi lấy từ API */
 export function SiteMenuDrawer({ open, onClose }: SiteMenuDrawerProps) {
   const categories = useQuery({ ...homeCategoriesQuery, select: selectRootCategories })
 
   return (
     <Drawer open={open} onClose={onClose} placement="left" title={<SiteBrand />} className="site-menu">
+      <nav aria-labelledby="site-menu-main" className="site-menu__section">
+        <h2 id="site-menu-main" className="site-menu__heading">
+          Khám phá
+        </h2>
+        <ul className="site-menu__list">
+          {MAIN_LINKS.map((item) => (
+            <li key={item.label}>
+              <Link to={item.to} className="site-menu__category" onClick={onClose}>
+                <span className="site-menu__category-name">{item.label}</span>
+                <ChevronRight className="site-menu__chevron" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
       <nav aria-labelledby="site-menu-categories" className="site-menu__section">
         <h2 id="site-menu-categories" className="site-menu__heading">
           Danh mục đồ chơi

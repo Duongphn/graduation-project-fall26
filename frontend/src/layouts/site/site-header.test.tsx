@@ -1,8 +1,10 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeProvider } from '../../contexts/theme-provider'
+import { PATHS } from '../../routes/paths'
 import { httpClient } from '../../services/http-client'
 import { renderWithProviders } from '../../test/render'
 import { SiteHeader } from './site-header'
@@ -48,5 +50,19 @@ describe('Mục đang chọn ở menu header', () => {
     const nav = renderHeaderAt('/toys?type=sell&page=2')
     expect(isCurrent(nav, 'Mua lại')).toBe(true)
     expect(isCurrent(nav, 'Thuê đồ chơi')).toBe(false)
+  })
+})
+
+describe('Menu ☰ (màn hẹp không có menu chính ở header)', () => {
+  it('có Quyên góp và Tổ chức từ thiện cùng các mục chính, ngoài danh mục đồ chơi', async () => {
+    renderHeaderAt('/')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Mở menu danh mục' }))
+
+    const menu = within(await screen.findByRole('navigation', { name: 'Khám phá' }))
+    expect(menu.getByRole('link', { name: 'Quyên góp' })).toHaveAttribute('href', PATHS.donations)
+    expect(menu.getByRole('link', { name: 'Tổ chức từ thiện' })).toHaveAttribute('href', PATHS.charityOrganizations)
+    expect(menu.getByRole('link', { name: 'Thuê đồ chơi' })).toHaveAttribute('href', '/toys?type=rent')
+    expect(menu.getByRole('link', { name: 'Mua lại' })).toHaveAttribute('href', '/toys?type=sell')
+    expect(screen.getByRole('navigation', { name: 'Danh mục đồ chơi' })).toBeInTheDocument()
   })
 })
