@@ -1,17 +1,36 @@
 {
   "name": "toys_search",
-  "searchAnalyzer": "lucene.standard",
-  "analyzer": "lucene.standard",
+  "analyzer": "vi_folding",
+  "searchAnalyzer": "vi_folding",
+  "analyzers": [
+    {
+      "name": "vi_folding",
+      "charFilters": [],
+      "tokenizer": {
+        "type": "standard"
+      },
+      "tokenFilters": [
+        {
+          "type": "lowercase"
+        },
+        {
+          "type": "icuFolding"
+        }
+      ]
+    }
+  ],
   "mappings": {
     "dynamic": false,
     "fields": {
       "title": {
         "type": "string",
-        "analyzer": "lucene.standard"
+        "analyzer": "vi_folding",
+        "searchAnalyzer": "vi_folding"
       },
       "description": {
         "type": "string",
-        "analyzer": "lucene.standard"
+        "analyzer": "vi_folding",
+        "searchAnalyzer": "vi_folding"
       },
       "status": {
         "type": "token"

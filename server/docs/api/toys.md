@@ -13,7 +13,7 @@ These endpoints do not require authentication (`request.auth`).
 #### 1. Search Toy Listings
 - **Method / Path**: `GET /api/v1/toys`
 - **Query Parameters**:
-  - `q` (string, optional): Full-text search keyword over title and description.
+  - `q` (string, optional): Full-text search keyword over title and description. Vietnamese accents are ignored (`nguoi nhen` finds "Người Nhện", `dua` finds "Đua"); see the `vi_folding` analyzer in `infra/atlas-search`.
   - `type` (`'rent' | 'sell'`, optional): Filter by listing type.
   - `categoryId` (ObjectId string, optional): Filter by category.
   - `ageMin` (integer >= 0, optional): Minimum age boundary for overlapping age range.
