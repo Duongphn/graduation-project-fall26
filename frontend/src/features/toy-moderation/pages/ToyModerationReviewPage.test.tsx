@@ -96,6 +96,19 @@ describe('ToyModerationReviewPage safety checklist (GB-48)', () => {
     })
   }, 15_000)
 
+  // Admin review 20/11 #6: a disabled button gets no mouse events, so its tooltip never showed.
+  it('explains the disabled Approve button on hover', async () => {
+    detail.mockResolvedValue(pendingToy)
+    const user = renderPage()
+
+    await screen.findByText('Kiểm tra an toàn')
+    expect(approveButton()).toBeDisabled()
+    await user.hover(approveButton())
+    expect(
+      await screen.findByText('Đánh dấu đủ các mục kiểm tra an toàn trước khi duyệt.'),
+    ).toBeInTheDocument()
+  })
+
   it('shows the stored checklist read-only on an approved post', async () => {
     const ticked = Object.fromEntries(safetyChecklistItems.map((item) => [item.key, true]))
     detail.mockResolvedValue({
