@@ -9,6 +9,8 @@ const isEmail = (value: string) => z.email().safeParse(value).success
 
 export const PASSWORD_MIN_LENGTH = 8
 export const OTP_LENGTH = 6
+/** GB-02: mã OTP có hiệu lực 5 phút */
+export const OTP_TTL_SECONDS = 5 * 60
 
 const emailField = z.string().trim().min(1, 'Vui lòng nhập email').refine(isEmail, 'Email không hợp lệ')
 

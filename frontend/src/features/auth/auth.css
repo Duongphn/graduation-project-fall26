@@ -220,7 +220,7 @@
   }
 
   .otp-resend {
-    @apply -mt-2 mb-5 flex min-h-6 items-center justify-between text-xs;
+    @apply -mt-2 mb-5 flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs;
   }
 
   /* Bỏ padding mặc định để nút link thẳng hàng với mép form */
