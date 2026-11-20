@@ -161,7 +161,7 @@ export function ToyListingForm({
     </>
   ) : undefined
   const typeLocked = listing ? isListingTypeLocked(listing) : false
-  // GB-10: tin thuê và tin bán đều cần ít nhất 3 ảnh
+  // GB-10: tin thuê cần ít nhất 3 ảnh, tin bán ít nhất 4 ảnh
   const minPhotos = LISTING_PHOTO_LIMITS[listingType ?? 'rent'].min
   const photoRequiredError =
     submitAttempted && photos.photos.length < minPhotos ? tooFewPhotosMessage(minPhotos) : undefined

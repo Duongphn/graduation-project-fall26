@@ -255,8 +255,8 @@ const DEFAULT_IMAGE: ImageInput = {
 const images = (count: number, image: ImageInput = DEFAULT_IMAGE): ImageInput[] =>
   Array.from({ length: count }, () => image);
 
-// The fewest photos each listing type takes (GB-10): 3 for rent and for sale.
-const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 3 };
+// The fewest photos each listing type takes (GB-10): 3 for rent, 4 for sale.
+const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 4 };
 
 function postListing(
   ctx: Context,
@@ -410,7 +410,7 @@ describe('POST /api/v1/toys', () => {
     });
   });
 
-  it('takes 3 to 8 photos for a rental and for a sale (GB-10)', async () => {
+  it('takes 3 to 8 photos for a rental and 4 to 8 for a sale (GB-10)', async () => {
     ctx.setActor(ctx.actor1);
     const tooFewRent = await postListing(ctx, rentFields(), images(2));
     expect(tooFewRent.status).toBe(400);
@@ -419,9 +419,13 @@ describe('POST /api/v1/toys', () => {
       message: 'Please upload at least 3 photos.',
     });
 
-    const tooFewSale = await postListing(ctx, sellFields(), images(2));
+    const tooFewSale = await postListing(ctx, sellFields(), images(3));
     expect(tooFewSale.status).toBe(400);
-    expect(tooFewSale.body.error.message).toBe('Please upload at least 3 photos.');
+    expect(tooFewSale.body.error).toMatchObject({
+      code: 'TOO_FEW_PHOTOS',
+      message: 'Please upload at least 4 photos.',
+      details: { min: 4, max: 8 },
+    });
 
     const tooManySale = await postListing(ctx, sellFields(), images(9));
     expect(tooManySale.status).toBe(400);
@@ -437,7 +441,8 @@ describe('POST /api/v1/toys', () => {
     expect(ctx.uploads).toHaveLength(0);
 
     expect((await postListing(ctx, rentFields(), images(8))).status).toBe(201);
-    expect((await postListing(ctx, sellFields(), images(3))).status).toBe(201);
+    expect((await postListing(ctx, rentFields(), images(3))).status).toBe(201);
+    expect((await postListing(ctx, sellFields(), images(4))).status).toBe(201);
     expect((await postListing(ctx, sellFields(), images(8))).status).toBe(201);
   });
 
@@ -868,21 +873,21 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
 
     ctx.setActor(ctx.actor1);
+    // The 3 photos of the rental are too few for a sale (GB-10: 4 to 8).
     const tooFew = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ safetyDeclaration: true,
-        listingType: 'sell',
-        priceOrRate: 250000,
-        removeImagePublicIds: JSON.stringify([listing.images[0]?.publicId]),
-      });
+      .send({ safetyDeclaration: true, listingType: 'sell', priceOrRate: 250000 });
     expect(tooFew.status).toBe(400);
-    expect(tooFew.body.error.message).toBe('Please upload at least 3 photos.');
+    expect(tooFew.body.error.message).toBe('Please upload at least 4 photos.');
 
     const enough = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ safetyDeclaration: true, listingType: 'sell', priceOrRate: 250000 });
+      .field('safetyDeclaration', 'true')
+      .field('listingType', 'sell')
+      .field('priceOrRate', '250000')
+      .attach('images', JPEG, { filename: 'fourth.jpg', contentType: 'image/jpeg' });
     expect(enough.status).toBe(200);
-    expect(enough.body.images).toHaveLength(3);
+    expect(enough.body.images).toHaveLength(4);
   });
 
   it('replaces an image and deletes the removed asset', async () => {

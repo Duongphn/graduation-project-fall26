@@ -161,7 +161,7 @@ Contact details (R03 GB-11, MSG22), on create and on the fields an edit sends, f
 
 Photo rules (R03 GB-10, MSG20, MSG21):
 
-- A rental or sale listing has 3 to 8 photos, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.
+- A rental listing has 3 to 8 photos and a sale listing 4 to 8 photos, after an edit too (kept photos plus new ones, counted for the listing type after the edit). Fewer gives `400 TOO_FEW_PHOTOS` "Please upload at least {n} photos."; more gives `400 TOO_MANY_PHOTOS`. Both carry `details: { min, max }`. A donation post edited here keeps the donation limit of 3 to 10.
 - Photos are JPG, PNG or WebP, checked on the file content: any other type, or a file whose content does not match its type, gives `400 INVALID_IMAGE_FORMAT`. A file over 5 MB gives `400 INVALID_IMAGE_UPLOAD` ("Each image must be at most 5 MB."). Nothing is uploaded.
 
 Safety declaration (UC05):
