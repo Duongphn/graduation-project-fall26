@@ -7,7 +7,8 @@ import {
   MAX_IMAGES,
   TITLE_MAX_LENGTH,
 } from '../toy-listings/toy-listing-schema'
-import { handoverMethods } from './constants'
+import type { PublicOrganization } from '../organizations/types'
+import { handoverMethods, type HandoverMethod } from './constants'
 
 // Donor creates a donation post (POST /donation-posts, listingType "donate"): the toy, its photos, a
 // safety check that blocks unsafe toys, the preferred receiver and the handover method.
@@ -75,6 +76,18 @@ export const findBannedTerms = (...texts: string[]): string[] => {
 
 /** Giá trị đặc biệt: để ToyFlow chọn tổ chức phù hợp */
 export const AUTO_MATCH = 'AUTO'
+
+/**
+ * GB-51: cách bàn giao mà điểm nhận của tổ chức chấp nhận (SELF = mang đến, CARRIER = bưu kiện).
+ * Chưa chọn tổ chức (tin để mở) thì cả hai.
+ */
+export const allowedHandoverMethods = (
+  organization: Pick<PublicOrganization, 'receivingPoint'> | undefined,
+): HandoverMethod[] => {
+  const point = organization?.receivingPoint
+  if (!organization || !point) return [...handoverMethods]
+  return handoverMethods.filter((method) => (method === 'SELF' ? point.acceptsDropOff : point.acceptsParcel))
+}
 
 export const donationPostSchema = z
   .object({
