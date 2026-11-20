@@ -33,7 +33,8 @@ export interface ToyCard {
   id: string
   title: string
   primaryImage: ToyImage | null
-  listingType: ListingType
+  /** Tab "Tất cả" và "Đồ chơi cùng danh mục" có cả tin quyên góp ('donate', priceOrRate 0) */
+  listingType: ListingType | 'donate'
   priceOrRate: number
   depositPrice: number | null
   category: CategoryRef
@@ -44,9 +45,8 @@ export interface ToyCard {
   createdAt: string
 }
 
-export interface ToyDetail extends Omit<ToyCard, 'primaryImage' | 'listingType'> {
+export interface ToyDetail extends Omit<ToyCard, 'primaryImage'> {
   /** 'donate': tin quyên góp (priceOrRate 0), người khác gửi yêu cầu nhận đồ */
-  listingType: ListingType | 'donate'
   description: string
   images: ToyImage[]
   owner: { id: string; displayName: string }
