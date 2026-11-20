@@ -109,8 +109,13 @@ function NotificationSettings() {
   )
 }
 
+interface NotificationsPanelProps {
+  /** Cài đặt tắt theo loại (tin nhắn, mã giảm giá…) chỉ dành cho người dùng; trang Admin tắt đi */
+  showSettings?: boolean
+}
+
 /** Danh sách thông báo đầy đủ (người dùng và Admin): lọc chưa đọc, phân trang, đọc tất cả, cài đặt */
-export function NotificationsPanel() {
+export function NotificationsPanel({ showSettings = true }: NotificationsPanelProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [page, setPage] = useState(1)
   const unread = useUnreadCount()
@@ -122,7 +127,9 @@ export function NotificationsPanel() {
   return (
     // minmax(0, 1fr) and a wrapping card header: on a phone the filter and "mark all read" go on
     // two lines instead of widening the page.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    <div
+      className={`grid grid-cols-[minmax(0,1fr)] gap-6 ${showSettings ? 'lg:grid-cols-[minmax(0,1fr)_18rem]' : ''}`}
+    >
       <Card
         className="[&_.ant-card-head-title]:flex-[1_0_auto] [&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-2 [&_.ant-card-head-wrapper]:py-2"
         title={
@@ -167,7 +174,7 @@ export function NotificationsPanel() {
           />
         )}
       </Card>
-      <NotificationSettings />
+      {showSettings && <NotificationSettings />}
     </div>
   )
 }

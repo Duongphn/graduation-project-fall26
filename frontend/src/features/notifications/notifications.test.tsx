@@ -7,6 +7,7 @@ import { AdminLayout } from '../../components/layout/AdminLayout'
 import { NotificationMenu } from '../../layouts/site/notification-menu'
 import { renderWithProviders } from '../../test/render'
 import { NotificationsPanel } from './components/NotificationsPanel'
+import { AdminNotificationsPage } from './pages/AdminNotificationsPage'
 import { notificationsApi, type AppNotification, type NotificationPreferences } from './notifications-api'
 
 // A fake Socket.IO client: the test plays the server's events.
@@ -208,6 +209,23 @@ describe('NotificationsPanel (the full list)', () => {
     await user.click(chat)
     expect(api.savePreferences).toHaveBeenCalledWith(['VOUCHER', 'CHAT_MESSAGE'])
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Tin nhắn' })).not.toBeChecked())
+  })
+})
+
+// Admin review 20/11 #7: the Admin page showed the user settings (Tin nhắn, Mã giảm giá…).
+describe('AdminNotificationsPage', () => {
+  it('lists the notifications without the user notification settings', async () => {
+    renderAt(<AdminNotificationsPage />)
+
+    expect(await screen.findByText('Yêu cầu thuê mới')).toBeInTheDocument()
+    expect(screen.queryByText('Cài đặt thông báo')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(api.preferences).not.toHaveBeenCalled()
+  })
+
+  it('keeps the settings on the user page', async () => {
+    renderAt(<NotificationsPanel />)
+    expect(await screen.findByText('Cài đặt thông báo')).toBeInTheDocument()
   })
 })
 
