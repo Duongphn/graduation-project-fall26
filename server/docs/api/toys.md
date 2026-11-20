@@ -18,6 +18,7 @@ These endpoints do not require authentication (`request.auth`).
   - `categoryId` (ObjectId string, optional): Filter by category.
   - `ageMin` (integer >= 0, optional): Minimum age boundary for overlapping age range.
   - `ageMax` (integer >= 0, optional): Maximum age boundary for overlapping age range.
+  - Age ranges are half-open `[minAge, maxAge)` like the R03 age groups (0–1, 1–3, 3–6, 6–12, 12+): `ageMin=6&ageMax=12` returns no 3–6 toy. A toy or a query for one age (`minAge === maxAge`) counts as `[age, age + 1)`. The showcase (4.) uses the same rule.
   - `minPrice` (number >= 0, optional): Lower bound on `priceOrRate`.
   - `maxPrice` (number >= 0, optional): Upper bound on `priceOrRate`.
   - `lat` (number -90..90, optional): Search origin latitude (required together with `lng` and `radiusKm`).

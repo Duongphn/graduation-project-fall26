@@ -25,7 +25,7 @@ export type ToyCatalogSort = 'newest' | 'popular';
 export interface ToyCatalogQuery {
   listingType?: CatalogListingType;
   categoryId?: string;
-  /** Lọc theo độ tuổi: lấy đồ chơi có khoảng tuổi giao với [minAge, maxAge] */
+  /** Lọc theo độ tuổi: lấy đồ chơi có khoảng tuổi giao với [minAge, maxAge) (nhóm tuổi S3) */
   minAge?: number;
   maxAge?: number;
   sort: ToyCatalogSort;
