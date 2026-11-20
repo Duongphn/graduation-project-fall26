@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { QueryErrorAlert, RelativeTime } from '../../../components/common'
+import { useIsSignedIn } from '../../../hooks/use-is-signed-in'
 import { notificationTargetPath, notificationTypeLabels } from '../notification-target'
 import type { AppNotification, NotificationType } from '../notifications-api'
 import {
@@ -67,7 +68,8 @@ function NotificationRow({ notification }: { notification: AppNotification }) {
 
 /** Tắt theo loại: chỉ các loại không quan trọng; loại quan trọng luôn được gửi */
 function NotificationSettings() {
-  const preferences = useQuery(notificationPreferencesQuery)
+  // Signed out (logout clears the cache while the page is still shown): no request, no 401.
+  const preferences = useQuery({ ...notificationPreferencesQuery, enabled: useIsSignedIn() })
   const save = useSaveNotificationPreferences()
   const types = preferences.data?.types ?? []
   const muted = types.filter((item) => item.muted).map((item) => item.type)
@@ -119,7 +121,12 @@ export function NotificationsPanel({ showSettings = true }: NotificationsPanelPr
   const [filter, setFilter] = useState<Filter>('all')
   const [page, setPage] = useState(1)
   const unread = useUnreadCount()
-  const list = useQuery({ ...notificationsPageQuery(page, filter === 'unread'), placeholderData: keepPreviousData })
+  const list = useQuery({
+    ...notificationsPageQuery(page, filter === 'unread'),
+    placeholderData: keepPreviousData,
+    // Signed out (logout clears the cache while the page is still shown): no request, no 401.
+    enabled: useIsSignedIn(),
+  })
   const markAll = useMarkAllNotificationsRead()
   const items = list.data?.items ?? []
   const total = list.data?.pagination.totalItems ?? 0

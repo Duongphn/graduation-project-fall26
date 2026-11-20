@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminLayout } from '../../components/layout/AdminLayout'
 import { NotificationMenu } from '../../layouts/site/notification-menu'
+import { clearAuthTokens } from '../../services/token-storage'
 import { renderWithProviders } from '../../test/render'
 import { NotificationsPanel } from './components/NotificationsPanel'
 import { AdminNotificationsPage } from './pages/AdminNotificationsPage'
 import { notificationsApi, type AppNotification, type NotificationPreferences } from './notifications-api'
+import { UNREAD_POLL_MS } from './notifications-queries'
 
 // A fake Socket.IO client: the test plays the server's events.
 const fake = vi.hoisted(() => {
@@ -209,6 +211,53 @@ describe('NotificationsPanel (the full list)', () => {
     await user.click(chat)
     expect(api.savePreferences).toHaveBeenCalledWith(['VOUCHER', 'CHAT_MESSAGE'])
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Tin nhắn' })).not.toBeChecked())
+  })
+})
+
+// Admin review 20/11 #8: after signing out the bell still asked for /notifications/unread-count (401).
+describe('sign-out', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('stops asking for the unread count and closes the socket', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { queryClient } = renderAt(<NotificationMenu />)
+    await screen.findByRole('button', { name: 'Thông báo, 3 chưa đọc' })
+
+    // Without the realtime connection the badge is polled every 30 s.
+    act(() => fake.emit('disconnect'))
+    const beforePoll = api.unreadCount.mock.calls.length
+    await act(() => vi.advanceTimersByTimeAsync(UNREAD_POLL_MS + 100))
+    await waitFor(() => expect(api.unreadCount.mock.calls.length).toBeGreaterThan(beforePoll))
+
+    // What logout() does: tokens removed, then the cache cleared.
+    const beforeSignOut = api.unreadCount.mock.calls.length
+    act(() => {
+      clearAuthTokens()
+      queryClient.clear()
+    })
+    await act(() => vi.advanceTimersByTimeAsync(3 * UNREAD_POLL_MS))
+    expect(api.unreadCount).toHaveBeenCalledTimes(beforeSignOut)
+    expect(fake.socket.connected).toBe(false)
+    expect(screen.getByRole('button', { name: 'Thông báo' })).toBeInTheDocument()
+  })
+
+  it('does not reload the notifications page once signed out', async () => {
+    const { queryClient } = renderAt(<NotificationsPanel />)
+    expect(await screen.findByText('Yêu cầu thuê mới')).toBeInTheDocument()
+    await screen.findByText('Cài đặt thông báo')
+    await waitFor(() => expect(api.preferences).toHaveBeenCalled())
+    const lists = api.list.mock.calls.length
+    const preferenceCalls = api.preferences.mock.calls.length
+
+    act(() => {
+      clearAuthTokens()
+      queryClient.clear()
+    })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(api.list).toHaveBeenCalledTimes(lists)
+    expect(api.preferences).toHaveBeenCalledTimes(preferenceCalls)
   })
 })
 
