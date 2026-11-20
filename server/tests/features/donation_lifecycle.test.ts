@@ -128,6 +128,17 @@ beforeEach(async () => {
     address: '1 Street',
     contact_info: '+84901999999',
     support_criteria: 'Children',
+    // GB-51: requests go through the receiving point.
+    receivingPoint: {
+      province: 'Hà Nội',
+      ward: 'Phường Ba Đình',
+      street: '1 Hoàng Hoa Thám',
+      openingHours: '8:00 – 17:00',
+      contactName: 'Nguyễn Văn Nam',
+      contactPhone: '+84987654321',
+      acceptsDropOff: true,
+      acceptsParcel: true,
+    },
   });
   orgId = String(org._id);
 });
@@ -564,12 +575,12 @@ describe('contact sharing (D-03)', () => {
     ]);
   });
 
-  it('organization request: the donor sees the organization contact once accepted', async () => {
+  it('organization request: the donor sees the receiving point contact once accepted (GB-62)', async () => {
     const res = await post('admin', '/admin/donation-requests', { toyId, organizationId: orgId });
     const id = res.body.data.id as string;
     expect(await contactOf('donor', id)).toBeNull();
     expect((await post('donor', `/donation-requests/${id}/accept`)).status).toBe(200);
-    expect(await contactOf('donor', id)).toEqual({ name: 'Org A', phone: '+84901999999' });
+    expect(await contactOf('donor', id)).toEqual({ name: 'Nguyễn Văn Nam', phone: '+84987654321' });
     const admin = await get('admin', `/admin/donation-requests/${id}`);
     expect(admin.body.data.organization.contactInfo).toBe('+84901999999');
   });

@@ -133,7 +133,12 @@ export function NewDonationPage() {
       }
       // MSG51 (UC33 4.1): tổ chức vừa ngừng nhận hoặc bị ẩn: tải lại danh sách để chọn tổ chức khác
       const code = getApiErrorCode(error)
-      if (code === 'ORGANIZATION_NOT_ACCEPTING' || code === 'ORGANIZATION_NOT_AVAILABLE' || code === 'ORGANIZATION_NOT_FOUND') {
+      if (
+        code === 'ORGANIZATION_NOT_ACCEPTING' ||
+        code === 'ORGANIZATION_NOT_AVAILABLE' ||
+        code === 'ORGANIZATION_NOT_FOUND' ||
+        code === 'ORGANIZATION_NO_RECEIVING_POINT'
+      ) {
         void queryClient.invalidateQueries({ queryKey: ['public-organizations'] })
       }
       // GB-11: tên hoặc mô tả có số điện thoại, email hoặc đường link: báo ngay dưới ô đó

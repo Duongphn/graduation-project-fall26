@@ -215,6 +215,12 @@ describe('UC33: a new donation post sent to an organization', () => {
     const missing = await sendPost({ organizationId: String(newId()), handoverMethod: 'carrier' });
     expect(missing.status).toBe(404);
 
+    // GB-51: an organization without a receiving point takes no toy.
+    const noPoint = await createOrganization({ receivingPoint: undefined });
+    const pointless = await sendPost({ organizationId: noPoint, handoverMethod: 'carrier' });
+    expect(pointless.status).toBe(409);
+    expect(pointless.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+
     expect(await Toy.countDocuments({})).toBe(0);
   });
 

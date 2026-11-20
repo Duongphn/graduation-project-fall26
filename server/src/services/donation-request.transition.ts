@@ -40,6 +40,16 @@ export const organizationNotAccepting = () =>
     'Tổ chức này hiện không nhận đồ chơi. Vui lòng chọn tổ chức khác.',
   );
 
+/**
+ * GB-51: an organization receives toys through its receiving point. One saved before receiving
+ * points existed has none until the Admin enters it, so it takes no new request.
+ */
+export const organizationWithoutPoint = () =>
+  conflict(
+    'ORGANIZATION_NO_RECEIVING_POINT',
+    'Tổ chức chưa có điểm nhận đồ chơi nên chưa nhận quyên góp. Vui lòng chọn tổ chức khác.',
+  );
+
 /** The audit context of an Admin actor (DonationActor carries the same facts). */
 export const adminContextOf = (actor: DonationActor) => ({
   actor: { actorType: 'ADMIN' as const, actorId: actor.userId },

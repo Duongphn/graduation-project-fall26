@@ -43,6 +43,7 @@ import {
   adminContextOf,
   organizationNotAccepting,
   organizationNotAvailable,
+  organizationWithoutPoint,
   requestNotFound,
   toyNotAvailable,
   buildEvent,
@@ -157,6 +158,8 @@ const insertPendingRequest = async (
           if (/^active$/i.test(found.status)) throw organizationNotAccepting();
           throw organizationNotAvailable();
         }
+        // GB-51: no receiving point, no new request.
+        if (!organization.receivingPoint) throw organizationWithoutPoint();
         if (input.handoverMethod) {
           assertMethodAllowed(input.handoverMethod, organization.receivingPoint);
         }
@@ -233,6 +236,7 @@ export const assertOrganizationTakesToys = async (
   if (!organization) throw organizationNotFound();
   if (!/^active$/i.test(organization.status)) throw organizationNotAvailable();
   if (organization.isAccepting === false) throw organizationNotAccepting();
+  if (!organization.receivingPoint) throw organizationWithoutPoint();
   assertMethodAllowed(handoverMethod, organization.receivingPoint);
 };
 

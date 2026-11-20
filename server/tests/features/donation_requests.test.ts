@@ -59,6 +59,18 @@ const startRequest = <T>(test: PromiseLike<T>): Promise<T> =>
 
 useTestDatabase();
 
+// GB-51: an organization takes requests through its receiving point (both methods here).
+const RECEIVING_POINT = {
+  province: 'Hà Nội',
+  ward: 'Phường Ba Đình',
+  street: '1 Hoàng Hoa Thám',
+  openingHours: '8:00 – 17:00',
+  contactName: 'Nguyễn Văn Nam',
+  contactPhone: '+84987654321',
+  acceptsDropOff: true,
+  acceptsParcel: true,
+};
+
 // Test app: the routers of this feature behind a header-based stand-in for the auth middleware.
 const app = express();
 app.use(express.json());
@@ -123,6 +135,7 @@ beforeEach(async () => {
     address: '1 Street',
     contact_info: 'Ms. Lan',
     support_criteria: 'Children',
+    receivingPoint: RECEIVING_POINT,
   });
   organizationId = String(org._id);
   events = [];
@@ -458,6 +471,27 @@ const shipping = async () => {
   return id;
 };
 
+// GB-51, UC40 2.1: an organization saved before receiving points existed takes no request.
+describe('organization without a receiving point', () => {
+  it('refuses the Admin and the Donor (409 ORGANIZATION_NO_RECEIVING_POINT)', async () => {
+    await Organization.updateOne({ _id: organizationId }, { $unset: { receivingPoint: 1 } });
+    const byAdmin = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(byAdmin.status).toBe(409);
+    expect(byAdmin.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    const byDonor = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId, handoverMethod: 'carrier' });
+    expect(byDonor.status).toBe(409);
+    expect(byDonor.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+    expect(events).toHaveLength(0);
+  });
+});
+
 describe('races on create', () => {
   it('create conflicts with a concurrent accept of the toy (no PENDING left on a RESERVED toy)', async () => {
     // Another request's accept has reserved the toy but not committed yet.
@@ -497,6 +531,7 @@ describe('races on create', () => {
       address: '1 Street',
       contact_info: 'Ms. Lan',
       support_criteria: 'Children',
+      receivingPoint: RECEIVING_POINT,
     });
     const hide = await openTransaction((session) =>
       Organization.updateOne({ _id: org._id, status: 'active' }, { status: 'hidden' }, { session }),
@@ -699,6 +734,7 @@ describe('organization requests', () => {
       address: '2 Street',
       contact_info: 'Mr. Nam',
       support_criteria: 'Children',
+      receivingPoint: RECEIVING_POINT,
     });
     await createOrgRequest(admin, organizationId);
     await createOrgRequest(admin, String(second._id));

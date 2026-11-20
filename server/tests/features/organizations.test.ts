@@ -279,8 +279,9 @@ describe('receiving point and needs profile (GB-51, GB-53)', () => {
       isRemoteArea: false,
       isAccepting: true,
     });
+    // GB-51: Donors do not see an organization without a receiving point.
     const publicList = await request(app).get('/api/v1/organizations');
-    expect(publicList.body.data.map((o: { name: string }) => o.name)).toEqual(['Nhà mở cũ']);
+    expect(publicList.body.data).toEqual([]);
 
     const edited = await adminApi.update(id, {
       receivingPoint: receivingPoint({ province: 'Hà Nội' }),
@@ -293,6 +294,8 @@ describe('receiving point and needs profile (GB-51, GB-53)', () => {
       areaProvince: 'Hà Nội',
       ageGroups: [{ minAge: 0, maxAge: 1 }],
     });
+    const listedNow = await request(app).get('/api/v1/organizations');
+    expect(listedNow.body.data.map((o: { name: string }) => o.name)).toEqual(['Nhà mở cũ']);
   });
 });
 

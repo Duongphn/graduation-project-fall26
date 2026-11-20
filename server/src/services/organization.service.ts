@@ -113,8 +113,16 @@ const assertActiveCategories = async (categoryIds: string[] | undefined) => {
   }
 };
 
-/** GB-51/GB-55: what Donors may see and send requests to. A missing isAccepting = accepting. */
-export const visibleToDonors = { status: 'active', isAccepting: { $ne: false } } as const;
+/**
+ * GB-51/GB-55: what Donors may see and send requests to: active, accepting toys (a missing
+ * isAccepting = accepting) and with a receiving point (an organization saved before receiving
+ * points existed has none until the Admin enters it).
+ */
+export const visibleToDonors = {
+  status: 'active',
+  isAccepting: { $ne: false },
+  receivingPoint: { $type: 'object' },
+} as const;
 
 /**
  * A toy age range [minAge, maxAge) overlaps one of the accepted age groups (GB-54). A one-age
