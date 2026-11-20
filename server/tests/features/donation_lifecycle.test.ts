@@ -108,6 +108,8 @@ beforeAll(async () => {
       passwordHash: 'x',
       fullName: who,
       role,
+      // GB-06: Donors and Receivers are verified Users.
+      verificationStatus: 'verified',
     });
     ids[who] = String(user._id);
   }

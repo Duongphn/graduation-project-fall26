@@ -117,6 +117,11 @@ const insertPendingRequest = async (
   },
   side: CreateSide,
 ) => {
+  // GB-06, MSG17: a Receiver (and a Donor) is a verified User (R03 actors 5–6); same refusal as
+  // the other actions that need a verified identity. An Admin acts for an organization.
+  if (!actor.isAdmin && !(await repository.isVerifiedUser(actor.userId))) {
+    throw new AppError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.');
+  }
   const created = await repository
     .withTransaction(async (session) => {
       // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a

@@ -77,6 +77,8 @@ const createUser = async (role: 'USER' | 'ADMIN' = 'USER') => {
     passwordHash: 'x',
     fullName: `User ${seq}`,
     role,
+    // GB-06: Donors and Receivers are verified Users.
+    verificationStatus: 'verified',
   });
   return String(user._id);
 };
@@ -177,6 +179,24 @@ describe('create', () => {
       .set(as(receiver))
       .send({ toyId: '67098e1b34e12c001a123456' });
     expect(missing.status).toBe(404);
+  });
+
+  // GB-06, R03 actors: a Receiver is a verified User; the same 403 as the other blocked actions.
+  it('refuses a user whose identity is not verified (403 USER_NOT_VERIFIED)', async () => {
+    for (const status of ['unverified', 'pending', 'rejected']) {
+      await User.updateOne({ _id: receiver }, { $set: { verificationStatus: status } });
+      const res = await request(app).post('/donation-requests').set(as(receiver)).send({ toyId });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('USER_NOT_VERIFIED');
+    }
+    await User.updateOne({ _id: donor }, { $set: { verificationStatus: 'unverified' } });
+    const toOrganization = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId });
+    expect(toOrganization.body.error.code).toBe('USER_NOT_VERIFIED');
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+    await User.updateMany({}, { $set: { verificationStatus: 'verified' } });
   });
 
   it('lets an Admin request for an ACTIVE organization only (audited)', async () => {

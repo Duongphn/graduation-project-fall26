@@ -67,6 +67,11 @@ export const findUserStatus = async (userId: string | Types.ObjectId, session?: 
       .lean()
   )?.status;
 
+/** GB-06: the user's identity is verified (the status the identity review keeps on the user). */
+export const isVerifiedUser = async (userId: string): Promise<boolean> =>
+  Types.ObjectId.isValid(userId) &&
+  (await User.exists({ _id: oid(userId), verificationStatus: 'verified' })) !== null;
+
 /** An accepted or shipping request holds the toy (GB-12). */
 export const hasActiveRequestForToy = async (toyId: string): Promise<boolean> =>
   Types.ObjectId.isValid(toyId) &&
