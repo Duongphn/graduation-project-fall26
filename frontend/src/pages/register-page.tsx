@@ -1,4 +1,4 @@
-import { Button, Divider, Steps } from 'antd'
+import { App, Button, Divider, Steps } from 'antd'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
@@ -13,13 +13,15 @@ import { OtpVerificationForm } from '../features/auth/components/otp-verificatio
 import { RegisterForm } from '../features/auth/components/register-form'
 import { AuthLayout } from '../features/auth/components/auth-layout'
 import { PATHS } from '../routes/paths'
+import { queryClient } from '../services/query-client'
+import { saveAuthTokens } from '../services/token-storage'
 import { maskEmail } from '../utils/mask-contact'
-import type { LoginPageState } from './login-page'
 
 const STEPS = [{ title: 'Thông tin tài khoản' }, { title: 'Xác minh OTP' }]
 
 export function RegisterPage() {
   const navigate = useNavigate()
+  const { message } = App.useApp()
   const [challenge, setChallenge] = useState<OtpChallenge | null>(null)
   const [draft, setDraft] = useState<RegisterFormInput>()
 
@@ -58,10 +60,12 @@ export function RegisterPage() {
           resendAfterSeconds={challenge.resendAfterSeconds}
           verify={(otp) => verifyRegistrationOtp({ email: challenge.email, otpCode: otp })}
           resend={() => resendRegistrationOtp(challenge.email)}
-          onVerified={() => {
-            // Không tự đăng nhập: đưa người dùng về trang đăng nhập kèm thông báo thành công
-            const state: LoginPageState = { registeredIdentifier: challenge.email }
-            navigate(PATHS.login, { replace: true, state })
+          onVerified={({ tokens }) => {
+            // R03 UC01 bước 5: tài khoản đã tạo và được đăng nhập luôn → mở trang chủ
+            saveAuthTokens(tokens, true)
+            queryClient.clear()
+            message.success('Đăng ký tài khoản thành công!')
+            navigate(PATHS.home, { replace: true })
           }}
           submitLabel="Xác minh và tạo tài khoản"
           backLabel="Sửa thông tin đăng ký"

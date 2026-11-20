@@ -22,8 +22,6 @@ import { maskEmail } from '../utils/mask-contact'
 /** State các trang khác có thể truyền khi điều hướng tới trang đăng nhập */
 export interface LoginPageState {
   from?: string
-  /** Có giá trị khi vừa đăng ký thành công — dùng để hiện thông báo và điền sẵn email */
-  registeredIdentifier?: string
 }
 
 /** Mã lỗi backend gắn vào `?error=` khi chuyển hướng về sau bước đăng nhập Google */
@@ -48,7 +46,6 @@ export function LoginPage() {
   const safeRedirect = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
   // R03 III.1.2.1 (8): with no page that asked for sign-in, a User lands on the home page
   const redirectTo = state?.from ?? safeRedirect ?? PATHS.home
-  const registeredIdentifier = state?.registeredIdentifier
 
   // Sau khi Google xác thực, backend chuyển về một trong hai dạng:
   // - Gmail đã đăng ký:  /login?googleCode=...                   → đổi mã lấy phiên, vào thẳng
@@ -126,23 +123,13 @@ export function LoginPage() {
         />
       ) : (
         <>
-          {registeredIdentifier && (
-            <Alert
-              type="success"
-              showIcon
-              title="Đăng ký tài khoản thành công!"
-              description="Vui lòng đăng nhập bằng email hoặc số điện thoại và mật khẩu vừa tạo."
-              className="auth-form__alert"
-            />
-          )}
-
           {googleError && <Alert type="error" showIcon title={googleError} className="auth-form__alert" />}
 
           {googleExchange.isError && (
             <Alert type="error" showIcon title={getApiErrorMessage(googleExchange.error)} className="auth-form__alert" />
           )}
 
-          <LoginForm defaultIdentifier={registeredIdentifier} onSuccess={({ tokens }, rememberMe) => completeLogin(tokens, rememberMe)} />
+          <LoginForm onSuccess={({ tokens }, rememberMe) => completeLogin(tokens, rememberMe)} />
         </>
       )}
     </AuthLayout>
