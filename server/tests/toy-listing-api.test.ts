@@ -119,6 +119,8 @@ interface PortState {
   closeDonationFails?: boolean;
   /** Donation posts that were handed over (isDonated). */
   donatedIds: Set<string>;
+  /** Donation posts whose Shipping request the Admin cancelled (hasCancelledShipment, GB-60). */
+  cancelledShipmentIds: Set<string>;
 }
 
 function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state: PortState } {
@@ -129,6 +131,7 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
     soldIds: new Set<string>(options.soldIds ?? []),
     closedDonationRequests: [],
     donatedIds: new Set<string>(),
+    cancelledShipmentIds: new Set<string>(),
   };
 
   const ports: ToyListingPorts = {
@@ -153,6 +156,7 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
       return 1;
     },
     isDonated: async (toyId) => state.donatedIds.has(toyId),
+    hasCancelledShipment: async (toyId) => state.cancelledShipmentIds.has(toyId),
   };
 
   return { ports, state };
@@ -1309,6 +1313,18 @@ describe('POST /api/v1/toys/:toyId/show (GB-08)', () => {
     const shown = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
     expect(shown.status).toBe(200);
     expect(shown.body.status).toBe('active');
+  });
+
+  it('keeps a donation post hidden after the Admin cancelled its Shipping request, until it is edited (GB-60)', async () => {
+    const listing = await hiddenApprovedListing();
+    (storedToy(listing.id) as { listingType: string }).listingType = 'donate';
+    ctx.state.cancelledShipmentIds.add(listing.id);
+
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('LISTING_NEEDS_EDIT');
+    expect(storedToy(listing.id).status).toBe('hidden');
   });
 
   it("returns 403 for another Owner's listing", async () => {

@@ -425,6 +425,14 @@ export class ToyListingService {
       throw uploadError;
     }
 
+    // GB-60: a donation post hidden because the Admin cancelled its Shipping request stays hidden
+    // until the Donor edits (or deletes) it; the edit sends it back to review.
+    const donationBackToReview =
+      isDonationPost(listing) &&
+      listing.status === 'hidden' &&
+      !listing.moderation?.rejectReason &&
+      (await this.ports.hasCancelledShipment?.(toyId, listing.moderation?.reviewedAt)) === true;
+
     const submittedAt = new Date();
     const applyEdit = (toy: HydratedDocument<IToy>): void => {
       if (validatedInput.title !== undefined) toy.title = validatedInput.title;
@@ -450,8 +458,8 @@ export class ToyListingService {
 
       // GB-08: an edited listing waits for the Admin again, also a rejected one sent again
       // (BF-02 1a, BF-03 1a). A listing its Owner hid stays hidden, and donation posts keep the
-      // status the donation flow gave them.
-      if (!isDonationPost(toy) && isBackToReview(toy)) {
+      // status the donation flow gave them, except the GB-60 case above.
+      if (isDonationPost(toy) ? donationBackToReview : isBackToReview(toy)) {
         toy.moderation ??= {};
         if (toy.moderation.rejectReason) {
           // A rejected listing sent again is a new submission: the rejection no longer applies.
@@ -626,6 +634,18 @@ export class ToyListingService {
     }
     if (isDonationPost(listing) && (await this.ports.isDonated?.(toyId))) {
       throw new AppError(409, 'TOY_DONATED', 'A donated toy cannot be shown again.');
+    }
+    // GB-60: after the Admin cancelled its Shipping request, a donation post stays hidden until the
+    // Donor edits it (the edit sends it back to review), so it cannot simply be shown again.
+    if (
+      isDonationPost(listing) &&
+      (await this.ports.hasCancelledShipment?.(toyId, listing.moderation?.reviewedAt)) === true
+    ) {
+      throw new AppError(
+        409,
+        'LISTING_NEEDS_EDIT',
+        'Tin quyên góp này cần được sửa và gửi duyệt lại trước khi hiện lại.',
+      );
     }
 
     if (editedSinceReview(listing)) {

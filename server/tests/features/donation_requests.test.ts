@@ -811,7 +811,7 @@ describe('handover and receipt validation', () => {
 });
 
 describe('stuck SHIPPING: the Admin way out', () => {
-  it('users cannot cancel a SHIPPING request; an Admin can, with a reason (toy back to ACTIVE)', async () => {
+  it('users cannot cancel a SHIPPING request; an Admin can, with a reason (toy stays hidden, GB-60)', async () => {
     const id = await shipping();
     const user = await request(app)
       .post(`/donation-requests/${id}/cancel`)
@@ -836,7 +836,7 @@ describe('stuck SHIPPING: the Admin way out', () => {
       reason: 'CANCELLED_BY_ADMIN',
       note: 'Đồ chơi thất lạc khi gửi',
     });
-    expect(await toyStatus()).toBe('active');
+    expect(await toyStatus()).toBe('hidden');
     const audit = await AuditLog.findOne({ action: 'donation.cancel', target_id: id }).lean();
     expect(String(audit?.actor_id)).toBe(admin);
     expect(audit?.target_type).toBe('DONATION_REQUEST');
