@@ -1,4 +1,5 @@
 import mongoose, { type Model, Schema } from 'mongoose';
+import type { TrustDecision } from './review.model.js';
 
 const addressSchema = new Schema(
   {
@@ -31,8 +32,30 @@ const userSchema = new Schema(
     idCardNumber: { type: String },
     trust: {
       score: { type: Number, min: 0, max: 100 },
+      reviewCount: { type: Number },
+      ratingAverage: { type: Number },
+      cancellations: { type: Number },
+      disputesLost: { type: Number },
+      computedAt: { type: Date },
       review: {
         requestedAt: { type: Date },
+        lastBlocked: {
+          attemptAt: { type: Date },
+          toyId: { type: Schema.Types.ObjectId, ref: 'Toy' },
+          depositAmount: { type: Number },
+        },
+      },
+      override: {
+        allowedUntil: { type: Date },
+        decidedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        decidedAt: { type: Date },
+      },
+      lastDecision: {
+        decision: { type: String, enum: ['ALLOW', 'KEEP_RESTRICTED'] },
+        reason: { type: String },
+        scoreAtDecision: { type: Number },
+        decidedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        decidedAt: { type: Date },
       },
     },
     lock: {
@@ -105,9 +128,27 @@ export interface IUser {
   };
   idCardNumber?: string;
   trust?: {
-    score?: number;
+    score?: number | null;
+    reviewCount?: number;
+    ratingAverage?: number | null;
+    cancellations?: number;
+    disputesLost?: number;
+    computedAt?: Date;
     review?: {
       requestedAt?: Date;
+      lastBlocked?: { attemptAt: Date; toyId: mongoose.Types.ObjectId; depositAmount: number };
+    };
+    override?: {
+      allowedUntil?: Date;
+      decidedBy?: mongoose.Types.ObjectId;
+      decidedAt?: Date;
+    };
+    lastDecision?: {
+      decision: TrustDecision;
+      reason: string;
+      scoreAtDecision: number | null;
+      decidedBy: mongoose.Types.ObjectId;
+      decidedAt: Date;
     };
   };
   lock?: {

@@ -24,6 +24,7 @@ export interface IToy {
   images: ToyImage[];
   quantity: number;
   bookingVersion: number;
+  rating?: { sum: number; count: number };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -93,6 +94,10 @@ export const toySchema = new Schema<IToy>(
     ],
     quantity: { type: Number, required: true, default: 1 },
     bookingVersion: { type: Number, required: true, default: 0 },
+    rating: {
+      sum: { type: Number, default: 0 },
+      count: { type: Number, default: 0 },
+    },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
