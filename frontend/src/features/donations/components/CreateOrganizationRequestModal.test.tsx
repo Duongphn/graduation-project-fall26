@@ -79,4 +79,26 @@ describe('CreateOrganizationRequestModal', () => {
     expect(await optionOf('Nhà mở cũ (chưa có điểm nhận)')).toHaveClass('ant-select-item-option-disabled')
     expect(await optionOf('Mái ấm Hoa Sen')).not.toHaveClass('ant-select-item-option-disabled')
   })
+
+  // UC35 1.1, GB-53: once a toy is chosen, an organization that does not take its category is disabled.
+  it('disables the organizations that do not take the chosen toy category', async () => {
+    vi.mocked(organizationsApi.list).mockResolvedValue(
+      page([organization('Mái ấm Hoa Sen'), organization('Trường Mù Cang Chải', { categoryIds: ['64b000000000000000000009'] })]),
+    )
+    renderWithProviders(
+      <MemoryRouter>
+        <CreateOrganizationRequestModal open onClose={() => undefined} />
+      </MemoryRouter>,
+    )
+    const user = userEvent.setup()
+    const toyField = screen.getByText('Đồ chơi quyên góp đang hiển thị').closest('.ant-form-item') as HTMLElement
+    await user.click(within(toyField).getByRole('combobox'))
+    await user.click(await screen.findByTitle('Bộ xếp hình gỗ — Người Tặng'))
+    await openOrganizationPicker(user)
+
+    expect(await optionOf('Trường Mù Cang Chải (không nhận danh mục này)')).toHaveClass(
+      'ant-select-item-option-disabled',
+    )
+    expect(await optionOf('Mái ấm Hoa Sen')).not.toHaveClass('ant-select-item-option-disabled')
+  })
 })

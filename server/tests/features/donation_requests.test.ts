@@ -21,11 +21,14 @@ import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, pause, useTestDatabase } from '../support/test-database.js';
 
+// The category of the test toys; the test organizations take it (GB-53).
+const TOY_CATEGORY = newId();
+
 /** A toy on develop's schema: a donation post ('donate', free) unless overridden. */
 const createToy = (overrides: Record<string, unknown> = {}) =>
   Toy.create({
     ownerId: newId(),
-    categoryId: newId(),
+    categoryId: TOY_CATEGORY,
     title: 'Wooden train set',
     description: 'Complete set with 20 pieces.',
     condition: 'good',
@@ -136,6 +139,7 @@ beforeEach(async () => {
     contact_info: 'Ms. Lan',
     support_criteria: 'Children',
     receivingPoint: RECEIVING_POINT,
+    categoryIds: [TOY_CATEGORY],
   });
   organizationId = String(org._id);
   events = [];
@@ -492,6 +496,30 @@ describe('organization without a receiving point', () => {
   });
 });
 
+// UC35 1.1, GB-53/GB-54: the Admin asks for a post for an organization that takes its category.
+describe('Admin request for an organization that does not take the category', () => {
+  it('is refused (422 ORGANIZATION_CATEGORY_NOT_ACCEPTED)', async () => {
+    await Organization.updateOne({ _id: organizationId }, { $set: { categoryIds: [newId()] } });
+    const res = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('ORGANIZATION_CATEGORY_NOT_ACCEPTED');
+    expect(res.body.error.details).toEqual([
+      { field: 'organizationId', message: 'Chọn tổ chức nhận danh mục của đồ chơi.' },
+    ]);
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+
+    await Organization.updateOne({ _id: organizationId }, { $unset: { categoryIds: 1 } });
+    const noNeeds = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(noNeeds.body.error.code).toBe('ORGANIZATION_CATEGORY_NOT_ACCEPTED');
+  });
+});
+
 describe('races on create', () => {
   it('create conflicts with a concurrent accept of the toy (no PENDING left on a RESERVED toy)', async () => {
     // Another request's accept has reserved the toy but not committed yet.
@@ -532,6 +560,7 @@ describe('races on create', () => {
       contact_info: 'Ms. Lan',
       support_criteria: 'Children',
       receivingPoint: RECEIVING_POINT,
+      categoryIds: [TOY_CATEGORY],
     });
     const hide = await openTransaction((session) =>
       Organization.updateOne({ _id: org._id, status: 'active' }, { status: 'hidden' }, { session }),
@@ -735,6 +764,7 @@ describe('organization requests', () => {
       contact_info: 'Mr. Nam',
       support_criteria: 'Children',
       receivingPoint: RECEIVING_POINT,
+      categoryIds: [TOY_CATEGORY],
     });
     await createOrgRequest(admin, organizationId);
     await createOrgRequest(admin, String(second._id));

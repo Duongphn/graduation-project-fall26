@@ -21,12 +21,13 @@ export type DonationRecord = IDonationRequest;
 
 const oid = (id: string | Types.ObjectId) => (typeof id === 'string' ? new Types.ObjectId(id) : id);
 
-const toySummaryFields = 'ownerId title images condition ageRange listingType status';
+const toySummaryFields = 'ownerId categoryId title images condition ageRange listingType status';
 
 /** The lean toy fields the donation flow reads. */
 export interface ToySummary {
   _id: Types.ObjectId;
   ownerId: Types.ObjectId;
+  categoryId?: Types.ObjectId;
   title: string;
   images: Array<{ url: string; publicId: string }>;
   condition: string;
@@ -151,7 +152,7 @@ export const touchActiveOrganization = (
       new: true,
       session,
       timestamps: false,
-      projection: 'name status isAccepting receivingPoint',
+      projection: 'name status isAccepting receivingPoint categoryIds',
     },
   ).lean();
 

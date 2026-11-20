@@ -75,12 +75,15 @@ const get = (who: Who, path: string) => request(app).get(`/api/v1${path}`).set(h
 const toyStatus = async () => (await Toy.findById(toyId).lean())?.status;
 const requestDoc = (id: string) => DonationRequest.findById(id).lean();
 
+// The category of the test toy; the test organization takes it (GB-53).
+const TOY_CATEGORY = newId();
+
 const createDonationToy = async () =>
   String(
     (
       await Toy.create({
         ownerId: oid(ids.donor),
-        categoryId: newId(),
+        categoryId: TOY_CATEGORY,
         title: 'Wooden train set',
         description: 'Complete set with 20 pieces.',
         condition: 'good',
@@ -139,6 +142,7 @@ beforeEach(async () => {
       acceptsDropOff: true,
       acceptsParcel: true,
     },
+    categoryIds: [TOY_CATEGORY],
   });
   orgId = String(org._id);
 });
