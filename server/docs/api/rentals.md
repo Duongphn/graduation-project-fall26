@@ -22,6 +22,8 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
 | `POST` | `/:id/receive` | UC09 | Renter | Uploads receipt photos and starts rental period (`IN_USE`) |
 | `POST` | `/:id/return` | UC10 | Renter | Uploads return photos, computes late fee (`RETURNING`), starts 72h settlement timer |
 | `POST` | `/:id/settle` | UC11 | Owner | Settles as `GOOD` (distributes escrow) or `DAMAGED` (opens Dispute, holds escrow) |
+| `POST` | `/:id/reviews` | UC24 | Renter / Owner | Reviews the other party of a `COMPLETED` order; see [reviews.md](./reviews.md) |
+| `GET` | `/:id/reviews` | UC24 | Party | My review, their review, `canReview`, `reviewDeadline` |
 | `POST` | `/:id/disputes` | UC17 | Renter / Owner | Opens the order's dispute (`DISPUTING`), holds escrow; see [disputes.md](./disputes.md) |
 
 ---
@@ -59,9 +61,11 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
   }
   ```
 
+> **Trust Score gate (UC24, behaviour change)**: before, any Renter with a score below 30 was refused whatever the toy. Now `403 RENTER_RESTRICTED` applies only when the score is not `null`, is below 30, the toy's deposit is above 500000 and the Renter has no active override. Quote returns the error without side effects; create also queues the Renter for Admin review (`/admin/trust-reviews`). Details and formula: [reviews.md](./reviews.md).
+
 ### 2. Create Rental Request (UC06)
 - **Method / Path**: `POST /api/v1/rentals`
-- **Auth**: Verified User (trust score >= 30, cannot rent own listing)
+- **Auth**: Verified User (cannot rent own listing; not blocked by the Trust Score, see below)
 - **Request Body**:
   ```json
   {
@@ -226,7 +230,7 @@ All error responses adhere to the standard envelope `{ "success": false, "error"
 | `INVALID_IMAGE_FORMAT` | 400 | Uploaded file signature does not match JPEG, PNG, or WebP |
 | `CANNOT_RENT_OWN_LISTING` | 403 | Owner attempts to rent their own toy listing |
 | `USER_NOT_VERIFIED` | 403 | Renter has not completed identity verification (UC03) |
-| `RENTER_RESTRICTED` | 403 | Renter trust score is below minimum threshold (< 30) |
+| `RENTER_RESTRICTED` | 403 | Trust Score below `rental.minTrustScore` (30) and the toy's deposit above `rental.trustDepositCap` (500000), with no active Admin override. `details`: `{ score, minTrustScore, depositCap, queued }`; `queued` is true (and the message adds "Yêu cầu đã được chuyển cho quản trị viên xem xét.") only when this request put the Renter into the Admin queue. See [reviews.md](./reviews.md) |
 | `FORBIDDEN_RENTAL_ACTION` | 403 | Party invokes an endpoint restricted to the opposite role (e.g. Renter calls `ship` or Owner calls `pay`) |
 | `TOY_NOT_FOUND` | 404 | Toy listing does not exist, is inactive, or listingType is not 'rent' |
 | `RENTAL_NOT_FOUND` | 404 | Rental order ID does not exist or caller is not a party to the order |

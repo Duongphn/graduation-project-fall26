@@ -43,6 +43,7 @@ These endpoints do not require authentication (`request.auth`).
         "ageRange": { "minAge": 8, "maxAge": 14 },
         "condition": "like_new",
         "location": { "type": "Point", "coordinates": [106.66, 10.76] },
+        "rating": { "average": 4.5, "count": 12 },
         "createdAt": "2026-10-14T..."
       }
     ],
@@ -52,6 +53,7 @@ These endpoints do not require authentication (`request.auth`).
     "suggestions": []
   }
   ```
+- `rating` is `{ average: number | null, count: number }`; `average` is `null` when the toy has no rating (see [reviews.md](./reviews.md)).
 - **Empty Result Suggestions**: When `items` is empty, `suggestions` contains actionable relaxation proposals derived from supplied filters (remove keyword, remove category, widen age range, widen price range, or increase radius).
 
 #### 2. Get Public Toy Listing Detail
@@ -74,6 +76,7 @@ These endpoints do not require authentication (`request.auth`).
       "id": "670aa...",
       "displayName": "Nguyen Van A"
     },
+    "rating": { "average": 4.5, "count": 12 },
     "createdAt": "2026-10-14T...",
     "updatedAt": "2026-10-14T..."
   }

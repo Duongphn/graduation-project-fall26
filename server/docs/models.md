@@ -20,10 +20,10 @@ Every MongoDB collection has one Mongoose model in `src/models/<name>.model.ts`,
 | `purchase-order.model.ts` | `PurchaseOrder` | toy catalog, toy listings | Status catalog in `src/constants/resale-order-status.ts`. |
 | `refresh-token.model.ts` | `RefreshToken` | auth | |
 | `rental-order.model.ts` | `RentalOrder` | rental-orders, toy catalog, toy listings | Complete peer-to-peer rental flow (UC06–UC11). API: `docs/api/rentals.md`. |
-| `review.model.ts` | — | — | Empty placeholder; schema not defined yet, not exported from `index.ts`. |
+| `review.model.ts` | `Review` | reviews, trust score | UC24. One review per party per rental order (unique `review_once_per_order`); `direction` `RENTER_TO_OWNER` or `OWNER_TO_RENTER`; `userRating` 1-5, `toyRating` 1-5 (Renter only), `comment` up to 1000 characters. Never edited or deleted. Also exports the `TrustDecision` type. API: `docs/api/reviews.md`. |
 | `system-setting.model.ts` | `SystemSetting` | rental-orders, system-setting, category seed | Configurable business values (`rental.ownerResponseHours`, etc.). Also the internal marker `CATEGORIES_SEEDED` written by the category seed (not a business setting). |
-| `toy.model.ts` | `Toy` | toy catalog, toy listings, rental-orders | `bookingVersion` optimistic lock for concurrent bookings. API: `docs/api/toys.md`. |
-| `user.model.ts` | `User` | auth, users, identity verification, toy catalog, rental-orders | API: `docs/api/users.md`. |
+| `toy.model.ts` | `Toy` | toy catalog, toy listings, rental-orders, reviews | `bookingVersion` optimistic lock for concurrent bookings. `rating: { sum, count }` is updated with `$inc` when a Renter reviews the toy; DTOs expose `rating: { average, count }` (average has 1 decimal, `null` when no rating). API: `docs/api/toys.md`. |
+| `user.model.ts` | `User` | auth, users, identity verification, toy catalog, rental-orders, trust score | API: `docs/api/users.md`. `trust` (UC24): `score` (0-100 or null), `reviewCount`, `ratingAverage`, `cancellations`, `disputesLost`, `computedAt`; `review` (`requestedAt` is set while the user is in the Admin queue, `lastBlocked`); `override` (`allowedUntil`, `decidedBy`, `decidedAt`); `lastDecision`. Partial index `trust_review_queue` on `trust.review.requestedAt`. Formula: `docs/api/reviews.md`. |
 | `violation-report.model.ts` | `ViolationReport` | — | Scaffold. |
 | `voucher.model.ts` | `Voucher` | — | Scaffold. |
 | `wallet.model.ts` | `Wallet` | wallets, rental-orders | Double-entry ledger user and system wallets (`escrow`, `platform`, `external`). API: `docs/api/wallets.md`. |
