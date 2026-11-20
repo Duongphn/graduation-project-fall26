@@ -187,3 +187,24 @@ describe('Phiên đã kết thúc (R03 V.2 MSG58)', () => {
     expect(screen.queryByText('Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.')).toBeNull()
   })
 })
+
+describe('Trang đăng nhập: đổi giao diện không làm hiện lỗi', () => {
+  it('ô đầu tự focus, bấm nút đổi giao diện không báo "Vui lòng nhập…"; bấm Đăng nhập mới kiểm tra', async () => {
+    const user = userEvent.setup()
+    renderAt(<LoginPage />, PATHS.login)
+
+    expect(await screen.findByLabelText('Số điện thoại hoặc email')).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: /Chuyển sang giao diện/ }))
+    // Kiểm tra của react-hook-form chạy bất đồng bộ: chờ một nhịp rồi mới khẳng định không có lỗi
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
+    expect(screen.queryByText('Vui lòng nhập số điện thoại hoặc email')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /Đăng nhập/ }))
+    expect(await screen.findByText('Vui lòng nhập số điện thoại hoặc email')).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+
+    // Sau lần bấm đầu, lỗi cập nhật khi gõ
+    await user.type(screen.getByLabelText('Số điện thoại hoặc email'), 'an@example.com')
+    expect(screen.queryByText('Vui lòng nhập số điện thoại hoặc email')).toBeNull()
+  })
+})
