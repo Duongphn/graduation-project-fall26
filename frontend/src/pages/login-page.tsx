@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Spin } from 'antd'
+import { Alert, App, Spin } from 'antd'
 import { useCallback, useEffect } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -13,7 +13,7 @@ import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { ADMIN_ROOT, PATHS } from '../routes/paths'
-import { getApiErrorMessage } from '../services/http-client'
+import { getApiErrorMessage, SESSION_ENDED_REASON } from '../services/http-client'
 import { queryClient } from '../services/query-client'
 import { getCurrentRole } from '../services/current-role'
 import { saveAuthTokens } from '../services/token-storage'
@@ -38,6 +38,7 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { message } = App.useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as LoginPageState | null
   // Chưa có trang chủ (`/` đang quay về /login) nên mặc định đưa vào trang hồ sơ
@@ -55,6 +56,13 @@ export function LoginPage() {
   const googleEmail = searchParams.get('email') ?? ''
   const googleErrorCode = searchParams.get('error')
   const googleError = googleErrorCode && (GOOGLE_ERROR_MESSAGES[googleErrorCode] ?? GOOGLE_ERROR_MESSAGES.google_auth_failed)
+
+  // R03 V.2 MSG58: bị đưa về đây vì phiên đã kết thúc (refresh token bị thu hồi/hết hạn)
+  const sessionEnded = searchParams.get('reason') === SESSION_ENDED_REASON
+  useEffect(() => {
+    // key cố định: StrictMode chạy effect hai lần vẫn chỉ một thông báo
+    if (sessionEnded) message.warning({ key: 'session-ended', content: 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.' })
+  }, [sessionEnded, message])
 
   // useQuery thay vì gọi trong useEffect: StrictMode mount 2 lần sẽ không gửi trùng (mã chỉ dùng được một lần)
   const googleExchange = useQuery({

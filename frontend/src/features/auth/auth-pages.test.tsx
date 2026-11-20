@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeProvider } from '../../contexts/theme-provider'
 import { OtpVerificationForm } from './components/otp-verification-form'
 import { savePendingRegistration } from './pending-registration'
+import { LoginPage } from '../../pages/login-page'
 import { RegisterPage } from '../../pages/register-page'
 import { PATHS } from '../../routes/paths'
 import { httpClient } from '../../services/http-client'
@@ -30,14 +31,14 @@ const SESSION = {
 }
 
 /** Trang auth trong router nhỏ: `/` là trang chủ giả để biết đã chuyển tới đâu */
-const renderAt = (element: ReactElement, path: string) => {
+const renderAt = (element: ReactElement, path: string, url = path) => {
   const router = createMemoryRouter(
     [
       { path, element },
       { path: PATHS.home, element: <p>Trang chủ</p> },
-      { path: PATHS.login, element: <p>Trang đăng nhập</p> },
+      ...(path === PATHS.login ? [] : [{ path: PATHS.login, element: <p>Trang đăng nhập</p> }]),
     ],
-    { initialEntries: [path] },
+    { initialEntries: [url] },
   )
   renderWithProviders(
     <ThemeProvider>
@@ -171,5 +172,18 @@ describe('Tải lại trang ở bước nhập OTP vẫn ở bước OTP', () =>
     expect(screen.getByLabelText('Email')).toHaveValue(EMAIL)
     expect(screen.getByLabelText('Mật khẩu')).toHaveValue('')
     expect(sessionStorage.getItem('toyflow-pending-registration')).toBeNull()
+  })
+})
+
+describe('Phiên đã kết thúc (R03 V.2 MSG58)', () => {
+  it('bị đưa về /login vì phiên bị thu hồi thì báo "Phiên đăng nhập đã kết thúc"', async () => {
+    renderAt(<LoginPage />, PATHS.login, `${PATHS.login}?redirect=%2Fprofile&reason=session-ended`)
+    expect(await screen.findByText('Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.')).toBeInTheDocument()
+  })
+
+  it('mở /login bình thường thì không báo', async () => {
+    renderAt(<LoginPage />, PATHS.login)
+    expect(await screen.findByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument()
+    expect(screen.queryByText('Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.')).toBeNull()
   })
 })
