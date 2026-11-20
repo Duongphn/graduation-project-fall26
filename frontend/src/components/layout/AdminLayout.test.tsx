@@ -139,3 +139,48 @@ describe('AdminLayout', () => {
     expect(await screen.findByText('Trang tổ chức')).toBeInTheDocument()
   })
 })
+
+// Admin review 20/11 #1: at 390 px the 240 px menu took most of the screen and the page scrolled
+// sideways. Below the md breakpoint the menu is hidden and opens from the top bar.
+describe('AdminLayout on a phone', () => {
+  const originalMatchMedia = window.matchMedia
+  beforeEach(() => {
+    // Every max-width query matches, as on a 390 px screen.
+    window.matchMedia = ((query: string) => ({
+      ...originalMatchMedia(query),
+      matches: query.includes('max-width'),
+    })) as typeof window.matchMedia
+  })
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  const sider = () => document.querySelector('.ant-layout-sider') as HTMLElement
+
+  it('hides the menu and opens it from the menu button, then closes it after a pick', async () => {
+    renderAt(adminPaths.categories)
+    expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+
+    await vi.waitFor(() => expect(sider()).toHaveClass('ant-layout-sider-collapsed'))
+    expect(sider().style.width).toBe('0px')
+
+    const user = userEvent.setup()
+    const toggle = screen.getByRole('button', { name: 'Mở menu quản trị' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(sider()).not.toHaveClass('ant-layout-sider-collapsed')
+    expect(sider().style.width).toBe('240px')
+
+    await user.click(screen.getByRole('link', { name: 'Tổ chức từ thiện' }))
+    expect(await screen.findByText('Trang tổ chức')).toBeInTheDocument()
+    expect(sider()).toHaveClass('ant-layout-sider-collapsed')
+  })
+
+  it('keeps the full menu on a wide screen', async () => {
+    window.matchMedia = originalMatchMedia
+    renderAt(adminPaths.categories)
+    expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+    expect(sider()).not.toHaveClass('ant-layout-sider-collapsed')
+    expect(screen.queryByRole('button', { name: 'Mở menu quản trị' })).not.toBeInTheDocument()
+  })
+})

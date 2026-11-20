@@ -120,8 +120,11 @@ export function NotificationsPanel() {
   const total = list.data?.pagination.totalItems ?? 0
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    // minmax(0, 1fr) and a wrapping card header: on a phone the filter and "mark all read" go on
+    // two lines instead of widening the page.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <Card
+        className="[&_.ant-card-head-title]:flex-[1_0_auto] [&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-2 [&_.ant-card-head-wrapper]:py-2"
         title={
           <Segmented<Filter>
             value={filter}
