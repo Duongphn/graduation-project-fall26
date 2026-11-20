@@ -19,6 +19,7 @@ import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
 import { logout } from "../../features/auth/auth-api";
 import { getAccessToken } from "../../services/token-storage";
+import { ThemeToggle } from "./theme-toggle";
 
 export type SidebarItemKey =
   | "browse"
@@ -164,7 +165,10 @@ export function AppSidebar({ activeKey }: AppSidebarProps) {
           })}
         </nav>
       </div>
-      <SessionButton />
+      <div className="app-sidebar__bottom">
+        <SessionButton />
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }

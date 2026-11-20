@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Category, ToyListing } from '../features/toy-listings/toy-listing-api'
 import { categoriesQuery, listingCountsQuery, myListingsQuery } from '../features/toy-listings/toy-listing-queries'
+import { ThemeProvider } from '../contexts/theme-provider'
 import { PATHS } from '../routes/paths'
 import { httpClient } from '../services/http-client'
 import { createTestQueryClient, renderWithProviders } from '../test/render'
@@ -66,7 +67,13 @@ const renderPage = async () => {
   const router = createMemoryRouter([{ path: PATHS.myListings, element: <MyListingsPage /> }], {
     initialEntries: [PATHS.myListings],
   })
-  renderWithProviders(<RouterProvider router={router} />, queryClient)
+  renderWithProviders(
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>,
+    queryClient,
+  )
   return { user: userEvent.setup() }
 }
 

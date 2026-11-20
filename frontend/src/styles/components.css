@@ -55,6 +55,10 @@
     @apply flex flex-col gap-8;
   }
 
+  .app-sidebar__bottom {
+    @apply flex items-center justify-between gap-2;
+  }
+
   .app-sidebar__nav {
     @apply flex flex-col gap-0.5;
   }
@@ -126,6 +130,6 @@
   }
 
   .app-sidebar-brand__wordmark {
-    @apply h-5 w-auto;
+    @apply h-5 w-auto dark:brightness-[1.6] dark:saturate-[1.1];
   }
 }

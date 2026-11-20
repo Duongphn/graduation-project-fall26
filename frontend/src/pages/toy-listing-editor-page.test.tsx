@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Category, ToyListing } from '../features/toy-listings/toy-listing-api'
 import { profileQuery } from '../features/profile/profile-queries'
 import { categoriesQuery, myListingQuery } from '../features/toy-listings/toy-listing-queries'
+import { ThemeProvider } from '../contexts/theme-provider'
 import { PATHS, toyListingEditPath } from '../routes/paths'
 import { httpClient } from '../services/http-client'
 import { createTestQueryClient, renderWithProviders } from '../test/render'
@@ -69,7 +70,13 @@ const renderEditor = (url: string, listing?: ToyListing) => {
     ],
     { initialEntries: [url] },
   )
-  renderWithProviders(<RouterProvider router={router} />, queryClient)
+  renderWithProviders(
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>,
+    queryClient,
+  )
   return { router, user: userEvent.setup() }
 }
 
@@ -215,7 +222,12 @@ describe('ToyListingEditorPage', () => {
     const router = createMemoryRouter([{ path: PATHS.newListing, element: <ToyListingEditorPage /> }], {
       initialEntries: [PATHS.newListing],
     })
-    renderWithProviders(<RouterProvider router={router} />, queryClient)
+    renderWithProviders(
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>,
+      queryClient,
+    )
 
     expect(await screen.findByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Xác minh danh tính' })).toHaveAttribute('href', PATHS.identityVerification)
