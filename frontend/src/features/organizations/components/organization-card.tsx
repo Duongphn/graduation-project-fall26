@@ -3,17 +3,19 @@ import { Link } from 'react-router-dom'
 import { charityOrganizationPath } from '../../../routes/paths'
 import type { PublicOrganization } from '../types'
 import { OrganizationLogo } from './organization-logo'
+import { OrganizationNeeds, RemoteAreaBadge } from './organization-needs'
 
 interface OrganizationCardProps {
   organization: PublicOrganization
   isSelected: boolean
   /** Link mở hồ sơ ở khung bên phải (màn rộng), vd. "?id=…" giữ nguyên bộ lọc */
   selectHref: string
+  /** Tên danh mục theo id (useCategoryNames) */
+  categoryNames: ReadonlyMap<string, string>
 }
 
-/** Thẻ tổ chức trong danh sách: địa chỉ, nhu cầu */
-export function OrganizationCard({ organization, isSelected, selectHref }: OrganizationCardProps) {
-
+/** Thẻ tổ chức trong danh sách: địa chỉ, nhu cầu (nhóm tuổi, danh mục, tỉnh điểm nhận, vùng khó khăn) */
+export function OrganizationCard({ organization, isSelected, selectHref, categoryNames }: OrganizationCardProps) {
   return (
     <article
       className={`rounded-xl border bg-white p-4 transition-[border-color,box-shadow] duration-200 ease-out-quint sm:p-5 ${
@@ -24,18 +26,24 @@ export function OrganizationCard({ organization, isSelected, selectHref }: Organ
         <OrganizationLogo name={organization.name} />
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <p className="inline-flex items-center gap-1 self-start rounded-md bg-tf-secondary-container px-2 py-0.5 text-[11px] font-semibold text-tf-secondary">
-            <BadgeCheck className="size-3.5" aria-hidden /> Được ToyFlow xác minh
+          <p className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-md bg-tf-secondary-container px-2 py-0.5 text-[11px] font-semibold text-tf-secondary">
+              <BadgeCheck className="size-3.5" aria-hidden /> Được ToyFlow xác minh
+            </span>
+            {organization.isRemoteArea && <RemoteAreaBadge />}
           </p>
           <h3 className="text-base leading-6 font-bold tracking-[-0.01em] text-tf-ink">{organization.name}</h3>
           <p className="flex items-start gap-1.5 text-sm leading-5 text-tf-ink-muted">
             <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span className="min-w-0">{organization.address}</span>
           </p>
-          <p className="line-clamp-2 text-sm leading-6 text-tf-ink">
-            <span className="font-semibold">Nhu cầu: </span>
-            {organization.supportCriteria}
-          </p>
+          <OrganizationNeeds organization={organization} categoryNames={categoryNames} />
+          {organization.supportCriteria && (
+            <p className="line-clamp-2 text-sm leading-6 text-tf-ink">
+              <span className="font-semibold">Nhu cầu: </span>
+              {organization.supportCriteria}
+            </p>
+          )}
         </div>
       </div>
 

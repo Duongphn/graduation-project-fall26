@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
 import type { PublicOrganization, PublicReceivingPoint } from '../types'
 import { OrganizationLogo } from './organization-logo'
+import { OrganizationNeeds, RemoteAreaBadge } from './organization-needs'
 
 function ProfileSection({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
   return (
@@ -25,7 +26,14 @@ const pointMethods = (point: PublicReceivingPoint) =>
 /**
  * Hồ sơ đầy đủ của một tổ chức — dùng ở khung bên phải trang danh sách và ở trang chi tiết.
  */
-export function OrganizationProfile({ organization }: { organization: PublicOrganization }) {
+export function OrganizationProfile({
+  organization,
+  categoryNames = new Map(),
+}: {
+  organization: PublicOrganization
+  /** Tên danh mục theo id (useCategoryNames) */
+  categoryNames?: ReadonlyMap<string, string>
+}) {
   const point = organization.receivingPoint
   return (
     <div className="flex flex-col gap-4">
@@ -33,6 +41,7 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
         <OrganizationLogo name={organization.name} />
         <div className="min-w-0">
           <h2 className="text-lg leading-7 font-bold tracking-[-0.01em] text-tf-ink">{organization.name}</h2>
+          {organization.isRemoteArea && <RemoteAreaBadge />}
         </div>
       </header>
 
@@ -43,7 +52,10 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
       )}
 
       <ProfileSection icon={HandHeart} title="Nhu cầu hiện tại">
-        <p className="text-sm leading-6 whitespace-pre-line text-tf-ink">{organization.supportCriteria}</p>
+        <OrganizationNeeds organization={organization} categoryNames={categoryNames} />
+        {organization.supportCriteria && (
+          <p className="text-sm leading-6 whitespace-pre-line text-tf-ink">{organization.supportCriteria}</p>
+        )}
       </ProfileSection>
 
       <ProfileSection icon={MapPin} title={point ? 'Điểm nhận đồ chơi' : 'Địa chỉ'}>
