@@ -71,4 +71,24 @@ describe('OrganizationProfile', () => {
     expect(screen.getByText('Lào Cai')).toBeInTheDocument()
     expect(screen.getByText('Vùng khó khăn')).toBeInTheDocument()
   })
+
+  // GB-55: a paused organization takes no new donation, so its profile has no donate button.
+  it('hides "Quyên góp cho tổ chức này" with a note while the organization is paused', () => {
+    const { rerender } = renderWithProviders(
+      <MemoryRouter>
+        <OrganizationProfile organization={organization} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: /Quyên góp cho tổ chức này/ })).toHaveAttribute(
+      'href',
+      '/donations/new?organizationId=o1',
+    )
+    rerender(
+      <MemoryRouter>
+        <OrganizationProfile organization={{ ...organization, isAccepting: false }} />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('link', { name: /Quyên góp cho tổ chức này/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Tổ chức đang tạm ngừng nhận đồ chơi.')
+  })
 })
