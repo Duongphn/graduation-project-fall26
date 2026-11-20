@@ -4,7 +4,7 @@ import mongoose, { Types, type ClientSession } from 'mongoose';
 
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
 import { Organization, type IOrganization } from '../models/organization.model.js';
-import { Toy } from '../models/toy.model.js';
+import { Toy, type ToyDonationTarget } from '../models/toy.model.js';
 import { User } from '../models/user.model.js';
 import {
   DonationRequest,
@@ -84,6 +84,22 @@ export const findDueRequestIds = async (status: StoredDonationStatus, now: Date,
       .limit(limit)
       .lean()
   ).map((item) => item._id);
+
+/**
+ * UC33 step 5: removes and returns the organization target of an approved (active) donation
+ * post, once (a second call finds none).
+ */
+export const takeDonationTarget = (toyId: string) =>
+  Toy.findOneAndUpdate(
+    {
+      _id: oid(toyId),
+      status: 'active',
+      listingType: 'donate',
+      donationTarget: { $type: 'object' },
+    },
+    { $unset: { donationTarget: 1 } },
+    { new: false, timestamps: false, projection: 'ownerId donationTarget' },
+  ).lean<{ _id: Types.ObjectId; ownerId: Types.ObjectId; donationTarget: ToyDonationTarget }>();
 
 /** Ids of the pending requests of a toy. */
 export const findPendingRequestIdsOfToy = async (toyId: string) =>

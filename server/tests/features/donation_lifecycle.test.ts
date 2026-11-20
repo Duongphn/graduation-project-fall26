@@ -463,14 +463,7 @@ describe('contact sharing (D-03)', () => {
 
 describe('donation posts (POST /donation-posts)', () => {
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
-  // The description the web form sends: the Donor's text, then the handover method and the
-  // preferred organization (composeDonationDescription in the frontend).
-  const DESCRIPTION = [
-    'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.',
-    '',
-    'Cách bàn giao: Gửi qua đơn vị vận chuyển',
-    'Đơn vị tiếp nhận mong muốn: Để ToyFlow ghép tổ chức phù hợp',
-  ].join('\n');
+  const DESCRIPTION = 'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.';
   // A donation post has 3 to 10 photos (R03 GB-10).
   const send = (
     who: Who,

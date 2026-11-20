@@ -26,8 +26,15 @@ export interface IToy {
   /** When the Owner last declared the toy safe (UC05): on create and on every edit. */
   safetyDeclaredAt?: Date | undefined;
   bookingVersion: number;
+  // UC33: a new donation post sent to an organization (donation flow only).
+  donationTarget?: ToyDonationTarget | undefined;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ToyDonationTarget {
+  organizationId: mongoose.Types.ObjectId;
+  handoverMethod: 'drop_off' | 'carrier';
 }
 
 export type ToyDocument = Document<mongoose.Types.ObjectId> & IToy;
@@ -97,6 +104,18 @@ export const toySchema = new Schema<IToy>(
     // Not required: older listings and donation posts have none (UC05).
     safetyDeclaredAt: { type: Date },
     bookingVersion: { type: Number, required: true, default: 0 },
+    // UC33 step 5 (donation flow): the organization and handover method chosen on a new donation
+    // post. The donation request is created when the Admin approves the post, which clears it.
+    donationTarget: {
+      type: new Schema(
+        {
+          organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
+          handoverMethod: { type: String, required: true, enum: ['drop_off', 'carrier'] },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );

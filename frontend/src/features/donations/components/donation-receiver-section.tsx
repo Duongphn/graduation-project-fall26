@@ -24,7 +24,10 @@ const HANDOVER_HINTS = {
   SELF: 'Tự mang đồ chơi đến tận nơi theo lịch hẹn với tổ chức.',
 } as const
 
-/** Bước 03–04: tổ chức mong muốn (Admin ghép khi tạo yêu cầu) và cách bàn giao */
+/**
+ * Bước 03–04: tổ chức nhận và cách bàn giao. Khi Admin duyệt tin, yêu cầu quyên góp tới tổ chức đã
+ * chọn được tạo (UC33 bước 5); chọn "Để ToyFlow ghép" thì tin mở để Admin xin cho tổ chức phù hợp.
+ */
 export function DonationReceiverSection({
   control,
   organizations,
