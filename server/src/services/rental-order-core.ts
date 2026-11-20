@@ -7,6 +7,7 @@ import {
   type RentalSettingsProvider,
   systemClock,
 } from '../interfaces/rental-order.ports.js';
+import { type RentGate, type TrustRecomputer } from '../interfaces/trust.ports.js';
 import { type WalletLedgerPort } from '../interfaces/wallet.ports.js';
 import { Dispute, type IDispute } from '../models/dispute.model.js';
 import {
@@ -32,6 +33,7 @@ export interface RentalOrderServiceDeps {
   clock?: Clock;
   settings: RentalSettingsProvider;
   repository: RentalOrderRepository;
+  trust: TrustRecomputer & RentGate;
   toyModel?: Model<IToy>;
   userModel?: Model<IUser>;
   orderStatusHistoryModel?: Model<IOrderStatusHistory>;
@@ -62,6 +64,7 @@ export class RentalOrderCore {
   protected readonly clock: Clock;
   protected readonly settings: RentalSettingsProvider;
   protected readonly repository: RentalOrderRepository;
+  protected readonly trust: TrustRecomputer & RentGate;
   protected readonly toyModel: Model<IToy>;
   protected readonly userModel: Model<IUser>;
   protected readonly orderStatusHistoryModel: Model<IOrderStatusHistory>;
@@ -75,6 +78,7 @@ export class RentalOrderCore {
     this.clock = deps.clock ?? systemClock;
     this.settings = deps.settings;
     this.repository = deps.repository;
+    this.trust = deps.trust;
     this.toyModel = deps.toyModel ?? Toy;
     this.userModel = deps.userModel ?? User;
     this.orderStatusHistoryModel = deps.orderStatusHistoryModel ?? OrderStatusHistory;

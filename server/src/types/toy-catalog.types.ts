@@ -1,3 +1,4 @@
+import type { RatingSummary } from '../services/review.mapper.js';
 import type { ListingType, ToyAgeRange } from '../interfaces/toy-listing.ports.js';
 
 /** Loại tin trong danh sách công khai: thêm 'donate' (tin quyên góp, priceOrRate 0) ngoài rent/sell */
@@ -17,6 +18,7 @@ export interface PublicToyDto {
   depositPrice?: number;
   ageRange: ToyAgeRange;
   images: { url: string }[];
+  rating: RatingSummary;
   createdAt: Date;
 }
 
@@ -59,6 +61,7 @@ export interface CatalogToyRecord {
   depositPrice?: number | undefined;
   ageRange: ToyAgeRange;
   images: { url: string }[];
+  rating: RatingSummary;
   createdAt: Date;
 }
 

@@ -14,6 +14,10 @@ export interface RentalSettings {
   minTrustScore: number;
   maxDays: number;
   bookingWindowDays: number;
+  reviewWindowDays: number;
+  minReviewsForTrust: number;
+  trustDepositCap: number;
+  trustOverrideDays: number;
 }
 
 export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
@@ -29,6 +33,10 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   minTrustScore: 30,
   maxDays: 30,
   bookingWindowDays: 180,
+  reviewWindowDays: 14,
+  minReviewsForTrust: 3,
+  trustDepositCap: 500000,
+  trustOverrideDays: 30,
 };
 
 export interface RentalPeriod {
