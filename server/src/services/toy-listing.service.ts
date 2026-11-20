@@ -425,13 +425,14 @@ export class ToyListingService {
       throw uploadError;
     }
 
-    // GB-60: a donation post hidden because the Admin cancelled its Shipping request stays hidden
-    // until the Donor edits (or deletes) it; the edit sends it back to review.
+    // A donation post the Admin rejected is sent again by an edit (UC33 5.1, BF-04 3a). GB-60: a
+    // donation post hidden because the Admin cancelled its Shipping request stays hidden until
+    // the Donor edits (or deletes) it; the edit also sends it back to review.
     const donationBackToReview =
       isDonationPost(listing) &&
       listing.status === 'hidden' &&
-      !listing.moderation?.rejectReason &&
-      (await this.ports.hasCancelledShipment?.(toyId, listing.moderation?.reviewedAt)) === true;
+      (Boolean(listing.moderation?.rejectReason) ||
+        (await this.ports.hasCancelledShipment?.(toyId, listing.moderation?.reviewedAt)) === true);
 
     const submittedAt = new Date();
     const applyEdit = (toy: HydratedDocument<IToy>): void => {
@@ -458,7 +459,7 @@ export class ToyListingService {
 
       // GB-08: an edited listing waits for the Admin again, also a rejected one sent again
       // (BF-02 1a, BF-03 1a). A listing its Owner hid stays hidden, and donation posts keep the
-      // status the donation flow gave them, except the GB-60 case above.
+      // status the donation flow gave them, except the two cases above.
       if (isDonationPost(toy) ? donationBackToReview : isBackToReview(toy)) {
         toy.moderation ??= {};
         if (toy.moderation.rejectReason) {

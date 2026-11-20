@@ -221,4 +221,43 @@ describe('ToyListingEditorPage', () => {
     expect(screen.getByRole('link', { name: 'Xác minh danh tính' })).toHaveAttribute('href', PATHS.identityVerification)
     expect(screen.queryByRole('button', { name: 'Đăng tin' })).not.toBeInTheDocument()
   })
+
+  // UC33 5.1, BF-04 3a: a donation post the Admin rejected is edited with the donation form (no
+  // price) and sent for review again.
+  it('lets the Donor edit a rejected donation post and send it for review again', async () => {
+    const donation = {
+      ...saved,
+      listingType: 'donate',
+      priceOrRate: 0,
+      depositPrice: undefined,
+      condition: 'Như mới (90–99%)',
+      status: 'hidden',
+      moderation: { reviewedAt: '2026-11-01T08:00:00.000Z', rejectReason: 'Ảnh chưa rõ, chụp lại giúp' },
+    } as unknown as ToyListing
+    patch.mockResolvedValue({ data: { ...donation, status: 'pending', moderation: { submittedAt: '2026-11-02T00:00:00.000Z' } } })
+    const { user } = renderEditor(toyListingEditPath(saved.id), donation)
+
+    expect(screen.queryByText(/Tin tặng không chỉnh sửa ở đây/)).not.toBeInTheDocument()
+    expect(screen.getByText('Ảnh chưa rõ, chụp lại giúp')).toBeInTheDocument()
+    const description = screen.getByPlaceholderText(/^Đồ chơi gồm những gì/)
+    await user.clear(description)
+    await user.click(description)
+    await user.paste('Bộ tàu hoả gỗ 20 chi tiết, đủ ray và toa, đã chụp lại rõ từng mặt theo góp ý của Admin.')
+    // The four safety commitments are ticked again on every submission.
+    await user.click(screen.getByRole('button', { name: 'Gửi duyệt lại' }))
+    expect(patch).not.toHaveBeenCalled()
+    for (const box of screen.getAllByRole('checkbox')) await user.click(box)
+    await user.click(screen.getByRole('button', { name: 'Gửi duyệt lại' }))
+
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
+    const [url, form] = patch.mock.calls[0] as [string, FormData]
+    expect(url).toBe(`/toys/${saved.id}`)
+    expect(form.get('description')).toMatch(/đã chụp lại rõ từng mặt/)
+    // A donation post never sends a listing type or a price (GB-09).
+    expect(form.get('listingType')).toBeNull()
+    expect(form.get('priceOrRate')).toBeNull()
+    expect(
+      await screen.findByText(`Đã lưu thay đổi. Tin #TF-${saved.id.slice(-5).toUpperCase()} đang chờ Quản trị viên duyệt.`),
+    ).toBeInTheDocument()
+  }, 30_000)
 })

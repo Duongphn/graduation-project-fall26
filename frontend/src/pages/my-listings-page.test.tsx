@@ -173,4 +173,27 @@ describe('MyListingsPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Tin bị từ chối cần được sửa rồi gửi duyệt lại.')
   })
+
+  // UC33 5.1, BF-04 3a: the Donor sees why the donation post was rejected, edits it and sends it again.
+  it('shows the reason of a rejected donation post and lets the Donor edit it', async () => {
+    const donation = (id: string, title: string, extra: Partial<ToyListing>) =>
+      ({ ...inWood, id, title, listingType: 'donate', priceOrRate: 0, depositPrice: undefined, ...extra }) as ToyListing
+    const rejected = donation('64c000000000000000000011', 'Gấu bông', {
+      status: 'hidden',
+      moderation: { reviewedAt: '2026-11-01T08:00:00.000Z', rejectReason: 'Ảnh chưa thấy rõ toàn bộ gấu bông' },
+    })
+    const active = donation('64c000000000000000000012', 'Xe ben', { status: 'active' })
+    answer([rejected, active])
+    const { user } = await renderPage()
+
+    expect(await screen.findByText('Bị từ chối')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Xem lý do' }))
+    expect(screen.getByText(/Ảnh chưa thấy rõ/)).toHaveTextContent(
+      'Lý do từ chối: Ảnh chưa thấy rõ toàn bộ gấu bông Sửa tin rồi lưu để gửi duyệt lại.',
+    )
+    // Only the rejected post is edited here; an active donation post follows its requests instead.
+    const edit = screen.getAllByRole('link', { name: 'Sửa' })
+    expect(edit).toHaveLength(1)
+    expect(edit[0]).toHaveAttribute('href', `/listings/${rejected.id}/edit`)
+  })
 })

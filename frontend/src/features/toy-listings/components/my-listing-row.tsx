@@ -32,6 +32,8 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
   const isDonation = listing.listingType === 'donate'
   // Đồ đang trao hoặc đã tặng: không cho ẩn/xoá (phiếu quyên góp còn tham chiếu tới đồ chơi)
   const lockedByDonation = donationState !== undefined
+  // Tin tặng chỉ sửa khi bị từ chối hoặc bị ẩn (UC33 5.1, GB-60): sửa xong là gửi duyệt lại
+  const canEdit = !isDonation || (!lockedByDonation && listing.status === 'hidden')
 
   const refreshLists = () => {
     void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY })
@@ -77,8 +79,7 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         </div>
 
         <h3 className="listing-row__title">
-          {/* Tin tặng không sửa bằng form đăng tin (không có giá) */}
-          {isDonation ? (
+          {!canEdit ? (
             listing.title
           ) : (
             <Link to={toyListingEditPath(listing.id)} className="listing-row__title-link">
@@ -101,7 +102,7 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         {rejected && showingReason && (
           <p id={reasonId} className="listing-row__reason">
             <strong>Lý do từ chối:</strong> {listing.moderation?.rejectReason}
-            {!isDonation && ' Sửa tin rồi lưu để gửi duyệt lại.'}
+            {' Sửa tin rồi lưu để gửi duyệt lại.'}
           </p>
         )}
 
@@ -138,7 +139,7 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
                 {showingReason ? 'Ẩn lý do' : 'Xem lý do'}
               </button>
             )}
-            {!isDonation && (
+            {canEdit && (
               <Link to={toyListingEditPath(listing.id)} className="row-btn row-btn--primary">
                 <Pencil aria-hidden />
                 Sửa

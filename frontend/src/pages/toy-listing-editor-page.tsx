@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronRight, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { DonationPostEditForm } from '../features/donations/components/donation-post-edit-form'
 import { ToyListingForm } from '../features/toy-listings/components/toy-listing-form'
 import { getListingErrorMessage, isUnauthorizedError, type ToyListing } from '../features/toy-listings/toy-listing-api'
 import { displayCode } from '../features/toy-listings/listing-display'
@@ -130,10 +131,24 @@ export function ToyListingEditorPage() {
         <div className="tf-card load-state">Đang tải tin đăng...</div>
       ) : isEdit && !listing ? (
         <div className="tf-card load-state">Không tìm thấy tin đăng này trong danh sách tin của bạn.</div>
+      ) : listing?.listingType === 'donate' && listing.status === 'hidden' ? (
+        // Tin tặng bị từ chối (hoặc bị ẩn): sửa bằng form quyên góp (không có giá) rồi gửi duyệt lại
+        <DonationPostEditForm
+          key={listing.id}
+          listing={listing}
+          categories={categoriesResult.data ?? []}
+          categoriesLoading={categoriesResult.isPending}
+          onSaved={handleSaved}
+        />
       ) : listing?.listingType === 'donate' ? (
         // Tin tặng không có giá: form đăng tin (cho thuê / bán) sẽ đổi nhầm loại tin
         <div className="tf-card load-state">
-          <p>Tin tặng không chỉnh sửa ở đây. Theo dõi các yêu cầu nhận đồ trong mục Quyên góp của tôi.</p>
+          <p>
+            {listing.status === 'pending'
+              ? 'Tin tặng đang chờ Quản trị viên duyệt.'
+              : 'Tin tặng đang hiển thị không chỉnh sửa ở đây.'}{' '}
+            Theo dõi các yêu cầu nhận đồ trong mục Quyên góp của tôi.
+          </p>
           <Link to={PATHS.myDonations} className="tf-btn tf-btn--soft tf-btn--inline">
             Quyên góp của tôi
           </Link>

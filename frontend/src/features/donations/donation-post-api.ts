@@ -44,3 +44,29 @@ export async function createDonationPost(input: DonationPostInput): Promise<Dona
   })
   return data.data
 }
+
+export interface DonationPostUpdate extends Omit<DonationPostInput, 'images' | 'organizationId' | 'handoverMethod'> {
+  /** categoryId hiện tại của tin: chỉ gửi categoryId khi đã đổi (như form đăng tin) */
+  savedCategoryId: string
+  newImages: File[]
+  removeImagePublicIds: string[]
+}
+
+/**
+ * PATCH /toys/:id cho tin tặng (không có giá): tin bị Admin từ chối được gửi duyệt lại (UC33 5.1,
+ * BF-04 3a); tin bị ẩn vì Admin huỷ yêu cầu đang bàn giao cũng được duyệt lại (GB-60).
+ */
+export async function updateDonationPost(toyId: string, input: DonationPostUpdate): Promise<ToyListing> {
+  const form = new FormData()
+  form.append('title', input.title)
+  if (input.categoryId !== input.savedCategoryId) form.append('categoryId', input.categoryId)
+  form.append('condition', input.condition)
+  form.append('description', input.description)
+  form.append('ageRange', JSON.stringify({ minAge: input.minAge, maxAge: input.maxAge }))
+  input.newImages.forEach((file) => form.append('images', file))
+  if (input.removeImagePublicIds.length > 0) {
+    form.append('removeImagePublicIds', JSON.stringify(input.removeImagePublicIds))
+  }
+  const { data } = await httpClient.patch<ToyListing>(`/toys/${toyId}`, form, { timeout: 60_000 })
+  return data
+}

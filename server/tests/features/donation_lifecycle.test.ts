@@ -491,6 +491,39 @@ describe('GB-60: the toy at each move of a request', () => {
   });
 });
 
+describe('a rejected donation post (UC33 5.1, BF-04 3a)', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('is sent back to review when the Donor edits it, without the reject reason', async () => {
+    const reviewedAt = new Date();
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          status: 'hidden',
+          moderation: { submittedAt: reviewedAt, reviewedAt, rejectReason: 'Ảnh bị mờ' },
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    const edited = await listings.update(donor(), toyId, {
+      description: 'Bộ tàu gỗ 20 chi tiết, đã chụp lại rõ từng mặt theo góp ý của Admin.',
+      safetyDeclaration: false,
+    });
+    expect(edited.status).toBe('pending');
+    expect(edited.listingType).toBe('donate');
+    expect(edited.moderation?.rejectReason).toBeUndefined();
+    const toy = await Toy.findById(toyId).lean();
+    expect(toy?.status).toBe('pending');
+    expect(toy?.moderation?.rejectReason).toBeUndefined();
+    expect(toy?.moderation?.submittedAt?.getTime()).toBeGreaterThan(reviewedAt.getTime() - 1);
+  });
+});
+
 describe('contact sharing (D-03)', () => {
   const contactOf = async (who: Who, id: string) => {
     const res = await get(who, `/donation-requests/${id}`);
