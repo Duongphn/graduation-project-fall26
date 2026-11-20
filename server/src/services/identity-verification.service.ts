@@ -22,6 +22,9 @@ import {
   validateSubmissionInput,
 } from '../validations/identity-verification.validation.js';
 
+/** 404 of an unknown verification request (shown as is on the admin pages). */
+export const VERIFICATION_NOT_FOUND_MESSAGE = 'Không tìm thấy yêu cầu xác minh danh tính.';
+
 export interface SubmissionReceipt {
   id: string;
   status: VerificationStatus;
@@ -234,7 +237,7 @@ export class IdentityVerificationService {
 
     const doc = await this.verificationModel.findById(verificationId);
     if (!doc) {
-      throw new AppError(404, 'NOT_FOUND', 'Verification submission not found.');
+      throw new AppError(404, 'NOT_FOUND', VERIFICATION_NOT_FOUND_MESSAGE);
     }
 
     if (!this.imageStorage) {
@@ -323,7 +326,7 @@ export class IdentityVerificationService {
     if (!updatedDoc) {
       const existing = await this.verificationModel.findById(verificationId);
       if (!existing) {
-        throw new AppError(404, 'NOT_FOUND', 'Verification submission not found.');
+        throw new AppError(404, 'NOT_FOUND', VERIFICATION_NOT_FOUND_MESSAGE);
       }
       throw new AppError(
         409,
