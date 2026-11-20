@@ -51,6 +51,8 @@ export interface LatestVerification {
   submittedAt: string
   rejectionReason: string | null
   reviewedAt: string | null
+  /** Chỉ khi Chờ duyệt: link có hạn tới 3 ảnh đã gửi, để xem lại (chỉ đọc) */
+  documents?: { frontImage: string; backImage: string; selfie: string }
 }
 
 export async function fetchProfile(): Promise<UserProfile> {

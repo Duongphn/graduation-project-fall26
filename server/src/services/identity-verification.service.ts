@@ -37,6 +37,11 @@ export interface LatestVerificationDto {
   submittedAt: Date;
   rejectionReason: string | null;
   reviewedAt: Date | null;
+  /**
+   * Only while Pending: short-lived links to the three submitted photos, shown read-only to their
+   * owner (R03 III.6.1.2 (7), UC04 1.1). Never the stored public ids; no links once reviewed.
+   */
+  documents?: { frontImage: string; backImage: string; selfie: string };
 }
 
 export class IdentityVerificationService {
@@ -177,13 +182,23 @@ export class IdentityVerificationService {
       return null;
     }
 
-    return {
+    const latest: LatestVerificationDto = {
       id: doc._id.toString(),
       status: doc.status as VerificationStatus,
       submittedAt: doc.submittedAt,
       rejectionReason: doc.rejectionReason ?? null,
       reviewedAt: doc.reviewedAt ?? null,
     };
+    const storage = this.imageStorage;
+    if (doc.status === 'pending' && storage) {
+      const sign = async (image: StoredIdentityImage) => (await storage.getAuthorizedDelivery(image.publicId)).url;
+      latest.documents = {
+        frontImage: await sign(doc.frontImage),
+        backImage: await sign(doc.backImage),
+        selfie: await sign(doc.selfie),
+      };
+    }
+    return latest;
   }
 
   public async listQueue(query: {
