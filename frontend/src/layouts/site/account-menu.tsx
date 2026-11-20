@@ -5,6 +5,7 @@ import {
   HandHeart,
   Heart,
   IdCard,
+  LayoutDashboard,
   LogOut,
   Package,
   Plus,
@@ -13,7 +14,8 @@ import {
   UserRound,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { PATHS } from '../../routes/paths'
+import { ADMIN_ROOT, PATHS } from '../../routes/paths'
+import { getCurrentRole } from '../../services/current-role'
 import { logout } from '../../features/auth/auth-api'
 import { HeaderPopover } from './header-popover'
 
@@ -30,6 +32,12 @@ export function AccountMenu() {
     >
       {(close) => (
         <nav aria-label="Tài khoản" className="account-menu__links">
+          {/* Admin đang xem trang người dùng: lối về khu quản trị */}
+          {getCurrentRole() === 'ADMIN' && (
+            <Link to={ADMIN_ROOT} className="account-menu__link" onClick={close}>
+              <LayoutDashboard aria-hidden /> Quản trị
+            </Link>
+          )}
           {/* R03 UC03/UC04/UC26: hồ sơ, xác minh danh tính và thông báo mở từ menu tài khoản */}
           <Link to={PATHS.profile} className="account-menu__link" onClick={close}>
             <IdCard aria-hidden /> Hồ sơ của tôi
