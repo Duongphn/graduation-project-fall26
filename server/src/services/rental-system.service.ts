@@ -159,6 +159,7 @@ export class RentalSystemService extends RentalOrderCore {
           'Thời hạn 24 giờ phản hồi đã hết. Yêu cầu thuê đã hết hạn.',
         );
       } else {
+        await this.trust.recomputeQuietly([updated.renterId.toString()]);
         await this.notifyParty(
           updated,
           'renter',

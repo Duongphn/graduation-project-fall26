@@ -5,6 +5,7 @@ import {
   RENTER_DISPUTE_REASONS,
 } from '../constants/dispute.js';
 import { type DisputableOrders } from '../interfaces/dispute.ports.js';
+import { type TrustRecomputer } from '../interfaces/trust.ports.js';
 import {
   type Clock,
   type RentalNotifier,
@@ -58,6 +59,7 @@ export interface DisputeServiceDeps {
   settings: RentalSettingsProvider;
   /** Order code generator; dispute codes reuse it with the `DP` prefix. */
   codes?: DisputeCodeGenerator;
+  trust: TrustRecomputer;
   userModel?: Model<IUser>;
   disputeModel?: Model<IDispute>;
 }
@@ -131,6 +133,7 @@ export class DisputeService {
   private readonly clock: Clock;
   private readonly settings: RentalSettingsProvider;
   private readonly codes: DisputeCodeGenerator;
+  private readonly trust: TrustRecomputer;
   private readonly userModel: Model<IUser>;
   private readonly disputeModel: Model<IDispute>;
 
@@ -141,6 +144,7 @@ export class DisputeService {
     this.clock = deps.clock ?? systemClock;
     this.settings = deps.settings;
     this.codes = deps.codes ?? new RentalOrderRepository();
+    this.trust = deps.trust;
     this.userModel = deps.userModel ?? User;
     this.disputeModel = deps.disputeModel ?? Dispute;
   }
@@ -484,6 +488,10 @@ export class DisputeService {
     }
 
     const resolved = await this.findById(disputeId);
+    await this.trust.recomputeQuietly([
+      resolved.claimantId.toString(),
+      resolved.respondentId.toString(),
+    ]);
     await this.notifyResolved(resolved, input.verdict, payout);
     return toAdminDisputeDto(resolved);
   }

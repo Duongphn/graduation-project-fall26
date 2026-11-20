@@ -1,6 +1,7 @@
 import mongoose, { type HydratedDocument, Types } from 'mongoose';
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+import { type RentGateMode } from '../interfaces/trust.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
 import { type IToy } from '../models/toy.model.js';
 import { withTransaction } from '../repositories/transaction.js';
@@ -94,10 +95,11 @@ export class RentalOrderService extends RentalOrderCore {
   private async assertCanRent(
     actor: RequestActor,
     input: RentalPeriodInput,
+    mode: RentGateMode,
   ): Promise<RentEligibility> {
     const toyIdValid = mongoose.Types.ObjectId.isValid(input.toyId);
     const [user, toy, settings] = await Promise.all([
-      this.userModel.findById(actor.userId).select('verificationStatus trust').lean(),
+      this.userModel.findById(actor.userId).select('verificationStatus').lean(),
       toyIdValid ? this.toyModel.findById(input.toyId) : Promise.resolve(null),
       this.settings.getRentalSettings(),
     ]);
@@ -114,10 +116,7 @@ export class RentalOrderService extends RentalOrderCore {
       throw new AppError(403, 'CANNOT_RENT_OWN_LISTING', 'Không thể thuê đồ chơi của chính mình.');
     }
 
-    const score = user.trust?.score;
-    if (score !== undefined && score !== null && score < settings.minTrustScore) {
-      throw new AppError(403, 'RENTER_RESTRICTED', 'Điểm tin cậy không đủ điều kiện thuê đồ chơi.');
-    }
+    await this.trust.assertMayRent(actor.userId, toy, mode);
 
     const startDate = parseDateOnly(input.startDate);
     const endDate = parseDateOnly(input.endDate);
@@ -132,7 +131,7 @@ export class RentalOrderService extends RentalOrderCore {
   }
 
   public async quote(actor: RequestActor, input: RentalPeriodInput): Promise<RentalQuoteDto> {
-    const { toy, settings, startDate, endDate } = await this.assertCanRent(actor, input);
+    const { toy, settings, startDate, endDate } = await this.assertCanRent(actor, input, 'quote');
 
     const conflicts = await this.repository.findOccupied(toy._id.toString(), startDate, endDate);
     const pricing = quotePricing(toy, { startDate, endDate }, settings);
@@ -148,7 +147,7 @@ export class RentalOrderService extends RentalOrderCore {
   }
 
   public async create(actor: RequestActor, input: RentalPeriodInput): Promise<RentalOrderDto> {
-    const { toy, settings, startDate, endDate, now } = await this.assertCanRent(actor, input);
+    const { toy, settings, startDate, endDate, now } = await this.assertCanRent(actor, input, 'create');
 
     const orderDoc = await withTransaction(async (session) => {
       await this.toyModel.updateOne({ _id: toy._id }, { $inc: { bookingVersion: 1 } }, { session });

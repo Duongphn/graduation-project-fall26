@@ -1,3 +1,4 @@
+import { toRatingSummary } from './review.mapper.js';
 import 'multer';
 import mongoose, { type HydratedDocument, type Model } from 'mongoose';
 import type { RequestActor } from '../types/request-actor.js';
@@ -109,6 +110,7 @@ export class ToyListingService {
         publicId: img.publicId,
       })),
       quantity: doc.quantity ?? 1,
+      rating: toRatingSummary(doc.rating),
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
       ...(doc.moderation ? { moderation: toOwnerModerationView(doc.moderation) } : {}),

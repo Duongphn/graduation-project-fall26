@@ -23,6 +23,10 @@ export class SystemSettingService {
       'minTrustScore',
       'maxDays',
       'bookingWindowDays',
+      'reviewWindowDays',
+      'minReviewsForTrust',
+      'trustDepositCap',
+      'trustOverrideDays',
     ];
 
     const dbKeys = keys.map((k) => `rental.${k}`);
