@@ -5,11 +5,14 @@ import { requireActor } from '../middlewares/require-actor.js';
 import { rentalPhotoUpload } from '../middlewares/upload.middleware.js';
 import { type DisputeService } from '../services/dispute.service.js';
 import { type RentalOrderService } from '../services/rental-order.service.js';
+import { type ReviewService } from '../services/review.service.js';
 import { createRentalDisputeRouter } from './dispute.routes.js';
+import { createRentalReviewRouter } from './review.routes.js';
 
 export function createRentalOrderRouter(
   service: RentalOrderService,
   disputeService: DisputeService,
+  reviewService: ReviewService,
 ): Router {
   const router = Router();
   const controller = new RentalOrderController(service, disputeService);
@@ -27,6 +30,7 @@ export function createRentalOrderRouter(
   router.post('/:id/return', authenticate, requireActor, rentalPhotoUpload, controller.returnToy);
   router.post('/:id/settle', authenticate, requireActor, rentalPhotoUpload, controller.settle);
   router.use(createRentalDisputeRouter(disputeService));
+  router.use(createRentalReviewRouter(reviewService));
 
   return router;
 }
