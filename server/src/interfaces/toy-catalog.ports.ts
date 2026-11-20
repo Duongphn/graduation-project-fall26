@@ -1,3 +1,5 @@
+import type { RatingSummary } from '../services/review.mapper.js';
+
 export interface ToySearchQuery {
   q?: string;
   type?: 'rent' | 'sell';
@@ -31,6 +33,7 @@ export interface ToyCardDto {
     maxAge: number;
   };
   condition: string;
+  rating: RatingSummary;
   location?: {
     type: string;
     coordinates: [number, number];
@@ -56,6 +59,7 @@ export interface ToyDetailDto {
     maxAge: number;
   };
   condition: string;
+  rating: RatingSummary;
   location?: {
     type: string;
     coordinates: [number, number];

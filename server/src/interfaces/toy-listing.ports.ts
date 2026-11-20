@@ -1,3 +1,4 @@
+import type { RatingSummary } from '../services/review.mapper.js';
 import type { ClientSession } from 'mongoose';
 
 export type ListingType = 'rent' | 'sell';
@@ -54,6 +55,7 @@ export interface ToyListingDto {
   ageRange: ToyAgeRange;
   images: ToyImage[];
   quantity: number;
+  rating: RatingSummary;
   status: ListingFilterStatus;
   location?: ToyLocation;
   moderation?: OwnerModerationView;
