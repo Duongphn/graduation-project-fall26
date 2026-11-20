@@ -42,6 +42,9 @@ import { setReviewStorage } from './services/identity-review.documents.js';
 import { setIdentityReviewService } from './services/identity-review.service.js';
 import { IdentityVerificationService } from './services/identity-verification.service.js';
 import { setNotificationMailer } from './services/notification.service.js';
+import { ReviewService } from './services/review.service.js';
+import { TrustReviewService } from './services/trust-review.service.js';
+import { TrustScoreService } from './services/trust-score.service.js';
 import { RentalDisputableOrders } from './services/rental-disputable-orders.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
@@ -83,6 +86,9 @@ export interface ContainerOverrides {
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
   disputeService?: DisputeService;
+  trustScoreService?: TrustScoreService;
+  reviewService?: ReviewService;
+  trustReviewService?: TrustReviewService;
 }
 
 export interface Container {
@@ -99,6 +105,9 @@ export interface Container {
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
   disputeService: DisputeService;
+  trustScoreService: TrustScoreService;
+  reviewService: ReviewService;
+  trustReviewService: TrustReviewService;
 }
 
 /**
@@ -159,6 +168,10 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const rentalOrderRepository =
     overrides.rentalOrderRepository ?? new RentalOrderRepository();
 
+  const trustScoreService =
+    overrides.trustScoreService ??
+    new TrustScoreService({ clock, settings: rentalSettings, notifier: rentalNotifier });
+
   const rentalDeps = {
     ledger: walletLedger,
     photos: rentalPhotoStorage,
@@ -166,6 +179,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     clock,
     settings: rentalSettings,
     repository: rentalOrderRepository,
+    trust: trustScoreService,
   };
   const rentalOrderService = overrides.rentalOrderService ?? new RentalOrderService(rentalDeps);
   const rentalSystemService =
@@ -188,6 +202,25 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       clock,
       settings: rentalSettings,
       codes: rentalOrderRepository,
+      trust: trustScoreService,
+    });
+
+  const reviewService =
+    overrides.reviewService ??
+    new ReviewService({
+      clock,
+      settings: rentalSettings,
+      notifier: rentalNotifier,
+      trust: trustScoreService,
+    });
+
+  const trustReviewService =
+    overrides.trustReviewService ??
+    new TrustReviewService({
+      clock,
+      settings: rentalSettings,
+      notifier: rentalNotifier,
+      trust: trustScoreService,
     });
 
   return {
@@ -203,5 +236,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalTimerService,
     rentalOrderRepository,
     disputeService,
+    trustScoreService,
+    reviewService,
+    trustReviewService,
   };
 }
