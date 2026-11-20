@@ -13,7 +13,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import brandMark from "../../assets/brand/toyflow-mark.png";
 import brandWordmark from "../../assets/brand/toyflow-wordmark.png";
 import { PATHS } from "../../routes/paths";
@@ -104,13 +104,19 @@ export function LogoutButton() {
   );
 }
 
-/** Trang công khai (vd. Tìm đồ chơi) cũng dùng khung này: khách chưa đăng nhập thấy nút Đăng nhập */
+/**
+ * Trang công khai (vd. chi tiết đồ chơi) cũng dùng khung này: khách chưa đăng nhập thấy nút Đăng nhập,
+ * đăng nhập xong quay lại đúng trang đang xem (`state.from`, R03 III.1.2.1 (8))
+ */
 export function SessionButton() {
+  const location = useLocation();
+
   if (getAccessToken()) return <LogoutButton />;
 
   return (
     <Link
       to={PATHS.login}
+      state={{ from: location.pathname + location.search }}
       className="app-sidebar__item app-sidebar__item--login"
     >
       <LogIn aria-hidden />
