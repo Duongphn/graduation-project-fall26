@@ -10,6 +10,7 @@ import {
   FakeClock,
 } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
+import { seedReceivedReviews } from './helpers/review-fixtures.js';
 
 // Dates are relative to the real today (Vietnam time): the public availability endpoint checks
 // "from" against the real clock, so fixed dates fail once they are in the past.
@@ -110,13 +111,19 @@ describe('UC06: Quote and Create Rental Order', () => {
     expect(resUnverified.status).toBe(403);
     expect(errorOf(resUnverified).code).toBe('USER_NOT_VERIFIED');
 
-    const lowTrustUser = await createUser({ trust: { score: 29 } });
-    const resLowTrust = await create(authHeader(lowTrustUser._id.toString()), body35());
+    const highDepositToyId = (await createRentToy(ownerId, { depositPrice: 600_000 }))._id.toString();
+    const highDepositBody = { toyId: highDepositToyId, startDate: day(4), endDate: day(6) };
+
+    const lowTrustUser = await createUser();
+    await seedReceivedReviews(lowTrustUser._id.toString(), [1, 1, 1], clock.now());
+    const resLowTrust = await create(authHeader(lowTrustUser._id.toString()), highDepositBody);
     expect(resLowTrust.status).toBe(403);
     expect(errorOf(resLowTrust).code).toBe('RENTER_RESTRICTED');
 
-    const borderTrustUser = await createUser({ trust: { score: 30 } });
-    const resBorder = await create(authHeader(borderTrustUser._id.toString()), body35());
+    const borderTrustUser = await createUser();
+    // [2,2,1,1] averages 1.5 -> score exactly 30 (= minTrustScore): allowed even above the deposit cap.
+    await seedReceivedReviews(borderTrustUser._id.toString(), [2, 2, 1, 1], clock.now());
+    const resBorder = await create(authHeader(borderTrustUser._id.toString()), highDepositBody);
     expect(resBorder.status).toBe(201);
   });
 

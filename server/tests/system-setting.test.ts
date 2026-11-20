@@ -32,4 +32,17 @@ describe('SystemSettingService', () => {
     expect(s.platformFeeRate).toBe(0.15);
     expect(s.maxDays).toBe(30);
   });
+
+  it('defaults the review and trust settings', async () => {
+    const s = await new SystemSettingService().getRentalSettings();
+    expect(s.reviewWindowDays).toBe(14);
+    expect(s.minReviewsForTrust).toBe(3);
+    expect(s.trustDepositCap).toBe(500000);
+    expect(s.trustOverrideDays).toBe(30);
+  });
+
+  it('reads a stored trustDepositCap override', async () => {
+    await SystemSetting.create({ key: 'rental.trustDepositCap', value: '800000' });
+    expect((await new SystemSettingService().getRentalSettings()).trustDepositCap).toBe(800000);
+  });
 });

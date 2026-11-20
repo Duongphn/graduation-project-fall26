@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createApp } from '../src/app.js';
 import { createToyCatalogRouter } from '../src/routes/toy-catalog.routes.js';
@@ -18,6 +18,11 @@ import type {
   ToyCatalogPorts,
   ToyCatalogRepository,
 } from '../src/types/toy-catalog.types.js';
+import { Toy } from '../src/models/index.js';
+import { AtlasToyCatalogRepository } from '../src/repositories/atlas-toy-catalog.repository.js';
+import { MongoToyCatalogRepository } from '../src/repositories/toy-catalog.repository.js';
+import { createRentToy, createUser } from './helpers/rental-fixtures.js';
+import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
 import { errorHandler } from '../src/middlewares/error-handler.js';
 
 // Availability dates are relative to the real today (UTC): validateAvailabilityQuery refuses a
@@ -44,6 +49,7 @@ describe('UC05 Toy Catalog API', () => {
     category: { id: '64b000000000000000000099', name: 'Building Toys', slug: 'building-toys' },
     ageRange: { minAge: 8, maxAge: 14 },
     condition: 'like_new',
+    rating: { average: 4.5, count: 2 },
     location: { type: 'Point', coordinates: [106.66, 10.76] },
     createdAt: '2026-10-14T00:00:00.000Z',
   };
@@ -59,6 +65,7 @@ describe('UC05 Toy Catalog API', () => {
     category: { id: '64b000000000000000000099', name: 'Building Toys', slug: 'building-toys' },
     ageRange: { minAge: 8, maxAge: 14 },
     condition: 'like_new',
+    rating: { average: 4.5, count: 2 },
     location: { type: 'Point', coordinates: [106.66, 10.76] },
     owner: { id: '64b000000000000000000088', displayName: 'Nguyen Van A' },
     createdAt: '2026-10-14T00:00:00.000Z',
@@ -268,6 +275,7 @@ const fakeReadPort: ToyCatalogReadPort = {
           category: { id: '64b000000000000000000099', name: 'Lắp ráp', slug: 'lap-rap' },
           ageRange: { minAge: 6, maxAge: 12 },
           condition: 'like_new',
+          rating: { average: null, count: 0 },
           owner: { id: '64b000000000000000000088', displayName: 'A' },
           createdAt: '2026-10-14T00:00:00.000Z',
           updatedAt: '2026-10-14T00:00:00.000Z',
@@ -300,6 +308,7 @@ function makeToy(overrides: Partial<FakeToy> = {}): FakeToy {
     depositPrice: 400_000,
     ageRange: { minAge: 3, maxAge: 8 },
     images: [],
+    rating: { average: null, count: 0 },
     createdAt: new Date(NOW.getTime() - sequence * 60_000),
     status: 'active',
     ...overrides,
@@ -327,6 +336,7 @@ function createFakeRepository(toys: FakeToy[]): ToyCatalogRepository {
     depositPrice: toy.depositPrice,
     ageRange: toy.ageRange,
     images: toy.images,
+    rating: toy.rating,
     createdAt: toy.createdAt,
   });
 
@@ -541,5 +551,51 @@ describe('API router mount order', () => {
     expect(detail.body.id).toBe(SAMPLE_TOY_ID);
     expect(availability.status).toBe(200);
     expect(availability.body).toEqual({ periods: [] });
+  });
+});
+
+describe('Toy rating summary', () => {
+  beforeAll(async () => {
+    await startReplSet();
+  });
+  afterAll(async () => {
+    await stopReplSet();
+  });
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('detail shows the rating summary, and 0/0 for a toy without a rating field', async () => {
+    const owner = await createUser();
+    const rated = await createRentToy(owner._id, { rating: { sum: 9, count: 2 } });
+    const legacy = await createRentToy(owner._id);
+    await Toy.collection.updateOne({ _id: legacy._id }, { $unset: { rating: '' } });
+
+    const repo = new AtlasToyCatalogRepository();
+    expect((await repo.findActiveDetail(String(rated._id)))?.rating).toEqual({
+      average: 4.5,
+      count: 2,
+    });
+    expect((await repo.findActiveDetail(String(legacy._id)))?.rating).toEqual({
+      average: null,
+      count: 0,
+    });
+  });
+
+  it('showcase list carries the rating summary', async () => {
+    const owner = await createUser();
+    const rated = await createRentToy(owner._id, { rating: { sum: 14, count: 3 } });
+    const legacy = await createRentToy(owner._id);
+    await Toy.collection.updateOne({ _id: legacy._id }, { $unset: { rating: '' } });
+
+    const service = new ToyCatalogService(
+      fakeReadPort,
+      new MongoToyCatalogRepository(),
+      noopCatalogPorts,
+    );
+    const page = await service.list({ sort: 'newest', page: 1, limit: 20 });
+    const byId = new Map(page.items.map((item) => [item.id, item.rating]));
+    expect(byId.get(String(rated._id))).toEqual({ average: 4.7, count: 3 });
+    expect(byId.get(String(legacy._id))).toEqual({ average: null, count: 0 });
   });
 });

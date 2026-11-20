@@ -10,6 +10,7 @@ import {
   FakeClock,
 } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
+import { seedReceivedReviews } from './helpers/review-fixtures.js';
 
 describe('UC07: Owner Review, List, Detail and History', () => {
   let app: any;
@@ -46,8 +47,9 @@ describe('UC07: Owner Review, List, Detail and History', () => {
     ownerId = owner._id.toString();
     ownerAuth = authHeader(ownerId);
 
-    const renter = await createUser({ fullName: 'Toy Renter', trust: { score: 80 } });
+    const renter = await createUser({ fullName: 'Toy Renter' });
     renterId = renter._id.toString();
+    await seedReceivedReviews(renterId, [4, 4, 4], clock.now(), 'OWNER_TO_RENTER');
     renterAuth = authHeader(renterId);
 
     const stranger = await createUser({ fullName: 'Stranger' });
