@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 
+import type { NotificationType } from '../constants/notification-types.js';
 import type { StoredDonationStatus } from '../models/donation-request.model.js';
 
 // Domain events let one feature react to another without importing it (backend-architecture.md).
@@ -20,16 +21,18 @@ export interface ToyReviewedEvent {
 
 export interface IdentityReviewedEvent {
   type: 'IDENTITY_REVIEWED';
-  verificationId: string;
+  verificationId?: string;
   userId: string;
   decision: 'verified' | 'rejected';
   reason?: string;
-  reviewedBy: string;
+  reviewedBy?: string;
 }
 
 export interface DonationStatusChangedEvent {
   type: 'DONATION_STATUS_CHANGED';
   donationRequestId: string;
+  // The request code (DN…), shown in MSG56.
+  code?: string;
   toyId: string;
   toyTitle: string;
   donorId: string;
@@ -44,7 +47,26 @@ export interface DonationStatusChangedEvent {
   changedBy?: string;
 }
 
-export type DomainEvent = ToyReviewedEvent | IdentityReviewedEvent | DonationStatusChangedEvent;
+/** Recipients of a notification: user ids, or every active Admin. */
+export type NotifyRecipients = string | readonly string[] | 'ADMINS';
+
+// The shared notification event (UC26) every module emits through notify() (utils/notify.ts).
+export interface NotifyEvent {
+  type: 'NOTIFY';
+  notificationType: NotificationType;
+  to: NotifyRecipients;
+  title: string;
+  body: string;
+  /** App path the notification opens, e.g. /rentals/mine/<id>. */
+  link?: string;
+  /** Also email a copy; defaults to the rule of the notification type. */
+  email?: boolean;
+  /** The user who caused the event: never told about their own action. */
+  actorId?: string;
+}
+
+export type DomainEvent =
+  ToyReviewedEvent | IdentityReviewedEvent | DonationStatusChangedEvent | NotifyEvent;
 
 export type DomainEventType = DomainEvent['type'];
 

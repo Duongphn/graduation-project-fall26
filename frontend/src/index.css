@@ -15,6 +15,7 @@
 @import './features/toy-catalog/toy-detail.css';
 @import './features/rentals/rentals.css';
 @import './layouts/site/site-layout.css';
+@import './features/legal/legal.css';
 
 /* Dark mode bật bằng class `.dark` trên <html> (xem ThemeToggle) thay vì chỉ theo hệ điều hành */
 @custom-variant dark (&:where(.dark, .dark *));

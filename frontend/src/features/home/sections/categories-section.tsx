@@ -65,7 +65,7 @@ export function CategoriesSection() {
                 return (
                   <li key={category.id} className={ITEM}>
                     <Link
-                      to={browseToysPath({ category: category.slug })}
+                      to={browseToysPath({ categoryId: category.id })}
                       className="group flex h-full flex-col items-center gap-2 rounded-xl px-1.5 py-2 text-center transition-colors duration-200 hover:bg-tf-surface-low focus-ring dark:hover:bg-night-800"
                     >
                       <span

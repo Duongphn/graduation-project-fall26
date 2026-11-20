@@ -3,7 +3,8 @@ import mongoose, { type Model, Schema } from 'mongoose';
 const addressSchema = new Schema(
   {
     province: { type: String, required: true },
-    district: { type: String, required: true },
+    // Optional: Vietnam has no district level since 01/07/2025 (R03 III.6.1.1 (10)).
+    district: { type: String },
     ward: { type: String, required: true },
     street: { type: String, required: true },
   },
@@ -17,6 +18,10 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true },
     fullName: { type: String, required: true },
     avatar: { type: String },
+    // R03 III.6.1.1 (5)–(7): chỉ hiển thị trên hồ sơ; ngày sinh không dùng cho GB-07
+    dateOfBirth: { type: Date },
+    gender: { type: String, enum: ['female', 'male', 'other'] },
+    bio: { type: String, maxlength: 200 },
     googleId: { type: String },
     role: { type: String, required: true, default: 'USER', enum: ['USER', 'ADMIN'] },
     status: { type: String, required: true, default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] },
@@ -26,6 +31,7 @@ const userSchema = new Schema(
       default: 'unverified',
       enum: ['unverified', 'pending', 'verified', 'rejected'],
     },
+    // Địa chỉ cũ (một địa chỉ); nay dùng sổ địa chỉ `addresses`, AddressService chuyển nó sang khi đọc lần đầu
     address: { type: addressSchema },
     idCardNumber: { type: String },
     trust: {
@@ -36,6 +42,11 @@ const userSchema = new Schema(
     },
     lock: {
       until: { type: Date },
+    },
+    // Consecutive failed password sign-ins (GB-03); reset by a successful sign-in or a lock.
+    failedLogins: {
+      count: { type: Number, default: 0 },
+      lastAt: { type: Date },
     },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
@@ -87,13 +98,16 @@ export interface IUser {
   passwordHash: string;
   fullName: string;
   avatar?: string;
+  dateOfBirth?: Date | undefined;
+  gender?: 'female' | 'male' | 'other' | undefined;
+  bio?: string | undefined;
   googleId?: string;
   role: 'USER' | 'ADMIN';
   status: 'ACTIVE' | 'LOCKED';
   verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
   address?: {
     province: string;
-    district: string;
+    district?: string;
     ward: string;
     street: string;
   };
@@ -106,6 +120,10 @@ export interface IUser {
   };
   lock?: {
     until?: Date;
+  };
+  failedLogins?: {
+    count?: number;
+    lastAt?: Date;
   };
   createdAt: Date;
   updatedAt: Date;

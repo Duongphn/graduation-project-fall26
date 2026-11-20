@@ -11,6 +11,7 @@ import {
 import {
   adminOrganizationListQuerySchema,
   createOrganizationBodySchema,
+  organizationSuggestionQuerySchema,
   publicOrganizationListQuerySchema,
   updateOrganizationBodySchema,
 } from '../validations/organization.validation.js';
@@ -50,5 +51,10 @@ organizationsRouter.get(
   '/',
   validateRequest({ query: publicOrganizationListQuerySchema }),
   publicController.list,
+);
+organizationsRouter.get(
+  '/suggestions',
+  validateRequest({ query: organizationSuggestionQuerySchema }),
+  publicController.suggestions,
 );
 organizationsRouter.get('/:id', byId, publicController.get);

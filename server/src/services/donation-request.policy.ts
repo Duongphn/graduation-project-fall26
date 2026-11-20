@@ -33,10 +33,22 @@ export const isRequester = (record: DonationRecord, actor: DonationActor) =>
 export const canView = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor) || isRequester(record, actor);
 
+/** A request the Donor sent to an organization (UC33): the Donor created it. */
+export const isDonorToOrganization = (record: DonationRecord) =>
+  receiverTypeOf(record) === 'ORGANIZATION' && same(record.requestedBy, String(record.donorId));
+
 /**
- * D-04: only the Donor accepts or rejects (user routes). An Admin passes this check on the admin
- * routes, but `assertNotAdminDecision` then refuses a pending decision (409
- * DONOR_DECISION_REQUIRED): Admins only resolve stuck accepted/shipping requests.
+ * GB-56: the side that did not create a request decides it. The Admin, acting for the
+ * organization, decides a request the Donor sent to it; the Donor decides a request from a
+ * Receiver or from the Admin for an organization.
+ */
+export const deciderOf = (record: DonationRecord): 'ADMIN' | 'DONOR' =>
+  isDonorToOrganization(record) ? 'ADMIN' : 'DONOR';
+
+/**
+ * Who may try a decision at all (403 for anyone else): the Donor (user routes) or an Admin
+ * (admin routes). The service then checks GB-56 with `deciderOf` (409 when it is the other
+ * side's decision).
  */
 export const canDecide = (record: DonationRecord, actor: DonationActor) =>
   actor.isAdmin || isDonor(record, actor);
@@ -82,16 +94,19 @@ export const canConfirmReceipt = (record: DonationRecord, actor: DonationActor) 
   actor.isAdmin || (receiverTypeOf(record) === 'USER' && isRequester(record, actor));
 
 /**
- * The move of the toy that goes with a request move, if any. Develop's toys have no
- * reserved/donated statuses: an accepted toy is 'hidden' (off the catalog) and stays hidden once
- * donated; a cancelled accepted/shipping request puts it back to 'active'.
+ * The move of the toy that goes with a request move, if any (GB-60). Develop's toys have no
+ * reserved/donated statuses: an accepted toy is 'hidden' (off the toy lists) and stays hidden
+ * while Shipping and once donated (Confirmed). An Accepted request that ends without a handover
+ * (cancelled or expired) puts it back to 'active'. A cancelled Shipping request keeps it hidden
+ * (the toy may be lost or with the receiver) until the Donor edits or deletes the post. Pending
+ * requests never moved the toy, so their end moves nothing.
  */
 export const toyMoveFor = (
   from: StoredDonationStatus,
   to: StoredDonationStatus,
 ): { from: ToyStatus; to: ToyStatus } | undefined => {
   if (to === 'accepted') return { from: 'active', to: 'hidden' };
-  if (to === 'cancelled' && (from === 'accepted' || from === 'shipping')) {
+  if (from === 'accepted' && (to === 'cancelled' || to === 'expired')) {
     return { from: 'hidden', to: 'active' };
   }
   return undefined;
@@ -105,6 +120,7 @@ export const auditActionFor = (to: StoredDonationStatus) =>
       accepted: 'donation.accept',
       rejected: 'donation.reject',
       cancelled: 'donation.cancel',
+      expired: 'donation.expire',
       shipping: 'donation.hand_over',
       received: 'donation.confirm_received',
       completed: 'donation.confirm_received',

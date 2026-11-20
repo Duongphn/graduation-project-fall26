@@ -19,6 +19,7 @@ import type {
   CancelBody,
   ConfirmReceivedBody,
   CreateRequestBody,
+  DonorOrganizationRequestBody,
   HandoverBody,
   MyRequestsQuery,
   RejectBody,
@@ -52,6 +53,16 @@ const idOf = (response: Response) => getValidatedParams<IdParams>(response).id;
 export const create = async (request: Request, response: Response) => {
   const body = getValidatedBody<CreateRequestBody>(request);
   sendCreated(response, await service.createRequest(userActor(request), body));
+};
+
+/** UC33 (GB-56): the Donor sends their own donation post to an organization. */
+export const createToOrganization = async (request: Request, response: Response) => {
+  const body = getValidatedBody<DonorOrganizationRequestBody>(request);
+  sendCreated(
+    response,
+    await service.createOrganizationRequestByDonor(userActor(request), body),
+    'Đã gửi yêu cầu tặng đồ chơi tới tổ chức. Admin sẽ xem và phản hồi.',
+  );
 };
 
 export const listMine = async (request: Request, response: Response) => {

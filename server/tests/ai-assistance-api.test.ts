@@ -95,7 +95,7 @@ const EXTRACTED = {
   maxPrice: 150_000,
 };
 
-describe('POST /api/v1/ai/advisor', () => {
+describe('POST /api/v1/ai/toy-advice', () => {
   it('suggests at most 5 real, approved, available toys (case 1, US-01)', async () => {
     const llm = new FakeAdvisorLlm([
       EXTRACTED,
@@ -109,7 +109,7 @@ describe('POST /api/v1/ai/advisor', () => {
     ]);
 
     const res = await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'Bé 4 tuổi thích xếp hình, muốn thuê dưới 150k gần Cầu Giấy' });
 
@@ -117,10 +117,10 @@ describe('POST /api/v1/ai/advisor', () => {
     expect(res.body.success).toBe(true);
     const data = res.body.data;
     expect(data.source).toBe('ai');
-    expect(data.toys.length).toBeGreaterThan(0);
-    expect(data.toys.length).toBeLessThanOrEqual(5);
-    for (const item of data.toys) expect(matchingIds).toContain(item.id);
-    expect(data.toys[0]).toMatchObject({
+    expect(data.listings.length).toBeGreaterThan(0);
+    expect(data.listings.length).toBeLessThanOrEqual(5);
+    for (const item of data.listings) expect(matchingIds).toContain(item.id);
+    expect(data.listings[0]).toMatchObject({
       listingType: 'rent',
       priceOrRate: 50_000,
       condition: 'Tốt (70–89%)',
@@ -144,12 +144,12 @@ describe('POST /api/v1/ai/advisor', () => {
     const llm = new FakeAdvisorLlm();
 
     const res = await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'Phí thuê và tiền cọc tính thế nào?' });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ source: 'faq', toys: [] });
+    expect(res.body.data).toMatchObject({ source: 'faq', listings: [] });
     expect(llm.calls).toBe(0);
   });
 
@@ -172,7 +172,7 @@ describe('POST /api/v1/ai/advisor', () => {
     const llm = new FakeAdvisorLlm([EXTRACTED]);
 
     const res = await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'Bé 4 tuổi chơi gì?' });
 
@@ -184,7 +184,7 @@ describe('POST /api/v1/ai/advisor', () => {
     await AiRequest.deleteMany({});
     await AiRequest.collection.insertMany(Array.from({ length: 20 }, () => log('ai', yesterday)));
     const fresh = await request(appWith(new FakeAdvisorLlm([{ isToyRelated: false }])))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'Hôm nay ăn gì?' });
     expect(fresh.status).toBe(200);
@@ -202,7 +202,7 @@ describe('POST /api/v1/ai/advisor', () => {
   ])('rejects %s with 400 (case 10)', async (_label, body) => {
     const llm = new FakeAdvisorLlm();
 
-    const res = await request(appWith(llm)).post('/api/v1/ai/advisor').set(auth()).send(body);
+    const res = await request(appWith(llm)).post('/api/v1/ai/toy-advice').set(auth()).send(body);
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
@@ -215,7 +215,7 @@ describe('POST /api/v1/ai/advisor', () => {
     ]);
 
     const res = await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({
         message: '',
@@ -233,13 +233,13 @@ describe('POST /api/v1/ai/advisor', () => {
     const llm = new FakeAdvisorLlm([new Error('503 UNAVAILABLE')]);
 
     const res = await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: '', filtersFromButtons: true, filters: { ageYears: 4 } });
 
     expect(res.status).toBe(200);
     expect(res.body.data.source).toBe('fallback');
-    const toys = res.body.data.toys as { name: string; listingType: string }[];
+    const toys = res.body.data.listings as { name: string; listingType: string }[];
     expect(toys.map((toy) => toy.name)).toContain('Bộ xếp hình đang bán');
     expect(toys.map((toy) => toy.name)).not.toContain('Đồ tặng');
     for (const toy of toys) expect(['rent', 'sell']).toContain(toy.listingType);
@@ -247,7 +247,7 @@ describe('POST /api/v1/ai/advisor', () => {
 
   it('requires a signed-in user (case 11)', async () => {
     const res = await request(appWith(new FakeAdvisorLlm()))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .send({ message: 'Bé 4 tuổi chơi gì?' });
 
     expect(res.status).toBe(401);
@@ -255,7 +255,7 @@ describe('POST /api/v1/ai/advisor', () => {
 
   it('is only for users, not admins', async () => {
     const res = await request(appWith(new FakeAdvisorLlm()))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth(newId().toString(), 'ADMIN'))
       .send({ message: 'Bé 4 tuổi chơi gì?' });
 
@@ -266,10 +266,10 @@ describe('POST /api/v1/ai/advisor', () => {
     const app = appWith(new FakeAdvisorLlm(), { enabled: false });
 
     const signedIn = await request(app)
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'x' });
-    const guest = await request(app).post('/api/v1/ai/advisor').send({ message: 'x' });
+    const guest = await request(app).post('/api/v1/ai/toy-advice').send({ message: 'x' });
 
     expect(signedIn.status).toBe(503);
     expect(signedIn.body.error.code).toBe('AI_ADVISOR_DISABLED');
@@ -280,13 +280,13 @@ describe('POST /api/v1/ai/advisor', () => {
     const llm = new FakeAdvisorLlm([new Error('Gemini không phản hồi sau 8000 ms.')]);
 
     const res = await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'Bé 4 tuổi thích xếp hình', filters: { listingType: 'rent' } });
 
     expect(res.status).toBe(200);
     expect(res.body.data.source).toBe('fallback');
-    expect(res.body.data.toys.length).toBeGreaterThan(0);
+    expect(res.body.data.listings.length).toBeGreaterThan(0);
   });
 
   it('writes exactly one AiRequest with token usage and status per question (case 14, US-07)', async () => {
@@ -296,7 +296,7 @@ describe('POST /api/v1/ai/advisor', () => {
     ]);
 
     await request(appWith(llm))
-      .post('/api/v1/ai/advisor')
+      .post('/api/v1/ai/toy-advice')
       .set(auth())
       .send({ message: 'Bé 4 tuổi thích xếp hình' })
       .expect(200);

@@ -49,9 +49,10 @@ export interface AdvisorToy {
   reason: string;
 }
 
-export interface AdvisorReply {
-  reply: string;
-  toys: AdvisorToy[];
+/** R04 3.4: ToyAdviceDTO (advice, listings) kèm bộ lọc và nguồn câu trả lời. */
+export interface ToyAdviceDTO {
+  advice: string;
+  listings: AdvisorToy[];
   filters: AdvisorFilters;
   source: AdvisorSource;
 }

@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { EyeOff, ImageOff, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS, toyListingEditPath } from '../../../routes/paths'
 import { formatVnd } from '../format-vnd'
-import { displayCode, formatDate, STATUS_LABELS } from '../listing-display'
-import { deleteToyListing, getListingErrorMessage, hideToyListing, type ToyListing } from '../toy-listing-api'
+import { displayCode, formatDate, isRejected, REJECTED_LABEL, STATUS_LABELS } from '../listing-display'
+import { deleteToyListing, getListingErrorMessage, hideToyListing, showToyListing, type ToyListing } from '../toy-listing-api'
 import { MY_LISTINGS_ROOT_KEY, myListingQuery } from '../toy-listing-queries'
 import type { DonationToyState } from '../../donations/donor-queries'
 
@@ -24,10 +24,16 @@ const DONATION_STATE_LABELS: Record<DonationToyState, string> = {
 export function MyListingRow({ listing, categoryName, donationState }: MyListingRowProps) {
   const queryClient = useQueryClient()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [showingReason, setShowingReason] = useState(false)
+  // Bị Admin từ chối: hiện nhãn riêng và lý do, sửa tin là gửi duyệt lại (R03 III.3.2.1, BF-02 1a)
+  const rejected = isRejected(listing)
+  const reasonId = `listing-reason-${listing.id}`
   const isRent = listing.listingType === 'rent'
   const isDonation = listing.listingType === 'donate'
   // Đồ đang trao hoặc đã tặng: không cho ẩn/xoá (phiếu quyên góp còn tham chiếu tới đồ chơi)
   const lockedByDonation = donationState !== undefined
+  // Tin tặng chỉ sửa khi bị từ chối hoặc bị ẩn (UC33 5.1, GB-60): sửa xong là gửi duyệt lại
+  const canEdit = !isDonation || (!lockedByDonation && listing.status === 'hidden')
 
   const refreshLists = () => {
     void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY })
@@ -35,9 +41,14 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
   }
 
   const hideMutation = useMutation({ mutationFn: () => hideToyListing(listing.id), onSuccess: refreshLists })
+  const showMutation = useMutation({ mutationFn: () => showToyListing(listing.id), onSuccess: refreshLists })
   const deleteMutation = useMutation({ mutationFn: () => deleteToyListing(listing.id), onSuccess: refreshLists })
-  const isBusy = hideMutation.isPending || deleteMutation.isPending
-  const actionError = hideMutation.error ?? deleteMutation.error
+  const isBusy = hideMutation.isPending || showMutation.isPending || deleteMutation.isPending
+  const actionError = hideMutation.error ?? showMutation.error ?? deleteMutation.error
+  // R03 III.3.2.1: chỉ tin đang hiển thị mới ẩn được (tin chờ duyệt chỉ có Sửa và Xoá); tin chủ đồ
+  // đã ẩn (không bị từ chối) có "Hiện lại" (GB-08)
+  const canHide = !lockedByDonation && listing.status === 'active'
+  const canShowAgain = !lockedByDonation && listing.status === 'hidden' && !rejected
 
   return (
     <article className={`listing-row ${isBusy ? 'is-busy' : ''}`}>
@@ -56,6 +67,8 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         <div className="listing-row__meta">
           {donationState ? (
             <span className="status-badge status-badge--sold">{DONATION_STATE_LABELS[donationState]}</span>
+          ) : rejected ? (
+            <span className="status-badge status-badge--rejected">{REJECTED_LABEL}</span>
           ) : (
             <span className={`status-badge status-badge--${listing.status}`}>{STATUS_LABELS[listing.status]}</span>
           )}
@@ -66,8 +79,7 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         </div>
 
         <h3 className="listing-row__title">
-          {/* Tin tặng không sửa bằng form đăng tin (không có giá) */}
-          {isDonation ? (
+          {!canEdit ? (
             listing.title
           ) : (
             <Link to={toyListingEditPath(listing.id)} className="listing-row__title-link">
@@ -86,6 +98,13 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
           )}
           <span className="listing-row__chip">{listing.condition}</span>
         </div>
+
+        {rejected && showingReason && (
+          <p id={reasonId} className="listing-row__reason">
+            <strong>Lý do từ chối:</strong> {listing.moderation?.rejectReason}
+            {' Sửa tin rồi lưu để gửi duyệt lại.'}
+          </p>
+        )}
 
         {actionError && (
           <p className="listing-row__error" role="alert">
@@ -108,16 +127,34 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
           </>
         ) : (
           <>
-            {!isDonation && (
+            {rejected && (
+              <button
+                type="button"
+                className="row-btn"
+                aria-expanded={showingReason}
+                aria-controls={reasonId}
+                onClick={() => setShowingReason((shown) => !shown)}
+              >
+                <MessageSquareWarning aria-hidden />
+                {showingReason ? 'Ẩn lý do' : 'Xem lý do'}
+              </button>
+            )}
+            {canEdit && (
               <Link to={toyListingEditPath(listing.id)} className="row-btn row-btn--primary">
                 <Pencil aria-hidden />
                 Sửa
               </Link>
             )}
-            {!lockedByDonation && listing.status !== 'hidden' && listing.status !== 'sold' && (
+            {canHide && (
               <button type="button" className="row-btn" onClick={() => hideMutation.mutate()} disabled={isBusy}>
                 {hideMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <EyeOff aria-hidden />}
                 Ẩn tin
+              </button>
+            )}
+            {canShowAgain && (
+              <button type="button" className="row-btn" onClick={() => showMutation.mutate()} disabled={isBusy}>
+                {showMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <Eye aria-hidden />}
+                Hiện lại
               </button>
             )}
             {lockedByDonation ? (

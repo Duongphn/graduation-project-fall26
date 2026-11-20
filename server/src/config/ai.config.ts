@@ -1,6 +1,6 @@
 import { env } from './env.js';
 
-// Trợ lý AI tư vấn đồ chơi (POST /api/v1/ai/advisor).
+// Trợ lý AI tư vấn đồ chơi (POST /api/v1/ai/toy-advice).
 // API key chỉ đọc từ biến môi trường ở server, không bao giờ gửi xuống frontend.
 
 const positiveInteger = (name: string, fallback: number): number => {

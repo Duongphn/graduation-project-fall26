@@ -77,6 +77,8 @@ const createUser = async (role: 'USER' | 'ADMIN' = 'USER') => {
     passwordHash: 'x',
     fullName: `User ${seq}`,
     role,
+    // GB-06: Donors and Receivers are verified Users.
+    verificationStatus: 'verified',
   });
   return String(user._id);
 };
@@ -179,6 +181,24 @@ describe('create', () => {
     expect(missing.status).toBe(404);
   });
 
+  // GB-06, R03 actors: a Receiver is a verified User; the same 403 as the other blocked actions.
+  it('refuses a user whose identity is not verified (403 USER_NOT_VERIFIED)', async () => {
+    for (const status of ['unverified', 'pending', 'rejected']) {
+      await User.updateOne({ _id: receiver }, { $set: { verificationStatus: status } });
+      const res = await request(app).post('/donation-requests').set(as(receiver)).send({ toyId });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('USER_NOT_VERIFIED');
+    }
+    await User.updateOne({ _id: donor }, { $set: { verificationStatus: 'unverified' } });
+    const toOrganization = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId });
+    expect(toOrganization.body.error.code).toBe('USER_NOT_VERIFIED');
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+    await User.updateMany({}, { $set: { verificationStatus: 'verified' } });
+  });
+
   it('lets an Admin request for an ACTIVE organization only (audited)', async () => {
     const ok = await request(app)
       .post('/admin/donation-requests')
@@ -201,6 +221,29 @@ describe('create', () => {
       .send({ toyId, organizationId });
     expect(forbidden.status).toBe(403);
   });
+
+  it('GB-55: no new request for an organization that is not accepting toys; pending ones go on', async () => {
+    const pending = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(pending.status).toBe(201);
+    await Organization.updateOne({ _id: organizationId }, { isAccepting: false });
+
+    const second = await createToy({ ownerId: donor });
+    const refused = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId: String(second._id), organizationId });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('ORGANIZATION_NOT_ACCEPTING');
+
+    const accepted = await request(app)
+      .post(`/donation-requests/${pending.body.data.id as string}/accept`)
+      .set(as(donor));
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.status).toBe('accepted');
+  });
 });
 
 describe('decisions', () => {
@@ -222,7 +265,7 @@ describe('decisions', () => {
     expect(await AuditLog.countDocuments({ action: 'donation.accept' })).toBe(0);
   });
 
-  it('only the donor decides; others get 403/404, an Admin 409', async () => {
+  it("GB-56: the Donor decides a Receiver's request; others get 403/404, an Admin 409", async () => {
     const id = await createRequest();
     expect(
       (await request(app).post(`/donation-requests/${id}/accept`).set(as(receiver))).status,
@@ -282,20 +325,20 @@ describe('handover, receipt and cancel', () => {
     const bad = await request(app)
       .post(`/donation-requests/${id}/handover`)
       .set(as(donor))
-      .send({ photos: [{ publicId: 'toyflow/toys/x', format: 'jpg' }] });
+      .send({ handoverMethod: 'drop_off', photos: [{ publicId: 'toyflow/toys/x', format: 'jpg' }] });
     expect(bad.status).toBe(400);
     expect(
       (
         await request(app)
           .post(`/donation-requests/${id}/handover`)
           .set(as(receiver))
-          .send({ photos: [photoOf(receiver)] })
+          .send({ handoverMethod: 'drop_off', photos: [photoOf(receiver)] })
       ).status,
     ).toBe(403);
     const sent = await request(app)
       .post(`/donation-requests/${id}/handover`)
       .set(as(donor))
-      .send({ photos: [photoOf(donor)], note: 'Gửi qua bưu điện' });
+      .send({ handoverMethod: 'drop_off', photos: [photoOf(donor)], note: 'Gửi qua bưu điện' });
     expect(sent.body.data.status).toBe('shipping');
     expect(sent.body.data.handovers[0].step).toBe('DONOR_SENT');
 
@@ -317,7 +360,7 @@ describe('handover, receipt and cancel', () => {
     ).toBe(404);
   });
 
-  it('only an Admin confirms receipt for an organization', async () => {
+  it('GB-59: the Admin records who confirmed, the channel, the date and a photo for an organization', async () => {
     const created = await request(app)
       .post('/admin/donation-requests')
       .set(as(admin, 'ADMIN'))
@@ -327,14 +370,43 @@ describe('handover, receipt and cancel', () => {
     await request(app)
       .post(`/donation-requests/${id}/handover`)
       .set(as(donor))
-      .send({ photos: [photoOf(donor)] });
-    const done = await request(app)
-      .post(`/admin/donation-requests/${id}/confirm-received`)
-      .set(as(admin, 'ADMIN'))
-      .send({ photos: [photoOf(admin)] });
+      .send({ handoverMethod: 'drop_off', photos: [photoOf(donor)] });
+    const confirm = (body: object) =>
+      request(app)
+        .post(`/admin/donation-requests/${id}/confirm-received`)
+        .set(as(admin, 'ADMIN'))
+        .send(body);
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    const receipt = { confirmedBy: 'Chị Lan', channel: 'phone', receivedAt: today };
+
+    const noDetails = await confirm({ photos: [photoOf(admin)] });
+    expect(noDetails.status).toBe(422);
+    expect(noDetails.body.error.code).toBe('RECEIPT_DETAILS_REQUIRED');
+    const noPhoto = await confirm(receipt);
+    expect(noPhoto.status).toBe(422);
+    expect(noPhoto.body.error.code).toBe('RECEIPT_PHOTO_REQUIRED');
+    for (const receivedAt of ['2099-01-01', '2020-01-01']) {
+      const badDate = await confirm({ ...receipt, receivedAt, photos: [photoOf(admin)] });
+      expect(badDate.body.error.code).toBe('RECEIVED_AT_INVALID');
+    }
+    expect((await confirm({ ...receipt, channel: 'zalo', photos: [photoOf(admin)] })).status).toBe(
+      400,
+    );
+    expect((await DonationRequest.findById(id).lean())?.status).toBe('shipping');
+
+    const done = await confirm({ ...receipt, photos: [photoOf(admin)] });
     expect(done.status).toBe(200);
+    expect(done.body.data).toMatchObject({
+      status: 'completed',
+      receipt: { confirmedBy: 'Chị Lan', channel: 'phone' },
+    });
+    expect(done.body.data.receipt.receivedAt).toBe(
+      new Date(`${today}T00:00:00+07:00`).toISOString(),
+    );
     expect(done.body.data.handovers).toHaveLength(2);
     expect(done.body.data.donor.phone).toMatch(/\*/);
+    const stored = await DonationRequest.findById(id).lean();
+    expect(stored).toMatchObject({ confirmedBy: 'Chị Lan', channel: 'phone' });
   });
 
   it('cancel after accept returns the toy to ACTIVE', async () => {
@@ -381,7 +453,7 @@ const shipping = async () => {
   const sent = await request(app)
     .post(`/donation-requests/${id}/handover`)
     .set(as(donor))
-    .send({ photos: [photoOf(donor)] });
+    .send({ handoverMethod: 'drop_off', photos: [photoOf(donor)] });
   expect(sent.body.data.status).toBe('shipping');
   return id;
 };
@@ -443,6 +515,183 @@ describe('races on create', () => {
   });
 });
 
+describe('Donor to organization (UC33, GB-56)', () => {
+  const sendToOrganization = (body: object, userId = donor) =>
+    request(app).post('/donation-requests/to-organization').set(as(userId)).send(body);
+
+  const withPoint = (overrides: Record<string, unknown> = {}) =>
+    Organization.updateOne(
+      { _id: organizationId },
+      {
+        receivingPoint: {
+          province: 'Hà Nội',
+          ward: 'Phường Ba Đình',
+          street: '1 Hoàng Hoa Thám',
+          openingHours: '8:00 – 17:00',
+          contactName: 'Nguyễn Văn Nam',
+          contactPhone: '+84987654321',
+          acceptsDropOff: true,
+          acceptsParcel: false,
+          ...overrides,
+        },
+      },
+    );
+
+  it('creates a PENDING request the Admin decides; the Donor cannot (409)', async () => {
+    const res = await sendToOrganization({ toyId, organizationId, message: 'Còn đủ 20 chi tiết' });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({
+      status: 'pending',
+      receiverType: 'ORGANIZATION',
+      decider: 'ADMIN',
+      message: 'Còn đủ 20 chi tiết',
+    });
+    const id = res.body.data.id as string;
+    const stored = await DonationRequest.findById(id).lean();
+    expect(String(stored?.requestedBy)).toBe(donor);
+    expect(String(stored?.receiver?.organizationId)).toBe(organizationId);
+
+    const byDonor = await request(app).post(`/donation-requests/${id}/accept`).set(as(donor));
+    expect(byDonor.status).toBe(409);
+    expect(byDonor.body.error.code).toBe('ADMIN_DECISION_REQUIRED');
+    const rejectByDonor = await request(app)
+      .post(`/donation-requests/${id}/reject`)
+      .set(as(donor))
+      .send({ reason: 'Không muốn tặng nữa' });
+    expect(rejectByDonor.body.error.code).toBe('ADMIN_DECISION_REQUIRED');
+
+    const accepted = await request(app)
+      .post(`/admin/donation-requests/${id}/accept`)
+      .set(as(admin, 'ADMIN'));
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.status).toBe('accepted');
+    expect(await toyStatus()).toBe('hidden');
+    expect(await AuditLog.countDocuments({ action: 'donation.accept', target_id: id })).toBe(1);
+
+    // The status history shows who acted: the Donor created it, the Admin accepted it.
+    const detail = await request(app).get(`/admin/donation-requests/${id}`).set(as(admin, 'ADMIN'));
+    expect(
+      detail.body.data.history.map((row: { toStatus: string; actorType: string }) => [
+        row.toStatus,
+        row.actorType,
+      ]),
+    ).toEqual([
+      ['pending', 'USER'],
+      ['accepted', 'ADMIN'],
+    ]);
+  });
+
+  it('lets the Admin reject it with a reason, and the Donor choose another organization', async () => {
+    const res = await sendToOrganization({ toyId, organizationId });
+    const id = res.body.data.id as string;
+    const noReason = await request(app)
+      .post(`/admin/donation-requests/${id}/reject`)
+      .set(as(admin, 'ADMIN'))
+      .send({});
+    expect(noReason.status).toBe(400);
+    const rejected = await request(app)
+      .post(`/admin/donation-requests/${id}/reject`)
+      .set(as(admin, 'ADMIN'))
+      .send({ reason: 'Tổ chức đã đủ đồ chơi loại này' });
+    expect(rejected.body.data).toMatchObject({
+      status: 'rejected',
+      rejectReason: 'Tổ chức đã đủ đồ chơi loại này',
+    });
+    expect(await toyStatus()).toBe('active');
+    expect((await sendToOrganization({ toyId, organizationId })).status).toBe(201);
+  });
+
+  it("keeps the Donor's decision on the Admin's request for an organization (409 for the Admin)", async () => {
+    const id = await createOrgRequest();
+    const byAdmin = await request(app)
+      .post(`/admin/donation-requests/${id}/accept`)
+      .set(as(admin, 'ADMIN'));
+    expect(byAdmin.status).toBe(409);
+    expect(byAdmin.body.error.code).toBe('DONOR_DECISION_REQUIRED');
+    const detail = await request(app).get(`/donation-requests/${id}`).set(as(donor));
+    expect(detail.body.data.decider).toBe('DONOR');
+    expect(
+      (await request(app).post(`/donation-requests/${id}/accept`).set(as(donor))).status,
+    ).toBe(200);
+  });
+
+  it("only from the Donor's own Active post, to an accepting organization (GB-55, MSG51)", async () => {
+    expect((await sendToOrganization({ toyId, organizationId }, receiver)).status).toBe(403);
+    const pendingPost = await createToy({ ownerId: donor, status: 'pending' });
+    const notActive = await sendToOrganization({ toyId: String(pendingPost._id), organizationId });
+    expect(notActive.body.error.code).toBe('TOY_NOT_AVAILABLE');
+
+    await Organization.updateOne({ _id: organizationId }, { isAccepting: false });
+    const closed = await sendToOrganization({ toyId, organizationId });
+    expect(closed.status).toBe(409);
+    expect(closed.body.error.code).toBe('ORGANIZATION_NOT_ACCEPTING');
+    await Organization.updateOne({ _id: organizationId }, { isAccepting: true, status: 'hidden' });
+    expect((await sendToOrganization({ toyId, organizationId })).body.error.code).toBe(
+      'ORGANIZATION_NOT_AVAILABLE',
+    );
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+  });
+
+  it('limits the note to 300 characters and the method to what the receiving point accepts', async () => {
+    await withPoint();
+    const long = await sendToOrganization({ toyId, organizationId, message: 'a'.repeat(301) });
+    expect(long.status).toBe(400);
+    const parcel = await sendToOrganization({ toyId, organizationId, handoverMethod: 'carrier' });
+    expect(parcel.status).toBe(422);
+    expect(parcel.body.error.code).toBe('HANDOVER_METHOD_NOT_ALLOWED');
+    const ok = await sendToOrganization({
+      toyId,
+      organizationId,
+      message: 'a'.repeat(300),
+      handoverMethod: 'drop_off',
+    });
+    expect(ok.status).toBe(201);
+    expect(ok.body.data.handoverMethod).toBe('drop_off');
+    // One pending request per toy and organization.
+    expect((await sendToOrganization({ toyId, organizationId })).body.error.code).toBe(
+      'DONATION_REQUEST_EXISTS',
+    );
+  });
+
+  it('checks the handover method against the receiving point; shows its contact once accepted', async () => {
+    await withPoint({ acceptsDropOff: false, acceptsParcel: true });
+    const res = await sendToOrganization({ toyId, organizationId });
+    const id = res.body.data.id as string;
+    expect(res.body.data.organization.receivingPoint).toMatchObject({ province: 'Hà Nội' });
+    expect(JSON.stringify(res.body.data)).not.toContain('987654321');
+    expect(res.body.data.counterpartContact).toBeNull();
+    await request(app).post(`/admin/donation-requests/${id}/accept`).set(as(admin, 'ADMIN'));
+
+    const detail = await request(app).get(`/donation-requests/${id}`).set(as(donor));
+    expect(detail.body.data.counterpartContact).toEqual({
+      name: 'Nguyễn Văn Nam',
+      phone: '+84987654321',
+    });
+    const dropOff = await request(app)
+      .post(`/donation-requests/${id}/handover`)
+      .set(as(donor))
+      .send({ handoverMethod: 'drop_off', photos: [photoOf(donor)] });
+    expect(dropOff.status).toBe(422);
+    expect(dropOff.body.error.code).toBe('HANDOVER_METHOD_NOT_ALLOWED');
+    const sent = await request(app)
+      .post(`/donation-requests/${id}/handover`)
+      .set(as(donor))
+      .send({ handoverMethod: 'carrier', trackingCode: 'VTP-1', photos: [photoOf(donor)] });
+    expect(sent.body.data).toMatchObject({ status: 'shipping', handoverMethod: 'carrier' });
+  });
+
+  it('publishes the new request with the Donor as its creator', async () => {
+    await sendToOrganization({ toyId, organizationId });
+    expect(events.at(-1)).toMatchObject({
+      to: 'pending',
+      receiverType: 'ORGANIZATION',
+      donorId: donor,
+      requestedBy: donor,
+      changedBy: donor,
+    });
+  });
+});
+
 describe('organization requests', () => {
   it('lets one Admin file for several organizations, but one PENDING per organization', async () => {
     const second = await Organization.create({
@@ -500,10 +749,49 @@ describe('handover and receipt validation', () => {
     expect(
       (await send({ photos: [{ publicId: 'toyflow/handovers/../x', format: 'jpg' }] })).status,
     ).toBe(400);
-    const foreign = await send({ photos: [photoOf(receiver)] });
+    const foreign = await send({ handoverMethod: 'drop_off', photos: [photoOf(receiver)] });
     expect(foreign.status).toBe(422);
     expect(foreign.body.error.code).toBe('HANDOVER_PHOTO_NOT_OWNED');
     expect((await DonationRequest.findById(id).lean())?.status).toBe('accepted');
+  });
+
+  it('needs a handover method (MSG52); carrier name and tracking code only for a carrier', async () => {
+    const id = await accepted();
+    const send = (body: object) =>
+      request(app).post(`/donation-requests/${id}/handover`).set(as(donor)).send(body);
+    const noMethod = await send({ photos: [photoOf(donor)] });
+    expect(noMethod.status).toBe(400);
+    expect(JSON.stringify(noMethod.body.error.details)).toContain(
+      'Vui lòng chọn mang đến hoặc gửi qua vận chuyển.',
+    );
+    expect((await send({ handoverMethod: 'ship', photos: [photoOf(donor)] })).status).toBe(400);
+    expect(
+      (
+        await send({
+          handoverMethod: 'drop_off',
+          trackingCode: 'GHN123',
+          photos: [photoOf(donor)],
+        })
+      ).status,
+    ).toBe(400);
+
+    const sent = await send({
+      handoverMethod: 'carrier',
+      carrierName: 'Giao Hàng Nhanh',
+      trackingCode: 'GHN-123456',
+      photos: [photoOf(donor)],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.body.data).toMatchObject({
+      status: 'shipping',
+      handoverMethod: 'carrier',
+      carrierName: 'Giao Hàng Nhanh',
+      trackingCode: 'GHN-123456',
+    });
+    expect(await DonationRequest.findById(id).lean()).toMatchObject({
+      handoverMethod: 'carrier',
+      trackingCode: 'GHN-123456',
+    });
   });
 
   it('receipt needs photos (GB-20); only the receiver, and photos must be theirs', async () => {
@@ -543,7 +831,7 @@ describe('handover and receipt validation', () => {
 });
 
 describe('stuck SHIPPING: the Admin way out', () => {
-  it('users cannot cancel a SHIPPING request; an Admin can, with a reason (toy back to ACTIVE)', async () => {
+  it('users cannot cancel a SHIPPING request; an Admin can, with a reason (toy stays hidden, GB-60)', async () => {
     const id = await shipping();
     const user = await request(app)
       .post(`/donation-requests/${id}/cancel`)
@@ -568,7 +856,7 @@ describe('stuck SHIPPING: the Admin way out', () => {
       reason: 'CANCELLED_BY_ADMIN',
       note: 'Đồ chơi thất lạc khi gửi',
     });
-    expect(await toyStatus()).toBe('active');
+    expect(await toyStatus()).toBe('hidden');
     const audit = await AuditLog.findOne({ action: 'donation.cancel', target_id: id }).lean();
     expect(String(audit?.actor_id)).toBe(admin);
     expect(audit?.target_type).toBe('DONATION_REQUEST');

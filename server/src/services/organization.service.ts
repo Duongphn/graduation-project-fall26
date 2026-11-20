@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 
-import type { FilterQuery } from 'mongoose';
+import { Types, type ClientSession, type FilterQuery } from 'mongoose';
 
 import {
   adminAuditEntry,
@@ -8,13 +8,18 @@ import {
   type AuditEntry,
 } from '../repositories/audit-log.repository.js';
 import { type AppError } from '../utils/app-error.js';
-import { conflict, notFound } from '../utils/http-errors.js';
+import { conflict, notFound, unprocessable } from '../utils/http-errors.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
 import { toMongoPaging } from '../utils/response.js';
 import { accentInsensitivePattern } from '../utils/text.js';
 import { assertTransition } from '../utils/transitions.js';
-import { organizationTransitions, type OrganizationStatus } from '../constants/organization-rules.js';
+import {
+  ageRangesOverlap,
+  organizationTransitions,
+  type AgeRange,
+  type OrganizationStatus,
+} from '../constants/organization-rules.js';
 import {
   toAdminOrganization,
   toPublicOrganization,
@@ -25,8 +30,11 @@ import {
   countRequests,
   countRequestsByOrganization,
   deleteOrganization,
+  findActiveCategoryIds,
   findOrganization,
+  findOrganizationWithSameName,
   findOrganizationsPage,
+  findSuggestedOrganizations,
   insertOrganization,
   noRequests,
   updateOrganizationFields,
@@ -39,12 +47,14 @@ import {
   publicOrganizationSortFields,
   type AdminOrganizationListQuery,
   type CreateOrganizationBody,
+  type OrganizationSuggestionQuery,
   type PublicOrganizationListQuery,
   type UpdateOrganizationBody,
 } from '../validations/organization.validation.js';
 
-// Charity organizations (FE-02, UC34): the Admin adds, edits, hides, shows and deletes them;
-// Donors see the ACTIVE ones. One that ever received a donation request is kept (GB-36).
+// Charity organizations (FE-02, UC34, UC40): the Admin adds, edits, hides, shows and deletes
+// them and keeps their receiving point and needs profile; Donors see the ACTIVE ones that are
+// accepting toys. One that ever received a donation request is kept (GB-36).
 
 const organizationNotFound = () =>
   notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức từ thiện.');
@@ -54,16 +64,24 @@ const nameTaken = () =>
     { field: 'name', message: 'Đã có tổ chức khác dùng tên này.' },
   ]);
 
-// The "name_unique" index is the single guard for duplicate names.
+// The name is unique ignoring letter case and accents: the service checks that inside the write
+// transaction, and the "name_unique" index still guards exact duplicates written concurrently.
 const rethrowDuplicateName = (error: unknown): never => {
   throw isDuplicateKeyError(error, 'name_unique') ? nameTaken() : error;
 };
 
-const auditEntry = (
-  context: AdminContext,
-  action: AuditEntry['action'],
-  id: string,
-): AuditEntry => adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
+const assertNameFree = async (
+  name: string | undefined,
+  exceptId: Types.ObjectId | string | undefined,
+  session: ClientSession,
+) => {
+  if (name !== undefined && (await findOrganizationWithSameName(name, exceptId, session))) {
+    throw nameTaken();
+  }
+};
+
+const auditEntry = (context: AdminContext, action: AuditEntry['action'], id: string): AuditEntry =>
+  adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
 
 /** API body (camelCase) -> develop's stored fields. */
 const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
@@ -72,8 +90,54 @@ const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
   if (body.address !== undefined) stored.address = body.address;
   if (body.contactInfo !== undefined) stored.contact_info = body.contactInfo;
   if (body.supportCriteria !== undefined) stored.support_criteria = body.supportCriteria;
+  if (body.receivingPoint !== undefined) stored.receivingPoint = body.receivingPoint;
+  if (body.ageGroups !== undefined) stored.ageGroups = body.ageGroups;
+  if (body.categoryIds !== undefined) {
+    stored.categoryIds = body.categoryIds.map((id) => new Types.ObjectId(id));
+  }
+  if (body.areaProvince !== undefined) stored.areaProvince = body.areaProvince;
+  if (body.isRemoteArea !== undefined) stored.isRemoteArea = body.isRemoteArea;
+  if (body.isAccepting !== undefined) stored.isAccepting = body.isAccepting;
   return stored;
 };
+
+/** GB-53: the needs name Active categories only (422 CATEGORY_NOT_FOUND, field categoryIds). */
+const assertActiveCategories = async (categoryIds: string[] | undefined) => {
+  if (!categoryIds?.length) return;
+  const active = await findActiveCategoryIds(categoryIds.map((id) => new Types.ObjectId(id)));
+  const missing = categoryIds.filter((id) => !active.has(id.toLowerCase()));
+  if (missing.length > 0) {
+    throw unprocessable('CATEGORY_NOT_FOUND', 'Danh mục không tồn tại hoặc đang bị ẩn.', [
+      { field: 'categoryIds', message: `Danh mục không hợp lệ: ${missing.join(', ')}.` },
+    ]);
+  }
+};
+
+/** GB-51/GB-55: what Donors may see and send requests to. A missing isAccepting = accepting. */
+export const visibleToDonors = { status: 'active', isAccepting: { $ne: false } } as const;
+
+/**
+ * A toy age range [minAge, maxAge) overlaps one of the accepted age groups (GB-54). A one-age
+ * toy (minAge === maxAge) counts as [minAge, minAge + 1), as in ageRangesOverlap.
+ */
+const ageGroupFilter = (range: AgeRange) => ({
+  ageGroups: {
+    $elemMatch: {
+      minAge: { $lt: Math.max(range.maxAge, range.minAge + 1) },
+      maxAge: { $gt: range.minAge },
+    },
+  },
+});
+
+const provinceFilter = (province: string | undefined) =>
+  province
+    ? {
+        'receivingPoint.province': {
+          $regex: `^${accentInsensitivePattern(province)}$`,
+          $options: 'i',
+        },
+      }
+    : {};
 
 const searchFilter = (q: string | undefined, fields: readonly string[]) => {
   if (!q) return {};
@@ -86,7 +150,13 @@ const searchFilter = (q: string | undefined, fields: readonly string[]) => {
 export const listOrganizationsForAdmin = async (query: AdminOrganizationListQuery) => {
   const filter: FilterQuery<OrganizationRecord> = {
     ...(query.status ? { status: query.status } : {}),
-    ...searchFilter(query.q, ['name', 'address', 'contact_info', 'support_criteria']),
+    ...searchFilter(query.q, [
+      'name',
+      'address',
+      'contact_info',
+      'support_criteria',
+      'receivingPoint.province',
+    ]),
   };
   const { items, total } = await findOrganizationsPage(
     filter,
@@ -95,7 +165,7 @@ export const listOrganizationsForAdmin = async (query: AdminOrganizationListQuer
   const counts = await countRequestsByOrganization(items.map((item) => item._id));
   return {
     items: items.map((item) =>
-toAdminOrganization(item, counts.get(String(item._id)) ?? noRequests),
+      toAdminOrganization(item, counts.get(String(item._id)) ?? noRequests),
     ),
     total,
   };
@@ -112,14 +182,22 @@ export const createOrganization = async (
   body: CreateOrganizationBody,
   context: AdminContext,
 ): Promise<AdminOrganizationDto> => {
+  await assertActiveCategories(body.categoryIds);
   try {
-    const record = await withTransaction((session) =>
-      insertOrganization(
-        { ...toStored(body), status: 'active' },
+    const record = await withTransaction(async (session) => {
+      await assertNameFree(body.name, undefined, session);
+      return insertOrganization(
+        {
+          ...toStored(body),
+          areaProvince: body.areaProvince ?? body.receivingPoint.province,
+          isRemoteArea: body.isRemoteArea ?? false,
+          isAccepting: body.isAccepting ?? true,
+          status: 'active',
+        },
         (created) => auditEntry(context, 'organization.create', String(created._id)),
         session,
-      ),
-    );
+      );
+    });
     return toAdminOrganization(record, noRequests);
   } catch (error) {
     return rethrowDuplicateName(error);
@@ -131,10 +209,12 @@ export const updateOrganization = async (
   body: UpdateOrganizationBody,
   context: AdminContext,
 ): Promise<AdminOrganizationDto> => {
+  await assertActiveCategories(body.categoryIds);
   try {
     const { record, counts } = await withTransaction(async (session) => {
       const before = await findOrganization(id, { session });
       if (!before) throw organizationNotFound();
+      await assertNameFree(body.name, before._id, session);
       const set = toStored(body);
       const after = await updateOrganizationFields(before._id, set, [], session);
       if (!after) throw organizationNotFound();
@@ -233,21 +313,26 @@ export const deleteOrganizationById = async (id: string, context: AdminContext):
       );
     }
     if (!(await deleteOrganization(record._id, session))) throw organizationNotFound();
-    await writeAuditLog(
-      auditEntry(context, 'organization.delete', id),
-      session,
-    );
+    await writeAuditLog(auditEntry(context, 'organization.delete', id), session);
   });
 };
 
 // ---------- Donors (public) ----------
 
-export const listPublicOrganizations = async (
-  query: PublicOrganizationListQuery,
-) => {
+/** GB-52: Active organizations that are accepting toys, with the Donor's filters. */
+export const listPublicOrganizations = async (query: PublicOrganizationListQuery) => {
   const filter: FilterQuery<OrganizationRecord> = {
-    status: 'active',
+    ...visibleToDonors,
     ...searchFilter(query.q, ['name', 'address', 'support_criteria']),
+    ...provinceFilter(query.province),
+    ...(query.minAge !== undefined || query.maxAge !== undefined
+      ? ageGroupFilter({
+          minAge: query.minAge ?? 0,
+          maxAge: query.maxAge ?? query.minAge ?? 0,
+        })
+      : {}),
+    ...(query.categoryId ? { categoryIds: new Types.ObjectId(query.categoryId) } : {}),
+    ...(query.remoteOnly ? { isRemoteArea: true } : {}),
   };
   const { items, total } = await findOrganizationsPage(
     filter,
@@ -260,4 +345,24 @@ export const getPublicOrganization = async (id: string) => {
   const record = await findOrganization(id, { status: 'active' });
   if (!record) throw organizationNotFound();
   return toPublicOrganization(record);
+};
+
+/**
+ * GB-54, rules only (no AI, LI-03): the Active organizations accepting toys whose age groups
+ * overlap the toy's age range and whose categories include the toy's category. Those whose
+ * receiving point is in the Donor's province come first, then by name.
+ */
+export const suggestOrganizations = async (query: OrganizationSuggestionQuery) => {
+  const toyRange = { minAge: query.minAge, maxAge: query.maxAge };
+  const records = await findSuggestedOrganizations(
+    {
+      ...visibleToDonors,
+      ...ageGroupFilter(toyRange),
+      categoryIds: new Types.ObjectId(query.categoryId),
+    },
+    query.province ? accentInsensitivePattern(query.province) : undefined,
+  );
+  return records
+    .filter((record) => (record.ageGroups ?? []).some((group) => ageRangesOverlap(toyRange, group)))
+    .map((record) => toPublicOrganization(record));
 };

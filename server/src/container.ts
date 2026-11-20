@@ -3,7 +3,7 @@ import { GeminiAdvisorClient } from './integrations/ai/gemini.client.js';
 import { RequestLimiter } from './integrations/ai/request-limiter.js';
 import type { AdvisorLlm } from './interfaces/ai-advisor.ports.js';
 import { MongoAiAdvisorRepository } from './repositories/ai-advisor.repository.js';
-import { AiAdvisorService } from './services/ai-advisor.service.js';
+import { AiAssistanceService } from './services/ai-assistance.service.js';
 import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/mailer.js';
 import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
@@ -15,8 +15,8 @@ import {
   createDefaultToyImageStorage,
 } from './integrations/cloudinary/default-storages.js';
 import type { ToyImageStorage } from './interfaces/toy-listing.ports.js';
-import { DefaultIdentityVerificationEvents } from './integrations/events/identity-verification-events.js';
-import { NotificationRentalNotifier } from './integrations/events/rental-order-notifier.js';
+import { IdentityReviewNotifications } from './integrations/events/identity-review-notifications.js';
+import { RentalOrderNotifications } from './integrations/events/rental-order-notifications.js';
 import type {
   IdentityImageStorage,
   IdentityVerificationEvents,
@@ -47,6 +47,7 @@ import { setReviewStorage } from './services/identity-review.documents.js';
 import { setIdentityReviewService } from './services/identity-review.service.js';
 import { IdentityVerificationService } from './services/identity-verification.service.js';
 import { setNotificationMailer } from './services/notification.service.js';
+import { RentalDisputeService } from './services/rental-dispute.service.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
@@ -84,12 +85,13 @@ export interface ContainerOverrides {
   toyCatalogService?: ToyCatalogService;
   walletService?: WalletService;
   rentalOrderService?: RentalOrderService;
+  rentalDisputeService?: RentalDisputeService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
   // Trợ lý AI: bản giả của Gemini và cấu hình (bật/tắt, giới hạn lượt) cho test.
   advisorLlm?: AdvisorLlm;
   aiAdvisorSettings?: Partial<AiAdvisorSettings>;
-  aiAdvisorService?: AiAdvisorService;
+  aiAssistanceService?: AiAssistanceService;
 }
 
 export interface Container {
@@ -102,10 +104,11 @@ export interface Container {
   toyCatalogService: ToyCatalogService;
   walletService: WalletService;
   rentalOrderService: RentalOrderService;
+  rentalDisputeService: RentalDisputeService;
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
-  aiAdvisorService: AiAdvisorService;
+  aiAssistanceService: AiAssistanceService;
 }
 
 /**
@@ -128,7 +131,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       IdentityVerification,
       User,
       identityImageStorage,
-      overrides.identityVerificationEvents ?? new DefaultIdentityVerificationEvents(),
+      overrides.identityVerificationEvents ?? new IdentityReviewNotifications(),
     );
 
   // Admin identity review: develop's service for the decision; document links only with real
@@ -160,7 +163,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const rentalPhotoStorage =
     overrides.rentalPhotoStorage ?? createDefaultRentalPhotoStorage();
   const rentalNotifier =
-    overrides.rentalNotifier ?? new NotificationRentalNotifier();
+    overrides.rentalNotifier ?? new RentalOrderNotifications();
   const clock = overrides.clock ?? systemClock;
   const rentalSettings = overrides.rentalSettings ?? new SystemSettingService();
   const rentalOrderRepository =
@@ -175,6 +178,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     repository: rentalOrderRepository,
   };
   const rentalOrderService = overrides.rentalOrderService ?? new RentalOrderService(rentalDeps);
+  const rentalDisputeService =
+    overrides.rentalDisputeService ?? new RentalDisputeService(rentalDeps);
   const rentalSystemService =
     overrides.rentalSystemService ?? new RentalSystemService(rentalDeps);
 
@@ -187,7 +192,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     );
 
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
-  const aiAdvisorService = overrides.aiAdvisorService ?? createAiAdvisorService(overrides, clock);
+  const aiAssistanceService =
+    overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
 
   return {
     toyImageStorage,
@@ -198,19 +204,23 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     toyCatalogService,
     walletService,
     rentalOrderService,
+    rentalDisputeService,
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,
-    aiAdvisorService,
+    aiAssistanceService,
   };
 }
 
-function createAiAdvisorService(overrides: ContainerOverrides, clock: Clock): AiAdvisorService {
+function createAiAssistanceService(
+  overrides: ContainerOverrides,
+  clock: Clock,
+): AiAssistanceService {
   const settings = { ...aiConfig.advisor, ...overrides.aiAdvisorSettings };
   const repository = new MongoAiAdvisorRepository(
     overrides.toyCatalogPorts ?? createToyCatalogPorts(),
   );
-  return new AiAdvisorService({
+  return new AiAssistanceService({
     llm:
       overrides.advisorLlm ??
       new GeminiAdvisorClient({

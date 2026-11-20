@@ -1,15 +1,22 @@
 import { z } from 'zod'
 
-import { MAX_IMAGES, TITLE_MAX_LENGTH } from '../toy-listings/toy-listing-schema'
-import { handoverMethodLabels, handoverMethods, type HandoverMethod } from './constants'
+import { CONTACT_DETAILS_MESSAGES, hasBlockedContactDetails } from '../toy-listings/contact-details'
+import {
+  DESCRIPTION_MAX_LENGTH,
+  DESCRIPTION_MIN_LENGTH,
+  MAX_IMAGES,
+  TITLE_MAX_LENGTH,
+} from '../toy-listings/toy-listing-schema'
+import { handoverMethods } from './constants'
 
-// Donor creates a donation post (POST /toys, listingType "donate"): the toy, its photos, a
+// Donor creates a donation post (POST /donation-posts, listingType "donate"): the toy, its photos, a
 // safety check that blocks unsafe toys, the preferred receiver and the handover method.
 
 /** Ảnh 3 góc: toàn cảnh, cận cảnh tem/thông số, khớp nối/vệ sinh */
 export const MIN_DONATION_PHOTOS = 3
-export const DONATION_DESCRIPTION_MIN = 20
-export const DONATION_DESCRIPTION_MAX = 800
+/** Mô tả theo luật của Toy Form (R03 III.5.2.1 (1) → III.3.1.1 (9): 50–1000 ký tự) */
+export const DONATION_DESCRIPTION_MIN = DESCRIPTION_MIN_LENGTH
+export const DONATION_DESCRIPTION_MAX = DESCRIPTION_MAX_LENGTH
 
 /** Người tặng phải cam kết đủ 4 điều trước khi gửi phiếu */
 export const SAFETY_COMMITMENTS = [
@@ -75,7 +82,8 @@ export const donationPostSchema = z
       .string()
       .trim()
       .min(5, 'Tên đồ chơi tối thiểu 5 ký tự')
-      .max(TITLE_MAX_LENGTH, `Tên đồ chơi tối đa ${TITLE_MAX_LENGTH} ký tự`),
+      .max(TITLE_MAX_LENGTH, `Tên đồ chơi tối đa ${TITLE_MAX_LENGTH} ký tự`)
+      .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.title),
     categoryId: z.string().min(1, 'Vui lòng chọn danh mục'),
     minAge: z.number({ error: 'Vui lòng chọn độ tuổi' }).int().min(0),
     maxAge: z.number({ error: 'Vui lòng chọn độ tuổi' }).int().min(0),
@@ -84,7 +92,8 @@ export const donationPostSchema = z
       .string()
       .trim()
       .min(DONATION_DESCRIPTION_MIN, `Mô tả tối thiểu ${DONATION_DESCRIPTION_MIN} ký tự`)
-      .max(DONATION_DESCRIPTION_MAX, `Mô tả tối đa ${DONATION_DESCRIPTION_MAX} ký tự`),
+      .max(DONATION_DESCRIPTION_MAX, `Mô tả tối đa ${DONATION_DESCRIPTION_MAX} ký tự`)
+      .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.description),
     safety: z.object({
       noSharpParts: z.boolean(),
       batteriesRemoved: z.boolean(),
@@ -117,19 +126,3 @@ export const EMPTY_DONATION_POST: Partial<DonationPostValues> = {
 }
 
 export const isPhotoCountValid = (count: number) => count >= MIN_DONATION_PHOTOS && count <= MAX_IMAGES
-
-/**
- * Backend chưa có trường cho tổ chức mong muốn và cách bàn giao: ghi ở cuối mô tả để Admin
- * đọc khi ghép tổ chức (POST /admin/donation-requests).
- */
-export const composeDonationDescription = (
-  description: string,
-  handoverMethod: HandoverMethod,
-  receiverName: string | null,
-) =>
-  [
-    description.trim(),
-    '',
-    `Cách bàn giao: ${handoverMethodLabels[handoverMethod]}`,
-    `Đơn vị tiếp nhận mong muốn: ${receiverName ?? 'Để ToyFlow ghép tổ chức phù hợp'}`,
-  ].join('\n')

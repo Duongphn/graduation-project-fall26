@@ -2,21 +2,24 @@ import { z } from 'zod'
 
 import { visibilityStatuses } from '../../constants/domain'
 import { enumParam, searchParam } from '../../schemas/list-params'
+import { normalizeText } from '../../utils/text'
 
-// Same limits as the backend (categories.schemas.ts); the server still decides duplicates.
+// Same limits as the backend (category-admin.validation.ts); the server still decides duplicates.
 export const CATEGORY_NAME_MAX = 100
 export const CATEGORY_DESCRIPTION_MAX = 500
 export const CATEGORY_DISPLAY_ORDER_MAX = 1_000_000
 
 export const categoryFormSchema = z.object({
+  // Normalised like the server (category-admin.validation.ts), so lengths and "unchanged" agree
+  // with it.
   name: z
     .string()
-    .trim()
+    .overwrite(normalizeText)
     .min(2, 'Tên danh mục cần ít nhất 2 ký tự.')
     .max(CATEGORY_NAME_MAX, `Tên danh mục tối đa ${CATEGORY_NAME_MAX} ký tự.`),
   description: z
     .string()
-    .trim()
+    .overwrite((value) => value.normalize('NFC').trim())
     .max(CATEGORY_DESCRIPTION_MAX, `Mô tả tối đa ${CATEGORY_DESCRIPTION_MAX} ký tự.`),
   // Empty when creating: the new category goes to the end of the list.
   displayOrder: z

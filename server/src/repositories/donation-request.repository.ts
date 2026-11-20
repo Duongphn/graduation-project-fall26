@@ -3,8 +3,8 @@ import { randomBytes } from 'node:crypto';
 import mongoose, { Types, type ClientSession } from 'mongoose';
 
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
-import { Organization } from '../models/organization.model.js';
-import { Toy } from '../models/toy.model.js';
+import { Organization, type IOrganization } from '../models/organization.model.js';
+import { Toy, type ToyDonationTarget } from '../models/toy.model.js';
 import { User } from '../models/user.model.js';
 import {
   DonationRequest,
@@ -12,7 +12,7 @@ import {
   type StoredDonationStatus,
 } from '../models/donation-request.model.js';
 import type { ToyStatus } from '../services/donation-request.policy.js';
-import { DELIVERY_METHOD } from '../constants/donation-request-transitions.js';
+import { DELIVERY_METHOD, type HandoverMethod } from '../constants/donation-request-transitions.js';
 
 // The only file of this feature that touches models (features/README.md rule 6). It also
 // reads and writes develop's toy, organization and user models the donation flow depends on.
@@ -54,9 +54,9 @@ export const findToy = (toyId: string | Types.ObjectId, session?: ClientSession)
 
 export const findOrganization = (id: string | Types.ObjectId, session?: ClientSession) =>
   Organization.findById(id)
-    .select('name status')
+    .select('name status isAccepting receivingPoint')
     .session(session ?? null)
-    .lean();
+    .lean<Pick<IOrganization, '_id' | 'name' | 'status' | 'isAccepting' | 'receivingPoint'>>();
 
 /** The user's account status ('ACTIVE' / 'LOCKED'), undefined when missing. */
 export const findUserStatus = async (userId: string | Types.ObjectId, session?: ClientSession) =>
@@ -66,6 +66,11 @@ export const findUserStatus = async (userId: string | Types.ObjectId, session?: 
       .session(session ?? null)
       .lean()
   )?.status;
+
+/** GB-06: the user's identity is verified (the status the identity review keeps on the user). */
+export const isVerifiedUser = async (userId: string): Promise<boolean> =>
+  Types.ObjectId.isValid(userId) &&
+  (await User.exists({ _id: oid(userId), verificationStatus: 'verified' })) !== null;
 
 /** An accepted or shipping request holds the toy (GB-12). */
 export const hasActiveRequestForToy = async (toyId: string): Promise<boolean> =>
@@ -84,6 +89,22 @@ export const findDueRequestIds = async (status: StoredDonationStatus, now: Date,
       .limit(limit)
       .lean()
   ).map((item) => item._id);
+
+/**
+ * UC33 step 5: removes and returns the organization target of an approved (active) donation
+ * post, once (a second call finds none).
+ */
+export const takeDonationTarget = (toyId: string) =>
+  Toy.findOneAndUpdate(
+    {
+      _id: oid(toyId),
+      status: 'active',
+      listingType: 'donate',
+      donationTarget: { $type: 'object' },
+    },
+    { $unset: { donationTarget: 1 } },
+    { new: false, timestamps: false, projection: 'ownerId donationTarget' },
+  ).lean<{ _id: Types.ObjectId; ownerId: Types.ObjectId; donationTarget: ToyDonationTarget }>();
 
 /** Ids of the pending requests of a toy. */
 export const findPendingRequestIdsOfToy = async (toyId: string) =>
@@ -110,12 +131,28 @@ export const touchActiveDonationToy = (toyId: string | Types.ObjectId, session: 
     { new: true, session, timestamps: false, projection: toySummaryFields },
   ).lean<ToySummary>();
 
-/** The organization, if it is still active (else null). */
-export const touchActiveOrganization = (id: string | Types.ObjectId, session: ClientSession) =>
+/**
+ * The organization, if it is still active (else null). With `accepting`, also only while it is
+ * accepting toys (GB-55: no new requests otherwise; a missing flag means accepting).
+ */
+export const touchActiveOrganization = (
+  id: string | Types.ObjectId,
+  session: ClientSession,
+  options: { accepting?: boolean } = {},
+) =>
   Organization.findOneAndUpdate(
-    { _id: oid(id), status: { $regex: /^active$/i } },
+    {
+      _id: oid(id),
+      status: { $regex: /^active$/i },
+      ...(options.accepting ? { isAccepting: { $ne: false } } : {}),
+    },
     { $inc: { __v: 1 } },
-    { new: true, session, timestamps: false, projection: 'name status' },
+    {
+      new: true,
+      session,
+      timestamps: false,
+      projection: 'name status isAccepting receivingPoint',
+    },
   ).lean();
 
 const newCode = (): string => `DN${randomBytes(5).toString('hex').toUpperCase()}`;
@@ -130,6 +167,7 @@ export const insertRequest = async (
     organizationId?: string;
     itemDetails: string;
     dueAt: Date;
+    handoverMethod?: HandoverMethod;
   },
   session: ClientSession,
 ): Promise<DonationRecord> => {
@@ -149,6 +187,7 @@ export const insertRequest = async (
             deliveryMethod: DELIVERY_METHOD,
             status: 'pending',
             timer: { dueAt: data.dueAt },
+            ...(data.handoverMethod ? { handoverMethod: data.handoverMethod } : {}),
           },
         ],
         { session },
@@ -260,6 +299,20 @@ export const findDonationToyIdsByTitle = async (pattern: string, limit = 500) =>
 export const countCompletedByDonor = (donorId: string) =>
   DonationRequest.countDocuments({ donorId: oid(donorId), status: 'completed' });
 
+/**
+ * One-off (npm run db:backfill-expired-donations): before 18/11/2026 the expiry job saved an
+ * expired request as cancelled with cancellation.reason EXPIRED. Moves those to the expired
+ * status (R04 3.9) with expiredAt = the cancellation date. Safe to run again.
+ */
+export const backfillExpiredStatus = async (): Promise<number> =>
+  (
+    await DonationRequest.updateMany(
+      { status: 'cancelled', 'cancellation.reason': 'EXPIRED', 'cancellation.actorType': 'SYSTEM' },
+      [{ $set: { status: 'expired', expiredAt: '$cancellation.at' } }, { $unset: 'cancellation' }],
+      { timestamps: false },
+    )
+  ).modifiedCount;
+
 // ---- Related documents for the DTOs (one query per collection) --------------------------------
 
 const unique = (ids: Array<Types.ObjectId | null | undefined>) => [
@@ -270,7 +323,15 @@ const unique = (ids: Array<Types.ObjectId | null | undefined>) => [
 
 export const loadRelations = async (records: DonationRecord[], withContacts = false) => {
   const toyIds = unique(records.map((item) => item.toyId));
-  const userIds = unique(records.flatMap((item) => [item.donorId, item.requestedBy]));
+  // decidedBy and handovers[].by: the history tells an Admin's step from a user's (role).
+  const userIds = unique(
+    records.flatMap((item) => [
+      item.donorId,
+      item.requestedBy,
+      item.decidedBy,
+      ...(item.handovers ?? []).map((handover) => handover.by),
+    ]),
+  );
   const organizationIds = unique(records.map((item) => item.receiver?.organizationId));
   const [toys, users, organizations] = await Promise.all([
     Toy.find({ _id: { $in: toyIds } })
@@ -278,15 +339,17 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
       .lean<ToySummary[]>(),
     User.find({ _id: { $in: userIds } })
       // phone: also the D-03 counterpart contact of user views (the mapper decides who sees it).
-      .select(withContacts ? 'fullName avatar phone email' : 'fullName avatar phone')
+      .select(withContacts ? 'fullName avatar phone email role' : 'fullName avatar phone role')
       .lean(),
     Organization.find({ _id: { $in: organizationIds } })
+      // contact_info / receivingPoint contact: also the GB-62 counterpart of the Donor's view
+      // (the mapper decides who sees it).
       .select(
         withContacts
-          ? 'name status address contact_info support_criteria'
-          : 'name status contact_info',
+          ? 'name status isAccepting receivingPoint address contact_info support_criteria'
+          : 'name status isAccepting receivingPoint contact_info',
       )
-      .lean(),
+      .lean<IOrganization[]>(),
   ]);
   return {
     toys: new Map(toys.map((toy) => [String(toy._id), toy])),

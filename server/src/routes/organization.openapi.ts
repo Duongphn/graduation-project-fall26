@@ -14,6 +14,7 @@ import {
   adminOrganizationListQuerySchema,
   adminOrganizationSchema,
   createOrganizationBodySchema,
+  organizationSuggestionQuerySchema,
   publicOrganizationListQuerySchema,
   publicOrganizationSchema,
   updateOrganizationBodySchema,
@@ -52,12 +53,15 @@ openApiRegistry.registerPath({
   tags: [adminTag],
   summary: 'Add an organization (active: the Admin has checked it)',
   description:
-    '409 ORGANIZATION_NAME_TAKEN when the name exists.',
+    'Needs the receiving point (GB-51: drop-off and/or parcel) and the needs profile: age ' +
+    'groups and Active categories (GB-53). isAccepting defaults to true, isRemoteArea to false. ' +
+    '409 ORGANIZATION_NAME_TAKEN when the name exists, 422 CATEGORY_NOT_FOUND for a missing ' +
+    'or hidden category.',
   security: bearerAuthSecurity,
   request: { body: { content: jsonContent(createOrganizationBodySchema) } },
   responses: {
     201: adminOrganizationResponse,
-    ...errorResponses(400, 401, 403, 409),
+    ...errorResponses(400, 401, 403, 409, 422),
   },
 });
 
@@ -75,13 +79,19 @@ openApiRegistry.registerPath({
   method: 'patch',
   path: `${adminPath}/{id}`,
   tags: [adminTag],
-  summary: 'Edit an organization',
+  summary: 'Edit an organization, its receiving point and its needs (UC34, UC40)',
+  description:
+    'receivingPoint replaces the whole point. isAccepting false: no new donation requests ' +
+    '(GB-55); pending, accepted and shipping ones continue. 422 CATEGORY_NOT_FOUND.',
   security: bearerAuthSecurity,
   request: {
     params: idParamsSchema,
     body: { content: jsonContent(updateOrganizationBodySchema) },
   },
-  responses: { 200: adminOrganizationResponse, ...errorResponses(400, 401, 403, 404, 409) },
+  responses: {
+    200: adminOrganizationResponse,
+    ...errorResponses(400, 401, 403, 404, 409, 422),
+  },
 });
 
 openApiRegistry.registerPath({
@@ -129,15 +139,39 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/organizations',
   tags: [publicTag],
-  summary: 'Active organizations for Donors',
+  summary: 'Active organizations accepting toys, for Donors (GB-51, GB-52)',
   description:
-    'No sign-in needed. Filter: q (accent-insensitive). Sorted by name (A-Z) by default.',
+    'No sign-in needed. Filters: q, province of the receiving point (accent-insensitive), ' +
+    'minAge/maxAge (an accepted age group overlaps), categoryId, remoteOnly. Sorted by name ' +
+    '(A-Z) by default. No contact details (GB-62): they are shown on an accepted or shipping ' +
+    'donation request only.',
   security: optionalSecurity,
   request: { query: publicOrganizationListQuerySchema },
   responses: {
     200: {
       description: 'A page of organizations',
       content: jsonContent(paginatedResponseSchema(publicOrganizationSchema)),
+    },
+    ...errorResponses(400),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/suggestions',
+  tags: [publicTag],
+  summary: 'Organizations that accept a toy (GB-54, rules only)',
+  description:
+    'Active organizations accepting toys whose age groups overlap [minAge, maxAge) and whose ' +
+    'categories include categoryId. Those whose receiving point is in `province` (the ' +
+    "Donor's default address) come first, then by name. At most 50, no paging. Empty list: " +
+    'MSG50.',
+  security: optionalSecurity,
+  request: { query: organizationSuggestionQuerySchema },
+  responses: {
+    200: {
+      description: 'The suggested organizations',
+      content: jsonContent(successResponseSchema(z.array(publicOrganizationSchema))),
     },
     ...errorResponses(400),
   },

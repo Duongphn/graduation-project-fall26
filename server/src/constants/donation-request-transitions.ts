@@ -9,20 +9,33 @@ export const storedDonationStatuses = donationStatuses.map(
 
 /**
  * BF-04. The receiver's confirmation completes the request directly ('received' is not used by
- * this flow). shipping -> cancelled is the Admin's way out of a stuck handover.
+ * this flow). shipping -> cancelled is the Admin's way out of a stuck handover. pending and
+ * accepted -> expired is the expiry job only (JOB-10, GB-57; R03 I.3.2 Donation Request).
  */
 export const donationTransitions: TransitionMap<StoredDonationStatus> = {
-  pending: ['accepted', 'rejected', 'cancelled'],
-  accepted: ['shipping', 'cancelled'],
+  pending: ['accepted', 'rejected', 'cancelled', 'expired'],
+  accepted: ['shipping', 'cancelled', 'expired'],
   shipping: ['completed', 'cancelled'],
   received: ['completed'],
   completed: [],
   rejected: [],
   cancelled: [],
+  expired: [],
 };
 
-/** Days before a request in this status expires (the expiry job cancels it). */
+/** Days before a request in this status expires (the expiry job sets it to expired). */
 export const PENDING_EXPIRY_DAYS = 14;
 export const HANDOVER_EXPIRY_DAYS = 14;
 
 export const DELIVERY_METHOD = 'shipping';
+
+/** GB-58: how the Donor hands the toy over (R04 3.9 handover_method). Stored lowercase. */
+export const handoverMethods = ['drop_off', 'carrier'] as const;
+export type HandoverMethod = (typeof handoverMethods)[number];
+
+/** GB-59: how an organization confirmed receipt to the Admin (R03 III.7.5.2 (8)). */
+export const receiptChannels = ['phone', 'email', 'in_person'] as const;
+export type ReceiptChannel = (typeof receiptChannels)[number];
+
+/** R03 III.5.2.1 (8): the note of a Donor's request to an organization. */
+export const DONOR_REQUEST_NOTE_MAX = 300;

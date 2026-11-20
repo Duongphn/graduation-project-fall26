@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { toAdvisorHistory } from '../advisor-filters'
 import {
-  askAdvisor,
+  getToyAdvice,
   getAdvisorErrorMessage,
   type AdvisorFilters,
   type AdvisorRequest,
@@ -31,7 +31,7 @@ export function useAdvisorChat() {
   const appendMessage = (message: Omit<ChatMessage, 'id'>) =>
     setMessages((current) => [...current, { ...message, id: nextId.current++ }])
 
-  const advisor = useMutation({ mutationFn: askAdvisor })
+  const advisor = useMutation({ mutationFn: getToyAdvice })
 
   const request = (userText: string, payload: Omit<AdvisorRequest, 'history'>) => {
     if (advisor.isPending) return
@@ -45,8 +45,8 @@ export function useAdvisorChat() {
           setFilters(data.filters)
           appendMessage({
             role: 'assistant',
-            text: data.reply,
-            toys: data.toys,
+            text: data.advice,
+            toys: data.listings,
           })
         },
         onError: (error) =>

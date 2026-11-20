@@ -6,6 +6,7 @@ import type {
   VisibilityStatus,
 } from '../../constants/domain'
 import type { PaginationParams } from '../../types/api'
+import type { SafetyChecklistKey } from './constants'
 
 // Responses of /admin/toys (server/src/features/toys/toy-moderation.schemas.ts).
 
@@ -74,9 +75,13 @@ export interface ToyModerationDetail extends Omit<ToyModerationListItem, 'owner'
     rejectReason: string | null
     reviewedBy: { id: string; fullName: string | null } | null
     reviewedAt: string | null
+    // The ticks of the approving Admin; null before approval.
+    safetyChecklist: SafetyChecklist | null
   }
   warnings: ModerationWarning[]
 }
+
+export type SafetyChecklist = Record<SafetyChecklistKey, boolean>
 
 export type ToyStatusCounts = Record<ToyStatus, number>
 

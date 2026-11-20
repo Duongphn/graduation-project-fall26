@@ -6,7 +6,7 @@ import type {
   AdvisorUsageLogPort,
 } from '../src/interfaces/ai-advisor.ports.js';
 import { ADVISE_SYSTEM_PROMPT } from '../src/services/ai-advisor.prompts.js';
-import { AiAdvisorService, startOfVietnamDay } from '../src/services/ai-advisor.service.js';
+import { AiAssistanceService, startOfVietnamDay } from '../src/services/ai-assistance.service.js';
 import type {
   AdvisorAskInput,
   AdvisorCategory,
@@ -49,7 +49,7 @@ class FakeCatalog implements AdvisorCatalogPort {
     return CATEGORIES;
   }
 
-  public async searchToys(query: AdvisorToyQuery): Promise<AdvisorToyRecord[]> {
+  public async findActive(query: AdvisorToyQuery): Promise<AdvisorToyRecord[]> {
     this.searches.push(query);
     return this.toys
       .filter(
@@ -93,7 +93,7 @@ const silentLogger = { warn: () => undefined, error: () => undefined };
 const setup = (llm: FakeAdvisorLlm, toys: CatalogToy[] = [toy(1), toy(2), toy(3)]) => {
   const catalog = new FakeCatalog(toys);
   const usageLog = new FakeUsageLog();
-  const service = new AiAdvisorService({
+  const service = new AiAssistanceService({
     llm,
     catalog,
     usageLog,
@@ -119,7 +119,7 @@ const EXTRACTED = {
   maxPrice: 150_000,
 };
 
-describe('AiAdvisorService', () => {
+describe('AiAssistanceService', () => {
   it('drops picks whose toyId was not in the list sent to the AI (case 2, BR-02)', async () => {
     const llm = new FakeAdvisorLlm([
       EXTRACTED,
@@ -135,11 +135,11 @@ describe('AiAdvisorService', () => {
     ]);
     const { service } = setup(llm);
 
-    const result = await service.ask(ask());
+    const result = await service.getToyAdvice(ask());
 
     expect(result.source).toBe('ai');
-    expect(result.toys.map((item) => item.id)).toEqual([toy(1).id, toy(2).id]);
-    expect(result.toys[0]).toMatchObject({
+    expect(result.listings.map((item) => item.id)).toEqual([toy(1).id, toy(2).id]);
+    expect(result.listings[0]).toMatchObject({
       name: 'Đồ chơi 1',
       priceOrRate: 50_000,
       reason: 'Hợp tuổi.',
@@ -153,7 +153,7 @@ describe('AiAdvisorService', () => {
     ]);
     const { service, catalog } = setup(llm);
 
-    const result = await service.ask(ask());
+    const result = await service.getToyAdvice(ask());
 
     expect(result.filters.category).toBe('any');
     expect(catalog.searches[0]?.categoryId).toBeNull();
@@ -163,9 +163,11 @@ describe('AiAdvisorService', () => {
     const llm = new FakeAdvisorLlm([{ isToyRelated: false }]);
     const { service, catalog, usageLog } = setup(llm);
 
-    const result = await service.ask(ask({ message: 'Thời tiết Hà Nội hôm nay thế nào?' }));
+    const result = await service.getToyAdvice(
+      ask({ message: 'Thời tiết Hà Nội hôm nay thế nào?' }),
+    );
 
-    expect(result).toMatchObject({ source: 'off_topic', toys: [] });
+    expect(result).toMatchObject({ source: 'off_topic', listings: [] });
     expect(catalog.searches).toHaveLength(0);
     expect(llm.calls).toBe(1);
     expect(usageLog.entries[0]?.status).toBe('off_topic');
@@ -175,9 +177,9 @@ describe('AiAdvisorService', () => {
     const llm = new FakeAdvisorLlm([EXTRACTED]);
     const { service, catalog } = setup(llm, [toy(1, { ageRange: { minAge: 10, maxAge: 14 } })]);
 
-    const result = await service.ask(ask());
+    const result = await service.getToyAdvice(ask());
 
-    expect(result).toMatchObject({ source: 'no_result', toys: [] });
+    expect(result).toMatchObject({ source: 'no_result', listings: [] });
     expect(llm.calls).toBe(1);
     expect(catalog.searches.map((query) => [query.maxPrice, query.categoryId])).toEqual([
       [150_000, 'cat-building'],
@@ -193,10 +195,10 @@ describe('AiAdvisorService', () => {
     ]);
     const { service } = setup(llm, [toy(1, { priceOrRate: 200_000 })]);
 
-    const result = await service.ask(ask());
+    const result = await service.getToyAdvice(ask());
 
     expect(result.source).toBe('ai');
-    expect(result.reply).toContain('mức giá khác');
+    expect(result.advice).toContain('mức giá khác');
     expect(result.filters.maxPrice).toBe(150_000);
   });
 
@@ -206,7 +208,7 @@ describe('AiAdvisorService', () => {
     ]);
     const { service } = setup(llm);
 
-    const result = await service.ask(
+    const result = await service.getToyAdvice(
       ask({
         message: '',
         filtersFromButtons: true,
@@ -232,12 +234,12 @@ describe('AiAdvisorService', () => {
     const llm = new FakeAdvisorLlm(replies as never[]);
     const { service, usageLog } = setup(llm);
 
-    const result = await service.ask(ask());
+    const result = await service.getToyAdvice(ask());
 
     expect(result.source).toBe('fallback');
-    expect(result.toys.length).toBeGreaterThan(0);
-    expect(result.toys[0]?.reason).toContain('Dành cho bé 3–6 tuổi');
-    expect(result.reply).toContain('Trợ lý AI đang bận');
+    expect(result.listings.length).toBeGreaterThan(0);
+    expect(result.listings[0]?.reason).toContain('Dành cho bé 3–6 tuổi');
+    expect(result.advice).toContain('Trợ lý AI đang bận');
     expect(usageLog.entries[0]?.status).toBe('fallback');
   });
 
@@ -252,7 +254,7 @@ describe('AiAdvisorService', () => {
       text: `tin-${index} ${'x'.repeat(1_000)}`,
     }));
 
-    await service.ask(ask({ history }));
+    await service.getToyAdvice(ask({ history }));
 
     const chatLines = (llm.requests[0]?.prompt ?? '')
       .split('\n')
@@ -274,7 +276,7 @@ describe('AiAdvisorService', () => {
     ]);
     const { service } = setup(llm);
 
-    const result = await service.ask(
+    const result = await service.getToyAdvice(
       ask({
         message: 'rẻ hơn được không',
         filters: {
@@ -301,10 +303,10 @@ describe('AiAdvisorService', () => {
     const { service, usageLog } = setup(llm);
     usageLog.used = 20;
 
-    const result = await service.ask(ask({ message: 'Tiền cọc được hoàn lại thế nào?' }));
+    const result = await service.getToyAdvice(ask({ message: 'Tiền cọc được hoàn lại thế nào?' }));
 
     expect(result.source).toBe('faq');
-    expect(result.reply).toContain('Tiền cọc');
+    expect(result.advice).toContain('Tiền cọc');
     expect(llm.calls).toBe(0);
     expect(usageLog.entries[0]).toMatchObject({
       status: 'faq',
@@ -318,7 +320,7 @@ describe('AiAdvisorService', () => {
     const { service, usageLog } = setup(llm);
     usageLog.used = 20;
 
-    const error = await service.ask(ask()).catch((caught: unknown) => caught);
+    const error = await service.getToyAdvice(ask()).catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(AppError);
     expect(error).toMatchObject({ statusCode: 429, code: 'AI_DAILY_LIMIT' });
@@ -332,17 +334,17 @@ describe('AiAdvisorService', () => {
     ]);
     const { service } = setup(llm, [toy(1, { ageRange: { minAge: 1, maxAge: 3 } })]);
 
-    const result = await service.ask(ask({ message: 'Bé 2 tuổi nên chơi gì?' }));
+    const result = await service.getToyAdvice(ask({ message: 'Bé 2 tuổi nên chơi gì?' }));
 
     expect(result.source).toBe('ai');
-    expect(result.reply).toContain('chi tiết nhỏ');
+    expect(result.advice).toContain('chi tiết nhỏ');
   });
 
   it('masks phone numbers and emails before calling Gemini (BR-09)', async () => {
     const llm = new FakeAdvisorLlm([{ isToyRelated: false }]);
     const { service, usageLog } = setup(llm);
 
-    await service.ask(ask({ message: 'Gọi mình 0912 345 678 hoặc me@mail.com nhé' }));
+    await service.getToyAdvice(ask({ message: 'Gọi mình 0912 345 678 hoặc me@mail.com nhé' }));
 
     expect(llm.requests[0]?.prompt).not.toMatch(/0912|me@mail\.com/);
     expect(llm.requests[0]?.prompt).toContain('[SĐT]');
@@ -354,20 +356,20 @@ describe('AiAdvisorService', () => {
     const { service, usageLog } = setup(llm);
     usageLog.failOnRecord = true;
 
-    const result = await service.ask(ask({ message: 'Hôm nay ăn gì?' }));
+    const result = await service.getToyAdvice(ask({ message: 'Hôm nay ăn gì?' }));
 
     expect(result.source).toBe('off_topic');
   });
 
   it('refuses with 503 when the advisor is turned off (US-08)', async () => {
-    const service = new AiAdvisorService({
+    const service = new AiAssistanceService({
       llm: new FakeAdvisorLlm(),
       catalog: new FakeCatalog([]),
       usageLog: new FakeUsageLog(),
       settings: { ...SETTINGS, enabled: false },
     });
 
-    await expect(service.ask(ask())).rejects.toMatchObject({ statusCode: 503 });
+    await expect(service.getToyAdvice(ask())).rejects.toMatchObject({ statusCode: 503 });
   });
 });
 

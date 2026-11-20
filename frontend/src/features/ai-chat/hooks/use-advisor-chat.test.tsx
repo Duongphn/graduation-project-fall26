@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { httpClient } from '../../../services/http-client'
 import { deferred, renderHookWithProviders } from '../../../test/render'
-import type { AdvisorFilters, AdvisorRequest, AdvisorResponse } from '../ai-chat-api'
+import type { AdvisorFilters, AdvisorRequest, ToyAdviceDTO } from '../ai-chat-api'
 import { useAdvisorChat } from './use-advisor-chat'
 
 const FILTERS: AdvisorFilters = {
@@ -15,9 +15,9 @@ const FILTERS: AdvisorFilters = {
   area: '',
 }
 
-const answer = (reply: string, filters = FILTERS): AdvisorResponse => ({
-  reply,
-  toys: [
+const answer = (advice: string, filters = FILTERS): ToyAdviceDTO => ({
+  advice,
+  listings: [
     {
       id: '66a000000000000000000001',
       name: 'Bộ xếp hình',
@@ -32,7 +32,7 @@ const answer = (reply: string, filters = FILTERS): AdvisorResponse => ({
   source: 'ai',
 })
 
-const ok = (data: AdvisorResponse) => ({ data: { success: true, data } })
+const ok = (data: ToyAdviceDTO) => ({ data: { success: true, data } })
 
 const sentPayloads = (post: { mock: { calls: unknown[][] } }) =>
   post.mock.calls.map((call) => call[1] as AdvisorRequest)

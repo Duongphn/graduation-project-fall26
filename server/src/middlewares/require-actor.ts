@@ -6,7 +6,7 @@ import { AppError } from '../utils/app-error.js';
 export const requireActor: RequestHandler = (req, _res, next) => {
   // Signed in, but not as a USER (e.g. an Admin): forbidden rather than unauthenticated.
   if (req.auth?.userId && req.auth.actorType && req.auth.actorType !== 'USER') {
-    return next(new AppError(403, 'FORBIDDEN', 'This action is only available to users.'));
+    return next(new AppError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho tài khoản người dùng.'));
   }
   if (
     !req.auth ||
@@ -15,7 +15,7 @@ export const requireActor: RequestHandler = (req, _res, next) => {
     typeof req.auth.userId !== 'string' ||
     !mongoose.Types.ObjectId.isValid(req.auth.userId)
   ) {
-    return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required.'));
+    return next(new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập để tiếp tục.'));
   }
 
   next();

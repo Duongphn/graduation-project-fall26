@@ -51,7 +51,7 @@ export class MongoAiAdvisorRepository implements AdvisorCatalogPort, AdvisorUsag
     return docs.map((doc) => ({ id: doc._id.toString(), slug: doc.slug, name: doc.name }));
   }
 
-  public async searchToys(query: AdvisorToyQuery): Promise<AdvisorToyRecord[]> {
+  public async findActive(query: AdvisorToyQuery): Promise<AdvisorToyRecord[]> {
     // BR-01: tin đã được Admin duyệt (active), chưa bán, không phải tin của người hỏi;
     // chỉ tin cho thuê hoặc đang bán, không gợi ý đồ tặng.
     const soldIds = await this.catalogPorts.getSoldToyIds();

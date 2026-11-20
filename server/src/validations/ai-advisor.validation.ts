@@ -96,11 +96,11 @@ const advisorToySchema = z
   })
   .openapi('AdvisorToy');
 
-export const advisorReplySchema = z
+export const toyAdviceSchema = z
   .object({
-    reply: z.string(),
-    toys: z.array(advisorToySchema).max(5),
+    advice: z.string(),
+    listings: z.array(advisorToySchema).max(5),
     filters: advisorFiltersSchema,
     source: z.enum(ADVISOR_SOURCES),
   })
-  .openapi('AdvisorReply');
+  .openapi('ToyAdviceDTO');

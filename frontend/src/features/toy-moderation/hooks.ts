@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { useApiMutation } from '../../hooks/useApiMutation'
 import { toyModerationApi } from './api'
-import type { ToyModerationFilters, ToyModerationQueueParams } from './types'
+import type { SafetyChecklist, ToyModerationFilters, ToyModerationQueueParams } from './types'
 
 export const toyModerationKeys = {
   all: ['toy-moderation'] as const,
@@ -40,8 +40,15 @@ interface DecisionCallbacks {
 // refetched in place (invalidateOnConflict) and the backend message is shown.
 export const useApproveToy = ({ onSuccess }: DecisionCallbacks = {}) =>
   useApiMutation({
-    mutationFn: ({ id, expectedUpdatedAt }: { id: string; expectedUpdatedAt: string }) =>
-      toyModerationApi.approve(id, expectedUpdatedAt),
+    mutationFn: ({
+      id,
+      expectedUpdatedAt,
+      safetyChecklist,
+    }: {
+      id: string
+      expectedUpdatedAt: string
+      safetyChecklist: SafetyChecklist
+    }) => toyModerationApi.approve(id, expectedUpdatedAt, safetyChecklist),
     successMessage: 'Đã duyệt tin đăng.',
     invalidate: [toyModerationKeys.all],
     invalidateOnConflict: true,

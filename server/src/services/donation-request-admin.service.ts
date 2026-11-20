@@ -15,10 +15,11 @@ import type {
 } from '../validations/donation-request.validation.js';
 import * as service from './donation-request.service.js';
 
-// Admin use cases: the queue of every request (no decisions: accept/reject answer 409
-// DONOR_DECISION_REQUIRED, D-04), requests and receipt
-// confirmation on behalf of an ACTIVE organization, and the way out of a stuck SHIPPING request
-// (cancel, or confirm receipt for a USER receiver with a reason). Every move is audited.
+// Admin use cases: the queue of every request; the decision on a request a Donor sent to an
+// organization (GB-56; the Donor decides the others: 409 DONOR_DECISION_REQUIRED); requests and
+// receipt confirmation on behalf of an ACTIVE organization (GB-59); and the way out of a stuck
+// SHIPPING request (cancel, or confirm receipt for a USER receiver with a reason). Every move is
+// audited.
 
 export const toActor = (context: AdminContext): DonationActor => ({
   userId: context.actor.actorId,
@@ -67,12 +68,16 @@ export const accept = (context: AdminContext, id: string) => service.accept(toAc
 export const reject = (context: AdminContext, id: string, reason: string) =>
   service.reject(toActor(context), id, reason);
 
-/** Also the way out of a stuck SHIPPING request: the toy goes back to ACTIVE (audited). */
+/** Also the way out of a stuck SHIPPING request: the toy stays hidden (GB-60, audited). */
 export const cancel = (context: AdminContext, id: string, reason: string) =>
   service.cancel(toActor(context), id, { note: reason });
 
 export const confirmReceived = (
   context: AdminContext,
   id: string,
-  { reason, ...body }: AdminConfirmReceivedBody,
-) => service.confirmReceived(toActor(context), id, body, { reason });
+  { reason, confirmedBy, channel, receivedAt, ...body }: AdminConfirmReceivedBody,
+) =>
+  service.confirmReceived(toActor(context), id, body, {
+    reason,
+    receipt: { confirmedBy, channel, receivedAt },
+  });

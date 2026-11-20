@@ -12,8 +12,11 @@ import {
   type MailMessage,
 } from '../../src/integrations/email/notification-mailer.js';
 import {
+  donationNeedsAdmins,
   donationRecipients,
   renderDonationStatusChanged,
+  renderIdentityReviewed,
+  renderNotify,
   renderToyReviewed,
 } from '../../src/services/notification.templates.js';
 import { Organization } from '../../src/models/organization.model.js';
@@ -82,11 +85,12 @@ describe('notification templates', () => {
       context,
     );
     expect(message.type).toBe('TOY_REVIEWED');
-    expect(message.target).toEqual({ kind: 'TOY', id: '67098e1b34e12c001a123456' });
+    // A rejected listing opens its editor, where the Admin's reason is shown.
+    expect(message.link).toBe('/listings/67098e1b34e12c001a123456/edit');
     expect(message.body).toContain('Lý do: Ảnh bị mờ.');
-    expect(message.email.html).toContain('Xe &lt;b&gt;');
-    expect(message.email.text).toContain(
-      'https://toyflow.test/my/listings/67098e1b34e12c001a123456',
+    expect(message.email?.html).toContain('Xe &lt;b&gt;');
+    expect(message.email?.text).toContain(
+      'https://toyflow.test/listings/67098e1b34e12c001a123456/edit',
     );
   });
 
@@ -97,7 +101,69 @@ describe('notification templates', () => {
     });
     expect(message.title).toContain('Cảm ơn bạn đã quyên góp');
     expect(message.body).toContain('cho Mái ấm Hoa Mai');
-    expect(message.target.kind).toBe('DONATION_REQUEST');
+    expect(message.link).toMatch(/^\/donations\/[0-9a-f]{24}$/);
+  });
+
+  it('links the requester side to the user page, or the Admin page for an organization', () => {
+    const event = donationEvent({ to: 'shipping', from: 'accepted' });
+    const id = event.donationRequestId;
+    expect(renderDonationStatusChanged(event, 'REQUESTER', context).link).toBe(
+      `/donation-requests/${id}`,
+    );
+    expect(
+      renderDonationStatusChanged({ ...event, receiverType: 'ORGANIZATION' }, 'REQUESTER', context)
+        .link,
+    ).toBe(`/admin/donation-requests/${id}`);
+  });
+
+  it('links an approved toy to its public page and the identity result to the profile', () => {
+    const toyId = String(newId());
+    const approved = renderToyReviewed(
+      {
+        type: 'TOY_REVIEWED',
+        toyId,
+        ownerId: String(newId()),
+        toyTitle: 'Xe',
+        decision: 'approved',
+        reviewedBy: String(newId()),
+      },
+      context,
+    );
+    expect(approved.link).toBe(`/toys/${toyId}`);
+    const identity = renderIdentityReviewed(
+      { type: 'IDENTITY_REVIEWED', userId: String(newId()), decision: 'verified' },
+      context,
+    );
+    expect(identity.link).toBe('/profile/verification');
+    expect(identity.email?.text).toContain('https://toyflow.test/profile/verification');
+  });
+
+  it('emails a notify() message only for important types or when asked', () => {
+    const base = {
+      title: 'Yêu cầu thuê mới',
+      body: 'Bạn có yêu cầu thuê mới.',
+      link: '/rentals/requests/1',
+    };
+    expect(
+      renderNotify({ ...base, notificationType: 'RENTAL_ORDER' }, context).email,
+    ).toBeUndefined();
+    expect(renderNotify({ ...base, notificationType: 'DISPUTE' }, context).email?.subject).toBe(
+      '[ToyFlow] Yêu cầu thuê mới',
+    );
+    expect(
+      renderNotify({ ...base, notificationType: 'RENTAL_ORDER', email: true }, context).email?.text,
+    ).toContain('https://toyflow.test/rentals/requests/1');
+  });
+
+  it('keeps only app paths as links', () => {
+    const message = (link: string) =>
+      renderNotify({ notificationType: 'SYSTEM', title: 'T', body: 'B', link }, context);
+    expect(message('https://evil.test/x').link).toBeUndefined();
+    expect(message('//evil.test/x').link).toBeUndefined();
+    expect(message('/wallet').link).toBe('/wallet');
+    expect(message('https://evil.test/x').email?.text).toContain(
+      'Mở ToyFlow: https://toyflow.test/',
+    );
   });
 
   it('notifies the right parties and never the actor', () => {
@@ -111,6 +177,31 @@ describe('notification templates', () => {
     expect(parties({ to: 'completed', changedBy: event.requestedBy })).toEqual(['DONOR']);
     expect(parties({ to: 'cancelled', changedBy: event.requestedBy })).toEqual(['DONOR']);
     expect(parties({ to: 'cancelled' })).toEqual(['DONOR', 'REQUESTER']);
+    // JOB-10 has no actor: both sides hear about an expiry (MSG56).
+    expect(parties({ to: 'expired' })).toEqual(['DONOR', 'REQUESTER']);
+  });
+
+  it('words an expiry as MSG56 with the request code and the reason', () => {
+    const event = donationEvent({
+      code: 'DN0A1B2C3D4E',
+      from: 'accepted',
+      to: 'expired',
+      reason: 'Yêu cầu đã hết hạn vì người quyên góp chưa gửi đồ chơi kịp thời.',
+    });
+    const forDonor = renderDonationStatusChanged(event, 'DONOR', context);
+    expect(forDonor.title).toBe('Yêu cầu quyên góp DN0A1B2C3D4E đã hết hạn');
+    expect(forDonor.body).toContain(
+      'Yêu cầu quyên góp DN0A1B2C3D4E (đồ chơi "Bộ xếp hình <gỗ>") đã hết hạn.',
+    );
+    expect(forDonor.body).toContain(
+      'Lý do: Yêu cầu đã hết hạn vì người quyên góp chưa gửi đồ chơi kịp thời.',
+    );
+    expect(forDonor.body).toContain('Đồ chơi đã trở lại danh sách');
+    expect(forDonor.link).toBe(`/donations/${event.donationRequestId}`);
+
+    const forRequester = renderDonationStatusChanged(event, 'REQUESTER', context);
+    expect(forRequester.title).toBe('Yêu cầu quyên góp DN0A1B2C3D4E đã hết hạn');
+    expect(forRequester.body).not.toContain('Đồ chơi đã trở lại danh sách');
   });
 
   it('sends the requester side of an ORGANIZATION request to every Admin but the actor', () => {
@@ -125,6 +216,31 @@ describe('notification templates', () => {
     expect(donationRecipients(event, [adminA, adminB])).toEqual([
       { party: 'REQUESTER', userId: adminB },
       { party: 'DONOR', userId: event.donorId },
+    ]);
+  });
+
+  it('sends a request the Donor sent to an organization to the Admins, not back to the Donor', () => {
+    const [adminA, adminB] = [String(newId()), String(newId())];
+    const donorId = String(newId());
+    const event = donationEvent({
+      receiverType: 'ORGANIZATION',
+      organizationId: String(newId()),
+      donorId,
+      requestedBy: donorId,
+      to: 'pending',
+      changedBy: donorId,
+    });
+    expect(donationNeedsAdmins(event)).toBe(true);
+    expect(donationRecipients(event, [adminA, adminB])).toEqual([
+      { party: 'REQUESTER', userId: adminA },
+      { party: 'REQUESTER', userId: adminB },
+    ]);
+    // The Admin decides it (GB-56): the Donor hears about the decision.
+    expect(
+      donationRecipients({ ...event, to: 'accepted', changedBy: adminA }, [adminA, adminB]),
+    ).toEqual([
+      { party: 'REQUESTER', userId: adminB },
+      { party: 'DONOR', userId: donorId },
     ]);
   });
 

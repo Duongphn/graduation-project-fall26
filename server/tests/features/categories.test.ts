@@ -1,5 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -141,7 +140,11 @@ describe('create and edit', () => {
     expect(renamed.body.message).toBe('Đã cập nhật danh mục.');
     expect(renamed.body.data).toMatchObject({ name: 'Sách vải', slug: 'sach' });
     expect(renamed.body.data.description).toBeUndefined();
-    expect((await patch(`/${category.id}`, { name: 'BÓNG' })).status).toBe(409);
+    const clash = await patch(`/${category.id}`, { name: 'BÓNG' });
+    expect(clash.status).toBe(409);
+    expect(clash.body.error.code).toBe('CATEGORY_NAME_TAKEN');
+    // Only the successful rename is audited; the refused one rolls back with its transaction.
+    expect(await AuditLogModel.countDocuments({ action: 'category.update' })).toBe(1);
   });
 });
 
@@ -171,6 +174,21 @@ describe('hide, show and the public list', () => {
     const category = await createCategory('Xếp hình');
     const results = await Promise.all([post(`/${category.id}/hide`), post(`/${category.id}/hide`)]);
     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+  });
+
+  // R03 I.3.2 Category "display order", R04 3.12 display_order: the menus of the post form and
+  // the filters follow the order the Admin sees, also when two categories share a number.
+  it('lists the public categories in the Admin list order, ties in Vietnamese name order', async () => {
+    await createCategory('Xe điều khiển', { displayOrder: 5 });
+    await createCategory('Đồ chơi gỗ', { displayOrder: 5 });
+    await createCategory('Búp bê', { displayOrder: 1 });
+
+    const adminNames = (await get()).body.data.map((item: { name: string }) => item.name);
+    expect(adminNames).toEqual(['Búp bê', 'Đồ chơi gỗ', 'Xe điều khiển']);
+    const publicNames = (await request(app).get('/api/v1/categories')).body.map(
+      (item: { name: string }) => item.name,
+    );
+    expect(publicNames).toEqual(adminNames);
   });
 
   it('does not expose admin fields publicly', async () => {
@@ -212,31 +230,8 @@ describe('delete', () => {
     expect(refused.body.error).toMatchObject({ code: 'CATEGORY_IN_USE', details: { toyCount: 1 } });
     expect(await AuditLogModel.countDocuments({ action: 'category.delete' })).toBe(1);
   });
-
-  it('never deletes a category while a toy transaction that touched it is saving a toy', async () => {
-    const category = await createCategory('Tranh chấp');
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    // What the toys feature does when it saves a toy (see the feature README).
-    await CategoryModel.findOneAndUpdate(
-      { _id: category.id, status: 'active' },
-      { $inc: { __v: 1 } },
-      { session },
-    );
-    const toy = (await createToy({ categoryId: category.id })).toObject();
-    await ToyModel.deleteOne({ _id: toy._id });
-    await ToyModel.create([{ ...toy, _id: newId() }], { session });
-
-    const pending = del(`/${category.id}`).then((response) => response);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await session.commitTransaction();
-    await session.endSession();
-
-    const response = await pending;
-    expect(response.status).toBe(409);
-    expect(response.body.error.code).toBe('CATEGORY_IN_USE');
-    expect(await CategoryModel.exists({ _id: category.id })).not.toBeNull();
-  });
+  // The race with a real toy save ("Category rules" in docs/api/toys.md) is in
+  // toy-categories.test.ts.
 });
 
 describe('reorder', () => {

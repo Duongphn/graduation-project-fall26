@@ -256,6 +256,18 @@
     @apply bg-tf-primary-fixed text-tf-primary;
   }
 
+  .status-badge--rejected {
+    @apply bg-tf-error-container text-tf-error;
+  }
+
+  .listing-row__reason {
+    @apply border-l-2 border-l-tf-error bg-tf-error-container/40 py-1.5 pl-2 text-[13px] leading-5 text-tf-ink;
+  }
+
+  .listing-row__reason strong {
+    @apply font-semibold text-tf-error;
+  }
+
   /* ---------- Nút thao tác trong dòng ---------- */
   .row-btn {
     @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-tf-surface bg-white px-3 py-1.5 text-[13px] font-medium whitespace-nowrap text-tf-ink-muted transition-[background-color,border-color,color,transform] duration-200 ease-out-quint hover:border-tf-surface-high hover:text-tf-ink focus-ring active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60;

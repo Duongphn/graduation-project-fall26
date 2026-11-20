@@ -1,0 +1,84 @@
+/*
+ * Trang Điều khoản dịch vụ / Chính sách bảo mật (features/legal): BEM + @apply như các feature khác.
+ */
+@layer components {
+  .legal-page {
+    @apply py-6 sm:py-8;
+  }
+
+  .legal-page__breadcrumb {
+    @apply flex items-center gap-1.5 text-xs text-site-muted dark:text-slate-400;
+  }
+
+  .legal-page__crumb {
+    @apply inline-flex items-center gap-1 rounded hover:text-site-primary focus-ring dark:hover:text-indigo-300;
+  }
+
+  .legal-page__crumb--current {
+    @apply font-medium text-site-ink dark:text-slate-100;
+  }
+
+  .legal-page__header {
+    @apply mt-5 max-w-3xl;
+  }
+
+  .legal-page__title {
+    @apply text-2xl font-bold tracking-[-0.02em] text-site-ink sm:text-[28px] dark:text-white;
+  }
+
+  .legal-page__updated {
+    @apply mt-1 text-xs text-site-muted dark:text-slate-400;
+  }
+
+  .legal-page__intro {
+    @apply mt-3 text-sm leading-6 text-site-muted dark:text-slate-300;
+  }
+
+  .legal-page__layout {
+    @apply mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)];
+  }
+
+  .legal-page__toc {
+    @apply h-fit rounded-2xl bg-white p-4 text-sm shadow-[0_1px_2px_rgb(18_23_31/0.05)] lg:sticky lg:top-24 dark:bg-night-900;
+  }
+
+  .legal-page__toc-title {
+    @apply mb-2 font-semibold text-site-ink dark:text-white;
+  }
+
+  .legal-page__toc ol {
+    @apply flex flex-col gap-1;
+  }
+
+  .legal-page__toc-link {
+    @apply block rounded px-2 py-1 text-site-muted hover:bg-site-line hover:text-site-primary focus-ring dark:text-slate-300 dark:hover:bg-night-800 dark:hover:text-indigo-300;
+  }
+
+  .legal-page__body {
+    @apply flex min-w-0 flex-col gap-4;
+  }
+
+  .legal-section {
+    @apply scroll-mt-24 rounded-2xl bg-white p-4 sm:p-6 shadow-[0_1px_2px_rgb(18_23_31/0.05)] dark:bg-night-900;
+  }
+
+  .legal-section__title {
+    @apply text-base font-semibold text-site-ink sm:text-lg dark:text-white;
+  }
+
+  .legal-section__text {
+    @apply mt-2 text-sm leading-6 text-site-ink dark:text-slate-200;
+  }
+
+  .legal-section__list {
+    @apply mt-2 flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-site-ink dark:text-slate-200;
+  }
+
+  .legal-page__related {
+    @apply text-sm text-site-muted dark:text-slate-400;
+  }
+
+  .legal-page__related a {
+    @apply font-semibold text-site-primary hover:underline focus-ring dark:text-indigo-300;
+  }
+}

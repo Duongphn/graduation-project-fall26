@@ -2,47 +2,33 @@ import type { StoredDonationStatus } from '../models/donation-request.model.js';
 import type {
   DonationStatusChangedEvent,
   IdentityReviewedEvent,
+  NotifyEvent,
   ToyReviewedEvent,
 } from '../utils/domain-events.js';
 import { renderEmail, type EmailContent, type EmailSpec } from './notification.email.js';
-import type { NotificationType } from '../constants/notification-types.js';
+import { absoluteUrl, isAppLink, notificationLinks } from './notification.links.js';
+import { notificationTypeRules, type NotificationType } from '../constants/notification-types.js';
 
 type DonationStatus = StoredDonationStatus;
-
-/** What a notification is about; only used for the link in the email (not stored). */
-export type NotificationTargetKind = 'TOY' | 'IDENTITY_VERIFICATION' | 'DONATION_REQUEST';
 
 // Vietnamese texts of every notification (in-app title/body + email). Pure functions, so the
 // content is unit-tested without a database. The notification `type` is the shared event name;
 // the decision lives in the title and body.
 
-export interface NotificationTarget {
-  kind: NotificationTargetKind;
-  id: string;
-}
-
 export interface NotificationMessage {
   type: NotificationType;
   title: string;
   body: string;
-  target: NotificationTarget;
-  email: EmailContent;
+  /** App path the notification opens (notifications.link). */
+  link?: string;
+  /** Set for important events only (notificationTypeRules[type].email or the caller's choice). */
+  email?: EmailContent;
 }
 
 export interface TemplateContext {
   appPublicUrl: string;
   organizationName?: string | undefined;
 }
-
-// Pages of the user web app a notification opens (the email needs a full URL).
-const targetPaths: Partial<Record<NotificationTargetKind, (id: string) => string>> = {
-  TOY: (id) => `/my/listings/${id}`,
-  IDENTITY_VERIFICATION: () => '/account/identity',
-  DONATION_REQUEST: (id) => `/my/donations/${id}`,
-};
-
-export const targetUrl = (target: NotificationTarget, appPublicUrl: string): string =>
-  `${appPublicUrl.replace(/\/+$/, '')}${targetPaths[target.kind]?.(target.id) ?? '/'}`;
 
 const MAX_NAME = 80;
 const MAX_TITLE = 200;
@@ -55,27 +41,59 @@ const asSentence = (text: string): string => (/[.!?…]$/.test(text) ? text : `$
 
 interface MessageSpec extends Omit<EmailSpec, 'action'> {
   type: NotificationType;
-  target: NotificationTarget;
+  link: string;
   actionLabel: string;
 }
 
-const buildMessage = (spec: MessageSpec, appPublicUrl: string): NotificationMessage => {
+const buildMessage = (
+  spec: MessageSpec,
+  appPublicUrl: string,
+  sendEmail = notificationTypeRules[spec.type].email,
+): NotificationMessage => {
   const reason = spec.reason?.trim() ? asSentence(spec.reason.trim()) : undefined;
   const title = shorten(spec.title, MAX_TITLE);
-  const body = [spec.summary, ...(reason ? [`Lý do: ${reason}`] : []), spec.nextStep].join(' ');
+  const body = [spec.summary, ...(reason ? [`Lý do: ${reason}`] : []), spec.nextStep]
+    .filter(Boolean)
+    .join(' ');
   return {
     type: spec.type,
     title,
     body: shorten(body, MAX_BODY),
-    target: spec.target,
-    email: renderEmail({
-      title,
-      summary: spec.summary,
-      reason,
-      nextStep: spec.nextStep,
-      action: { label: spec.actionLabel, url: targetUrl(spec.target, appPublicUrl) },
-    }),
+    link: spec.link,
+    ...(sendEmail
+      ? {
+          email: renderEmail({
+            title,
+            summary: spec.summary,
+            reason,
+            nextStep: spec.nextStep,
+            action: { label: spec.actionLabel, url: absoluteUrl(spec.link, appPublicUrl) },
+          }),
+        }
+      : {}),
   };
+};
+
+/** A notification emitted through notify(): the caller wrote the title and body. */
+export const renderNotify = (
+  event: Pick<NotifyEvent, 'notificationType' | 'title' | 'body' | 'link' | 'email'>,
+  context: TemplateContext,
+): NotificationMessage => {
+  const link = isAppLink(event.link) ? event.link : undefined;
+  const message = buildMessage(
+    {
+      type: event.notificationType,
+      title: event.title.trim(),
+      summary: event.body.trim(),
+      nextStep: '',
+      link: link ?? '/',
+      actionLabel: link ? 'Xem chi tiết' : 'Mở ToyFlow',
+    },
+    context.appPublicUrl,
+    event.email ?? notificationTypeRules[event.notificationType].email,
+  );
+  if (!link) delete message.link;
+  return message;
 };
 
 export const renderToyReviewed = (
@@ -83,11 +101,12 @@ export const renderToyReviewed = (
   context: TemplateContext,
 ): NotificationMessage => {
   const name = shorten(event.toyTitle, MAX_NAME);
-  const base = { type: 'TOY_REVIEWED', target: { kind: 'TOY', id: event.toyId } } as const;
+  const base = { type: 'TOY_REVIEWED' } as const;
   return buildMessage(
     event.decision === 'approved'
       ? {
           ...base,
+          link: notificationLinks.toyDetail(event.toyId),
           title: `Tin đăng "${name}" đã được duyệt`,
           summary: `Tin đăng "${event.toyTitle}" của bạn đã được Admin duyệt và đang hiển thị trên ToyFlow.`,
           nextStep: 'Người dùng khác đã có thể tìm thấy đồ chơi và gửi yêu cầu cho bạn.',
@@ -95,6 +114,7 @@ export const renderToyReviewed = (
         }
       : {
           ...base,
+          link: notificationLinks.editListing(event.toyId),
           title: `Tin đăng "${name}" chưa được duyệt`,
           summary: `Tin đăng "${event.toyTitle}" của bạn chưa được Admin duyệt.`,
           reason: event.reason,
@@ -111,7 +131,7 @@ export const renderIdentityReviewed = (
 ): NotificationMessage => {
   const base = {
     type: 'IDENTITY_REVIEWED',
-    target: { kind: 'IDENTITY_VERIFICATION', id: event.verificationId },
+    link: notificationLinks.identityVerification(),
   } as const;
   return buildMessage(
     event.decision === 'verified'
@@ -147,16 +167,30 @@ export const donationAudience: Record<DonationStatus, readonly DonationParty[]> 
   received: [],
   completed: ['DONOR', 'REQUESTER'],
   cancelled: ['DONOR', 'REQUESTER'],
+  // JOB-10 (GB-57) notifies the Donor (MSG56); the receiving side is told as well.
+  expired: ['DONOR', 'REQUESTER'],
 };
 
+/**
+ * GB-56/GB-61: a request the Donor sent to an organization waits for the Admins, so its new
+ * PENDING status goes to them (the receiving side) instead of the Donor who sent it.
+ */
+const audienceOf = (event: DonationStatusChangedEvent): readonly DonationParty[] =>
+  event.to === 'pending' &&
+  event.receiverType === 'ORGANIZATION' &&
+  event.requestedBy === event.donorId
+    ? ['REQUESTER']
+    : donationAudience[event.to];
+
 // For an ORGANIZATION request, requestedBy is only the Admin who filed it on the
-// organization's behalf, so the requester side is the Admin team as a whole: `adminIds` (every
-// active Admin) replaces requestedBy. Organizations have no account of their own to notify.
+// organization's behalf (or the Donor who sent it), so the receiving side is the Admin team as a
+// whole: `adminIds` (every active Admin) replaces requestedBy. Organizations have no account of
+// their own to notify.
 export const donationRecipients = (
   event: DonationStatusChangedEvent,
   adminIds: readonly string[] = [],
 ): Array<{ party: DonationParty; userId: string }> =>
-  donationAudience[event.to]
+  audienceOf(event)
     .flatMap((party): Array<{ party: DonationParty; userId: string }> => {
       if (party === 'DONOR') return [{ party, userId: event.donorId }];
       if (event.receiverType === 'ORGANIZATION')
@@ -167,7 +201,7 @@ export const donationRecipients = (
 
 /** Whether the recipients of this event include the Admin team (see donationRecipients). */
 export const donationNeedsAdmins = (event: DonationStatusChangedEvent): boolean =>
-  event.receiverType === 'ORGANIZATION' && donationAudience[event.to].includes('REQUESTER');
+  event.receiverType === 'ORGANIZATION' && audienceOf(event).includes('REQUESTER');
 
 type DonationText = Pick<MessageSpec, 'title' | 'summary' | 'nextStep' | 'actionLabel'>;
 
@@ -179,6 +213,8 @@ const donationTexts = (
   toy: string,
   name: string,
   receiver: string,
+  code: string,
+  from: DonationStatus | undefined,
 ): DonationText => {
   const forDonor = party === 'DONOR';
   switch (status) {
@@ -243,8 +279,34 @@ const donationTexts = (
         nextStep: 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
+    // MSG56 (R03 V.2): "Your donation request {code} has expired. {reason}"; the reason is the
+    // event reason.
+    case 'expired': {
+      const request = code ? `Yêu cầu quyên góp ${code}` : 'Yêu cầu quyên góp';
+      return {
+        title: `${request} đã hết hạn`,
+        summary: `${request} (đồ chơi "${toy}"${receiver}) đã hết hạn.`,
+        nextStep:
+          forDonor && from === 'accepted'
+            ? 'Đồ chơi đã trở lại danh sách; bạn có thể tặng cho người nhận hoặc tổ chức khác.'
+            : 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
+        actionLabel: VIEW_REQUEST,
+      };
+    }
   }
 };
+
+// The Donor opens their donation, the receiving user their request, and the Admins (receiving
+// side of an organization) the Admin page of the request.
+const donationLink = (event: DonationStatusChangedEvent, party: DonationParty): string => {
+  if (party === 'DONOR') return notificationLinks.myDonation(event.donationRequestId);
+  return event.receiverType === 'ORGANIZATION'
+    ? notificationLinks.adminDonationRequest(event.donationRequestId)
+    : notificationLinks.myDonationRequest(event.donationRequestId);
+};
+
+/** Statuses whose notification carries the event reason (reject, cancel or expiry reason). */
+const WITH_REASON: readonly DonationStatus[] = ['rejected', 'cancelled', 'expired'];
 
 export const renderDonationStatusChanged = (
   event: DonationStatusChangedEvent,
@@ -256,14 +318,16 @@ export const renderDonationStatusChanged = (
   return buildMessage(
     {
       type: 'DONATION_STATUS_CHANGED',
-      target: { kind: 'DONATION_REQUEST', id: event.donationRequestId },
-      reason: event.to === 'rejected' || event.to === 'cancelled' ? event.reason : undefined,
+      link: donationLink(event, party),
+      reason: WITH_REASON.includes(event.to) ? event.reason : undefined,
       ...donationTexts(
         event.to,
         party,
         event.toyTitle,
         shorten(event.toyTitle, MAX_NAME),
         receiver,
+        event.code ?? '',
+        event.from,
       ),
     },
     context.appPublicUrl,

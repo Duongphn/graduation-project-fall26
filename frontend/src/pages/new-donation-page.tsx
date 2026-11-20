@@ -16,17 +16,18 @@ import {
   EMPTY_DONATION_POST,
   MIN_DONATION_PHOTOS,
   SAFETY_COMMITMENTS,
-  composeDonationDescription,
   donationPostSchema,
   findBannedTerms,
   isPhotoCountValid,
   type DonationPostValues,
 } from '../features/donations/donation-post-schema'
+import { handoverMethodValues } from '../features/donations/schemas'
 import { organizationDetailQuery, organizationListQuery } from '../features/organizations/public-queries'
 import type { PublicOrganization } from '../features/organizations/types'
 import { ListingPhotoUploader } from '../features/toy-listings/components/listing-photo-uploader'
 import { useListingPhotos } from '../features/toy-listings/hooks/use-listing-photos'
-import { getListingErrorMessage } from '../features/toy-listings/toy-listing-api'
+import { CONTACT_DETAILS_MESSAGES } from '../features/toy-listings/contact-details'
+import { getContactDetailsField, getListingErrorMessage } from '../features/toy-listings/toy-listing-api'
 import { AGE_OPTIONS, MAX_IMAGES } from '../features/toy-listings/toy-listing-schema'
 import { categoriesQuery, MY_LISTINGS_ROOT_KEY } from '../features/toy-listings/toy-listing-queries'
 import { SiteLayout } from '../layouts/site/site-layout'
@@ -34,6 +35,9 @@ import { PATHS } from '../routes/paths'
 import { getApiErrorCode } from '../services/http-client'
 
 const NO_IMAGES: never[] = []
+
+/** Lỗi ở ô Danh mục khi máy chủ báo danh mục vừa chọn đã bị ẩn hoặc xoá (CATEGORY_NOT_FOUND) */
+const CATEGORY_GONE_ERROR = 'Danh mục vừa chọn không còn hoạt động, vui lòng chọn danh mục khác'
 
 /** Donor tạo phiếu quyên góp: đồ chơi, ảnh, kiểm duyệt an toàn, tổ chức mong muốn, cách bàn giao (UC27) */
 export function NewDonationPage() {
@@ -44,7 +48,7 @@ export function NewDonationPage() {
   const [photoError, setPhotoError] = useState<string>()
   const photos = useListingPhotos(NO_IMAGES)
 
-  const { control, handleSubmit, setValue } = useForm<DonationPostValues>({
+  const { control, handleSubmit, setError, setValue } = useForm<DonationPostValues>({
     resolver: zodResolver(donationPostSchema),
     defaultValues: { ...EMPTY_DONATION_POST, receiver: presetOrganizationId ?? AUTO_MATCH },
   })
@@ -101,6 +105,25 @@ export function NewDonationPage() {
 
   const create = useMutation({
     mutationFn: createDonationPost,
+    onError: (error) => {
+      // Admin vừa ẩn/xoá danh mục đã chọn (kể cả trong lúc tải ảnh lên): tải lại danh sách để ô
+      // chọn không còn danh mục đó, và bỏ chọn nó để lần gửi sau không gửi lại đúng danh mục ấy.
+      if (getApiErrorCode(error) === 'CATEGORY_NOT_FOUND') {
+        setValue('categoryId', '')
+        setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
+        void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
+      }
+      // MSG51 (UC33 4.1): tổ chức vừa ngừng nhận hoặc bị ẩn: tải lại danh sách để chọn tổ chức khác
+      const code = getApiErrorCode(error)
+      if (code === 'ORGANIZATION_NOT_ACCEPTING' || code === 'ORGANIZATION_NOT_AVAILABLE' || code === 'ORGANIZATION_NOT_FOUND') {
+        void queryClient.invalidateQueries({ queryKey: ['public-organizations'] })
+      }
+      // GB-11: tên hoặc mô tả có số điện thoại, email hoặc đường link: báo ngay dưới ô đó
+      const contactField = getContactDetailsField(error)
+      if (contactField) {
+        setError(contactField, { type: 'server', message: CONTACT_DETAILS_MESSAGES[contactField] }, { shouldFocus: true })
+      }
+    },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY }),
   })
 
@@ -117,14 +140,19 @@ export function NewDonationPage() {
   const submit = handleSubmit(
     (values) => {
       if (!checkPhotos()) return
+      const organizationId = values.receiver === AUTO_MATCH ? undefined : values.receiver
       create.mutate({
         title: values.title,
         categoryId: values.categoryId,
         condition: values.condition,
         minAge: values.minAge,
         maxAge: values.maxAge,
-        description: composeDonationDescription(values.description, values.handoverMethod, receiverName),
+        description: values.description,
         images: photos.newFiles,
+        // UC33 bước 4–5: tổ chức và cách bàn giao lưu cùng tin; Admin duyệt tin thì yêu cầu được tạo
+        ...(organizationId
+          ? { organizationId, handoverMethod: handoverMethodValues[values.handoverMethod] }
+          : {}),
       })
     },
     () => void checkPhotos(),
@@ -138,8 +166,10 @@ export function NewDonationPage() {
             <CircleCheck className="size-12 text-tf-secondary" aria-hidden />
             <h1 className="text-2xl font-bold text-tf-ink">Đã gửi phiếu quyên góp</h1>
             <p className="text-sm leading-6 text-tf-ink-muted">
-              “{create.data.title}” đang chờ Admin kiểm duyệt an toàn. Khi được duyệt, tổ chức sẽ gửi yêu cầu nhận và
-              phiếu hiện trong mục Quyên góp của tôi.
+              “{create.data.title}” đang chờ Admin kiểm duyệt an toàn.{' '}
+              {create.data.donationTarget
+                ? `Khi được duyệt, yêu cầu quyên góp tới ${receiverName ?? 'tổ chức đã chọn'} được tạo và hiện trong mục Quyên góp của tôi.`
+                : 'Khi được duyệt, tin mở để tổ chức hoặc người khác xin nhận; các yêu cầu hiện trong mục Quyên góp của tôi.'}
             </p>
             <div className="mt-2 flex flex-wrap justify-center gap-3">
               <Link

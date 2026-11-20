@@ -398,6 +398,27 @@
     @apply text-white;
   }
 
+  /* ---------- Cam kết an toàn (UC05) ---------- */
+  .safety-checklist {
+    @apply flex min-w-0 flex-col gap-3;
+  }
+
+  .safety-list {
+    @apply flex flex-col gap-2;
+  }
+
+  .safety-item {
+    @apply rounded-lg border border-tf-surface p-3 transition-colors duration-200 has-checked:border-tf-secondary has-checked:bg-tf-secondary-container;
+  }
+
+  .safety-item__title {
+    @apply block text-sm leading-5 font-semibold text-tf-ink;
+  }
+
+  .safety-item__hint {
+    @apply mt-0.5 block text-xs leading-4 text-tf-ink-muted;
+  }
+
   .condition-card:has(:checked) .condition-card__hint {
     @apply text-white/70;
   }

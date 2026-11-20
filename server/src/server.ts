@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 
 import { createApp } from './app.js';
-import { env } from './config/env.js';
+import { assertRequiredSecrets, env } from './config/env.js';
 import {
   connectDatabase,
   disconnectDatabase,
@@ -10,9 +10,11 @@ import { createContainer } from './container.js';
 import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
-import { createSocketServer } from './sockets/socket.js';
+import { setNotificationPusher } from './services/notification.service.js';
+import { createSocketPusher, createSocketServer } from './sockets/socket.js';
 
 const startServer = async (): Promise<void> => {
+  assertRequiredSecrets();
   await connectDatabase(env.mongoDbUri);
   registerEventHandlers();
   const donationExpiryJob = startDonationExpiryJob();
@@ -20,6 +22,7 @@ const startServer = async (): Promise<void> => {
   const container = createContainer();
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
+  setNotificationPusher(createSocketPusher(socketServer));
 
   let stopScheduler: (() => void) | undefined;
   if (env.rentalSchedulerEnabled) {

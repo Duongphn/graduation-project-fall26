@@ -16,13 +16,16 @@ import {
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
 import { ForgotPasswordPage } from '../pages/forgot-password-page'
-import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
+import { addressesQuery, latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
 import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
+import { NotificationsPage } from '../pages/notifications-page'
 import { ProfilePage } from '../pages/profile-page'
+import { PrivacyPage } from '../pages/privacy-page'
 import { RegisterPage } from '../pages/register-page'
+import { TermsPage } from '../pages/terms-page'
 import { ToyDetailPage } from '../pages/toy-detail-page'
 import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
 import { ToySearchPage } from '../pages/toy-search-page'
@@ -73,14 +76,27 @@ async function homeLoader() {
 
 async function newListingLoader() {
   if (isGuest()) return null
-  await queryClient.query(categoriesQuery).catch(ignoreError) // GET /categories
+  await Promise.all([
+    queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (đã xác minh danh tính chưa)
+  ])
   return null
 }
 
 async function profileLoader() {
+  if (isGuest()) return null
   await Promise.all([
     queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
     queryClient.query(latestVerificationQuery).catch(ignoreError), // GET /identity-verifications/my-latest
+  ])
+  return null
+}
+
+async function myProfileLoader() {
+  if (isGuest()) return null
+  await Promise.all([
+    profileLoader(),
+    queryClient.query(addressesQuery).catch(ignoreError), // GET /users/addresses
   ])
   return null
 }
@@ -184,16 +200,26 @@ export const router = createBrowserRouter([
   { path: PATHS.login, element: <LoginPage /> },
   { path: PATHS.register, element: <RegisterPage /> },
   { path: PATHS.forgotPassword, element: <ForgotPasswordPage /> },
+  { path: PATHS.terms, element: <TermsPage /> },
+  { path: PATHS.privacy, element: <PrivacyPage /> },
   {
     path: PATHS.profile,
-    loader: profileLoader,
-    element: <ProfilePage />,
+    loader: myProfileLoader,
+    element: (
+      <RequireAuth>
+        <ProfilePage />
+      </RequireAuth>
+    ),
     HydrateFallback: PageLoadingFallback,
   },
   {
     path: PATHS.identityVerification,
     loader: profileLoader,
-    element: <IdentityVerificationPage />,
+    element: (
+      <RequireAuth>
+        <IdentityVerificationPage />
+      </RequireAuth>
+    ),
     HydrateFallback: PageLoadingFallback,
   },
   {
@@ -339,6 +365,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <RentalRequestDetailPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.notifications,
+    element: (
+      <RequireAuth>
+        <NotificationsPage />
       </RequireAuth>
     ),
   },

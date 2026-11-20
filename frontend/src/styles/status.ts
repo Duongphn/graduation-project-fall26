@@ -1,4 +1,5 @@
 import type {
+  DisputeStatus,
   DonationStatus,
   IdentityStatus,
   ListingType,
@@ -49,6 +50,13 @@ export const statusStyles = {
     completed: { label: 'Hoàn tất', tone: 'success' },
     rejected: { label: 'Bị từ chối', tone: 'error' },
     cancelled: { label: 'Đã huỷ', tone: 'default' },
+    expired: { label: 'Đã hết hạn', tone: 'default' },
+  },
+  dispute: {
+    open: { label: 'Chờ quyết định', tone: 'warning' },
+    under_review: { label: 'Đang xem xét', tone: 'processing' },
+    resolved: { label: 'Đã giải quyết', tone: 'success' },
+    closed: { label: 'Đã đóng', tone: 'default' },
   },
 } as const satisfies {
   toy: StatusMap<ToyStatus>
@@ -56,6 +64,7 @@ export const statusStyles = {
   user: StatusMap<UserStatus>
   visibility: StatusMap<VisibilityStatus>
   donation: StatusMap<DonationStatus>
+  dispute: StatusMap<DisputeStatus>
 }
 
 export type StatusDomain = keyof typeof statusStyles

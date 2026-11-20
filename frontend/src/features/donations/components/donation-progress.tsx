@@ -23,8 +23,14 @@ export function DonationProgress({
   perspective?: 'donor' | 'receiver'
 }) {
   const forReceiver = perspective === 'receiver'
-  if (request.status === 'rejected' || request.status === 'cancelled') {
-    const reason = request.status === 'rejected' ? request.rejectReason : request.cancellation?.note
+  if (request.status === 'rejected' || request.status === 'cancelled' || request.status === 'expired') {
+    const reason =
+      request.status === 'rejected'
+        ? request.rejectReason
+        : request.status === 'expired'
+          ? request.expiryReason
+          : request.cancellation?.note
+    const endedAt = request.status === 'expired' ? request.expiredAt : request.cancellation?.at
     return (
       <div className="flex items-start gap-3 rounded-xl border border-tf-surface bg-white p-4">
         <CircleX className="mt-0.5 size-5 shrink-0 text-tf-ink-muted" aria-hidden />
@@ -32,10 +38,14 @@ export function DonationProgress({
           <p className="font-semibold text-tf-ink">
             {request.status === 'rejected'
               ? 'Yêu cầu nhận đã bị từ chối'
-              : forReceiver
-                ? 'Yêu cầu nhận đã huỷ'
-                : 'Phiếu quyên góp đã huỷ'}
-            {request.cancellation && ` · ${formatDateTime(request.cancellation.at)}`}
+              : request.status === 'expired'
+                ? forReceiver
+                  ? 'Yêu cầu nhận đã hết hạn'
+                  : 'Phiếu quyên góp đã hết hạn'
+                : forReceiver
+                  ? 'Yêu cầu nhận đã huỷ'
+                  : 'Phiếu quyên góp đã huỷ'}
+            {endedAt && ` · ${formatDateTime(endedAt)}`}
           </p>
           {reason && <p className="text-tf-ink-muted">{reason}</p>}
         </div>
@@ -47,9 +57,14 @@ export function DonationProgress({
   const steps: Step[] = [
     {
       icon: HandHeart,
-      title: forReceiver ? 'Đã gửi yêu cầu nhận' : 'Có người đăng ký nhận',
+      // GB-56: yêu cầu người tặng gửi tới tổ chức do Admin quyết định thay tổ chức
+      title: forReceiver ? 'Đã gửi yêu cầu nhận' : request.decider === 'ADMIN' ? 'Đã gửi tới tổ chức' : 'Có người đăng ký nhận',
       at: request.createdAt,
-      hint: forReceiver ? 'Chờ người tặng đồng ý' : 'Chờ bạn đồng ý tặng',
+      hint: forReceiver
+        ? 'Chờ người tặng đồng ý'
+        : request.decider === 'ADMIN'
+          ? 'Chờ ToyFlow xác nhận thay tổ chức'
+          : 'Chờ bạn đồng ý tặng',
     },
     {
       icon: UserRoundCheck,
