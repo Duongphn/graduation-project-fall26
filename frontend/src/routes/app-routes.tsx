@@ -32,6 +32,7 @@ import { ToySearchPage } from '../pages/toy-search-page'
 import { queryClient } from '../services/query-client'
 import { getAccessToken } from '../services/token-storage'
 import { PATHS } from './paths'
+import { GuestOnly } from './guest-only'
 import { RequireAuth } from './require-auth'
 import {
   completedDonationsQuery,
@@ -197,8 +198,22 @@ async function myRequestLoader({ params }: LoaderFunctionArgs) {
 
 export const router = createBrowserRouter([
   { path: PATHS.home, loader: homeLoader, element: <HomePage />, HydrateFallback: PageLoadingFallback },
-  { path: PATHS.login, element: <LoginPage /> },
-  { path: PATHS.register, element: <RegisterPage /> },
+  {
+    path: PATHS.login,
+    element: (
+      <GuestOnly>
+        <LoginPage />
+      </GuestOnly>
+    ),
+  },
+  {
+    path: PATHS.register,
+    element: (
+      <GuestOnly>
+        <RegisterPage />
+      </GuestOnly>
+    ),
+  },
   { path: PATHS.forgotPassword, element: <ForgotPasswordPage /> },
   { path: PATHS.terms, element: <TermsPage /> },
   { path: PATHS.privacy, element: <PrivacyPage /> },
