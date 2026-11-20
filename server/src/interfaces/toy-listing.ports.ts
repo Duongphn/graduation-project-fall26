@@ -96,6 +96,11 @@ export interface ToyListingPorts {
     why: 'HIDDEN' | 'DELETED',
     toyTitle: string,
   ): Promise<number>;
+  /**
+   * Whether a donation post was handed over (a received or completed donation request): it cannot
+   * be shown again. Optional so that test doubles without a donation flow need not provide it.
+   */
+  isDonated?(toyId: string): Promise<boolean>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
   /** Names of the given categories, whatever their status (hidden included). */
   getCategoryNames(categoryIds: string[]): Promise<Map<string, string>>;

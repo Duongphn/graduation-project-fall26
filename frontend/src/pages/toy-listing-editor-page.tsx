@@ -62,7 +62,9 @@ export function ToyListingEditorPage() {
       setToast(
         saved.status === 'pending'
           ? `Đã lưu thay đổi. Tin ${displayCode(saved.id)} đang chờ Quản trị viên duyệt.`
-          : `Cập nhật tin thành công! Tin ${displayCode(saved.id)} đã được lưu an toàn.`,
+          : saved.status === 'hidden'
+            ? `Đã lưu thay đổi. Tin ${displayCode(saved.id)} vẫn đang ẩn, bấm "Hiện lại" ở Tin đăng của tôi để gửi duyệt.`
+            : `Cập nhật tin thành công! Tin ${displayCode(saved.id)} đã được lưu an toàn.`,
       )
     else navigate(toyListingEditPath(saved.id), { state: { justCreated: true } })
   }

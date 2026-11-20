@@ -187,6 +187,20 @@ describe('ToyListingEditorPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('says a listing its Owner hid stays hidden until it is shown again (GB-08)', async () => {
+    patch.mockResolvedValue({ data: { ...saved, status: 'hidden' } })
+    const { user } = renderEditor(toyListingEditPath(saved.id), { ...saved, status: 'hidden' })
+
+    await tickSafety(user)
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+
+    expect(
+      await screen.findByText(
+        `Đã lưu thay đổi. Tin #TF-${saved.id.slice(-5).toUpperCase()} vẫn đang ẩn, bấm "Hiện lại" ở Tin đăng của tôi để gửi duyệt.`,
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('asks an Owner whose identity is not verified to verify it before posting (MSG17)', async () => {
     const queryClient = createTestQueryClient()
     queryClient.setQueryData(categoriesQuery.queryKey, [WOOD, CARS])

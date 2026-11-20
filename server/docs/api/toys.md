@@ -140,7 +140,8 @@ These endpoints require an authenticated user actor (`request.auth`). An Admin a
 - `POST /api/v1/toys`: Create a pending toy listing (multipart form data, field `images`).
 - `GET /api/v1/toys/mine`: List owner's listings (supports `status` filter: `pending`, `active`, `hidden`, `sold`).
 - `PATCH /api/v1/toys/:toyId`: Edit an owned listing and add/remove images. If another save changed the listing's images after this request read the listing (for example a second tab saving during the upload) and this edit would overwrite them, the edit is refused with `409 LISTING_CHANGED`: nothing is stored and its new images are deleted. Reload the listing and try again.
-- `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`).
+- `POST /api/v1/toys/:toyId/hide`: Hide an owned listing (blocked by unfinished orders with `409`). A `pending` listing cannot be hidden (`409 LISTING_PENDING_REVIEW`): it offers only Edit and Delete (R03 III.3.2.1).
+- `POST /api/v1/toys/:toyId/show`: Show a listing its Owner hid again (GB-08). It is `active` at once when the Admin approved it and it was not edited since; otherwise (edited while hidden, or never approved) it goes back to `pending` with a new `moderation.submittedAt`. `409 LISTING_NOT_HIDDEN` when it is not hidden (or sold), `409 LISTING_REJECTED` for a rejected listing (edit it to send it again), `409 ORDER_IN_PROGRESS` for a donation post being handed over and `409 TOY_DONATED` for one already given away.
 - `DELETE /api/v1/toys/:toyId`: Delete an owned listing and its Cloudinary assets (blocked by unfinished orders with `409`).
 - For a donation post, an `accepted` or `shipping` donation request counts as an unfinished order (`409 ORDER_IN_PROGRESS`, GB-12, GB-60). Hiding or deleting it rejects its `pending` donation requests with the reason "Người quyên góp đã ẩn/xóa đồ chơi này." and notifies the requesters (D-06).
 
@@ -171,7 +172,7 @@ Safety declaration (UC05):
 Review rules (R03 GB-08, BF-02/BF-03 alternative 1a):
 
 - A new listing is `pending` with `moderation.submittedAt` set, which orders the Admin queue (oldest first).
-- An edit sends the listing back to `pending`: an `active` (approved) listing leaves the public catalog until the Admin approves it again, and a rejected one (`hidden` with `moderation.rejectReason`) is sent again as a new submission (its reason and review data are removed). A `pending` listing keeps its `submittedAt`; an `active` or rejected one gets a new one. A listing its Owner hid stays `hidden`. Donation posts keep their status.
+- An edit sends the listing back to `pending`: an `active` (approved) listing leaves the public catalog until the Admin approves it again, and a rejected one (`hidden` with `moderation.rejectReason`) is sent again as a new submission (its reason and review data are removed). A `pending` listing keeps its `submittedAt`; an `active` or rejected one gets a new one. A listing its Owner hid stays `hidden`, with a new `submittedAt`, so showing it again sends it to review. Donation posts keep their status.
 - The listing type cannot change once the Admin has approved the listing (R03 GB-09): the listing is `active`, or its last review approved it (also after an edit sent it back to `pending`, or after its Owner hid it). Such an edit gives `400 LISTING_TYPE_LOCKED`. A listing that was never approved, a rejected one included, can change type. A donation post never becomes a rent or sale listing (same error).
 - Listing responses carry `moderation` with `submittedAt`, `reviewedAt` and, while the listing is rejected, `rejectReason`. The reviewing Admin's id is not returned.
 

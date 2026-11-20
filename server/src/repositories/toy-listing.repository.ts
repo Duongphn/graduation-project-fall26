@@ -91,6 +91,17 @@ export function createToyListingPorts(): ToyListingPorts {
 
     closePendingDonationRequests: closePendingRequestsForToy,
 
+    async isDonated(toyId: string): Promise<boolean> {
+      if (!mongoose.Types.ObjectId.isValid(toyId)) {
+        return false;
+      }
+      const record = await DonationRequest.exists({
+        toyId,
+        status: { $in: ['received', 'completed'] },
+      });
+      return Boolean(record);
+    },
+
     async getSoldToyIds(toyIds: string[]): Promise<Set<string>> {
       if (!toyIds || toyIds.length === 0) {
         return new Set<string>();

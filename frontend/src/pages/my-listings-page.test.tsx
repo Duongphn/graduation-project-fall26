@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
+import { AxiosError, AxiosHeaders } from 'axios'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +18,7 @@ vi.mock('../services/http-client', async (importOriginal) => ({
 }))
 
 const get = vi.mocked(httpClient.get)
+const post = vi.mocked(httpClient.post)
 
 const WOOD: Category = { id: '64b000000000000000000001', name: 'Đồ chơi gỗ', slug: 'do-choi-go', parentId: null }
 
@@ -70,6 +72,7 @@ const renderPage = async () => {
 
 beforeEach(() => {
   get.mockReset()
+  post.mockReset()
 })
 
 describe('MyListingsPage', () => {
@@ -117,5 +120,57 @@ describe('MyListingsPage', () => {
       'Lý do từ chối: Ảnh bị mờ, chụp lại giúp Sửa tin rồi lưu để gửi duyệt lại.',
     )
     expect(screen.getAllByRole('link', { name: 'Sửa' })).toHaveLength(2)
+    // A rejected listing is edited and sent again; only the one its Owner hid is shown again (GB-08).
+    expect(screen.getAllByRole('button', { name: 'Hiện lại' })).toHaveLength(1)
+  })
+
+  it('offers "Ẩn tin" only on a published listing, not on one waiting for review (R03 III.3.2.1)', async () => {
+    const pending: ToyListing = { ...inHidden, status: 'pending' }
+    answer([inWood, pending])
+    await renderPage()
+
+    await screen.findByRole('link', { name: 'Tàu hoả gỗ' })
+    const rows = screen.getAllByRole('article')
+    expect(within(rows[0]!).getByRole('button', { name: 'Ẩn tin' })).toBeInTheDocument()
+    expect(within(rows[1]!).queryByRole('button', { name: 'Ẩn tin' })).not.toBeInTheDocument()
+    expect(within(rows[1]!).queryByRole('button', { name: 'Hiện lại' })).not.toBeInTheDocument()
+    expect(within(rows[1]!).getByRole('link', { name: 'Sửa' })).toBeInTheDocument()
+    expect(within(rows[1]!).getByRole('button', { name: 'Xoá' })).toBeInTheDocument()
+  })
+
+  it('shows a hidden listing again with "Hiện lại" and reloads the list', async () => {
+    const hidden: ToyListing = { ...inWood, status: 'hidden' }
+    answer([hidden])
+    post.mockImplementation(async () => {
+      // The server shows it again: the reloaded list has it published.
+      answer([{ ...hidden, status: 'active' }])
+      return { data: { ...hidden, status: 'active' } }
+    })
+    const { user } = await renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Hiện lại' }))
+
+    expect(post).toHaveBeenCalledWith(`/toys/${hidden.id}/show`)
+    expect(await screen.findByRole('button', { name: 'Ẩn tin' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hiện lại' })).not.toBeInTheDocument()
+  })
+
+  it('says why the server refused to show the listing again', async () => {
+    const hidden: ToyListing = { ...inWood, status: 'hidden' }
+    answer([hidden])
+    post.mockRejectedValue(
+      new AxiosError('rejected', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 409,
+        statusText: '',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: { success: false, error: { code: 'LISTING_REJECTED', message: 'rejected' } },
+      }),
+    )
+    const { user } = await renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Hiện lại' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tin bị từ chối cần được sửa rồi gửi duyệt lại.')
   })
 })

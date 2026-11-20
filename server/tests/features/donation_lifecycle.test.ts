@@ -390,6 +390,24 @@ describe('the Donor hides or deletes a donation post (D-06)', () => {
     expect((await requestDoc(id))?.status).toBe('accepted');
     expect(await Toy.findById(toyId)).not.toBeNull();
   });
+
+  it('shows a hidden post again, but never one that was given away (GB-08, GB-60)', async () => {
+    await Toy.updateOne(
+      { _id: toyId },
+      { $set: { 'moderation.reviewedAt': new Date(), 'moderation.submittedAt': new Date(0) } },
+    );
+    await listings.hide(donor(), toyId);
+    expect((await listings.show(donor(), toyId)).status).toBe('active');
+
+    const id = await accepted();
+    await DonationRequest.updateOne({ _id: id }, { $set: { status: 'completed' } });
+    expect(await toyStatus()).toBe('hidden');
+    await expect(listings.show(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'TOY_DONATED',
+    });
+    expect(await toyStatus()).toBe('hidden');
+  });
 });
 
 describe('contact sharing (D-03)', () => {

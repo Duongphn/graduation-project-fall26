@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS, toyListingEditPath } from '../../../routes/paths'
 import { formatVnd } from '../format-vnd'
 import { displayCode, formatDate, isRejected, REJECTED_LABEL, STATUS_LABELS } from '../listing-display'
-import { deleteToyListing, getListingErrorMessage, hideToyListing, type ToyListing } from '../toy-listing-api'
+import { deleteToyListing, getListingErrorMessage, hideToyListing, showToyListing, type ToyListing } from '../toy-listing-api'
 import { MY_LISTINGS_ROOT_KEY, myListingQuery } from '../toy-listing-queries'
 import type { DonationToyState } from '../../donations/donor-queries'
 
@@ -39,9 +39,14 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
   }
 
   const hideMutation = useMutation({ mutationFn: () => hideToyListing(listing.id), onSuccess: refreshLists })
+  const showMutation = useMutation({ mutationFn: () => showToyListing(listing.id), onSuccess: refreshLists })
   const deleteMutation = useMutation({ mutationFn: () => deleteToyListing(listing.id), onSuccess: refreshLists })
-  const isBusy = hideMutation.isPending || deleteMutation.isPending
-  const actionError = hideMutation.error ?? deleteMutation.error
+  const isBusy = hideMutation.isPending || showMutation.isPending || deleteMutation.isPending
+  const actionError = hideMutation.error ?? showMutation.error ?? deleteMutation.error
+  // R03 III.3.2.1: chỉ tin đang hiển thị mới ẩn được (tin chờ duyệt chỉ có Sửa và Xoá); tin chủ đồ
+  // đã ẩn (không bị từ chối) có "Hiện lại" (GB-08)
+  const canHide = !lockedByDonation && listing.status === 'active'
+  const canShowAgain = !lockedByDonation && listing.status === 'hidden' && !rejected
 
   return (
     <article className={`listing-row ${isBusy ? 'is-busy' : ''}`}>
@@ -139,10 +144,16 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
                 Sửa
               </Link>
             )}
-            {!lockedByDonation && listing.status !== 'hidden' && listing.status !== 'sold' && (
+            {canHide && (
               <button type="button" className="row-btn" onClick={() => hideMutation.mutate()} disabled={isBusy}>
                 {hideMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <EyeOff aria-hidden />}
                 Ẩn tin
+              </button>
+            )}
+            {canShowAgain && (
+              <button type="button" className="row-btn" onClick={() => showMutation.mutate()} disabled={isBusy}>
+                {showMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <Eye aria-hidden />}
+                Hiện lại
               </button>
             )}
             {lockedByDonation ? (
