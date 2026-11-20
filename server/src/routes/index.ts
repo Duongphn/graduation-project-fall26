@@ -21,6 +21,7 @@ import { createAuthRouter } from './auth.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
+import { createAdminDisputeRouter } from './rental-dispute.routes.js';
 import { createRentalOrderRouter } from './rental-order.routes.js';
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
@@ -56,6 +57,11 @@ export function createApiRouter(container: Container): Router {
   router.use('/admin/toys', authenticate, adminToyModerationRouter);
   router.use('/admin/identity-verifications', authenticate, adminIdentityReviewRouter);
   router.use('/admin/donation-requests', authenticate, adminDonationRequestsRouter);
+  router.use(
+    '/admin/disputes',
+    authenticate,
+    createAdminDisputeRouter(container.rentalDisputeService),
+  );
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);

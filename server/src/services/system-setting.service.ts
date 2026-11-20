@@ -19,8 +19,10 @@ export class SystemSettingService {
       'platformFeeRate',
       'lateFeeMultiplier',
       'minTrustScore',
+      'trustDepositLimit',
       'maxDays',
       'bookingWindowDays',
+      'disputeReplyHours',
     ];
 
     const dbKeys = keys.map((k) => `rental.${k}`);

@@ -11,6 +11,10 @@ export interface RentalNotification {
   orderId?: string;
   /** The recipient's side of the booking: decides which page the link opens. */
   party?: 'renter' | 'owner';
+  /** Default RENTAL_ORDER; a dispute ruling is DISPUTE (also sent by email). */
+  type?: 'RENTAL_ORDER' | 'DISPUTE';
+  /** Page to open instead of the booking page, e.g. the Admin's dispute case. */
+  link?: string;
 }
 
 export interface RentalNotifier {

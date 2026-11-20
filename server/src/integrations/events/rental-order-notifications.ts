@@ -8,15 +8,17 @@ import { notify } from '../../utils/notify.js';
  */
 export class RentalOrderNotifications implements RentalNotifier {
   public notify(n: RentalNotification): Promise<void> {
-    const link = !n.orderId
-      ? undefined
-      : n.party === 'owner'
-        ? notificationLinks.rentalRequest(n.orderId)
-        : n.party === 'renter'
-          ? notificationLinks.myRental(n.orderId)
-          : undefined;
+    const link =
+      n.link ??
+      (!n.orderId
+        ? undefined
+        : n.party === 'owner'
+          ? notificationLinks.rentalRequest(n.orderId)
+          : n.party === 'renter'
+            ? notificationLinks.myRental(n.orderId)
+            : undefined);
     notify({
-      type: 'RENTAL_ORDER',
+      type: n.type ?? 'RENTAL_ORDER',
       to: n.userId,
       title: n.title,
       body: n.body,

@@ -73,10 +73,27 @@ export interface RentalOrder {
     /** true khi hết hạn kiểm tra mà chủ đồ chưa báo, hệ thống tự quyết toán là Tốt */
     autoSettled?: boolean
     disputeId?: string
+    /** Có khi quản trị viên đã giải quyết khiếu nại (UC19): số tiền mỗi bên nhận và lý do */
+    resolution?: RentalRulingSummary
   }
 }
 
 export type SettlementResult = 'GOOD' | 'DAMAGED'
+
+export type DisputeRuling = 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT' | 'UNDETERMINED' | 'FAIR_WEAR_AND_TEAR'
+
+export interface RentalRulingSummary {
+  ruling: DisputeRuling
+  /** K: phần cọc bồi thường cho chủ đồ */
+  compensationAmount: number
+  /** G: phần tiền thuê hoàn cho người thuê */
+  rentRefundAmount: number
+  ownerAmount: number
+  renterAmount: number
+  platformFee: number
+  adminDecision: string
+  resolvedAt: string
+}
 
 /** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
 export interface RentalOrderDetail extends RentalOrder {

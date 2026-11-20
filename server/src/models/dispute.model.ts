@@ -1,4 +1,21 @@
 import mongoose, { type Model, Schema, type Types } from 'mongoose';
+import { compensationRates, disputeRulings, type DisputeRuling } from '../constants/dispute-ruling.js';
+
+/** Phán quyết của Admin (UC19). Ghi một lần, không sửa được (GB-26). */
+export interface IDisputeResolution {
+  ruling: DisputeRuling;
+  compensationRate: number;
+  /** K: phần cọc bồi thường cho chủ đồ */
+  compensationAmount: number;
+  /** G: phần tiền thuê hoàn cho người thuê */
+  rentRefundAmount: number;
+  /** Số tiền mỗi bên nhận từ escrow theo phán quyết */
+  ownerAmount: number;
+  renterAmount: number;
+  platformFee: number;
+  /** Lý do gửi cho cả hai bên, 30–500 ký tự */
+  adminDecision: string;
+}
 
 export interface IDispute {
   _id: Types.ObjectId;
@@ -15,6 +32,8 @@ export interface IDispute {
     dueAt?: Date;
   };
   resolvedBy?: Types.ObjectId;
+  resolvedAt?: Date;
+  resolution?: IDisputeResolution;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,10 +49,27 @@ const disputeSchema = new Schema<IDispute>(
     description: { type: String, required: true },
     status: { type: String, required: true, default: 'open' }, // open, under_review, resolved, closed
     openedAt: { type: Date, default: Date.now },
+    // Hạn bên bị khiếu nại phản hồi (72 giờ, GB-24); Admin quyết định sau hạn này (UC19)
     timer: {
       dueAt: { type: Date },
     },
     resolvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    resolvedAt: { type: Date },
+    resolution: {
+      type: new Schema(
+        {
+          ruling: { type: String, enum: disputeRulings, required: true },
+          compensationRate: { type: Number, enum: compensationRates, required: true },
+          compensationAmount: { type: Number, required: true, min: 0 },
+          rentRefundAmount: { type: Number, required: true, min: 0 },
+          ownerAmount: { type: Number, required: true, min: 0 },
+          renterAmount: { type: Number, required: true, min: 0 },
+          platformFee: { type: Number, required: true, min: 0 },
+          adminDecision: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+    },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );

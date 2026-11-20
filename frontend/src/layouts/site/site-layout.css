@@ -326,4 +326,8 @@
   .site-footer__bottom {
     @apply flex flex-col gap-2 border-t border-site-line py-6 text-xs text-site-muted sm:flex-row sm:justify-between dark:border-night-700 dark:text-slate-400;
   }
+
+  .site-footer__legal {
+    @apply flex flex-wrap gap-x-4 gap-y-1;
+  }
 }

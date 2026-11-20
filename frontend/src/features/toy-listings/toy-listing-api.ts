@@ -71,6 +71,12 @@ export async function hideToyListing(toyId: string): Promise<ToyListing> {
   return data
 }
 
+/** Hiện lại tin đã ẩn (GB-08): chưa sửa từ lần duyệt thì hiển thị ngay, đã sửa thì về Chờ duyệt */
+export async function showToyListing(toyId: string): Promise<ToyListing> {
+  const { data } = await httpClient.post<ToyListing>(`/toys/${toyId}/show`)
+  return data
+}
+
 export async function deleteToyListing(toyId: string): Promise<void> {
   await httpClient.delete(`/toys/${toyId}`)
 }
@@ -152,6 +158,10 @@ const LISTING_ERROR_MESSAGES: Record<string, string> = {
   TOO_MANY_PHOTOS: 'Tin đăng có tối đa 8 ảnh. Vui lòng bớt ảnh.',
   LISTING_TYPE_LOCKED: 'Tin đã được duyệt nên không đổi được loại tin (cho thuê / bán).',
   ORDER_IN_PROGRESS: 'Tin đang có đơn thuê hoặc mua chưa hoàn tất, chưa thể sửa, ẩn hoặc xoá.',
+  LISTING_PENDING_REVIEW: 'Tin đang chờ duyệt nên chưa ẩn được. Bạn có thể sửa hoặc xoá tin.',
+  LISTING_NOT_HIDDEN: 'Tin này không ở trạng thái ẩn. Vui lòng tải lại trang.',
+  LISTING_REJECTED: 'Tin bị từ chối cần được sửa rồi gửi duyệt lại.',
+  TOY_DONATED: 'Đồ chơi đã được tặng nên không hiện lại được.',
   LISTING_CHANGED: 'Tin đăng vừa được thay đổi ở nơi khác. Vui lòng tải lại trang rồi thử lại.',
   CLOUDINARY_NOT_CONFIGURED:'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau.',
   SAFETY_DECLARATION_REQUIRED: SAFETY_REQUIRED_MESSAGE,

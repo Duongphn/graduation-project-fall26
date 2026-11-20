@@ -45,4 +45,16 @@ describe('MongoToyCatalogRepository age filter', () => {
     expect(await titles(6, 12)).toEqual(['6-12']);
     expect(await repository.count({ minAge: 3, maxAge: 6, excludeIds: [] })).toBe(3);
   });
+
+  it('takes a lone maxAge as the excluded upper bound', async () => {
+    await Toy.deleteMany({});
+    await toy('1-3', 1, 3);
+    await toy('3-6', 3, 6);
+    await toy('age 3 only', 3, 3);
+
+    const titles = (await repository.findNewest({ maxAge: 3, excludeIds: [] }, 0, 20))
+      .map((t) => t.title)
+      .sort();
+    expect(titles).toEqual(['1-3']);
+  });
 });

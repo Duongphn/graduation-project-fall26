@@ -207,6 +207,21 @@ export class ToyListingController {
     }
   };
 
+  public show = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.auth) {
+        throw new AppError(401, 'UNAUTHORIZED', 'Authentication required.');
+      }
+
+      const toyId = parseToyId(req.params.toyId);
+      const shown = await this.service.show(req.auth, toyId);
+
+      res.status(200).json(shown);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   public delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.auth) {

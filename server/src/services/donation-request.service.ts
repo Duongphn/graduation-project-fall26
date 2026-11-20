@@ -1,6 +1,7 @@
 import { Types, type ClientSession } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
+import { AppError } from '../utils/app-error.js';
 import { conflict, forbidden, notFound, unprocessable } from '../utils/http-errors.js';
 import { domainEvents } from '../utils/domain-events.js';
 import { toMongoPaging } from '../utils/response.js';
@@ -116,6 +117,11 @@ const insertPendingRequest = async (
   },
   side: CreateSide,
 ) => {
+  // GB-06, MSG17: a Receiver (and a Donor) is a verified User (R03 actors 5–6); same refusal as
+  // the other actions that need a verified identity. An Admin acts for an organization.
+  if (!actor.isAdmin && !(await repository.isVerifiedUser(actor.userId))) {
+    throw new AppError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.');
+  }
   const created = await repository
     .withTransaction(async (session) => {
       // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a
@@ -147,7 +153,7 @@ const insertPendingRequest = async (
         );
         if (!organization) {
           const found = await repository.findOrganization(input.organizationId, session);
-          if (!found) throw notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
+          if (!found) throw organizationNotFound();
           if (/^active$/i.test(found.status)) throw organizationNotAccepting();
           throw organizationNotAvailable();
         }
@@ -211,6 +217,49 @@ export const createOrganizationRequestByDonor = (
   actor: DonationActor,
   input: DonorOrganizationRequestBody,
 ) => insertPendingRequest(actor, input, 'DONOR');
+
+const organizationNotFound = () => notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
+
+/**
+ * UC33 step 4 for a new donation post: the chosen organization takes toys now (GB-55, MSG51)
+ * and its receiving point allows the method (GB-58), as POST /donation-requests/to-organization
+ * checks. Checked again when the request is created after the Admin approves the post.
+ */
+export const assertOrganizationTakesToys = async (
+  organizationId: string,
+  handoverMethod: HandoverMethod,
+) => {
+  const organization = await repository.findOrganization(organizationId);
+  if (!organization) throw organizationNotFound();
+  if (!/^active$/i.test(organization.status)) throw organizationNotAvailable();
+  if (organization.isAccepting === false) throw organizationNotAccepting();
+  assertMethodAllowed(handoverMethod, organization.receivingPoint);
+};
+
+/**
+ * UC33 step 5: the Admin approved a new donation post sent to an organization, so its request is
+ * created as Pending, as if the Donor had sent the Active post to it (the Donor is its creator;
+ * the Admin decides it, GB-56). When the organization no longer takes toys, no request is
+ * created and the post stays open (step 6.1). Returns the request, or undefined.
+ */
+export const createRequestForApprovedPost = async (toyId: string) => {
+  const toy = await repository.takeDonationTarget(toyId);
+  if (!toy) return undefined;
+  const { organizationId, handoverMethod } = toy.donationTarget;
+  try {
+    return await insertPendingRequest(
+      { userId: String(toy.ownerId), isAdmin: false },
+      { toyId, organizationId: String(organizationId), handoverMethod },
+      'DONOR',
+    );
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode < 500) {
+      console.info(`Donation request not created for the approved post ${toyId}: ${error.code}`);
+      return undefined;
+    }
+    throw error;
+  }
+};
 
 // ---- Reads -----------------------------------------------------------------------------------
 

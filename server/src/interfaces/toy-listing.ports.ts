@@ -96,6 +96,17 @@ export interface ToyListingPorts {
     why: 'HIDDEN' | 'DELETED',
     toyTitle: string,
   ): Promise<number>;
+  /**
+   * Whether a donation post was handed over (a received or completed donation request): it cannot
+   * be shown again. Optional so that test doubles without a donation flow need not provide it.
+   */
+  isDonated?(toyId: string): Promise<boolean>;
+  /**
+   * GB-60: the Admin cancelled a Shipping donation request of the toy after `since` (the post's
+   * last review), so the toy stays hidden until the Donor edits or deletes the post. Optional so
+   * that test doubles without a donation flow need not provide it.
+   */
+  hasCancelledShipment?(toyId: string, since?: Date): Promise<boolean>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
   /** Names of the given categories, whatever their status (hidden included). */
   getCategoryNames(categoryIds: string[]): Promise<Map<string, string>>;

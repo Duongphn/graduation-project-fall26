@@ -16,13 +16,12 @@ import {
   EMPTY_DONATION_POST,
   MIN_DONATION_PHOTOS,
   SAFETY_COMMITMENTS,
-  composeDonationDescription,
-  donationDescriptionRoom,
   donationPostSchema,
   findBannedTerms,
   isPhotoCountValid,
   type DonationPostValues,
 } from '../features/donations/donation-post-schema'
+import { handoverMethodValues } from '../features/donations/schemas'
 import { organizationDetailQuery, organizationListQuery } from '../features/organizations/public-queries'
 import type { PublicOrganization } from '../features/organizations/types'
 import { ListingPhotoUploader } from '../features/toy-listings/components/listing-photo-uploader'
@@ -114,6 +113,11 @@ export function NewDonationPage() {
         setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
         void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
       }
+      // MSG51 (UC33 4.1): tổ chức vừa ngừng nhận hoặc bị ẩn: tải lại danh sách để chọn tổ chức khác
+      const code = getApiErrorCode(error)
+      if (code === 'ORGANIZATION_NOT_ACCEPTING' || code === 'ORGANIZATION_NOT_AVAILABLE' || code === 'ORGANIZATION_NOT_FOUND') {
+        void queryClient.invalidateQueries({ queryKey: ['public-organizations'] })
+      }
       // GB-11: tên hoặc mô tả có số điện thoại, email hoặc đường link: báo ngay dưới ô đó
       const contactField = getContactDetailsField(error)
       if (contactField) {
@@ -136,24 +140,19 @@ export function NewDonationPage() {
   const submit = handleSubmit(
     (values) => {
       if (!checkPhotos()) return
-      // Backend nhận mô tả tối đa 1000 ký tự, tính cả các dòng ghi thêm ở cuối
-      const room = donationDescriptionRoom(values.handoverMethod, receiverName)
-      if (values.description.trim().length > room) {
-        setError(
-          'description',
-          { type: 'manual', message: `Mô tả tối đa ${room} ký tự khi gửi kèm tổ chức nhận đã chọn` },
-          { shouldFocus: true },
-        )
-        return
-      }
+      const organizationId = values.receiver === AUTO_MATCH ? undefined : values.receiver
       create.mutate({
         title: values.title,
         categoryId: values.categoryId,
         condition: values.condition,
         minAge: values.minAge,
         maxAge: values.maxAge,
-        description: composeDonationDescription(values.description, values.handoverMethod, receiverName),
+        description: values.description,
         images: photos.newFiles,
+        // UC33 bước 4–5: tổ chức và cách bàn giao lưu cùng tin; Admin duyệt tin thì yêu cầu được tạo
+        ...(organizationId
+          ? { organizationId, handoverMethod: handoverMethodValues[values.handoverMethod] }
+          : {}),
       })
     },
     () => void checkPhotos(),
@@ -167,8 +166,10 @@ export function NewDonationPage() {
             <CircleCheck className="size-12 text-tf-secondary" aria-hidden />
             <h1 className="text-2xl font-bold text-tf-ink">Đã gửi phiếu quyên góp</h1>
             <p className="text-sm leading-6 text-tf-ink-muted">
-              “{create.data.title}” đang chờ Admin kiểm duyệt an toàn. Khi được duyệt, tổ chức sẽ gửi yêu cầu nhận và
-              phiếu hiện trong mục Quyên góp của tôi.
+              “{create.data.title}” đang chờ Admin kiểm duyệt an toàn.{' '}
+              {create.data.donationTarget
+                ? `Khi được duyệt, yêu cầu quyên góp tới ${receiverName ?? 'tổ chức đã chọn'} được tạo và hiện trong mục Quyên góp của tôi.`
+                : 'Khi được duyệt, tin mở để tổ chức hoặc người khác xin nhận; các yêu cầu hiện trong mục Quyên góp của tôi.'}
             </p>
             <div className="mt-2 flex flex-wrap justify-center gap-3">
               <Link
