@@ -71,7 +71,7 @@ describe('Purchase Order Buy Now API', () => {
       expect(res.body.data.shippingFee).toBe(30_000);
       expect(res.body.data.platformFee).toBe(12_500); // 5% of 250k
       expect(res.body.data.totalPayable).toBe(280_000); // 250k + 30k
-      expect(res.body.data.sellerNet).toBe(237_500); // 250k - 12.5k
+      expect(res.body.data.sellerNet).toBe(267_500); // 250k + 30k phí giao - 12.5k
     });
 
     it('báo giá chính xác khi người mua tự đến lấy (LOCAL_PICKUP - phí giao 0đ)', async () => {

@@ -77,6 +77,7 @@ export const confirmShippingSchema = z.object({
         publicId: z.string().optional(),
       }),
     )
+    .max(5, 'Tối đa 5 ảnh đóng gói.')
     .optional()
     .default([]),
   note: z.string().trim().max(500, 'Ghi chú tối đa 500 ký tự.').optional(),

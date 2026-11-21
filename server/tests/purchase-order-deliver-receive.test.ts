@@ -6,6 +6,8 @@ import { Category, PurchaseOrder, Toy, Wallet } from '../src/models/index.js';
 import { authHeader, createUser, fund } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
 
+const PACKING_PHOTOS = [{ url: 'https://res.cloudinary.com/demo/shipping-box.jpg', publicId: 'box_123' }];
+
 describe('Purchase Order Deliver & Receive API', () => {
   const app = createApp();
 
@@ -181,7 +183,7 @@ describe('Purchase Order Deliver & Receive API', () => {
       await request(app)
         .post(`/api/v1/purchase-orders/${order.orderId}/ship`)
         .set(authHeader(seller.id))
-        .send({ carrierName: 'Viettel Post', trackingCode: 'VT123' });
+        .send({ carrierName: 'Viettel Post', trackingCode: 'VT123', photos: PACKING_PHOTOS });
 
       // Seller cố bấm receive
       const res = await request(app)
@@ -193,7 +195,7 @@ describe('Purchase Order Deliver & Receive API', () => {
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
-    it('buyer xác nhận Đã nhận & Hài lòng: chuyển COMPLETED, chuyển tiền trừ hoa hồng 5% cho Seller, tin đồ chơi Sold', async () => {
+    it('buyer xác nhận Đã nhận & Hài lòng: chuyển COMPLETED, Seller nhận tiền hàng + phí giao trừ hoa hồng 5%, tin đồ chơi Sold', async () => {
       const seller = await createUser();
       const buyer = await createUser();
       const price = 200_000;
@@ -203,7 +205,7 @@ describe('Purchase Order Deliver & Receive API', () => {
       await request(app)
         .post(`/api/v1/purchase-orders/${order.orderId}/ship`)
         .set(authHeader(seller.id))
-        .send({ carrierName: 'Viettel Post', trackingCode: 'VT12345678' });
+        .send({ carrierName: 'Viettel Post', trackingCode: 'VT12345678', photos: PACKING_PHOTOS });
 
       // Kiểm tra số dư ví seller trước khi nhận
       const sellerWalletBefore = await Wallet.findOne({ userId: seller.id });
@@ -222,7 +224,8 @@ describe('Purchase Order Deliver & Receive API', () => {
       expect(res.body.data.settlement).toBeDefined();
 
       const platformFee = Math.round(price * 0.05); // 10.000 VNĐ
-      const expectedSellerNet = price - platformFee; // 190.000 VNĐ (tiền hàng trừ 5% hoa hồng)
+      // 220.000 VNĐ: tiền hàng + 30.000 phí giao (người bán tự gửi hàng) − 5% hoa hồng
+      const expectedSellerNet = price + order.shippingFee - platformFee;
 
       expect(res.body.data.settlement.platformFee).toBe(platformFee);
       expect(res.body.data.settlement.sellerReceived).toBe(expectedSellerNet);
@@ -230,6 +233,9 @@ describe('Purchase Order Deliver & Receive API', () => {
       // 3. Kiểm tra số dư ví seller đã được cộng sellerNet
       const sellerWalletAfter = await Wallet.findOne({ userId: seller.id });
       expect(sellerWalletAfter?.balance).toBe(sellerBalanceBefore + expectedSellerNet);
+      // ToyFlow chỉ giữ hoa hồng, ký quỹ trả hết
+      expect((await Wallet.findOne({ ownerType: 'platform' }))?.balance).toBe(platformFee);
+      expect((await Wallet.findOne({ ownerType: 'escrow' }))?.balance).toBe(0);
 
       // 4. Kiểm tra tin đăng đồ chơi đã bị ẩn / hết hàng (Sold)
       const toyInDb = await Toy.findById(order.toyId);
