@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { App } from 'antd'
-import { Clock, RefreshCw, ShieldCheck, Wallet } from 'lucide-react'
+import { Clock, Plus, RefreshCw, ShieldCheck, Wallet } from 'lucide-react'
 import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { PATHS } from '../../../routes/paths'
 import { formatVnd } from '../../toy-listings/format-vnd'
 import { myWalletQuery, useRentalPayment, type InsufficientBalance, type RentalOrderDetail } from '../rental-orders-api'
+import { suggestedTopupAmount, walletTopupLink } from '../../wallet/topup-session'
 import { formatDateTime } from '../rental-display'
 
 interface RentalPayPanelProps {
@@ -18,6 +21,7 @@ interface RentalPayPanelProps {
  */
 export function RentalPayPanel({ order, remaining }: RentalPayPanelProps) {
   const { modal } = App.useApp()
+  const { pathname } = useLocation()
   const wallet = useQuery(myWalletQuery)
   // Số thiếu do server báo khi bấm thanh toán (số dư có thể đổi sau lần tải ví gần nhất)
   const [serverShortfall, setServerShortfall] = useState<InsufficientBalance | null>(null)
@@ -85,8 +89,14 @@ export function RentalPayPanel({ order, remaining }: RentalPayPanelProps) {
             Nạp thêm ít nhất <strong>{formatVnd(shortfall)}</strong> vào ví ToyFlow rồi quay lại thanh toán trước hạn.
           </p>
           <p className="rental-pay__topup-note">
-            Nạp ví trực tuyến chưa được mở; hiện quản trị viên ToyFlow nạp tiền vào ví giúp bạn.
+            Nạp qua VNPay, xong sẽ có nút quay lại đây để thanh toán.
           </p>
+          <Link
+            to={walletTopupLink(PATHS.wallet, suggestedTopupAmount(shortfall), pathname)}
+            className="rental-btn rental-btn--primary"
+          >
+            <Plus aria-hidden /> Nạp {formatVnd(suggestedTopupAmount(shortfall))} vào ví
+          </Link>
           <button
             type="button"
             className="rental-btn rental-btn--ghost"

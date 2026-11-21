@@ -12,6 +12,7 @@ import {
   ReceiptText,
   ShieldCheck,
   UserRound,
+  Wallet,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ADMIN_ROOT, PATHS } from '../../routes/paths'
@@ -65,6 +66,9 @@ export function AccountMenu() {
           </Link>
           <Link to={PATHS.rentalRequests} className="account-menu__link" onClick={close}>
             <ReceiptText aria-hidden /> Yêu cầu thuê nhận được
+          </Link>
+          <Link to={PATHS.wallet} className="account-menu__link" onClick={close}>
+            <Wallet aria-hidden /> Ví ToyFlow
           </Link>
           <Link to={PATHS.favorites} className="account-menu__link" onClick={close}>
             <Heart aria-hidden /> Yêu thích

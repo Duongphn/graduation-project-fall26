@@ -5,6 +5,7 @@ import { ApiError } from '../../services/api-error'
 import { apiGet, apiPost, apiPostForm } from '../../services/http'
 import type { RentalPricing } from '../toy-catalog/rental-request-api'
 import type { ToyImage } from '../toy-listings/toy-listing-api'
+import { myWalletQuery, walletKeys } from '../wallet/wallet-queries'
 
 /**
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
@@ -305,20 +306,9 @@ export const useRentalSettle = (orderId: string) => {
   })
 }
 
-/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
-export interface WalletSummary {
-  balance: number
-  currency: string
-}
-
-export const walletKeys = { me: ['wallet', 'me'] as const }
-
-export const myWalletQuery = queryOptions({
-  queryKey: walletKeys.me,
-  queryFn: () => apiGet<WalletSummary>('/wallets/me'),
-  staleTime: 10_000,
-  retry: false,
-})
+/** Số dư ví của người đang đăng nhập (GET /wallets/me) — dùng chung với màn hình Ví */
+export { myWalletQuery, walletKeys }
+export type { WalletSummary } from '../wallet/wallet-api'
 
 /** details của lỗi 409 INSUFFICIENT_BALANCE khi thanh toán */
 export interface InsufficientBalance {

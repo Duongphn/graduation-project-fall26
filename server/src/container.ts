@@ -56,6 +56,20 @@ import { ToyCatalogService } from './services/toy-catalog.service.js';
 import { ToyListingService } from './services/toy-listing.service.js';
 import { UsersService } from './services/user.service.js';
 import { WalletService } from './services/wallet.service.js';
+import { env } from './config/env.js';
+import { PayOSClient } from './integrations/payos/payos-client.js';
+import { VNPayClient } from './integrations/vnpay/vnpay-client.js';
+import type {
+  PayOSConfig,
+  PayOSGateway,
+  VNPayConfig,
+  VNPayPaymentGateway,
+} from './interfaces/payment.ports.js';
+import { PaymentRepository } from './repositories/payment.repository.js';
+import { WithdrawalRepository } from './repositories/withdrawal.repository.js';
+import { PaymentService } from './services/payment.service.js';
+import { PayosTopupService } from './services/payos-topup.service.js';
+import { WithdrawalService } from './services/withdrawal.service.js';
 import type { ToyCatalogPorts, ToyCatalogRepository } from './types/toy-catalog.types.js';
 import { isCloudinaryConfigured } from './utils/cloudinary-signing.js';
 
@@ -71,6 +85,12 @@ export interface ContainerOverrides {
   toyCatalogRepository?: ToyCatalogRepository;
   toyCatalogPorts?: ToyCatalogPorts;
   walletLedger?: WalletLedgerPort;
+  /** VNPay link builder / checksum and its settings (tests pass a known secret) */
+  paymentGateway?: VNPayPaymentGateway;
+  vnpayConfig?: VNPayConfig;
+  /** PayOS SDK wrapper and its keys (tests pass a fake gateway) */
+  payosGateway?: PayOSGateway;
+  payosConfig?: PayOSConfig;
   rentalPhotoStorage?: RentalPhotoStorage;
   rentalNotifier?: RentalNotifier;
   clock?: Clock;
@@ -84,6 +104,9 @@ export interface ContainerOverrides {
   toyListingService?: ToyListingService;
   toyCatalogService?: ToyCatalogService;
   walletService?: WalletService;
+  paymentService?: PaymentService;
+  payosTopupService?: PayosTopupService;
+  withdrawalService?: WithdrawalService;
   rentalOrderService?: RentalOrderService;
   rentalDisputeService?: RentalDisputeService;
   rentalSystemService?: RentalSystemService;
@@ -103,6 +126,9 @@ export interface Container {
   toyListingService: ToyListingService;
   toyCatalogService: ToyCatalogService;
   walletService: WalletService;
+  paymentService: PaymentService;
+  payosTopupService: PayosTopupService;
+  withdrawalService: WithdrawalService;
   rentalOrderService: RentalOrderService;
   rentalDisputeService: RentalDisputeService;
   rentalSystemService: RentalSystemService;
@@ -159,6 +185,38 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
 
   const walletLedger = overrides.walletLedger ?? new WalletLedgerRepository();
   const walletService = overrides.walletService ?? new WalletService(walletLedger);
+  const clockNow = () => (overrides.clock ?? systemClock).now();
+  const paymentService =
+    overrides.paymentService ??
+    new PaymentService(
+      new PaymentRepository(),
+      walletLedger,
+      overrides.paymentGateway ?? new VNPayClient(),
+      overrides.vnpayConfig ?? {
+        tmnCode: env.vnpayTmnCode,
+        hashSecret: env.vnpayHashSecret,
+        paymentUrl: env.vnpayUrl,
+        returnUrl: env.vnpayReturnUrl,
+      },
+      clockNow,
+    );
+  const payosConfig = overrides.payosConfig ?? {
+    clientId: env.payosClientId,
+    apiKey: env.payosApiKey,
+    checksumKey: env.payosChecksumKey,
+    returnUrl: env.payosReturnUrl,
+  };
+  const payosTopupService =
+    overrides.payosTopupService ??
+    new PayosTopupService(
+      new PaymentRepository(),
+      walletLedger,
+      overrides.payosGateway ?? new PayOSClient(payosConfig),
+      payosConfig,
+      clockNow,
+    );
+  const withdrawalService =
+    overrides.withdrawalService ?? new WithdrawalService(new WithdrawalRepository(), walletLedger, clockNow);
 
   const rentalPhotoStorage =
     overrides.rentalPhotoStorage ?? createDefaultRentalPhotoStorage();
@@ -203,6 +261,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     toyListingService,
     toyCatalogService,
     walletService,
+    paymentService,
+    payosTopupService,
+    withdrawalService,
     rentalOrderService,
     rentalDisputeService,
     rentalSystemService,
