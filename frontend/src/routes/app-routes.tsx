@@ -59,6 +59,9 @@ import {
 } from '../features/wallet/wallet-queries'
 import { RentalRequestDetailPage } from '../pages/rental-request-detail-page'
 import { RentalOrdersListPage } from '../pages/rental-requests-page'
+import { PurchaseCheckoutPage } from '../pages/purchase-checkout-page'
+import { PurchaseOrderDetailPage } from '../pages/purchase-order-detail-page'
+import { PurchaseOrdersPage } from '../pages/purchase-orders-page'
 import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
 import { adminRoute } from './router'
 
@@ -371,6 +374,38 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <RentalOrdersListPage role="owner" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.toyBuy,
+    element: (
+      <RequireAuth>
+        <PurchaseCheckoutPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.purchases,
+    element: (
+      <RequireAuth>
+        <PurchaseOrdersPage role="buyer" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.sales,
+    element: (
+      <RequireAuth>
+        <PurchaseOrdersPage role="seller" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.purchaseOrder,
+    element: (
+      <RequireAuth>
+        <PurchaseOrderDetailPage />
       </RequireAuth>
     ),
   },

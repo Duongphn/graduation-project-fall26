@@ -20,12 +20,13 @@ export interface WalletSummary {
 }
 
 /** Nhóm "Loại" trên màn hình lịch sử */
-export const walletTransactionTypes = ['rental', 'topup', 'withdrawal', 'admin_credit'] as const
+export const walletTransactionTypes = ['rental', 'purchase', 'topup', 'withdrawal', 'admin_credit'] as const
 export type WalletTransactionType = (typeof walletTransactionTypes)[number]
 
 /** Nhóm "Loại" → `reference.kind` mà backend ghi cho giao dịch đó (tham số `kind`) */
 export const WALLET_TYPE_KINDS: Record<WalletTransactionType, string> = {
   rental: 'rental_order',
+  purchase: 'purchase_order',
   topup: 'payment',
   withdrawal: 'withdrawal',
   admin_credit: 'admin_credit',

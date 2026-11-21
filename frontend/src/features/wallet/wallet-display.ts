@@ -9,6 +9,7 @@ import {
 /** Nhãn bộ lọc "Loại" trên màn hình lịch sử */
 export const WALLET_TYPE_LABELS: Record<WalletTransactionType, string> = {
   rental: 'Thuê đồ chơi',
+  purchase: 'Mua bán đồ chơi',
   topup: 'Nạp tiền',
   withdrawal: 'Rút tiền',
   admin_credit: 'ToyFlow cộng tiền',
