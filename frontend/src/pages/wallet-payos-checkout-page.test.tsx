@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '../contexts/theme-provider'
 import { walletApi, type PayosCheckout } from '../features/wallet/wallet-api'
 import { WalletPayosCheckoutPage } from './wallet-payos-checkout-page'
 
@@ -30,14 +31,17 @@ function ResultProbe() {
 
 const renderAt = (url = `/wallet/topup/payos/${CODE}`) =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[url]}>
-        <Routes>
-          <Route path="/wallet/topup/payos/:code" element={<WalletPayosCheckoutPage />} />
-          <Route path="/wallet/topup/payos-result" element={<ResultProbe />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[url]}>
+          <Routes>
+            <Route path="/wallet/topup/payos/:code" element={<WalletPayosCheckoutPage />} />
+            <Route path="/wallet/topup/payos-result" element={<ResultProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
 
 describe('WalletPayosCheckoutPage', () => {
