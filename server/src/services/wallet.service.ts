@@ -121,7 +121,7 @@ export class WalletService {
     return {
       balance: wallet.balance,
       availableBalance: wallet.balance,
-      holdingBalance: holdings.rentals + holdings.withdrawals,
+      holdingBalance: holdings.rentals + (holdings.purchases ?? 0) + holdings.withdrawals,
       holdings,
       currency: wallet.currency,
       transactions: items.map((t) => this.toTransactionDto(t)),

@@ -44,6 +44,7 @@ import { setNotificationMailer } from './services/notification.service.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
+import { PurchaseOrderService } from './services/purchase-order.service.js';
 import { SystemSettingService } from './services/system-setting.service.js';
 import { ToyCatalogService } from './services/toy-catalog.service.js';
 import { ToyListingService } from './services/toy-listing.service.js';
@@ -103,6 +104,7 @@ export interface ContainerOverrides {
   rentalOrderService?: RentalOrderService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
+  purchaseOrderService?: PurchaseOrderService;
 }
 
 export interface Container {
@@ -121,6 +123,7 @@ export interface Container {
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
+  purchaseOrderService: PurchaseOrderService;
 }
 
 /**
@@ -233,6 +236,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       clock,
     );
 
+  const purchaseOrderService =
+    overrides.purchaseOrderService ?? new PurchaseOrderService(walletLedger);
+
   return {
     toyImageStorage,
     authService,
@@ -248,5 +254,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,
+    purchaseOrderService,
   };
 }
