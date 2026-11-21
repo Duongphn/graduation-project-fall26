@@ -20,6 +20,7 @@ export function createToyListingRouter(
   router.get('/mine', ...signedIn, controller.listMine);
   router.patch('/:toyId', ...signedIn, toyImageUpload, controller.update);
   router.post('/:toyId/hide', ...signedIn, controller.hide);
+  router.post('/:toyId/show', ...signedIn, controller.show);
   router.delete('/:toyId', ...signedIn, controller.delete);
 
   return router;

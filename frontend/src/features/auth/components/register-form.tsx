@@ -112,11 +112,12 @@ export function RegisterForm({ initialValues = EMPTY_VALUES, onOtpSent }: Regist
               aria-describedby={fieldState.error ? 'acceptTerms-error' : undefined}
             >
               Tôi đồng ý với{' '}
-              <Link to={PATHS.terms} className="text-link text-link--inline">
+              {/* Mở tab mới để không mất dữ liệu đang điền (R03 1.1.1 (8)) */}
+              <Link to={PATHS.terms} target="_blank" rel="noopener noreferrer" className="text-link text-link--inline">
                 Điều khoản dịch vụ
               </Link>{' '}
               và{' '}
-              <Link to={PATHS.privacy} className="text-link text-link--inline">
+              <Link to={PATHS.privacy} target="_blank" rel="noopener noreferrer" className="text-link text-link--inline">
                 Chính sách bảo mật
               </Link>
             </Checkbox>

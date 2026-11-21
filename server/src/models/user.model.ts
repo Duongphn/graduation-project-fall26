@@ -18,6 +18,10 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true },
     fullName: { type: String, required: true },
     avatar: { type: String },
+    // R03 III.6.1.1 (5)–(7): chỉ hiển thị trên hồ sơ; ngày sinh không dùng cho GB-07
+    dateOfBirth: { type: Date },
+    gender: { type: String, enum: ['female', 'male', 'other'] },
+    bio: { type: String, maxlength: 200 },
     googleId: { type: String },
     role: { type: String, required: true, default: 'USER', enum: ['USER', 'ADMIN'] },
     status: { type: String, required: true, default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] },
@@ -27,6 +31,7 @@ const userSchema = new Schema(
       default: 'unverified',
       enum: ['unverified', 'pending', 'verified', 'rejected'],
     },
+    // Địa chỉ cũ (một địa chỉ); nay dùng sổ địa chỉ `addresses`, AddressService chuyển nó sang khi đọc lần đầu
     address: { type: addressSchema },
     idCardNumber: { type: String },
     trust: {
@@ -93,6 +98,9 @@ export interface IUser {
   passwordHash: string;
   fullName: string;
   avatar?: string;
+  dateOfBirth?: Date | undefined;
+  gender?: 'female' | 'male' | 'other' | undefined;
+  bio?: string | undefined;
   googleId?: string;
   role: 'USER' | 'ADMIN';
   status: 'ACTIVE' | 'LOCKED';

@@ -93,6 +93,8 @@ const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_PURGE_MS = 65 * 60 * 1000;
 const OTP_HOURLY_LIMIT = 5;
 const OTP_MAX_WRONG_ATTEMPTS = 5;
+/** Thông tin đăng ký đang chờ xác minh còn dùng để gửi lại mã trong 1 giờ kể từ lần gửi mã cuối */
+const REGISTRATION_PENDING_MS = 60 * 60 * 1000;
 
 interface TempTokenPayload {
   email: string;
@@ -549,8 +551,8 @@ export class AuthService {
   }
 
   /**
-   * Bước 2 đăng ký: xác minh OTP rồi mới tạo tài khoản. Không tự đăng nhập —
-   * người dùng quay về trang đăng nhập sau khi đăng ký thành công
+   * Bước 2 đăng ký: xác minh OTP rồi mới tạo tài khoản, sau đó đăng nhập luôn
+   * (R03 UC01 bước 5: tạo tài khoản Active/Unverified và đăng nhập người dùng)
    */
   public async verifyRegistrationOtp(dto: VerifyRegistrationOtpDTO): Promise<RegisterResponse> {
     const normalizedEmail = dto.email.toLowerCase().trim();
@@ -586,29 +588,28 @@ export class AuthService {
       status: 'ACTIVE',
     });
 
-    return {
-      user: {
-        id: String(user._id),
-        email: user.email,
-        fullName: user.fullName,
-        phone: user.phone,
-        role: user.role,
-      },
-    };
+    return this.issueSession(user);
   }
 
   /**
-   * Gửi lại mã đăng ký, dùng lại thông tin đăng ký đang chờ xác minh gần nhất
+   * Gửi lại mã đăng ký, dùng lại thông tin đăng ký đang chờ xác minh gần nhất.
+   * Mã gần nhất có thể đã bị huỷ (5 lần sai, R03 III.1.1.1 (14)) hoặc đã hết hạn — thông tin đăng ký
+   * vẫn còn dùng được trong REGISTRATION_PENDING_MS kể từ lần gửi mã cuối, nên vẫn gửi được mã mới
    */
   public async resendRegistrationOtp(email: string): Promise<RegistrationChallenge> {
     const normalizedEmail = email.toLowerCase().trim();
 
-    const latest = await OtpRequest.findOne({ identifier: normalizedEmail, purpose: 'register', is_used: false }).sort({
-      createdAt: -1,
-    });
+    const latest = await OtpRequest.findOne({
+      identifier: normalizedEmail,
+      purpose: 'register',
+      createdAt: { $gt: new Date(Date.now() - REGISTRATION_PENDING_MS) },
+    }).sort({ createdAt: -1 });
     if (!latest?.payload) {
       throw new AppError(400, 'REGISTRATION_EXPIRED', 'Phiên đăng ký đã hết hạn. Vui lòng điền lại thông tin đăng ký.');
     }
+    const pending = latest.payload as PendingRegistration;
+    // Mã gần nhất đã dùng để tạo tài khoản, hoặc email/SĐT vừa bị người khác đăng ký
+    await this.assertRegistrationAvailable(normalizedEmail, pending.phone);
 
     const waitSeconds = Math.ceil(
       (new Date(latest.createdAt).getTime() + REGISTER_OTP_RESEND_SECONDS * 1000 - Date.now()) / 1000
@@ -622,7 +623,7 @@ export class AuthService {
       { identifier: normalizedEmail, purpose: 'register', is_used: false },
       { $set: { is_used: true } },
     );
-    await this.sendRegistrationOtp(normalizedEmail, latest.payload as PendingRegistration);
+    await this.sendRegistrationOtp(normalizedEmail, pending);
 
     return {
       email: normalizedEmail,

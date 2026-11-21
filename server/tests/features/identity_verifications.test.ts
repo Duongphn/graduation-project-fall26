@@ -237,7 +237,10 @@ describe('detail', () => {
   });
 
   it('answers 404 and 400 for unknown and invalid ids', async () => {
-    expect((await get(`/${newId()}`)).status).toBe(404);
+    const unknown = await get(`/${newId()}`);
+    expect(unknown.status).toBe(404);
+    // Admin review 20/11 #5: the page showed the English "Verification submission not found.".
+    expect(unknown.body.error.message).toBe('Không tìm thấy yêu cầu xác minh danh tính.');
     expect((await get('/not-an-id')).status).toBe(400);
   });
 });
@@ -291,7 +294,9 @@ describe('decisions', () => {
   });
 
   it('answers 404 for an unknown request and 409 for a decided one', async () => {
-    expect((await post(`/${newId()}/approve`)).status).toBe(404);
+    const unknown = await post(`/${newId()}/approve`);
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error.message).toBe('Không tìm thấy yêu cầu xác minh danh tính.');
     const user = await createUser();
     const verification = await createVerification(user._id);
     await post(`/${verification._id}/approve`);

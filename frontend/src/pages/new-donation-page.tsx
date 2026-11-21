@@ -1,36 +1,38 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Form } from 'antd'
-import { ChevronRight, CircleCheck, Home } from 'lucide-react'
+import { ChevronRight, CircleCheck, Home, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link, useSearchParams } from 'react-router-dom'
 
-import { DonationReceiverSection } from '../features/donations/components/donation-receiver-section'
+import { ALL_PROVINCES, DonationReceiverSection } from '../features/donations/components/donation-receiver-section'
 import { DonationPostSummary } from '../features/donations/components/donation-post-summary'
 import { DonationSafetySection } from '../features/donations/components/donation-safety-section'
 import { DonationToySection } from '../features/donations/components/donation-toy-section'
 import { createDonationPost } from '../features/donations/donation-post-api'
 import {
   AUTO_MATCH,
+  allowedHandoverMethods,
   EMPTY_DONATION_POST,
   MIN_DONATION_PHOTOS,
   SAFETY_COMMITMENTS,
-  composeDonationDescription,
-  donationDescriptionRoom,
   donationPostSchema,
   findBannedTerms,
   isPhotoCountValid,
   type DonationPostValues,
 } from '../features/donations/donation-post-schema'
-import { organizationDetailQuery, organizationListQuery } from '../features/organizations/public-queries'
-import type { PublicOrganization } from '../features/organizations/types'
+import { handoverMethodValues } from '../features/donations/schemas'
+import { useCategoryNames } from '../features/organizations/hooks'
+import { organizationDetailQuery, organizationSuggestionsQuery } from '../features/organizations/public-queries'
+import { profileQuery } from '../features/profile/profile-queries'
 import { ListingPhotoUploader } from '../features/toy-listings/components/listing-photo-uploader'
 import { useListingPhotos } from '../features/toy-listings/hooks/use-listing-photos'
 import { CONTACT_DETAILS_MESSAGES } from '../features/toy-listings/contact-details'
 import { getContactDetailsField, getListingErrorMessage } from '../features/toy-listings/toy-listing-api'
 import { AGE_OPTIONS, MAX_IMAGES } from '../features/toy-listings/toy-listing-schema'
 import { categoriesQuery, MY_LISTINGS_ROOT_KEY } from '../features/toy-listings/toy-listing-queries'
+import { addressesQuery } from '../features/profile/profile-queries'
 import { SiteLayout } from '../layouts/site/site-layout'
 import { PATHS } from '../routes/paths'
 import { getApiErrorCode } from '../services/http-client'
@@ -53,53 +55,73 @@ export function NewDonationPage() {
     resolver: zodResolver(donationPostSchema),
     defaultValues: { ...EMPTY_DONATION_POST, receiver: presetOrganizationId ?? AUTO_MATCH },
   })
-  const [title, description, minAge, maxAge, condition, safety, receiver, handoverMethod] = useWatch({
+  const [title, description, categoryId, minAge, maxAge, condition, safety, receiver, handoverMethod] = useWatch({
     control,
-    name: ['title', 'description', 'minAge', 'maxAge', 'condition', 'safety', 'receiver', 'handoverMethod'],
+    name: ['title', 'description', 'categoryId', 'minAge', 'maxAge', 'condition', 'safety', 'receiver', 'handoverMethod'],
   })
 
   const categories = useQuery(categoriesQuery)
-  // Ô tìm tổ chức: chờ người dùng ngừng gõ 300ms mới gọi API
-  const [orgKeyword, setOrgKeyword] = useState('')
-  const [orgQuery, setOrgQuery] = useState('')
-  useEffect(() => {
-    const timer = setTimeout(() => setOrgQuery(orgKeyword.trim()), 300)
-    return () => clearTimeout(timer)
-  }, [orgKeyword])
-  const organizations = useQuery({
-    ...organizationListQuery({ page: 1, ...(orgQuery ? { q: orgQuery } : {}) }),
+  // GB-06 / MSG17: chỉ người đã xác minh danh tính mới quyên góp; chặn ngay khi mở form như form đăng tin.
+  // Không tải được hồ sơ thì vẫn hiện form: backend vẫn chặn bằng USER_NOT_VERIFIED.
+  const profileResult = useQuery(profileQuery)
+  const mustVerify = profileResult.data !== undefined && profileResult.data.verificationStatus !== 'verified'
+  const categoryNames = useCategoryNames()
+  // GB-54: tổ chức gợi ý theo danh mục và độ tuổi của đồ chơi, tỉnh của địa chỉ mặc định đứng đầu
+  const addresses = useQuery({ ...addressesQuery, retry: false })
+  const donorProvince = addresses.data?.find((address) => address.isDefault)?.province
+  const suggestionParams =
+    categoryId && minAge !== undefined && maxAge !== undefined
+      ? { categoryId, minAge, maxAge, ...(donorProvince ? { province: donorProvince } : {}) }
+      : undefined
+  const suggestions = useQuery({
+    ...organizationSuggestionsQuery(suggestionParams ?? { categoryId: '', minAge: 0, maxAge: 0 }),
+    enabled: Boolean(suggestionParams),
     placeholderData: keepPreviousData,
   })
-  // Tổ chức đã chọn vẫn hiện khi người dùng tìm tên khác: lấy lại từ các trang đã tải trong cache
-  const chosenOrganization = useMemo(() => {
-    if (!receiver || receiver === AUTO_MATCH) return undefined
-    const inCurrentPage = organizations.data?.items.find((item) => item.id === receiver)
-    if (inCurrentPage) return inCurrentPage
-    const pages = queryClient.getQueriesData<{ items: PublicOrganization[] }>({
-      queryKey: ['public-organizations', 'list'],
-    })
-    for (const [, page] of pages) {
-      const found = page?.items.find((item) => item.id === receiver)
-      if (found) return found
-    }
-    return undefined
-  }, [queryClient, receiver, organizations.data])
-  // Tổ chức được chọn sẵn có thể không nằm ở trang đầu danh sách: tải riêng để vẫn hiện
+  const suggested = suggestionParams ? suggestions.data : undefined
+  // GB-52: lọc gợi ý theo tỉnh của điểm nhận
+  const [province, setProvince] = useState(ALL_PROVINCES)
+  const provinces = useMemo(
+    () =>
+      [...new Set((suggested ?? []).map((item) => item.receivingPoint?.province).filter(Boolean) as string[])].sort(
+        (a, b) => a.localeCompare(b, 'vi'),
+      ),
+    [suggested],
+  )
+  const organizationOptions = useMemo(
+    () =>
+      suggested?.filter((item) => province === ALL_PROVINCES || item.receivingPoint?.province === province),
+    [suggested, province],
+  )
+  // Tổ chức được chọn sẵn ("Quyên góp cho tổ chức này") chỉ giữ khi nó nhận đồ chơi này
   const presetOrganization = useQuery({
     ...organizationDetailQuery(presetOrganizationId ?? ''),
     enabled: Boolean(presetOrganizationId),
   })
-  const organizationOptions = useMemo(() => {
-    const items = organizations.data?.items ?? []
-    const pinned = [chosenOrganization, presetOrganization.data].filter(
-      (item): item is PublicOrganization => Boolean(item) && item?.id === receiver,
-    )
-    const extra = pinned.filter((item, index) => pinned.findIndex((other) => other.id === item.id) === index)
-    return [...extra.filter((item) => !items.some((other) => other.id === item.id)), ...items]
-  }, [organizations.data, presetOrganization.data, chosenOrganization, receiver])
+  const suggestionsReady = Boolean(suggested) && !suggestions.isPlaceholderData
+  useEffect(() => {
+    if (!suggestionsReady || !receiver || receiver === AUTO_MATCH) return
+    if (!suggested?.some((item) => item.id === receiver)) setValue('receiver', AUTO_MATCH)
+  }, [suggestionsReady, suggested, receiver, setValue])
+  const droppedOrganizationName =
+    presetOrganizationId && suggestionsReady && !suggested?.some((item) => item.id === presetOrganizationId)
+      ? (presetOrganization.data?.name ?? 'Tổ chức đã chọn')
+      : null
+  const chosenOrganization =
+    receiver === AUTO_MATCH
+      ? undefined
+      : (suggested?.find((item) => item.id === receiver) ??
+        (presetOrganization.data?.id === receiver ? presetOrganization.data : undefined))
+  // GB-51: chỉ cách bàn giao mà điểm nhận của tổ chức đã chọn chấp nhận
+  const allowedMethods = useMemo(() => allowedHandoverMethods(chosenOrganization), [chosenOrganization])
+  useEffect(() => {
+    const [onlyMethod] = allowedMethods
+    if (handoverMethod && !allowedMethods.includes(handoverMethod) && onlyMethod) {
+      setValue('handoverMethod', onlyMethod)
+    }
+  }, [allowedMethods, handoverMethod, setValue])
 
-  const receiverName =
-    receiver === AUTO_MATCH ? null : (organizationOptions.find((item) => item.id === receiver)?.name ?? null)
+  const receiverName = chosenOrganization?.name ?? null
   const bannedTerms = findBannedTerms(title ?? '', description ?? '')
   const safetyChecked = Object.values(safety ?? {}).filter(Boolean).length
   const ageLabel = AGE_OPTIONS.find((option) => option.minAge === minAge && option.maxAge === maxAge)?.label
@@ -113,6 +135,16 @@ export function NewDonationPage() {
         setValue('categoryId', '')
         setError('categoryId', { type: 'server', message: CATEGORY_GONE_ERROR })
         void queryClient.invalidateQueries({ queryKey: categoriesQuery.queryKey })
+      }
+      // MSG51 (UC33 4.1): tổ chức vừa ngừng nhận hoặc bị ẩn: tải lại danh sách để chọn tổ chức khác
+      const code = getApiErrorCode(error)
+      if (
+        code === 'ORGANIZATION_NOT_ACCEPTING' ||
+        code === 'ORGANIZATION_NOT_AVAILABLE' ||
+        code === 'ORGANIZATION_NOT_FOUND' ||
+        code === 'ORGANIZATION_NO_RECEIVING_POINT'
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ['public-organizations'] })
       }
       // GB-11: tên hoặc mô tả có số điện thoại, email hoặc đường link: báo ngay dưới ô đó
       const contactField = getContactDetailsField(error)
@@ -136,24 +168,19 @@ export function NewDonationPage() {
   const submit = handleSubmit(
     (values) => {
       if (!checkPhotos()) return
-      // Backend nhận mô tả tối đa 1000 ký tự, tính cả các dòng ghi thêm ở cuối
-      const room = donationDescriptionRoom(values.handoverMethod, receiverName)
-      if (values.description.trim().length > room) {
-        setError(
-          'description',
-          { type: 'manual', message: `Mô tả tối đa ${room} ký tự khi gửi kèm tổ chức nhận đã chọn` },
-          { shouldFocus: true },
-        )
-        return
-      }
+      const organizationId = values.receiver === AUTO_MATCH ? undefined : values.receiver
       create.mutate({
         title: values.title,
         categoryId: values.categoryId,
         condition: values.condition,
         minAge: values.minAge,
         maxAge: values.maxAge,
-        description: composeDonationDescription(values.description, values.handoverMethod, receiverName),
+        description: values.description,
         images: photos.newFiles,
+        // UC33 bước 4–5: tổ chức và cách bàn giao lưu cùng tin; Admin duyệt tin thì yêu cầu được tạo
+        ...(organizationId
+          ? { organizationId, handoverMethod: handoverMethodValues[values.handoverMethod] }
+          : {}),
       })
     },
     () => void checkPhotos(),
@@ -167,8 +194,10 @@ export function NewDonationPage() {
             <CircleCheck className="size-12 text-tf-secondary" aria-hidden />
             <h1 className="text-2xl font-bold text-tf-ink">Đã gửi phiếu quyên góp</h1>
             <p className="text-sm leading-6 text-tf-ink-muted">
-              “{create.data.title}” đang chờ Admin kiểm duyệt an toàn. Khi được duyệt, tổ chức sẽ gửi yêu cầu nhận và
-              phiếu hiện trong mục Quyên góp của tôi.
+              “{create.data.title}” đang chờ Admin kiểm duyệt an toàn.{' '}
+              {create.data.donationTarget
+                ? `Khi được duyệt, yêu cầu quyên góp tới ${receiverName ?? 'tổ chức đã chọn'} được tạo và hiện trong mục Quyên góp của tôi.`
+                : 'Khi được duyệt, tin mở để tổ chức hoặc người khác xin nhận; các yêu cầu hiện trong mục Quyên góp của tôi.'}
             </p>
             <div className="mt-2 flex flex-wrap justify-center gap-3">
               <Link
@@ -184,6 +213,29 @@ export function NewDonationPage() {
                 Xem trong Tin đăng của tôi
               </Link>
             </div>
+          </section>
+        </div>
+      </SiteLayout>
+    )
+  }
+
+  if (mustVerify) {
+    return (
+      <SiteLayout>
+        <div className="home-container py-10">
+          <section
+            role="alert"
+            className="mx-auto flex max-w-xl flex-col items-center gap-3 rounded-xl border border-tf-surface bg-white p-8 text-center dark:border-night-700 dark:bg-night-900"
+          >
+            <ShieldAlert className="size-12 text-tf-tertiary" aria-hidden />
+            <h1 className="text-2xl font-bold text-tf-ink dark:text-slate-100">Tạo phiếu quyên góp</h1>
+            <p className="text-sm leading-6 text-tf-ink-muted dark:text-slate-300">Vui lòng xác minh danh tính trước khi tiếp tục.</p>
+            <Link
+              to={PATHS.identityVerification}
+              className="mt-2 inline-flex h-10 items-center rounded-full bg-tf-primary px-5 text-sm font-bold text-white"
+            >
+              Xác minh danh tính
+            </Link>
           </section>
         </div>
       </SiteLayout>
@@ -244,10 +296,13 @@ export function NewDonationPage() {
             <DonationReceiverSection
               control={control}
               organizations={organizationOptions}
-              organizationsLoading={organizations.isPending}
-              keyword={orgKeyword}
-              onKeywordChange={setOrgKeyword}
-              total={organizations.data?.pagination.totalItems}
+              organizationsLoading={Boolean(suggestionParams) && suggestions.isPending}
+              province={province}
+              provinces={provinces}
+              onProvinceChange={setProvince}
+              categoryNames={categoryNames}
+              droppedOrganizationName={droppedOrganizationName}
+              allowedMethods={allowedMethods}
             />
           </Form>
 

@@ -150,6 +150,7 @@ export class RentalOrderCore {
     to: 'renter' | 'owner',
     title: string,
     body: string,
+    type?: 'DISPUTE',
   ): Promise<void> {
     try {
       const targetUserId = to === 'renter' ? order.renterId.toString() : order.ownerId.toString();
@@ -159,6 +160,7 @@ export class RentalOrderCore {
         body,
         orderId: order._id.toString(),
         party: to,
+        ...(type ? { type } : {}),
       });
     } catch {
       // Swallows error
@@ -166,7 +168,9 @@ export class RentalOrderCore {
   }
 
   /** Tạo sẵn 4 ví quyết toán ngoài transaction (xem ghi chú ở `pay`). */
-  protected async prepareSettleWallets(order: RentalOrderDoc): Promise<SettleWallets> {
+  protected async prepareSettleWallets(
+    order: Pick<IRentalOrder, 'ownerId' | 'renterId'>,
+  ): Promise<SettleWallets> {
     const [escrow, owner, platform, renter] = await Promise.all([
       this.ledger.getOrCreateSystemWallet('escrow'),
       this.ledger.getOrCreateUserWallet(order.ownerId.toString()),

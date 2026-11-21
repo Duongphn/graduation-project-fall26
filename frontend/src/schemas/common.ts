@@ -14,3 +14,8 @@ export const reasonSchema = z
 
 export const reasonFormSchema = z.object({ reason: reasonSchema })
 export type ReasonFormValues = z.infer<typeof reasonFormSchema>
+
+// An optional reason (e.g. a user cancelling their own donation, R03 III.5.2.2 (13)): empty, or at most REASON_MAX.
+export const optionalReasonFormSchema = z.object({
+  reason: z.string().trim().max(REASON_MAX, `Lý do tối đa ${REASON_MAX} ký tự.`),
+})

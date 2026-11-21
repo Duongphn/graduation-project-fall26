@@ -8,6 +8,7 @@ import type {
 import { renderEmail, type EmailContent, type EmailSpec } from './notification.email.js';
 import { absoluteUrl, isAppLink, notificationLinks } from './notification.links.js';
 import { notificationTypeRules, type NotificationType } from '../constants/notification-types.js';
+import { formatVietnamDate } from '../utils/dates.js';
 
 type DonationStatus = StoredDonationStatus;
 
@@ -215,6 +216,7 @@ const donationTexts = (
   receiver: string,
   code: string,
   from: DonationStatus | undefined,
+  dates: { organization?: string | undefined; handoverDue?: string; receivedOn?: string } = {},
 ): DonationText => {
   const forDonor = party === 'DONOR';
   switch (status) {
@@ -226,11 +228,17 @@ const donationTexts = (
         actionLabel: VIEW_REQUEST,
       };
     case 'accepted':
+      // MSG54 (R03 V.2): "Your donation {code} was accepted by {organization}. Please hand over
+      // the toy by {date}."
       return forDonor
         ? {
             title: `Yêu cầu nhận "${name}" đã được chấp nhận`,
-            summary: `Admin đã chấp nhận yêu cầu nhận đồ chơi "${toy}"${receiver}.`,
-            nextStep: 'Vui lòng chuẩn bị đồ chơi và tải ảnh bàn giao lên ToyFlow khi gửi đi.',
+            summary: dates.organization
+              ? `Yêu cầu quyên góp ${code ? `${code} ` : ''}(đồ chơi "${toy}") đã được ${dates.organization} chấp nhận.`
+              : `Admin đã chấp nhận yêu cầu nhận đồ chơi "${toy}"${receiver}.`,
+            nextStep: dates.handoverDue
+              ? `Vui lòng bàn giao đồ chơi trước ngày ${dates.handoverDue} và tải ảnh bàn giao lên ToyFlow khi gửi đi.`
+              : 'Vui lòng chuẩn bị đồ chơi và tải ảnh bàn giao lên ToyFlow khi gửi đi.',
             actionLabel: VIEW_REQUEST,
           }
         : {
@@ -258,12 +266,16 @@ const donationTexts = (
       };
     case 'received':
     case 'completed':
+      // MSG55 (R03 V.2): "{organization} received "{toy_name}" on {date}. Thank you for your
+      // donation." GB-61: the receipt photos are on the donation detail the notification opens.
       return forDonor
         ? {
             title: `Cảm ơn bạn đã quyên góp "${name}"`,
-            summary: `Đồ chơi "${toy}" bạn quyên góp đã được trao${receiver} thành công.`,
+            summary: dates.receivedOn
+              ? `${dates.organization ?? 'Bên nhận'} đã nhận đồ chơi "${toy}" ngày ${dates.receivedOn}.`
+              : `Đồ chơi "${toy}" bạn quyên góp đã được trao${receiver} thành công.`,
             nextStep:
-              'ToyFlow chân thành cảm ơn tấm lòng của bạn. Món quà sẽ mang thêm niềm vui cho các em nhỏ.',
+              'ToyFlow chân thành cảm ơn tấm lòng của bạn. Xem ảnh nhận hàng trong chi tiết quyên góp.',
             actionLabel: 'Xem chi tiết quyên góp',
           }
         : {
@@ -328,6 +340,11 @@ export const renderDonationStatusChanged = (
         receiver,
         event.code ?? '',
         event.from,
+        {
+          organization,
+          ...(event.handoverDueAt ? { handoverDue: formatVietnamDate(event.handoverDueAt) } : {}),
+          ...(event.receivedAt ? { receivedOn: formatVietnamDate(event.receivedAt) } : {}),
+        },
       ),
     },
     context.appPublicUrl,

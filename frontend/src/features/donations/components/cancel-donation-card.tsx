@@ -52,7 +52,13 @@ export function CancelDonationCard({ loading, perspective = 'donor', onCancel }:
         open={open}
         title={title}
         okText={forReceiver ? 'Huỷ yêu cầu' : 'Huỷ phiếu'}
-        label={forReceiver ? 'Lý do huỷ (người tặng sẽ thấy)' : 'Lý do huỷ (bên nhận sẽ thấy)'}
+        // R03 III.5.2.2 (13): the reason is optional.
+        optional
+        label={
+          forReceiver
+            ? 'Lý do huỷ (không bắt buộc, người tặng sẽ thấy)'
+            : 'Lý do huỷ (không bắt buộc, bên nhận sẽ thấy)'
+        }
         presets={forReceiver ? receiverCancelReasonPresets : donorCancelReasonPresets}
         loading={loading}
         onCancel={() => setOpen(false)}

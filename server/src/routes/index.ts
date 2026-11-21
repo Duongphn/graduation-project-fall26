@@ -3,6 +3,7 @@ import type { Container } from '../container.js';
 import { featureEnv } from '../config/feature-env.js';
 import { createDocsRouter } from '../config/openapi.js';
 import { authenticate } from '../middlewares/authenticate.js';
+import { createAiRouter } from './ai.routes.js';
 import { adminCategoriesRouter } from './category-admin.routes.js';
 import { createDonationPostsRouter } from './donation-post.routes.js';
 import {
@@ -20,6 +21,7 @@ import { createAuthRouter } from './auth.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
+import { createAdminDisputeRouter } from './rental-dispute.routes.js';
 import { createRentalOrderRouter } from './rental-order.routes.js';
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
@@ -58,6 +60,11 @@ export function createApiRouter(container: Container): Router {
   router.use('/admin/toys', authenticate, adminToyModerationRouter);
   router.use('/admin/identity-verifications', authenticate, adminIdentityReviewRouter);
   router.use('/admin/donation-requests', authenticate, adminDonationRequestsRouter);
+  router.use(
+    '/admin/disputes',
+    authenticate,
+    createAdminDisputeRouter(container.rentalDisputeService),
+  );
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);
@@ -68,6 +75,8 @@ export function createApiRouter(container: Container): Router {
   );
   router.use('/donors', donorProfileRouter);
   router.use('/uploads', authenticate, uploadsRouter);
+  // Trợ lý AI: router tự kiểm tra cờ tính năng trước khi xác thực (tắt thì 503).
+  router.use('/ai', createAiRouter(container.aiAssistanceService));
 
   // Swagger UI and the OpenAPI JSON of the documented routes (never in production).
   if (featureEnv.docsEnabled) {

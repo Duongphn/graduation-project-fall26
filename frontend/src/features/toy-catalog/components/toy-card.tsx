@@ -17,6 +17,12 @@ function tintOf(categoryId: string): number {
   return hash % TINT_COUNT
 }
 
+const LISTING_LABELS: Record<ToyCardData['listingType'], string> = {
+  rent: 'Cho thuê',
+  sell: 'Bán lại',
+  donate: 'Quyên góp',
+}
+
 const distanceText = (km: number) => (km < 10 ? `${km.toFixed(1).replace('.', ',')} km` : `${Math.round(km)} km`)
 
 interface ToyCardProps {
@@ -45,14 +51,14 @@ export function ToyCard({ toy, index, distanceKm }: ToyCardProps) {
           ) : (
             <ToyBrick className="toy-card__placeholder" aria-hidden="true" />
           )}
-          <span className="toy-card__badge">{isRent ? 'Cho thuê' : 'Bán lại'}</span>
+          <span className="toy-card__badge">{LISTING_LABELS[toy.listingType]}</span>
         </div>
 
         <div className="toy-card__body">
           <h3 className="toy-card__title">{toy.title}</h3>
 
           <p className="toy-card__price">
-            <strong>{formatVnd(toy.priceOrRate)}</strong>
+            <strong>{toy.listingType === 'donate' ? 'Miễn phí' : formatVnd(toy.priceOrRate)}</strong>
             {isRent && <span>/ngày</span>}
           </p>
           {/* Dòng cọc giữ chỗ cả khi trống để giá và thông tin các card cùng hàng thẳng nhau */}

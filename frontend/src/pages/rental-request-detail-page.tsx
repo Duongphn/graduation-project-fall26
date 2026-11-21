@@ -229,6 +229,12 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
     const deadline = order.timer && remaining ? `trước ${formatDateTime(order.timer.dueAt)} (${remaining})` : 'trong thời hạn kiểm tra'
     title = 'Đang chờ chủ đồ kiểm tra'
     text = `Chủ đồ kiểm tra tình trạng ${deadline}. Nếu đồ còn tốt, bạn được hoàn ${formatVnd(order.pricing.depositAmount - lateFee)} tiền cọc${lateFee > 0 ? ` (đã trừ ${formatVnd(lateFee)} phí trả trễ)` : ''}.`
+  } else if (order.status === 'COMPLETED' && order.settlement?.resolution) {
+    const { ownerAmount, renterAmount } = order.settlement.resolution
+    title = 'Khiếu nại đã được giải quyết'
+    text = isOwner
+      ? `Quản trị viên đã ra phán quyết. ${formatVnd(ownerAmount)} đã vào ví của bạn. Xem chi tiết ở mục Quyết toán.`
+      : `Quản trị viên đã ra phán quyết. ${formatVnd(renterAmount)} đã được hoàn vào ví của bạn. Xem chi tiết ở mục Quyết toán.`
   } else if (order.status === 'COMPLETED') {
     const refund = order.pricing.depositAmount - (order.returnInfo?.lateFee ?? 0)
     title = 'Đơn thuê đã hoàn tất'
@@ -239,7 +245,7 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
     title = isOwner ? 'Đã mở khiếu nại hư hỏng' : 'Chủ đồ báo đồ chơi bị hư hỏng'
     text = isOwner
       ? 'Quản trị viên ToyFlow sẽ xem ảnh lúc giao, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền cọc.'
-      : 'Tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp lúc nhận và lúc trả là căn cứ bảo vệ bạn.'
+      : 'Tiền thuê và tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp lúc nhận và lúc trả là căn cứ bảo vệ bạn.'
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null

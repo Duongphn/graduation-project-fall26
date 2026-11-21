@@ -4,6 +4,22 @@ import { ImageGallery, RelativeTime, StatusTag } from '../../../components/commo
 import { actorTypeLabels, handoverStepLabels } from '../../../constants/labels'
 import type { DonationRequestDetail } from '../types'
 
+type HistoryEntry = DonationRequestDetail['history'][number]
+
+/**
+ * GB-19, R03 III.5.2.2 (2): who made each change, by role (and name for a user): Người tặng,
+ * Người nhận, Quản trị viên (for an organization) or Hệ thống (expiry job).
+ */
+const historyActorLabel = (request: DonationRequestDetail, entry: HistoryEntry): string => {
+  if (entry.actorType !== 'USER') return actorTypeLabels[entry.actorType]
+  const withName = (role: string, name: string | undefined) => (name ? `${role} · ${name}` : role)
+  if (entry.actorId && entry.actorId === request.donor?.id) return withName('Người tặng', request.donor.fullName)
+  if (entry.actorId && entry.actorId === request.requester?.id) {
+    return withName('Người nhận', request.requester.fullName)
+  }
+  return actorTypeLabels.USER
+}
+
 // Status history (order_status_history) and handover photos of one request.
 export function DonationTimeline({ request }: { request: DonationRequestDetail }) {
   return (
@@ -17,7 +33,7 @@ export function DonationTimeline({ request }: { request: DonationRequestDetail }
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusTag domain="donation" status={entry.toStatus} />
                   <Typography.Text type="secondary">
-                    {actorTypeLabels[entry.actorType]}
+                    {historyActorLabel(request, entry)}
                   </Typography.Text>
                 </div>
                 {entry.reason && <Typography.Text>{entry.reason}</Typography.Text>}

@@ -10,6 +10,7 @@ import {
   DAMAGE_DESCRIPTION_MIN,
   useRentalSettle,
   type RentalOrderDetail,
+  type RentalRulingSummary,
   type SettlementResult,
 } from '../rental-orders-api'
 import { formatDateTime } from '../rental-display'
@@ -209,11 +210,77 @@ export function RentalSettlePanel({ order, remaining }: { order: RentalOrderDeta
   )
 }
 
+const RULING_LABELS: Record<RentalRulingSummary['ruling'], string> = {
+  RENTER_AT_FAULT: 'Người thuê có lỗi',
+  OWNER_AT_FAULT: 'Chủ đồ có lỗi',
+  UNDETERMINED: 'Không xác định được lỗi',
+  FAIR_WEAR_AND_TEAR: 'Hao mòn tự nhiên',
+}
+
+/** Phán quyết của quản trị viên (UC19): số tiền mỗi bên nhận từ khoản đang giữ và lý do */
+function RulingRecord({ resolution, isOwner }: { resolution: RentalRulingSummary; isOwner: boolean }) {
+  return (
+    <div className="rental-handover-record__side">
+      <dl className="rental-money rental-settle__split">
+        <div>
+          <dt>Phán quyết</dt>
+          <dd>{RULING_LABELS[resolution.ruling]}</dd>
+        </div>
+        {resolution.compensationAmount > 0 && (
+          <div>
+            <dt>Bồi thường cho chủ đồ (trừ từ cọc)</dt>
+            <dd>{formatVnd(resolution.compensationAmount)}</dd>
+          </div>
+        )}
+        {resolution.rentRefundAmount > 0 && (
+          <div>
+            <dt>Hoàn tiền thuê</dt>
+            <dd>{formatVnd(resolution.rentRefundAmount)}</dd>
+          </div>
+        )}
+        <div className="rental-money__total">
+          <dt>{isOwner ? 'Bạn nhận' : 'Chủ đồ nhận'}</dt>
+          <dd>{formatVnd(resolution.ownerAmount)}</dd>
+        </div>
+        <div className="rental-settle__refund">
+          <dt>{isOwner ? 'Người thuê nhận' : 'Hoàn lại cho bạn'}</dt>
+          <dd>{formatVnd(resolution.renterAmount)}</dd>
+        </div>
+      </dl>
+      <blockquote className="rental-return-record__note">{resolution.adminDecision}</blockquote>
+    </div>
+  )
+}
+
 /** Kết quả quyết toán ở cột chính: Tốt → bảng chia tiền; Hư hỏng → ảnh bằng chứng + mô tả của chủ đồ */
 export function RentalSettlementRecord({ order, isOwner }: { order: RentalOrderDetail; isOwner: boolean }) {
   const settlement = order.settlement
   if (!settlement) return null
   const good = settlement.result === 'GOOD'
+  const resolution = settlement.resolution
+  if (resolution) {
+    return (
+      <section className="rental-block" aria-labelledby="settlement-title">
+        <h2 id="settlement-title" className="rental-section-title">
+          Quyết toán
+        </h2>
+        <p className="rental-settle__verdict is-damaged">
+          <Scale aria-hidden />
+          <span>
+            <strong>Quản trị viên đã giải quyết khiếu nại hư hỏng</strong>
+            <time dateTime={resolution.resolvedAt}>{formatDateTime(resolution.resolvedAt)}</time>
+          </span>
+        </p>
+        {settlement.evidencePhotos && settlement.evidencePhotos.length > 0 && (
+          <ImageGallery
+            images={settlement.evidencePhotos.map((photo) => ({ url: photo.url, key: photo.publicId }))}
+            size={72}
+          />
+        )}
+        <RulingRecord resolution={resolution} isOwner={isOwner} />
+      </section>
+    )
+  }
 
   return (
     <section className="rental-block" aria-labelledby="settlement-title">
@@ -247,8 +314,8 @@ export function RentalSettlementRecord({ order, isOwner }: { order: RentalOrderD
             <blockquote className="rental-return-record__note">{settlement.description}</blockquote>
           )}
           <p className="rental-block__note">
-            Tiền thuê và tiền cọc ({formatVnd(order.pricing.depositAmount)}) được ToyFlow giữ cho đến khi quản trị
-            viên giải quyết khiếu nại.
+            Tiền thuê và tiền cọc ({formatVnd(order.pricing.rentalFee + order.pricing.depositAmount)}) được ToyFlow
+            giữ cho đến khi quản trị viên giải quyết khiếu nại.
           </p>
         </div>
       )}

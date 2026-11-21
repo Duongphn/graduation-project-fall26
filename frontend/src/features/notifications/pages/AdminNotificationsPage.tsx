@@ -13,7 +13,8 @@ export function AdminNotificationsPage() {
   return (
     <>
       <PageHeader title="Thông báo" breadcrumb={[adminHomeCrumb, { title: 'Thông báo' }]} />
-      <NotificationsPanel />
+      {/* The per-type settings (messages, vouchers, reviews, reminders) are about user activity. */}
+      <NotificationsPanel showSettings={false} />
     </>
   )
 }

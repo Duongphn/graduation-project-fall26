@@ -5,7 +5,10 @@ import type { AdminContext } from '../utils/admin-context.js';
 import { zeroFilledCounts } from '../utils/counts.js';
 import { toSkipLimit } from '../utils/response.js';
 import { assertTransition } from '../utils/transitions.js';
-import { IdentityVerificationService } from './identity-verification.service.js';
+import {
+  IdentityVerificationService,
+  VERIFICATION_NOT_FOUND_MESSAGE,
+} from './identity-verification.service.js';
 import type { VerificationStatus } from '../interfaces/identity-verification.ports.js';
 import { getReviewStorage, signDocuments, signedKeys } from './identity-review.documents.js';
 import { toDetailUser, toQueueUser, toVerificationSummary } from './identity-review.mapper.js';
@@ -19,8 +22,7 @@ import { verificationStatuses, verificationTransitions } from '../constants/iden
 // DefaultIdentityVerificationEvents); this module adds the queue search, counts, previous
 // requests, document links and the audit log.
 
-const verificationNotFound = () =>
-  notFound('NOT_FOUND', 'Verification submission not found.');
+const verificationNotFound = () => notFound('NOT_FOUND', VERIFICATION_NOT_FOUND_MESSAGE);
 
 const resolveSort = (query: IdentityQueueQuery): Record<string, 1 | -1> => {
   if (query.sortBy) {

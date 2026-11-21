@@ -76,6 +76,8 @@ export const adminPaths = {
   organizations: `${ADMIN_ROOT}/organizations`,
   donationRequests: `${ADMIN_ROOT}/donation-requests`,
   donationRequest: (id: string) => `${ADMIN_ROOT}/donation-requests/${id}`,
+  disputes: `${ADMIN_ROOT}/disputes`,
+  dispute: (id: string) => `${ADMIN_ROOT}/disputes/${id}`,
   notifications: `${ADMIN_ROOT}/notifications`,
 } as const
 

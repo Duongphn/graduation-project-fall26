@@ -21,11 +21,14 @@ import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, pause, useTestDatabase } from '../support/test-database.js';
 
+// The category of the test toys; the test organizations take it (GB-53).
+const TOY_CATEGORY = newId();
+
 /** A toy on develop's schema: a donation post ('donate', free) unless overridden. */
 const createToy = (overrides: Record<string, unknown> = {}) =>
   Toy.create({
     ownerId: newId(),
-    categoryId: newId(),
+    categoryId: TOY_CATEGORY,
     title: 'Wooden train set',
     description: 'Complete set with 20 pieces.',
     condition: 'good',
@@ -59,6 +62,18 @@ const startRequest = <T>(test: PromiseLike<T>): Promise<T> =>
 
 useTestDatabase();
 
+// GB-51: an organization takes requests through its receiving point (both methods here).
+const RECEIVING_POINT = {
+  province: 'Hà Nội',
+  ward: 'Phường Ba Đình',
+  street: '1 Hoàng Hoa Thám',
+  openingHours: '8:00 – 17:00',
+  contactName: 'Nguyễn Văn Nam',
+  contactPhone: '+84987654321',
+  acceptsDropOff: true,
+  acceptsParcel: true,
+};
+
 // Test app: the routers of this feature behind a header-based stand-in for the auth middleware.
 const app = express();
 app.use(express.json());
@@ -77,6 +92,8 @@ const createUser = async (role: 'USER' | 'ADMIN' = 'USER') => {
     passwordHash: 'x',
     fullName: `User ${seq}`,
     role,
+    // GB-06: Donors and Receivers are verified Users.
+    verificationStatus: 'verified',
   });
   return String(user._id);
 };
@@ -121,6 +138,8 @@ beforeEach(async () => {
     address: '1 Street',
     contact_info: 'Ms. Lan',
     support_criteria: 'Children',
+    receivingPoint: RECEIVING_POINT,
+    categoryIds: [TOY_CATEGORY],
   });
   organizationId = String(org._id);
   events = [];
@@ -177,6 +196,24 @@ describe('create', () => {
       .set(as(receiver))
       .send({ toyId: '67098e1b34e12c001a123456' });
     expect(missing.status).toBe(404);
+  });
+
+  // GB-06, R03 actors: a Receiver is a verified User; the same 403 as the other blocked actions.
+  it('refuses a user whose identity is not verified (403 USER_NOT_VERIFIED)', async () => {
+    for (const status of ['unverified', 'pending', 'rejected']) {
+      await User.updateOne({ _id: receiver }, { $set: { verificationStatus: status } });
+      const res = await request(app).post('/donation-requests').set(as(receiver)).send({ toyId });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('USER_NOT_VERIFIED');
+    }
+    await User.updateOne({ _id: donor }, { $set: { verificationStatus: 'unverified' } });
+    const toOrganization = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId });
+    expect(toOrganization.body.error.code).toBe('USER_NOT_VERIFIED');
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+    await User.updateMany({}, { $set: { verificationStatus: 'verified' } });
   });
 
   it('lets an Admin request for an ACTIVE organization only (audited)', async () => {
@@ -387,6 +424,29 @@ describe('handover, receipt and cancel', () => {
     expect(done.body.data.donor.phone).toMatch(/\*/);
     const stored = await DonationRequest.findById(id).lean();
     expect(stored).toMatchObject({ confirmedBy: 'Chị Lan', channel: 'phone' });
+    // MSG55 carries the received date the Admin entered.
+    expect(events.find((event) => event.to === 'completed')?.receivedAt).toBe(
+      new Date(`${today}T00:00:00+07:00`).toISOString(),
+    );
+  });
+
+  // MSG54: the accepted notice names the handover deadline.
+  it('puts the handover deadline on the accepted event', async () => {
+    const sent = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId, handoverMethod: 'carrier' });
+    expect(sent.status).toBe(201);
+    const id = sent.body.data.id as string;
+    const accepted = await request(app)
+      .post(`/admin/donation-requests/${id}/accept`)
+      .set(as(admin, 'ADMIN'));
+    expect(accepted.status).toBe(200);
+    const stored = await DonationRequest.findById(id).lean();
+    expect(stored?.timer?.dueAt).toBeInstanceOf(Date);
+    expect(events.find((event) => event.to === 'accepted')?.handoverDueAt).toBe(
+      stored?.timer?.dueAt?.toISOString(),
+    );
   });
 
   it('cancel after accept returns the toy to ACTIVE', async () => {
@@ -438,6 +498,51 @@ const shipping = async () => {
   return id;
 };
 
+// GB-51, UC40 2.1: an organization saved before receiving points existed takes no request.
+describe('organization without a receiving point', () => {
+  it('refuses the Admin and the Donor (409 ORGANIZATION_NO_RECEIVING_POINT)', async () => {
+    await Organization.updateOne({ _id: organizationId }, { $unset: { receivingPoint: 1 } });
+    const byAdmin = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(byAdmin.status).toBe(409);
+    expect(byAdmin.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    const byDonor = await request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(donor))
+      .send({ toyId, organizationId, handoverMethod: 'carrier' });
+    expect(byDonor.status).toBe(409);
+    expect(byDonor.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+    expect(events).toHaveLength(0);
+  });
+});
+
+// UC35 1.1, GB-53/GB-54: the Admin asks for a post for an organization that takes its category.
+describe('Admin request for an organization that does not take the category', () => {
+  it('is refused (422 ORGANIZATION_CATEGORY_NOT_ACCEPTED)', async () => {
+    await Organization.updateOne({ _id: organizationId }, { $set: { categoryIds: [newId()] } });
+    const res = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('ORGANIZATION_CATEGORY_NOT_ACCEPTED');
+    expect(res.body.error.details).toEqual([
+      { field: 'organizationId', message: 'Chọn tổ chức nhận danh mục của đồ chơi.' },
+    ]);
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+
+    await Organization.updateOne({ _id: organizationId }, { $unset: { categoryIds: 1 } });
+    const noNeeds = await request(app)
+      .post('/admin/donation-requests')
+      .set(as(admin, 'ADMIN'))
+      .send({ toyId, organizationId });
+    expect(noNeeds.body.error.code).toBe('ORGANIZATION_CATEGORY_NOT_ACCEPTED');
+  });
+});
+
 describe('races on create', () => {
   it('create conflicts with a concurrent accept of the toy (no PENDING left on a RESERVED toy)', async () => {
     // Another request's accept has reserved the toy but not committed yet.
@@ -477,6 +582,8 @@ describe('races on create', () => {
       address: '1 Street',
       contact_info: 'Ms. Lan',
       support_criteria: 'Children',
+      receivingPoint: RECEIVING_POINT,
+      categoryIds: [TOY_CATEGORY],
     });
     const hide = await openTransaction((session) =>
       Organization.updateOne({ _id: org._id, status: 'active' }, { status: 'hidden' }, { session }),
@@ -679,6 +786,8 @@ describe('organization requests', () => {
       address: '2 Street',
       contact_info: 'Mr. Nam',
       support_criteria: 'Children',
+      receivingPoint: RECEIVING_POINT,
+      categoryIds: [TOY_CATEGORY],
     });
     await createOrgRequest(admin, organizationId);
     await createOrgRequest(admin, String(second._id));
@@ -811,7 +920,7 @@ describe('handover and receipt validation', () => {
 });
 
 describe('stuck SHIPPING: the Admin way out', () => {
-  it('users cannot cancel a SHIPPING request; an Admin can, with a reason (toy back to ACTIVE)', async () => {
+  it('users cannot cancel a SHIPPING request; an Admin can, with a reason (toy stays hidden, GB-60)', async () => {
     const id = await shipping();
     const user = await request(app)
       .post(`/donation-requests/${id}/cancel`)
@@ -836,7 +945,7 @@ describe('stuck SHIPPING: the Admin way out', () => {
       reason: 'CANCELLED_BY_ADMIN',
       note: 'Đồ chơi thất lạc khi gửi',
     });
-    expect(await toyStatus()).toBe('active');
+    expect(await toyStatus()).toBe('hidden');
     const audit = await AuditLog.findOne({ action: 'donation.cancel', target_id: id }).lean();
     expect(String(audit?.actor_id)).toBe(admin);
     expect(audit?.target_type).toBe('DONATION_REQUEST');

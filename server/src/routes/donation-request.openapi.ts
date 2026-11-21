@@ -302,7 +302,7 @@ register({
   method: 'post',
   path: `${adminBase}/{id}/cancel`,
   tag: ADMIN_TAG,
-  summary: 'Admin: cancel with a reason, also a stuck shipping request (toy back to ACTIVE)',
+  summary: 'Admin: cancel with a reason, also a stuck shipping request (the toy then stays hidden, GB-60)',
   description: 'pending, accepted or shipping -> cancelled (CANCELLED_BY_ADMIN), audited.',
   params: idParamsSchema,
   body: adminCancelBodySchema,

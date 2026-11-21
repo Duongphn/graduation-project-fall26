@@ -36,6 +36,7 @@ const errorDescriptions = {
   409: 'Conflict',
   422: 'Business rule violated',
   413: 'Request body too large',
+  429: 'Too many requests',
   503: 'Service not configured',
 } as const;
 

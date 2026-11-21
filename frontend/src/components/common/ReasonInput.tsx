@@ -56,6 +56,8 @@ export function ReasonInput({
             {presets.map((preset) => (
               <Tag.CheckableTag
                 key={preset}
+                // Lý do dài xuống dòng thay vì tràn khỏi modal ở màn hình hẹp (390 px)
+                className="max-w-full whitespace-normal"
                 checked={chosen.includes(preset)}
                 onChange={(checked) => !disabled && toggle(preset, checked)}
               >

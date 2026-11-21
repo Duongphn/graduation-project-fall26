@@ -117,6 +117,10 @@ interface PortState {
   closedDonationRequests: Array<{ toyId: string; ownerId: string; why: string; title: string }>;
   /** Makes closePendingDonationRequests fail. */
   closeDonationFails?: boolean;
+  /** Donation posts that were handed over (isDonated). */
+  donatedIds: Set<string>;
+  /** Donation posts whose Shipping request the Admin cancelled (hasCancelledShipment, GB-60). */
+  cancelledShipmentIds: Set<string>;
 }
 
 function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state: PortState } {
@@ -126,6 +130,8 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
     unfinishedOrder: options.unfinishedOrder ?? false,
     soldIds: new Set<string>(options.soldIds ?? []),
     closedDonationRequests: [],
+    donatedIds: new Set<string>(),
+    cancelledShipmentIds: new Set<string>(),
   };
 
   const ports: ToyListingPorts = {
@@ -149,6 +155,8 @@ function createPorts(options: PortOptions = {}): { ports: ToyListingPorts; state
       state.closedDonationRequests.push({ toyId, ownerId, why, title });
       return 1;
     },
+    isDonated: async (toyId) => state.donatedIds.has(toyId),
+    hasCancelledShipment: async (toyId) => state.cancelledShipmentIds.has(toyId),
   };
 
   return { ports, state };
@@ -247,8 +255,8 @@ const DEFAULT_IMAGE: ImageInput = {
 const images = (count: number, image: ImageInput = DEFAULT_IMAGE): ImageInput[] =>
   Array.from({ length: count }, () => image);
 
-// The fewest photos each listing type takes (GB-10): 3 for rent and for sale.
-const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 3 };
+// The fewest photos each listing type takes (GB-10): 3 for rent, 4 for sale.
+const MIN_PHOTOS: Record<string, number> = { rent: 3, sell: 4 };
 
 function postListing(
   ctx: Context,
@@ -306,6 +314,18 @@ async function createListing(
   const res = await postListing(ctx, fields);
   expect(res.status).toBe(201);
   return res.body as ToyListingDto;
+}
+
+/** The Admin approved the stored listing (UC27): active, with the review time. */
+function approveStored(ctx: Context, toyId: string, reviewedAt = new Date()): void {
+  const toy = ctx.store.find((doc) => doc._id.toString() === toyId);
+  if (!toy) throw new Error(`toy ${toyId} not stored`);
+  toy.status = 'active';
+  toy.moderation = {
+    submittedAt: new Date(reviewedAt.getTime() - 60_000),
+    reviewedBy: new mongoose.Types.ObjectId(),
+    reviewedAt,
+  };
 }
 
 let ctx: Context;
@@ -390,7 +410,7 @@ describe('POST /api/v1/toys', () => {
     });
   });
 
-  it('takes 3 to 8 photos for a rental and for a sale (GB-10)', async () => {
+  it('takes 3 to 8 photos for a rental and 4 to 8 for a sale (GB-10)', async () => {
     ctx.setActor(ctx.actor1);
     const tooFewRent = await postListing(ctx, rentFields(), images(2));
     expect(tooFewRent.status).toBe(400);
@@ -399,9 +419,13 @@ describe('POST /api/v1/toys', () => {
       message: 'Please upload at least 3 photos.',
     });
 
-    const tooFewSale = await postListing(ctx, sellFields(), images(2));
+    const tooFewSale = await postListing(ctx, sellFields(), images(3));
     expect(tooFewSale.status).toBe(400);
-    expect(tooFewSale.body.error.message).toBe('Please upload at least 3 photos.');
+    expect(tooFewSale.body.error).toMatchObject({
+      code: 'TOO_FEW_PHOTOS',
+      message: 'Please upload at least 4 photos.',
+      details: { min: 4, max: 8 },
+    });
 
     const tooManySale = await postListing(ctx, sellFields(), images(9));
     expect(tooManySale.status).toBe(400);
@@ -417,7 +441,8 @@ describe('POST /api/v1/toys', () => {
     expect(ctx.uploads).toHaveLength(0);
 
     expect((await postListing(ctx, rentFields(), images(8))).status).toBe(201);
-    expect((await postListing(ctx, sellFields(), images(3))).status).toBe(201);
+    expect((await postListing(ctx, rentFields(), images(3))).status).toBe(201);
+    expect((await postListing(ctx, sellFields(), images(4))).status).toBe(201);
     expect((await postListing(ctx, sellFields(), images(8))).status).toBe(201);
   });
 
@@ -848,21 +873,21 @@ describe('PATCH /api/v1/toys/:toyId', () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
 
     ctx.setActor(ctx.actor1);
+    // The 3 photos of the rental are too few for a sale (GB-10: 4 to 8).
     const tooFew = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ safetyDeclaration: true,
-        listingType: 'sell',
-        priceOrRate: 250000,
-        removeImagePublicIds: JSON.stringify([listing.images[0]?.publicId]),
-      });
+      .send({ safetyDeclaration: true, listingType: 'sell', priceOrRate: 250000 });
     expect(tooFew.status).toBe(400);
-    expect(tooFew.body.error.message).toBe('Please upload at least 3 photos.');
+    expect(tooFew.body.error.message).toBe('Please upload at least 4 photos.');
 
     const enough = await request(ctx.app)
       .patch(`/api/v1/toys/${listing.id}`)
-      .send({ safetyDeclaration: true, listingType: 'sell', priceOrRate: 250000 });
+      .field('safetyDeclaration', 'true')
+      .field('listingType', 'sell')
+      .field('priceOrRate', '250000')
+      .attach('images', JPEG, { filename: 'fourth.jpg', contentType: 'image/jpeg' });
     expect(enough.status).toBe(200);
-    expect(enough.body.images).toHaveLength(3);
+    expect(enough.body.images).toHaveLength(4);
   });
 
   it('replaces an image and deletes the removed asset', async () => {
@@ -1090,8 +1115,9 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
     expect(res.body).toMatchObject({ listingType: 'rent', status: 'pending' });
   });
 
-  it('keeps a listing its Owner hid hidden', async () => {
+  it('keeps a listing its Owner hid hidden, and marks it as edited since the review', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, listing.id, reviewedAt);
     ctx.setActor(ctx.actor1);
     await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`).expect(200);
 
@@ -1101,12 +1127,16 @@ describe('PATCH /api/v1/toys/:toyId and the Admin review (GB-08)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('hidden');
+    const stored = storedToy(listing.id);
+    expect(stored.moderation?.submittedAt?.getTime()).toBeGreaterThan(reviewedAt.getTime());
+    expect(stored.moderation?.reviewedAt).toBe(reviewedAt);
   });
 });
 
 describe('POST /api/v1/toys/:toyId/hide', () => {
   it('hides an owned listing', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, listing.id);
 
     ctx.setActor(ctx.actor1);
     const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`);
@@ -1116,8 +1146,20 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
     expect(res.body.categoryName).toBe(CATEGORY_NAME);
   });
 
+  it('refuses to hide a listing waiting for review (R03 III.3.2.1: Edit and Delete only)', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('LISTING_PENDING_REVIEW');
+    expect(ctx.store[0]?.status).toBe('pending');
+  });
+
   it('returns 409 when an unfinished order exists', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, listing.id);
 
     ctx.state.unfinishedOrder = true;
     ctx.setActor(ctx.actor1);
@@ -1129,6 +1171,7 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
 
   it('closes the pending donation requests of a hidden donation post (D-06)', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, listing.id);
     (ctx.store[0] as { listingType: string }).listingType = 'donate';
 
     ctx.setActor(ctx.actor1);
@@ -1142,10 +1185,12 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
 
   it('leaves donation requests alone for a rent listing, and when the hide is refused', async () => {
     const listing = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, listing.id);
     ctx.setActor(ctx.actor1);
     expect((await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`)).status).toBe(200);
 
     const donation = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, donation.id);
     (ctx.store[1] as { listingType: string }).listingType = 'donate';
     // GB-12/GB-60: an accepted or shipping donation request blocks the hide.
     ctx.state.unfinishedOrder = true;
@@ -1163,6 +1208,138 @@ describe('POST /api/v1/toys/:toyId/hide', () => {
     const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`);
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/v1/toys/:toyId/show (GB-08)', () => {
+  const storedToy = (id: string): FakeToy => {
+    const toy = ctx.store.find((doc) => doc._id.toString() === id);
+    if (!toy) throw new Error(`toy ${id} not stored`);
+    return toy;
+  };
+  const reviewedAt = new Date('2026-11-01T08:00:00Z');
+
+  async function hiddenApprovedListing(): Promise<ToyListingDto> {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    approveStored(ctx, listing.id, reviewedAt);
+    ctx.setActor(ctx.actor1);
+    await request(ctx.app).post(`/api/v1/toys/${listing.id}/hide`).expect(200);
+    return listing;
+  }
+
+  it('makes an approved listing that was not edited active again at once', async () => {
+    const listing = await hiddenApprovedListing();
+
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: listing.id, status: 'active', categoryName: CATEGORY_NAME });
+    expect(storedToy(listing.id).status).toBe('active');
+  });
+
+  it('sends a listing edited while hidden back to pending review', async () => {
+    const listing = await hiddenApprovedListing();
+    await request(ctx.app)
+      .patch(`/api/v1/toys/${listing.id}`)
+      .send({ safetyDeclaration: true, title: 'Edited While Hidden' })
+      .expect(200);
+
+    const before = Date.now();
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+    const stored = storedToy(listing.id);
+    expect(stored.status).toBe('pending');
+    // In the Admin queue from now on; the approval is kept for GB-09.
+    expect(stored.moderation?.submittedAt?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stored.moderation?.reviewedAt).toBe(reviewedAt);
+  });
+
+  it('sends a hidden listing that was never approved to pending review', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    // Hidden while pending, before hiding a pending listing was refused.
+    storedToy(listing.id).status = 'hidden';
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+  });
+
+  it('refuses a rejected listing: it must be edited and sent again', async () => {
+    const listing = await createListing(ctx, ctx.actor1, rentFields());
+    Object.assign(storedToy(listing.id), {
+      status: 'hidden',
+      moderation: { reviewedAt, rejectReason: 'Ảnh bị mờ' },
+    });
+
+    ctx.setActor(ctx.actor1);
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('LISTING_REJECTED');
+    expect(storedToy(listing.id).status).toBe('hidden');
+  });
+
+  it('refuses a listing that is not hidden, or sold', async () => {
+    const pending = await createListing(ctx, ctx.actor1, rentFields());
+    ctx.setActor(ctx.actor1);
+    const notHidden = await request(ctx.app).post(`/api/v1/toys/${pending.id}/show`);
+    expect(notHidden.status).toBe(409);
+    expect(notHidden.body.error.code).toBe('LISTING_NOT_HIDDEN');
+
+    const sold = await hiddenApprovedListing();
+    ctx.state.soldIds.add(sold.id);
+    const soldRes = await request(ctx.app).post(`/api/v1/toys/${sold.id}/show`);
+    expect(soldRes.status).toBe(409);
+    expect(soldRes.body.error.code).toBe('LISTING_NOT_HIDDEN');
+    expect(storedToy(sold.id).status).toBe('hidden');
+  });
+
+  it('keeps a donation post that is being handed over or was given away hidden', async () => {
+    const listing = await hiddenApprovedListing();
+    (storedToy(listing.id) as { listingType: string }).listingType = 'donate';
+
+    ctx.state.unfinishedOrder = true;
+    const giving = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+    expect(giving.status).toBe(409);
+    expect(giving.body.error.code).toBe('ORDER_IN_PROGRESS');
+
+    ctx.state.unfinishedOrder = false;
+    ctx.state.donatedIds.add(listing.id);
+    const donated = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+    expect(donated.status).toBe(409);
+    expect(donated.body.error.code).toBe('TOY_DONATED');
+    expect(storedToy(listing.id).status).toBe('hidden');
+
+    ctx.state.donatedIds.clear();
+    const shown = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+    expect(shown.status).toBe(200);
+    expect(shown.body.status).toBe('active');
+  });
+
+  it('keeps a donation post hidden after the Admin cancelled its Shipping request, until it is edited (GB-60)', async () => {
+    const listing = await hiddenApprovedListing();
+    (storedToy(listing.id) as { listingType: string }).listingType = 'donate';
+    ctx.state.cancelledShipmentIds.add(listing.id);
+
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('LISTING_NEEDS_EDIT');
+    expect(storedToy(listing.id).status).toBe('hidden');
+  });
+
+  it("returns 403 for another Owner's listing", async () => {
+    const listing = await hiddenApprovedListing();
+
+    ctx.setActor(ctx.actor2);
+    const res = await request(ctx.app).post(`/api/v1/toys/${listing.id}/show`);
+
+    expect(res.status).toBe(403);
+    expect(storedToy(listing.id).status).toBe('hidden');
   });
 });
 
@@ -1241,6 +1418,9 @@ describe('ToyListingService actor policy', () => {
     });
     await expect(
       ctx.service.hide(admin, new mongoose.Types.ObjectId().toString()),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+    await expect(
+      ctx.service.show(admin, new mongoose.Types.ObjectId().toString()),
     ).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
 
     const invalid: RequestActor = { userId: 'not-an-id', actorType: 'ADMIN' };
