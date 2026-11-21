@@ -3,6 +3,7 @@ import { PackageCheck } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { getErrorMessage } from '../../../services/api-error'
+import { formatDateTime } from '../../rentals/rental-display'
 import { formatVnd } from '../../toy-listings/format-vnd'
 import { WalletDialog } from '../../wallet/components/wallet-dialog'
 import { walletKeys } from '../../wallet/wallet-queries'
@@ -11,7 +12,7 @@ import { purchaseKeys } from '../purchase-queries'
 
 /**
  * UC13 người mua: kiểm tra món đồ rồi bấm "Đã nhận & hài lòng" → POST /purchase-orders/:id/receive.
- * Server chuyển tiền ký quỹ cho người bán (trừ hoa hồng), đơn Completed, tin chuyển sang đã bán.
+ * Server chuyển tiền ký quỹ cho người bán (tiền hàng + phí giao, trừ hoa hồng), đơn Completed, tin chuyển sang đã bán.
  * Bước này không hoàn tác được nên phải tick xác nhận và qua hộp thoại.
  */
 export function ReceiveOrderPanel({ order }: { order: PurchaseOrder }) {
@@ -40,6 +41,11 @@ export function ReceiveOrderPanel({ order }: { order: PurchaseOrder }) {
         Mở hàng và đối chiếu với ảnh, mô tả của tin đăng. Khi bạn xác nhận, ToyFlow chuyển tiền cho người bán và đơn hoàn
         tất. Nếu món đồ có vấn đề, <strong className="text-tf-ink">đừng xác nhận</strong> và liên hệ ToyFlow.
       </p>
+      {order.timer?.dueAt && (
+        <p className="-mt-2 text-sm text-amber-800">
+          Nếu bạn không xác nhận hay khiếu nại, đơn tự hoàn tất lúc {formatDateTime(order.timer.dueAt)}.
+        </p>
+      )}
 
       <label htmlFor={checkId} className="flex cursor-pointer items-start gap-3 rounded-xl border border-tf-surface p-3">
         <input

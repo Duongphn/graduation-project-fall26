@@ -18,7 +18,7 @@ const quote = (overrides: Partial<PurchaseQuote> = {}): PurchaseQuote => ({
   shippingFee: 30_000,
   platformFee: 17_500,
   totalPayable: 380_000,
-  sellerNet: 332_500,
+  sellerNet: 362_500,
   ...overrides,
 })
 

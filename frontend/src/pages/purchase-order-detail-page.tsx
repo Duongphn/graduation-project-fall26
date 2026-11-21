@@ -41,7 +41,7 @@ function Row({ label, value, strong = false }: { label: string; value: ReactNode
   )
 }
 
-/** Người mua thấy số đã trả; người bán thấy số sẽ nhận sau hoa hồng */
+/** Người mua thấy số đã trả; người bán thấy số sẽ nhận: giá món + phí giao (để tự gửi hàng) − hoa hồng */
 function MoneyCard({ order, role }: { order: PurchaseOrder; role: PurchaseRole }) {
   const { pricing, settlement } = order
   return (
@@ -51,10 +51,15 @@ function MoneyCard({ order, role }: { order: PurchaseOrder; role: PurchaseRole }
         {role === 'buyer' ? (
           <>
             <Row label="Phí giao hàng" value={pricing.shippingFee ? formatVnd(pricing.shippingFee) : 'Miễn phí'} />
-            <Row label="Đã thanh toán (ký quỹ)" value={formatVnd(pricing.totalPayable)} strong />
+            <Row
+              label={order.status === 'CANCELLED' ? 'Đã hoàn vào ví' : 'Đã thanh toán (ký quỹ)'}
+              value={formatVnd(pricing.totalPayable)}
+              strong
+            />
           </>
         ) : (
           <>
+            {pricing.shippingFee > 0 && <Row label="Phí giao hàng" value={`+${formatVnd(pricing.shippingFee)}`} />}
             <Row label="Hoa hồng ToyFlow (5%)" value={`−${formatVnd(pricing.platformFee)}`} />
             <Row
               label={settlement ? 'Đã nhận vào ví' : 'Bạn sẽ nhận'}
@@ -72,22 +77,30 @@ function MoneyCard({ order, role }: { order: PurchaseOrder; role: PurchaseRole }
 /** Dòng trạng thái cho người không có việc phải làm ở bước này */
 function WaitingNote({ order, role }: { order: PurchaseOrder; role: PurchaseRole }) {
   let text: string | undefined
+  const dueAt = order.timer?.dueAt ? formatDateTime(order.timer.dueAt) : undefined
   if (order.status === 'PAID' && role === 'buyer') {
-    text = order.timer?.dueAt
-      ? `Đang chờ người bán gửi hàng (hạn ${formatDateTime(order.timer.dueAt)}).`
+    text = dueAt
+      ? `Đang chờ người bán gửi hàng (hạn ${dueAt}). Quá hạn, đơn tự huỷ và ToyFlow hoàn tiền vào ví của bạn.`
       : 'Đang chờ người bán gửi hàng.'
   } else if (order.status === 'SHIPPING' && role === 'seller') {
-    text = 'Đã gửi hàng. Tiền về ví khi người mua xác nhận đã nhận và hài lòng.'
+    text = `Đã gửi hàng. Tiền về ví khi người mua xác nhận đã nhận và hài lòng${dueAt ? `, hoặc tự động lúc ${dueAt} nếu người mua không xác nhận hay khiếu nại` : ''}.`
   } else if (order.status === 'COMPLETED') {
-    text = role === 'seller' ? 'Đơn đã hoàn tất, tiền đã vào ví của bạn.' : 'Đơn đã hoàn tất. Cảm ơn bạn đã mua trên ToyFlow!'
+    const auto = order.settlement?.autoSettled ? 'tự hoàn tất sau 7 ngày kể từ khi gửi hàng' : 'đã hoàn tất'
+    text = role === 'seller' ? `Đơn ${auto}, tiền đã vào ví của bạn.` : `Đơn ${auto}. Cảm ơn bạn đã mua trên ToyFlow!`
+  } else if (order.status === 'CANCELLED') {
+    text =
+      role === 'seller'
+        ? 'Đơn đã tự huỷ vì quá 48 giờ chưa gửi hàng. Tiền đã hoàn cho người mua và tin được mở bán lại.'
+        : 'Đơn đã tự huỷ vì người bán không gửi hàng trong 48 giờ. ToyFlow đã hoàn toàn bộ tiền vào ví của bạn.'
   }
   if (!text) return null
+  const walletLink = (order.status === 'COMPLETED' && role === 'seller') || (order.status === 'CANCELLED' && role === 'buyer')
   return (
     <p className="flex items-start gap-2 rounded-xl bg-tf-surface/60 px-4 py-3 text-sm text-tf-ink">
       <Clock className="mt-0.5 size-4 shrink-0 text-tf-primary" aria-hidden />
       <span>
         {text}
-        {order.status === 'COMPLETED' && role === 'seller' && (
+        {walletLink && (
           <>
             {' '}
             <Link to={PATHS.wallet} className="font-semibold text-tf-primary hover:underline">
@@ -164,7 +177,10 @@ export function PurchaseOrderDetailPage() {
               <h1 className="text-xl font-bold text-tf-ink">
                 {role === 'seller' ? 'Đơn bán' : 'Đơn mua'} {order.code}
               </h1>
-              <p className="mt-0.5 text-sm text-tf-ink-muted">Đặt lúc {formatDateTime(order.createdAt)}</p>
+              <p className="mt-0.5 text-sm text-tf-ink-muted">
+                Đặt lúc {formatDateTime(order.createdAt)}
+                {order.cancelledAt && ` · Huỷ lúc ${formatDateTime(order.cancelledAt)}`}
+              </p>
             </div>
             <span className={`self-start rounded-full px-3 py-1 text-sm font-semibold sm:self-auto ${PURCHASE_STATUS_TONES[order.status]}`}>
               {PURCHASE_STATUS_LABELS[order.status]}

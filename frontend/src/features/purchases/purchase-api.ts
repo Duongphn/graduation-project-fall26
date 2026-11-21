@@ -65,8 +65,10 @@ export interface PurchaseOrder {
   paidAt?: string
   shippedAt?: string
   completedAt?: string
+  /** CANCELLED: lúc đơn tự huỷ vì người bán không gửi hàng trong 48 giờ */
+  cancelledAt?: string
   settlement?: { settledAt: string; sellerReceived: number; platformFee: number; autoSettled?: boolean }
-  /** PAID: hạn người bán gửi hàng (48 giờ) */
+  /** PAID: hạn người bán gửi hàng (48 giờ). SHIPPING: lúc đơn tự hoàn tất nếu người mua không xác nhận (7 ngày) */
   timer?: { dueAt?: string }
   createdAt: string
 }

@@ -22,7 +22,7 @@ const order = (overrides: Partial<PurchaseOrder> = {}): PurchaseOrder => ({
   itemDetails: { title: 'LEGO Duplo xe lửa số học', condition: 'Như mới (90–99%)' },
   deliveryMethod: 'DELIVERY',
   deliveryInfo: { recipientName: 'Vương Giang Trường', recipientPhone: '0901234567', province: 'Hà Nội', ward: 'Phường Cầu Giấy', street: '1 Trần Thái Tông' },
-  pricing: { itemPrice: 350_000, shippingFee: 30_000, platformFee: 17_500, totalPayable: 380_000, sellerNet: 332_500 },
+  pricing: { itemPrice: 350_000, shippingFee: 30_000, platformFee: 17_500, totalPayable: 380_000, sellerNet: 362_500 },
   status: 'PAID',
   paidAt: '2026-11-21T03:00:00.000Z',
   timer: { dueAt: '2026-11-23T03:00:00.000Z' },
@@ -66,7 +66,9 @@ describe('PurchaseOrderDetailPage', () => {
     renderAs('seller-1', order())
 
     expect(await screen.findByRole('heading', { name: /Đơn bán PO261121-AB12C/ })).toBeInTheDocument()
-    expect(screen.getByText('Bạn sẽ nhận')).toBeInTheDocument()
+    expect(screen.getByText('Bạn sẽ nhận').nextElementSibling).toHaveTextContent('362.500')
+    // Người bán tự gửi hàng nên nhận lại phí giao
+    expect(screen.getByText('Phí giao hàng').nextElementSibling).toHaveTextContent('+30.000')
 
     // Missing tracking code and photo
     await userEvent.selectOptions(screen.getByLabelText('Đơn vị vận chuyển'), 'Viettel Post')
@@ -112,6 +114,7 @@ describe('PurchaseOrderDetailPage', () => {
     )
 
     expect(await screen.findByText('VTP123')).toBeInTheDocument()
+    expect(screen.getByText(/đơn tự hoàn tất lúc/)).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Ảnh đóng gói 1' })).toBeInTheDocument()
     const confirmButton = screen.getByRole('button', { name: 'Đã nhận & hài lòng' })
     expect(confirmButton).toBeDisabled()
@@ -125,12 +128,23 @@ describe('PurchaseOrderDetailPage', () => {
     expect(await screen.findByText(/Đơn đã hoàn tất. Cảm ơn bạn/)).toBeInTheDocument()
   })
 
+  it('buyer of an order the seller did not ship in time sees the refund', async () => {
+    renderAs('buyer-1', order({ status: 'CANCELLED', cancelledAt: '2026-11-23T03:05:00.000Z', timer: undefined }))
+
+    expect(await screen.findByText(/ToyFlow đã hoàn toàn bộ tiền vào ví của bạn/)).toBeInTheDocument()
+    expect(screen.getByText('Đã huỷ')).toBeInTheDocument()
+    expect(screen.getByText(/Huỷ lúc/)).toBeInTheDocument()
+    expect(screen.getByText('Đã hoàn vào ví').nextElementSibling).toHaveTextContent('380.000')
+    expect(screen.getByRole('link', { name: 'Xem ví' })).toHaveAttribute('href', '/wallet')
+    expect(screen.queryByRole('button', { name: 'Đã nhận & hài lòng' })).not.toBeInTheDocument()
+  })
+
   it('seller of a completed order sees what reached the wallet', async () => {
     renderAs(
       'seller-1',
       order({
         status: 'COMPLETED',
-        settlement: { settledAt: '2026-11-22T03:00:00.000Z', sellerReceived: 332_500, platformFee: 17_500 },
+        settlement: { settledAt: '2026-11-22T03:00:00.000Z', sellerReceived: 362_500, platformFee: 17_500 },
       }),
     )
 

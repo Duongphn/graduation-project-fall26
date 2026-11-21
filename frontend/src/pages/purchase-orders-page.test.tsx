@@ -14,7 +14,7 @@ const order: PurchaseOrder = {
   toyId: 't1',
   itemDetails: { title: 'LEGO Duplo xe lửa số học' },
   deliveryMethod: 'DELIVERY',
-  pricing: { itemPrice: 350_000, shippingFee: 30_000, platformFee: 17_500, totalPayable: 380_000, sellerNet: 332_500 },
+  pricing: { itemPrice: 350_000, shippingFee: 30_000, platformFee: 17_500, totalPayable: 380_000, sellerNet: 362_500 },
   status: 'PAID',
   createdAt: '2026-11-21T03:00:00.000Z',
 }
@@ -43,7 +43,7 @@ describe('PurchaseOrdersPage', () => {
     expect(await screen.findByText('LEGO Duplo xe lửa số học')).toBeInTheDocument()
     expect(list).toHaveBeenCalledWith('seller', 1, 10)
     expect(screen.getByText('→ Cần gửi hàng')).toBeInTheDocument()
-    expect(screen.getByText(/332\.500/)).toBeInTheDocument()
+    expect(screen.getByText(/362\.500/)).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Đơn bán' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('link', { name: /LEGO Duplo/ })).toHaveAttribute('href', '/purchases/o1')
   })
