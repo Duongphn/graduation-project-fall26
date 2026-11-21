@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bookmark, ChevronRight, Flag, Home, MessageCircle, ShoppingBag } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { RatingSummaryText } from '../features/reviews/components/star-rating'
+import { ToyReviews } from '../features/reviews/components/toy-reviews'
 import { RequestDonationCard } from '../features/donations/components/request-donation-card'
 import { RentalBookingCard } from '../features/toy-catalog/components/rental-booking-card'
 import { SimilarToys } from '../features/toy-catalog/components/similar-toys'
@@ -101,23 +103,52 @@ function SpecsCard({ toy }: { toy: ToyDetail }) {
   )
 }
 
-/** Chỉ tab Mô tả có dữ liệu; đánh giá và chính sách thuê chưa có API nên hiện để biết sắp có */
+type DetailTab = 'description' | 'reviews'
+
+/** Mô tả và Đánh giá (UC24) có dữ liệu; chính sách thuê chưa có API nên hiện để biết sắp có */
 function DetailTabs({ toy }: { toy: ToyDetail }) {
+  const [tab, setTab] = useState<DetailTab>('description')
+  const reviewCount = toy.rating?.count ?? 0
+  // Đánh giá đến từ đơn thuê đã hoàn tất, nên tin bán lại / quyên góp không có tab này
+  const tabs: { key: DetailTab; label: string; count?: number }[] = [
+    { key: 'description', label: 'Mô tả' },
+    ...(toy.listingType === 'rent' ? [{ key: 'reviews' as const, label: 'Đánh giá', count: reviewCount }] : []),
+  ]
+
   return (
     <section className="tf-card detail-tabs">
       <div className="status-tabs detail-tabs__list" role="tablist" aria-label="Thông tin món đồ chơi">
-        <button type="button" role="tab" aria-selected="true" aria-controls="tab-description" className="status-tab is-active">
-          Mô tả
-        </button>
-        {['Đánh giá', 'Chính sách thuê & cọc'].map((label) => (
-          <span key={label} className="status-tab is-unavailable" aria-disabled="true" title={UPCOMING}>
-            {label}
-            <span className="status-tab__count">Sắp có</span>
-          </span>
+        {tabs.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            id={`tab-${item.key}-trigger`}
+            aria-selected={tab === item.key}
+            aria-controls={`tab-${item.key}`}
+            className={`status-tab ${tab === item.key ? 'is-active' : ''}`}
+            onClick={() => setTab(item.key)}
+          >
+            {item.label}
+            {item.count !== undefined && item.count > 0 && <span className="status-tab__count">{item.count}</span>}
+          </button>
         ))}
+        <span className="status-tab is-unavailable" aria-disabled="true" title={UPCOMING}>
+          Chính sách thuê & cọc
+          <span className="status-tab__count">Sắp có</span>
+        </span>
       </div>
-      <div id="tab-description" role="tabpanel" className="detail-tabs__panel">
-        <p className="toy-description">{toy.description}</p>
+      <div
+        id={`tab-${tab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${tab}-trigger`}
+        className="detail-tabs__panel"
+      >
+        {tab === 'description' ? (
+          <p className="toy-description">{toy.description}</p>
+        ) : (
+          <ToyReviews toyId={toy.id} rating={toy.rating} />
+        )}
       </div>
     </section>
   )
@@ -243,6 +274,7 @@ export function ToyDetailPage() {
           <header className="toy-detail__head">
             <span className={`tf-pill ${isRent ? 'tf-pill--primary' : 'tf-pill--secondary'}`}>{label}</span>
             <h1 className="toy-detail__title">{data.title}</h1>
+            {data.listingType === 'rent' && <RatingSummaryText rating={data.rating} />}
             <div className="toy-detail__actions">
               <button type="button" className="toy-detail__action" disabled title={UPCOMING}>
                 <Bookmark aria-hidden /> Lưu

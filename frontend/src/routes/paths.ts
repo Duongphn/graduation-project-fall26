@@ -24,6 +24,7 @@ export const PATHS = {
   rentalRequest: '/rentals/requests/:orderId',
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
+  myReviews: '/profile/reviews',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   donations: '/donations',

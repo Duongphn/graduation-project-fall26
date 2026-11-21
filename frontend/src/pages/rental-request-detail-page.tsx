@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { QueryErrorAlert, ReasonModal } from '../components/common'
 import { profileQuery } from '../features/profile/profile-queries'
+import { RentalReviewPanel } from '../features/reviews/components/rental-review-panel'
 import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
@@ -358,6 +359,11 @@ export function RentalRequestDetailPage() {
             </aside>
 
             <div className="rental-detail__main">
+              {/* Đơn hoàn tất: việc còn lại của cả hai bên là đánh giá nhau (UC24) */}
+              {order.status === 'COMPLETED' && (isOwner || isRenter) && (
+                <RentalReviewPanel order={order} isRenter={isRenter} now={now} />
+              )}
+
               <section className="rental-block" aria-labelledby="period-title">
                 <h2 id="period-title" className="rental-section-title">
                   Thời gian thuê

@@ -49,6 +49,7 @@ import { MyDonationsPage } from '../pages/my-donations-page'
 import { NewDonationPage } from '../pages/new-donation-page'
 import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
 import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
+import { MyReviewsPage } from '../pages/my-reviews-page'
 import { RentalRequestDetailPage } from '../pages/rental-request-detail-page'
 import { RentalOrdersListPage } from '../pages/rental-requests-page'
 import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
@@ -351,6 +352,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <RentalRequestDetailPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.myReviews,
+    element: (
+      <RequireAuth>
+        <MyReviewsPage />
       </RequireAuth>
     ),
   },

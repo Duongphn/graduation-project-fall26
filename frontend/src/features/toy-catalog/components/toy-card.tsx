@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useRevealOnScroll } from '../../../hooks/use-reveal-on-scroll'
 import { toyDetailPath } from '../../../routes/paths'
+import { RatingSummaryText } from '../../reviews/components/star-rating'
 import { formatVnd } from '../../toy-listings/format-vnd'
 import { formatAgeRange, formatPostedAgo } from '../catalog-search-params'
 import type { ToyCard as ToyCardData } from '../toy-catalog-api'
@@ -54,6 +55,7 @@ export function ToyCard({ toy, index, distanceKm }: ToyCardProps) {
           <p className="toy-card__price">
             <strong>{formatVnd(toy.priceOrRate)}</strong>
             {isRent && <span>/ngày</span>}
+            {isRent && <RatingSummaryText rating={toy.rating} compact />}
           </p>
           {/* Dòng cọc giữ chỗ cả khi trống để giá và thông tin các card cùng hàng thẳng nhau */}
           <p className="toy-card__sub">{isRent && toy.depositPrice ? `Cọc ${formatVnd(toy.depositPrice)}` : null}</p>

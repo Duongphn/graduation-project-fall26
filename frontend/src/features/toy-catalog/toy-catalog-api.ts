@@ -1,4 +1,5 @@
 import { httpClient } from '../../services/http-client'
+import type { RatingSummary } from '../reviews/reviews-api'
 import type { ListingType, ToyImage } from '../toy-listings/toy-listing-api'
 
 /** GET /toys, /toys/:id, /toys/:id/availability: JSON thô, không bọc envelope (xem server toy-catalog.controller) */
@@ -41,6 +42,8 @@ export interface ToyCard {
   condition: string
   /** GeoJSON Point: coordinates là [kinh độ, vĩ độ] */
   location?: { type: string; coordinates: [number, number] } | null
+  /** Điểm trung bình người thuê chấm (UC24); server cũ có thể chưa gửi */
+  rating?: RatingSummary
   createdAt: string
 }
 
