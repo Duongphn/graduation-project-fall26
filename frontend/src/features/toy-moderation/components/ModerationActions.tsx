@@ -44,6 +44,7 @@ export function ModerationActions({ toy, backTo, checkedItems }: ModerationActio
   const checklistIncomplete = safetyChecklistItems.some((item) => !checkedItems.includes(item.key))
   const approveBlocked = categoryBlocked || checklistIncomplete
   const busy = approve.isPending || reject.isPending
+  const approveDisabled = approveBlocked || reject.isPending
 
   return (
     <>
@@ -70,14 +71,19 @@ export function ModerationActions({ toy, backTo, checkedItems }: ModerationActio
             })
           }
         >
-          <Button
-            type="primary"
-            icon={<CheckOutlined />}
-            loading={approve.isPending}
-            disabled={approveBlocked || reject.isPending}
-          >
-            Duyệt
-          </Button>
+          {/* A disabled button gets no mouse events, so the tooltip listens on this wrapper
+              (the button lets the pointer through while disabled). */}
+          <span className={approveDisabled ? 'inline-block cursor-not-allowed' : 'inline-block'}>
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              loading={approve.isPending}
+              disabled={approveDisabled}
+              className={approveDisabled ? 'pointer-events-none' : undefined}
+            >
+              Duyệt
+            </Button>
+          </span>
         </Popconfirm>
       </Tooltip>
       <Button

@@ -164,7 +164,7 @@ export function assertListingFieldRules(listing: {
  */
 export const LISTING_PHOTO_LIMITS = {
   rent: { min: 3, max: 8 },
-  sell: { min: 3, max: 8 },
+  sell: { min: 4, max: 8 },
   donate: { min: 3, max: 10 },
 } as const;
 

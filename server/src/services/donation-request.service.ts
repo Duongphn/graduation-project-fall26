@@ -43,6 +43,7 @@ import {
   adminContextOf,
   organizationNotAccepting,
   organizationNotAvailable,
+  organizationWithoutPoint,
   requestNotFound,
   toyNotAvailable,
   buildEvent,
@@ -157,6 +158,20 @@ const insertPendingRequest = async (
           if (/^active$/i.test(found.status)) throw organizationNotAccepting();
           throw organizationNotAvailable();
         }
+        // GB-51: no receiving point, no new request.
+        if (!organization.receivingPoint) throw organizationWithoutPoint();
+        // UC35 1.1, GB-53/GB-54: the Admin asks for a post only for an organization that takes
+        // the toy's category.
+        if (
+          actor.isAdmin &&
+          !(organization.categoryIds ?? []).some((id) => String(id) === String(toy.categoryId))
+        ) {
+          throw unprocessable(
+            'ORGANIZATION_CATEGORY_NOT_ACCEPTED',
+            'Tổ chức này không nhận đồ chơi thuộc danh mục của món đồ này.',
+            [{ field: 'organizationId', message: 'Chọn tổ chức nhận danh mục của đồ chơi.' }],
+          );
+        }
         if (input.handoverMethod) {
           assertMethodAllowed(input.handoverMethod, organization.receivingPoint);
         }
@@ -233,6 +248,7 @@ export const assertOrganizationTakesToys = async (
   if (!organization) throw organizationNotFound();
   if (!/^active$/i.test(organization.status)) throw organizationNotAvailable();
   if (organization.isAccepting === false) throw organizationNotAccepting();
+  if (!organization.receivingPoint) throw organizationWithoutPoint();
   assertMethodAllowed(handoverMethod, organization.receivingPoint);
 };
 

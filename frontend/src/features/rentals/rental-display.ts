@@ -25,8 +25,10 @@ export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'SHIPPING',
   'IN_USE',
   'RETURNING',
+  'DISPUTING',
   'COMPLETED',
   'REJECTED',
+  'CANCELLED',
   'EXPIRED',
 ]
 
@@ -38,8 +40,10 @@ export const RENTER_STATUS_FILTERS: readonly RentalStatus[] = [
   'SHIPPING',
   'IN_USE',
   'RETURNING',
+  'DISPUTING',
   'COMPLETED',
   'REJECTED',
+  'CANCELLED',
   'EXPIRED',
 ]
 

@@ -199,7 +199,7 @@ export class RentalOrderService extends RentalOrderCore {
           session,
         );
         const days = inclusiveDays({ startDate, endDate });
-        const suggestion = suggestFreeRange(allOccupied, days, windowStart, windowEnd);
+        const suggestion = suggestFreeRange(allOccupied, days, windowStart, windowEnd, startDate);
 
         throw new AppError(
           409,

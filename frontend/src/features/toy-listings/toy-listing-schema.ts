@@ -14,10 +14,10 @@ export const MAX_AVATAR_BYTES = 2 * 1024 * 1024
 export const MAX_IDENTITY_IMAGE_BYTES = 8 * 1024 * 1024
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-/** Ảnh tin cho thuê / bán (R03 GB-10): thuê và bán đều 3–8 ảnh; backend kiểm tra cùng giới hạn */
+/** Ảnh tin cho thuê / bán (R03 GB-10): thuê 3–8 ảnh, bán 4–8 ảnh; backend kiểm tra cùng giới hạn */
 export const LISTING_PHOTO_LIMITS = {
   rent: { min: 3, max: 8 },
-  sell: { min: 3, max: 8 },
+  sell: { min: 4, max: 8 },
 } as const
 export const LISTING_MAX_IMAGES = 8
 /** Ảnh tin đăng nhận JPG, PNG hoặc WebP, tối đa 5 MB mỗi ảnh (R03 GB-10, MSG20) */

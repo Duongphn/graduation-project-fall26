@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { AppSidebar, SessionButton, SidebarBrand, type SidebarItemKey } from '../../components/ui/app-sidebar'
+import { ThemeToggle } from '../../components/ui/theme-toggle'
 
 interface AccountLayoutProps {
   activeItem: SidebarItemKey
@@ -15,7 +16,10 @@ export function AccountLayout({ activeItem, children }: AccountLayoutProps) {
       <div className="account-main">
         <header className="account-topbar">
           <SidebarBrand />
-          <SessionButton />
+          <div className="account-topbar__actions">
+            <ThemeToggle />
+            <SessionButton />
+          </div>
         </header>
         <main className="account-content">{children}</main>
       </div>

@@ -34,8 +34,22 @@ const parsePrice = (raw: string) => {
 
 const priceText = (value: number | undefined) => (value === undefined ? '' : new Intl.NumberFormat('vi-VN').format(value))
 
-function PriceField({ draft, onChange }: { draft: CatalogFilters; onChange: (patch: FilterPatch) => void }) {
+/** R03 2.1.1 (3): "Từ" phải nhỏ hơn hoặc bằng "Đến", nếu không thì báo lỗi và không áp dụng */
+const PRICE_RANGE_ERROR = 'Giá "Từ" phải nhỏ hơn hoặc bằng giá "Đến".'
+
+const isPriceRangeInverted = ({ minPrice, maxPrice }: CatalogFilters) =>
+  minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice
+
+interface PriceFieldProps {
+  draft: CatalogFilters
+  onChange: (patch: FilterPatch) => void
+  error?: string
+}
+
+function PriceField({ draft, onChange, error }: PriceFieldProps) {
   const id = useId()
+  const errorId = `${id}-error`
+  const invalidProps = error ? { 'aria-invalid': true, 'aria-describedby': errorId } : {}
   const scale = PRICE_SCALE[draft.type ?? 'sell']
   const low = Math.min(draft.minPrice ?? 0, scale.max)
   const high = Math.min(draft.maxPrice ?? scale.max, scale.max)
@@ -51,11 +65,12 @@ function PriceField({ draft, onChange }: { draft: CatalogFilters; onChange: (pat
         </label>
         <input
           id={`${id}-min`}
-          className="tf-input filter-input"
+          className={`tf-input filter-input ${error ? 'is-invalid' : ''}`}
           inputMode="numeric"
           placeholder="Từ"
           value={priceText(draft.minPrice)}
           onChange={(event) => onChange({ minPrice: parsePrice(event.target.value) })}
+          {...invalidProps}
         />
         <span aria-hidden="true">–</span>
         <label className="sr-only" htmlFor={`${id}-max`}>
@@ -63,13 +78,19 @@ function PriceField({ draft, onChange }: { draft: CatalogFilters; onChange: (pat
         </label>
         <input
           id={`${id}-max`}
-          className="tf-input filter-input"
+          className={`tf-input filter-input ${error ? 'is-invalid' : ''}`}
           inputMode="numeric"
           placeholder="Đến"
           value={priceText(draft.maxPrice)}
           onChange={(event) => onChange({ maxPrice: parsePrice(event.target.value) })}
+          {...invalidProps}
         />
       </div>
+      {error && (
+        <p id={errorId} className="tf-field-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <div
         className="price-range"
@@ -161,22 +182,25 @@ interface FilterPanelProps {
  */
 export function FilterPanel({ filters, categories, onApply, className }: FilterPanelProps) {
   const [draft, setDraft] = useState(filters)
+  // Lỗi khoảng giá chỉ hiện sau khi bấm "Áp dụng", và tự hết khi khoảng giá đã đúng
+  const [priceChecked, setPriceChecked] = useState(false)
+  const priceError = priceChecked && isPriceRangeInverted(draft) ? PRICE_RANGE_ERROR : undefined
   const update = (patch: FilterPatch) => setDraft((current) => ({ ...current, ...patch }))
   const ageIndex = findAgeOptionIndex(draft)
   const hasAge = draft.ageMin !== undefined || draft.ageMax !== undefined
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // Ô giá gõ tay có thể bị đảo thứ tự: đổi chỗ thay vì để backend trả lỗi
-    const { minPrice, maxPrice } = draft
-    const swapped = minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice
+    // R03 2.1.1 (3): "Từ" lớn hơn "Đến" thì báo lỗi, không áp dụng bộ lọc
+    setPriceChecked(true)
+    if (isPriceRangeInverted(draft)) return
     onApply({
       type: draft.type,
       categoryId: draft.categoryId,
       ageMin: draft.ageMin,
       ageMax: draft.ageMax,
-      minPrice: swapped ? maxPrice : minPrice,
-      maxPrice: swapped ? minPrice : maxPrice,
+      minPrice: draft.minPrice,
+      maxPrice: draft.maxPrice,
       lat: draft.lat,
       lng: draft.lng,
       radiusKm: draft.radiusKm,
@@ -228,7 +252,7 @@ export function FilterPanel({ filters, categories, onApply, className }: FilterP
 
       <CategoryField categories={categories} value={draft.categoryId} onChange={(categoryId) => update({ categoryId })} />
 
-      <PriceField draft={draft} onChange={update} />
+      <PriceField draft={draft} onChange={update} error={priceError} />
 
       <PanelSection title="Khu vực">
         <LocationField filters={draft} onChange={update} />

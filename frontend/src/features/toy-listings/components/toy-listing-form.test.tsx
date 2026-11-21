@@ -134,7 +134,7 @@ describe('ToyListingForm', () => {
 })
 
 describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
-  it('asks for 3 photos for a rental and for a sale before it saves (MSG21)', async () => {
+  it('asks for 3 photos for a rental and 4 for a sale before it saves (MSG21)', async () => {
     // Never approved yet, so its type can still change.
     const { user } = renderForm({ listing: { ...listing, status: 'pending' } })
 
@@ -145,9 +145,26 @@ describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
     await user.click(screen.getByRole('button', { name: 'Bán lại' }))
     fireEvent.change(screen.getByRole('textbox', { name: /^Giá bán mong muốn/ }), { target: { value: '250000' } })
     await user.click(saveButton())
-    expect(await screen.findByText('Vui lòng tải lên ít nhất 3 ảnh.')).toBeInTheDocument()
-    expect(screen.getByText(/JPG, PNG hoặc WebP · tối đa 5 MB mỗi ảnh · từ 3 đến 8 ảnh/)).toBeInTheDocument()
+    expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
+    expect(screen.getByText(/JPG, PNG hoặc WebP · tối đa 5 MB mỗi ảnh · từ 4 đến 8 ảnh/)).toBeInTheDocument()
     expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('takes a sale with 3 photos only after a fourth is added (GB-10: 4–8 ảnh)', async () => {
+    patch.mockResolvedValue({ data: listing })
+    const { user } = renderForm({ listing: { ...listing, status: 'pending' } })
+    await user.click(screen.getByRole('button', { name: 'Bán lại' }))
+    fireEvent.change(screen.getByRole('textbox', { name: /^Giá bán mong muốn/ }), { target: { value: '250000' } })
+    await tickSafety(user)
+
+    await user.click(saveButton())
+    expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
+    expect(patch).not.toHaveBeenCalled()
+
+    await user.upload(screen.getByLabelText(/Kéo thả ảnh vào đây/), new File(['toy'], 'toy-4.jpg', { type: 'image/jpeg' }))
+    await user.click(saveButton())
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
+    expect(sentForm().get('listingType')).toBe('sell')
   })
 
   it('takes JPG, PNG and WebP photos only, at most 8', async () => {

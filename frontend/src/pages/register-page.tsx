@@ -1,27 +1,33 @@
-import { Button, Divider, Steps } from 'antd'
+import { App, Button, Divider, Steps } from 'antd'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  getGoogleAuthUrl,
-  resendRegistrationOtp,
-  verifyRegistrationOtp,
-  type OtpChallenge,
-} from '../features/auth/auth-api'
-import type { RegisterFormInput } from '../features/auth/auth-schemas'
+import { getGoogleAuthUrl, resendRegistrationOtp, verifyRegistrationOtp } from '../features/auth/auth-api'
+import { OTP_TTL_SECONDS, type RegisterFormInput } from '../features/auth/auth-schemas'
 import { GoogleIcon } from '../features/auth/components/google-icon'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { RegisterForm } from '../features/auth/components/register-form'
 import { AuthLayout } from '../features/auth/components/auth-layout'
+import {
+  clearPendingRegistration,
+  loadPendingRegistration,
+  savePendingRegistration,
+  touchPendingRegistration,
+  type PendingRegistration,
+} from '../features/auth/pending-registration'
 import { PATHS } from '../routes/paths'
+import { queryClient } from '../services/query-client'
+import { saveAuthTokens } from '../services/token-storage'
 import { maskEmail } from '../utils/mask-contact'
-import type { LoginPageState } from './login-page'
 
 const STEPS = [{ title: 'Thông tin tài khoản' }, { title: 'Xác minh OTP' }]
 
 export function RegisterPage() {
   const navigate = useNavigate()
-  const [challenge, setChallenge] = useState<OtpChallenge | null>(null)
-  const [draft, setDraft] = useState<RegisterFormInput>()
+  const { message } = App.useApp()
+  // Tải lại trang ở bước nhập mã vẫn ở bước 2 (sessionStorage, không lưu mật khẩu)
+  const [pending, setPending] = useState<PendingRegistration | null>(loadPendingRegistration)
+  const [draft, setDraft] = useState<RegisterFormInput | undefined>(pending?.draft)
+  const challenge = pending?.challenge
 
   return (
     <AuthLayout
@@ -55,24 +61,36 @@ export function RegisterPage() {
       {challenge ? (
         <OtpVerificationForm
           destination={maskEmail(challenge.email)}
-          resendAfterSeconds={challenge.resendAfterSeconds}
+          resendAfterSeconds={Math.max(0, challenge.resendAfterSeconds - pending.elapsedSeconds)}
+          expiresAfterSeconds={Math.max(0, OTP_TTL_SECONDS - pending.elapsedSeconds)}
           verify={(otp) => verifyRegistrationOtp({ email: challenge.email, otpCode: otp })}
-          resend={() => resendRegistrationOtp(challenge.email)}
-          onVerified={() => {
-            // Không tự đăng nhập: đưa người dùng về trang đăng nhập kèm thông báo thành công
-            const state: LoginPageState = { registeredIdentifier: challenge.email }
-            navigate(PATHS.login, { replace: true, state })
+          resend={async () => {
+            const next = await resendRegistrationOtp(challenge.email)
+            touchPendingRegistration()
+            return next
+          }}
+          onVerified={({ tokens }) => {
+            clearPendingRegistration()
+            // R03 UC01 bước 5: tài khoản đã tạo và được đăng nhập luôn → mở trang chủ
+            saveAuthTokens(tokens, true)
+            queryClient.clear()
+            message.success('Đăng ký tài khoản thành công!')
+            navigate(PATHS.home, { replace: true })
           }}
           submitLabel="Xác minh và tạo tài khoản"
           backLabel="Sửa thông tin đăng ký"
-          onBack={() => setChallenge(null)}
+          onBack={() => {
+            clearPendingRegistration()
+            setPending(null)
+          }}
         />
       ) : (
         <RegisterForm
           initialValues={draft}
           onOtpSent={(nextChallenge, values) => {
+            savePendingRegistration(nextChallenge, values)
             setDraft(values)
-            setChallenge(nextChallenge)
+            setPending({ challenge: nextChallenge, draft: values, elapsedSeconds: 0 })
           }}
         />
       )}

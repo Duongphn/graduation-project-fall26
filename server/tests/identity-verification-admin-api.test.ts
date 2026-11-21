@@ -277,6 +277,7 @@ describe('Identity Verification Admin API', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe('NOT_FOUND');
+      expect(res.body.error.message).toBe('Không tìm thấy yêu cầu xác minh danh tính.');
     });
   });
 

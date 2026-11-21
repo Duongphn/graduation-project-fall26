@@ -551,8 +551,8 @@ export class AuthService {
   }
 
   /**
-   * Bước 2 đăng ký: xác minh OTP rồi mới tạo tài khoản. Không tự đăng nhập —
-   * người dùng quay về trang đăng nhập sau khi đăng ký thành công
+   * Bước 2 đăng ký: xác minh OTP rồi mới tạo tài khoản, sau đó đăng nhập luôn
+   * (R03 UC01 bước 5: tạo tài khoản Active/Unverified và đăng nhập người dùng)
    */
   public async verifyRegistrationOtp(dto: VerifyRegistrationOtpDTO): Promise<RegisterResponse> {
     const normalizedEmail = dto.email.toLowerCase().trim();
@@ -588,15 +588,7 @@ export class AuthService {
       status: 'ACTIVE',
     });
 
-    return {
-      user: {
-        id: String(user._id),
-        email: user.email,
-        fullName: user.fullName,
-        phone: user.phone,
-        role: user.role,
-      },
-    };
+    return this.issueSession(user);
   }
 
   /**

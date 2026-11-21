@@ -51,9 +51,9 @@
     @apply h-6 w-auto sm:h-7 dark:brightness-[1.6] dark:saturate-[1.1];
   }
 
-  /* Điện thoại rất hẹp (< 380px): header chỉ giữ hình gấu để các nút bên phải không đè lên chữ */
+  /* Điện thoại (< 440px): header chỉ giữ hình gấu để các nút bên phải (kính lúp, Đăng nhập…) không đè lên chữ */
   .site-header .site-brand__wordmark {
-    @apply max-[379px]:hidden;
+    @apply max-[439px]:hidden;
   }
 
   .site-brand--lg .site-brand__mark {

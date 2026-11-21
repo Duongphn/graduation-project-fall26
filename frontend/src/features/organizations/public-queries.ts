@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { organizationAgeGroups, type AgeGroupKey } from './constants'
 import { publicOrganizationsApi } from './public-api'
-import type { PublicOrganizationListParams } from './types'
+import type { OrganizationSuggestionParams, PublicOrganizationListParams } from './types'
 
 /** Dùng chung cho loader (tải trước) và useQuery trong trang (đọc cache) */
 
@@ -73,6 +73,15 @@ export const organizationListQuery = (filters: OrganizationFilters) => {
     retry: false,
   })
 }
+
+/** GB-54: tổ chức nhận đồ chơi theo danh mục và độ tuổi; tỉnh của người tặng đứng đầu */
+export const organizationSuggestionsQuery = (params: OrganizationSuggestionParams) =>
+  queryOptions({
+    queryKey: ['public-organizations', 'suggestions', params],
+    queryFn: () => publicOrganizationsApi.suggestions(params),
+    staleTime: 60_000,
+    retry: false,
+  })
 
 export const organizationDetailQuery = (id: string) =>
   queryOptions({

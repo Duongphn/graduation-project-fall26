@@ -33,7 +33,7 @@
   }
 
   .profile-hero__band {
-    @apply h-20 border-b-2 border-b-tf-accent bg-tf-primary sm:h-24;
+    @apply h-20 border-b-2 border-b-tf-accent bg-tf-primary sm:h-24 dark:bg-site-hero-deep;
   }
 
   .profile-hero__body {

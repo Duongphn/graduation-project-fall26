@@ -368,5 +368,41 @@ describe('Identity Verification User API', () => {
       expect(res.body.data.frontImage).toBeUndefined();
       expect(res.body.data.publicId).toBeUndefined();
     });
+
+    // R03 III.6.1.2 (7), UC04 1.1: while Pending the owner sees the three photos read-only
+    it('returns short-lived links to the three photos only while the request is pending', async () => {
+      const submitted = new Date(Date.now() - 600000);
+      const doc = {
+        _id: new mongoose.Types.ObjectId(),
+        userId: currentUser._id,
+        phone: '0912345678',
+        idCardNumber: '012345678901',
+        frontImage: { publicId: 'toyflow/identity/front', deliveryType: 'authenticated' as const },
+        backImage: { publicId: 'toyflow/identity/back', deliveryType: 'authenticated' as const },
+        selfie: { publicId: 'toyflow/identity/selfie', deliveryType: 'authenticated' as const },
+        status: 'pending' as 'pending' | 'verified',
+        submittedAt: submitted,
+        createdAt: submitted,
+        updatedAt: submitted,
+        save: async function () {
+          return this;
+        },
+      };
+      verificationModel.store.push(doc);
+
+      const pending = await request(app).get('/api/v1/identity-verifications/my-latest');
+      expect(pending.status).toBe(200);
+      expect(pending.body.data.status).toBe('pending');
+      expect(pending.body.data.documents).toEqual({
+        frontImage: 'https://api.cloudinary.com/download?publicId=toyflow/identity/front&sig=mock',
+        backImage: 'https://api.cloudinary.com/download?publicId=toyflow/identity/back&sig=mock',
+        selfie: 'https://api.cloudinary.com/download?publicId=toyflow/identity/selfie&sig=mock',
+      });
+
+      doc.status = 'verified';
+      const verified = await request(app).get('/api/v1/identity-verifications/my-latest');
+      expect(verified.body.data.status).toBe('verified');
+      expect(verified.body.data.documents).toBeUndefined();
+    });
   });
 });

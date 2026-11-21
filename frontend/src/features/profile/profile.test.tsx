@@ -1,10 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AccountMenu } from '../../layouts/site/account-menu'
-import { PATHS } from '../../routes/paths'
+import { ADMIN_ROOT, PATHS } from '../../routes/paths'
 import { httpClient } from '../../services/http-client'
 import { createTestQueryClient, renderWithProviders } from '../../test/render'
 import { AddressBookCard } from './components/address-book-card'
@@ -75,6 +75,32 @@ describe('Menu tài khoản ở header (R03 UC03, UC04, UC26)', () => {
     expect(within(menu).getByRole('link', { name: /Hồ sơ của tôi/ })).toHaveAttribute('href', PATHS.profile)
     expect(within(menu).getByRole('link', { name: /Xác minh danh tính/ })).toHaveAttribute('href', PATHS.identityVerification)
     expect(within(menu).getByRole('link', { name: /Thông báo/ })).toHaveAttribute('href', PATHS.notifications)
+  })
+})
+
+describe('Mục "Quản trị" trong menu tài khoản (chỉ Admin)', () => {
+  const openMenuAs = async (role: 'USER' | 'ADMIN') => {
+    localStorage.setItem('toyflow-access-token', `h.${btoa(JSON.stringify({ role }))}.s`)
+    const user = userEvent.setup()
+    renderWithProviders(
+      <MemoryRouter>
+        <AccountMenu />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Tài khoản của tôi' }))
+    return screen.getByRole('navigation', { name: 'Tài khoản' })
+  }
+
+  afterEach(() => localStorage.clear())
+
+  it('Admin thấy link Quản trị tới /admin', async () => {
+    const menu = await openMenuAs('ADMIN')
+    expect(within(menu).getByRole('link', { name: /Quản trị/ })).toHaveAttribute('href', ADMIN_ROOT)
+  })
+
+  it('User không thấy link Quản trị', async () => {
+    const menu = await openMenuAs('USER')
+    expect(within(menu).queryByRole('link', { name: /Quản trị/ })).toBeNull()
   })
 })
 

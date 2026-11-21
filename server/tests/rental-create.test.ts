@@ -173,15 +173,16 @@ describe('UC06: Quote and Create Rental Order', () => {
     expect(errorOf(resHidden).code).toBe('TOY_NOT_FOUND');
   });
 
-  it('rejects overlapping dates with conflicts and a suggestion', async () => {
+  it('rejects overlapping dates with conflicts and a suggestion near the chosen dates', async () => {
     await create(renterAuth, body35());
     const res = await create(otherRenterAuth, { toyId, startDate: day(5), endDate: day(7) });
     expect(res.status).toBe(409);
+    // Right after the booking (day 7–9) is closer to day 5 than day 1–3 or today
     expect(errorOf(res)).toMatchObject({
       code: 'RENTAL_DATES_UNAVAILABLE',
       details: {
         conflicts: [{ startDate: day(4), endDate: day(6) }],
-        suggestion: { startDate: day(0), endDate: day(2) },
+        suggestion: { startDate: day(7), endDate: day(9) },
       },
     });
   });

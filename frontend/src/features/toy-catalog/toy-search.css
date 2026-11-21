@@ -660,14 +660,16 @@
   }
 
   /* Cặp màu giống .tf-pill--secondary */
-  .toy-card--sell .toy-card__badge {
+  .toy-card--sell .toy-card__badge,
+  .toy-card--donate .toy-card__badge {
     background: var(--pl-sell-soft);
     color: var(--pl-sell);
   }
 
   /* Nhãn nằm trên ảnh: dark mode cần nền đặc, nền trong suốt sẽ chìm trên ảnh sáng */
   .dark .public-layout .toy-card__badge,
-  .dark .public-layout .toy-card--sell .toy-card__badge {
+  .dark .public-layout .toy-card--sell .toy-card__badge,
+  .dark .public-layout .toy-card--donate .toy-card__badge {
     background: var(--pl-paper);
   }
 

@@ -1,4 +1,5 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
+import { App } from 'antd'
 import { useApiMutation } from '../../hooks/useApiMutation'
 import { ApiError } from '../../services/api-error'
 import { apiGet, apiPost, apiPostForm } from '../../services/http'
@@ -188,6 +189,44 @@ export const useOwnerRentalDecision = (orderId: string, toyId: string | undefine
   return { accept, reject }
 }
 
+/** Server báo lỗi ảnh bằng tiếng Anh (vd. "Image content does not match PNG file signature."): dịch theo mã lỗi */
+const PHOTO_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_IMAGE_FORMAT: 'Ảnh bị hỏng hoặc không phải ảnh JPG, PNG, WebP thật. Vui lòng chụp hoặc chọn ảnh khác.',
+  CLOUDINARY_NOT_CONFIGURED: 'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau.',
+}
+
+/** Lỗi multer (INVALID_IMAGE_UPLOAD kèm details.code) */
+const UPLOAD_LIMIT_MESSAGES: Record<string, string> = {
+  LIMIT_FILE_SIZE: 'Mỗi ảnh tối đa 5 MB. Vui lòng chọn ảnh nhỏ hơn.',
+  LIMIT_FILE_COUNT: 'Chỉ được gửi tối đa 10 ảnh.',
+  LIMIT_UNEXPECTED_FILE: 'Chỉ được gửi tối đa 10 ảnh.',
+}
+
+/** Câu chữ có dấu tiếng Việt (câu của server bằng tiếng Anh chỉ có ký tự ASCII) */
+const isVietnamese = (text: string) => /[^ -~]/.test(text)
+
+/** Câu tiếng Việt cho lỗi ảnh server trả về; null khi không phải lỗi ảnh hoặc server đã ghi tiếng Việt */
+export function rentalPhotoErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  if (PHOTO_ERROR_MESSAGES[error.code]) return PHOTO_ERROR_MESSAGES[error.code]
+  if (error.code !== 'INVALID_IMAGE_UPLOAD') return null
+  const multerCode = (error.details as { code?: string } | undefined)?.code
+  if (multerCode && UPLOAD_LIMIT_MESSAGES[multerCode]) return UPLOAD_LIMIT_MESSAGES[multerCode]
+  // Số ảnh thiếu/thừa do dịch vụ thuê đồ báo đã là tiếng Việt; lỗi đọc form của multer (vd. "Unexpected end of form") thì không
+  return isVietnamese(error.message) ? null : 'Không tải được ảnh lên. Vui lòng chọn lại ảnh rồi thử lại.'
+}
+
+/** onError cho các bước gửi ảnh: lỗi ảnh hiện bằng tiếng Việt, lỗi khác để useApiMutation báo như cũ */
+const usePhotoErrorHandler = () => {
+  const { message } = App.useApp()
+  return (error: unknown) => {
+    const text = rentalPhotoErrorMessage(error)
+    if (!text) return false
+    message.error(text)
+    return true
+  }
+}
+
 /** Bước bàn giao: chủ đồ gửi (PAID → SHIPPING) hoặc người thuê nhận (SHIPPING → IN_USE) */
 export type HandoverStep = 'ship' | 'receive'
 
@@ -197,8 +236,9 @@ const HANDOVER_SUCCESS: Record<HandoverStep, string> = {
 }
 
 /** Gửi ảnh tình trạng (multipart, trường `photos`, 1–10 ảnh) kèm xác nhận giao/nhận */
-export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess?: () => void) =>
-  useApiMutation({
+export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess?: () => void) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
     mutationFn: (photos: File[]) => {
       const form = new FormData()
       photos.forEach((file) => form.append('photos', file))
@@ -208,14 +248,17 @@ export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess
     invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
     onSuccess,
+    onError,
   })
+}
 
 /** Ghi chú khi trả đồ: không bắt buộc, tối đa 500 ký tự như server */
 export const RETURN_NOTE_MAX = 500
 
 /** Người thuê gửi trả (IN_USE → RETURNING): 1–10 ảnh tình trạng + ghi chú; server tính phí trả trễ */
-export const useRentalReturn = (orderId: string) =>
-  useApiMutation({
+export const useRentalReturn = (orderId: string) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
     mutationFn: ({ photos, note }: { photos: File[]; note: string }) => {
       const form = new FormData()
       photos.forEach((file) => form.append('photos', file))
@@ -225,7 +268,9 @@ export const useRentalReturn = (orderId: string) =>
     successMessage: 'Đã gửi yêu cầu trả đồ. Chủ đồ sẽ kiểm tra tình trạng rồi quyết toán tiền cọc.',
     invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
+    onError,
   })
+}
 
 /** Mô tả hư hỏng: 10–1000 ký tự như server */
 export const DAMAGE_DESCRIPTION_MIN = 10
@@ -242,8 +287,9 @@ const SETTLE_SUCCESS: Record<SettlementResult, string> = {
  * Chủ đồ quyết toán đơn đang trả (RETURNING): GOOD gửi JSON; DAMAGED gửi multipart với 1–10 ảnh bằng
  * chứng (`photos`) và mô tả. Sau đó tải lại đơn và ví (tiền thuê vừa vào ví khi GOOD).
  */
-export const useRentalSettle = (orderId: string) =>
-  useApiMutation({
+export const useRentalSettle = (orderId: string) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
     mutationFn: (input: SettleInput) => {
       if (input.result === 'GOOD') return apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' })
       const form = new FormData()
@@ -255,7 +301,9 @@ export const useRentalSettle = (orderId: string) =>
     successMessage: (_data, input) => SETTLE_SUCCESS[input.result],
     invalidate: [rentalKeys.all, walletKeys.me],
     invalidateOnConflict: true,
+    onError,
   })
+}
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) */
 export interface WalletSummary {

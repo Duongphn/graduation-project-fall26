@@ -22,7 +22,7 @@ export function HeroSection() {
       className={`relative overflow-hidden pt-10 pb-6 text-white sm:pt-14 sm:pb-8 ${HERO_BACKGROUND}`}
       aria-labelledby="home-hero-title"
     >
-      <div className="home-container grid items-center gap-10 lg:grid-cols-[1.25fr_1fr]">
+      <div className="home-container grid grid-cols-[minmax(0,1fr)] items-center gap-10 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <div className="flex animate-rise-in flex-col gap-5">
           <p className="inline-flex items-center gap-2 self-start rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 ring-1 ring-white/15">
             <Sparkles className="size-3.5 text-site-highlight-bright" aria-hidden /> {HERO_CONTENT.eyebrow}

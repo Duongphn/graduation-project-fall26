@@ -63,10 +63,6 @@ export interface VerifyRegistrationOtpDTO {
   otpCode: string;
 }
 
-/** Đăng ký xong không tự đăng nhập nên không cấp token */
-export interface RegisterResponse {
-  user: AuthenticatedUser;
-}
 
 export interface LoginDTO {
   /** Email hoặc số điện thoại */
@@ -81,6 +77,9 @@ export interface AuthSessionResponse {
 }
 
 export type LoginResponse = AuthSessionResponse;
+
+/** Đăng ký xong được đăng nhập luôn (R03 UC01 bước 5): cùng dạng phiên như đăng nhập */
+export type RegisterResponse = AuthSessionResponse;
 
 export interface ForgotPasswordResponse {
   email: string;

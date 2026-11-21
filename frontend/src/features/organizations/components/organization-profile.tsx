@@ -1,4 +1,4 @@
-import { Clock, Gift, HandHeart, MapPin, UserRound, type LucideIcon } from 'lucide-react'
+import { Clock, Gift, HandHeart, MapPin, PauseCircle, UserRound, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
@@ -72,12 +72,22 @@ export function OrganizationProfile({
         </ProfileSection>
       )}
 
-      <Link
-        to={`${PATHS.newDonation}?organizationId=${organization.id}`}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-tf-primary px-5 text-sm font-bold text-white transition-colors hover:bg-tf-primary-container"
-      >
-        <Gift className="size-4" aria-hidden /> Quyên góp cho tổ chức này
-      </Link>
+      {/* GB-51/GB-55: an organization that is not accepting toys (or has no receiving point) takes no new donation. */}
+      {organization.isAccepting && point ? (
+        <Link
+          to={`${PATHS.newDonation}?organizationId=${organization.id}`}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-tf-primary px-5 text-sm font-bold text-white transition-colors hover:bg-tf-primary-container"
+        >
+          <Gift className="size-4" aria-hidden /> Quyên góp cho tổ chức này
+        </Link>
+      ) : (
+        <p role="status" className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+          <PauseCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {organization.isAccepting
+            ? 'Tổ chức chưa có điểm nhận nên chưa nhận quyên góp.'
+            : 'Tổ chức đang tạm ngừng nhận đồ chơi. Bạn có thể chọn tổ chức khác hoặc quay lại sau.'}
+        </p>
+      )}
     </div>
   )
 }

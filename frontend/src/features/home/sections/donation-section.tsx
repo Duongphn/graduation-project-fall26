@@ -40,7 +40,8 @@ export function DonationSection() {
           </ul>
 
           <div className="mt-1 flex flex-wrap gap-3">
-            <Link to={PATHS.newListing} className={homeButton('light')}>
+            {/* UC33: "Tặng đồ chơi" mở form tạo phiếu quyên góp (form /listings/new chỉ có Cho thuê/Bán lại) */}
+            <Link to={PATHS.newDonation} className={homeButton('light')}>
               <Plus aria-hidden /> {DONATION_CONTENT.primaryLabel}
             </Link>
             <Link to={PATHS.donations} className={homeButton('ghostLight')}>

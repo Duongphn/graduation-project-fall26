@@ -314,8 +314,8 @@ export function RentalSettlementRecord({ order, isOwner }: { order: RentalOrderD
             <blockquote className="rental-return-record__note">{settlement.description}</blockquote>
           )}
           <p className="rental-block__note">
-            Tiền thuê và tiền cọc ({formatVnd(order.pricing.depositAmount)}) được ToyFlow giữ cho đến khi quản trị
-            viên giải quyết khiếu nại.
+            Tiền thuê và tiền cọc ({formatVnd(order.pricing.rentalFee + order.pricing.depositAmount)}) được ToyFlow
+            giữ cho đến khi quản trị viên giải quyết khiếu nại.
           </p>
         </div>
       )}
