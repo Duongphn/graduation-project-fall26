@@ -31,7 +31,7 @@ function PartyCard({ party, role, title }: { party: DisputeParty; role: string; 
             {party.fullName || '—'} {party.verified && <CheckCircleFilled className="!text-green-600" aria-label="Đã xác thực" />}
           </Typography.Text>
           <Typography.Text type="secondary" className="text-xs">
-            {role} · Điểm tin cậy {party.trustScore === undefined ? 'chưa có' : party.trustScore.toFixed(1)}
+            {role} · Điểm tin cậy {party.trustScore === undefined ? 'chưa có' : `${Math.round(party.trustScore)}/100`}
           </Typography.Text>
         </div>
       </div>

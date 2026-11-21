@@ -6,6 +6,7 @@ import {
   GiftOutlined,
   HeartOutlined,
   IdcardOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
@@ -32,4 +33,5 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
   { key: 'donation-requests', label: 'Yêu cầu nhận tặng', icon: <GiftOutlined />, path: adminPaths.donationRequests },
   { key: 'disputes', label: 'Khiếu nại', icon: <ExceptionOutlined />, path: adminPaths.disputes },
+  { key: 'trust-reviews', label: 'Điểm tin cậy', icon: <SafetyCertificateOutlined />, path: adminPaths.trustReviews },
 ]

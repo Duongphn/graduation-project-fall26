@@ -22,4 +22,7 @@ export const adminRoutes: RouteObject[] = [
   // Rental disputes (UC19)
   { path: adminChildPath(adminPaths.disputes), ...lazyPage(() => import('../features/dispute-resolution/pages/DisputeQueuePage'), 'DisputeQueuePage') },
   { path: adminChildPath(adminPaths.disputes, '/:id'), ...lazyPage(() => import('../features/dispute-resolution/pages/DisputeCaseFilePage'), 'DisputeCaseFilePage') },
+  // Trust Score review queue (UC24)
+  { path: adminChildPath(adminPaths.trustReviews), ...lazyPage(() => import('../features/trust-review/pages/TrustReviewQueuePage'), 'TrustReviewQueuePage') },
+  { path: adminChildPath(adminPaths.trustReviews, '/:userId'), ...lazyPage(() => import('../features/trust-review/pages/TrustReviewDetailPage'), 'TrustReviewDetailPage') },
 ]

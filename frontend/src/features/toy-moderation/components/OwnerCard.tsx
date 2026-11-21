@@ -39,7 +39,7 @@ export function OwnerCard({ owner }: OwnerCardProps) {
       key: 'trust',
       label: 'Điểm uy tín',
       children:
-        owner.trustScore === null ? 'Chưa có điểm' : owner.trustScore.toFixed(1),
+        owner.trustScore === null ? 'Chưa có điểm' : `${Math.round(owner.trustScore)} / 100`,
     },
     { key: 'joined', label: 'Ngày tham gia', children: formatDate(owner.memberSince) },
   ]

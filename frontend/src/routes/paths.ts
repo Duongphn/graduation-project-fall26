@@ -65,6 +65,8 @@ export const adminPaths = {
   donationRequest: (id: string) => `${ADMIN_ROOT}/donation-requests/${id}`,
   disputes: `${ADMIN_ROOT}/disputes`,
   dispute: (id: string) => `${ADMIN_ROOT}/disputes/${id}`,
+  trustReviews: `${ADMIN_ROOT}/trust-reviews`,
+  trustReview: (userId: string) => `${ADMIN_ROOT}/trust-reviews/${userId}`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.

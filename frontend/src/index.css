@@ -13,6 +13,7 @@
 @import './features/toy-catalog/toy-catalog.css';
 @import './features/toy-catalog/toy-search.css';
 @import './features/toy-catalog/toy-detail.css';
+@import './features/toy-catalog/trust-restricted.css';
 @import './features/rentals/rentals.css';
 @import './features/reviews/reviews.css';
 @import './layouts/site/site-layout.css';

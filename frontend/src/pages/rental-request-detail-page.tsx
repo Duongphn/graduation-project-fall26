@@ -72,7 +72,9 @@ function RenterCard({ renter }: { renter: RentalOrderDetail['renter'] }) {
           {score === undefined ? (
             <span className="rental-renter__no-score">Chưa có điểm</span>
           ) : (
-            <strong>{score.toFixed(1)}</strong>
+            <>
+              <strong>{Math.round(score)}</strong> / 100
+            </>
           )}
         </dd>
       </dl>
