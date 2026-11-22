@@ -8,6 +8,7 @@ import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/maile
 import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
 import { AuthService } from './services/auth.service.js';
+import { ChatService } from './services/chat.service.js';
 import {
   createDefaultAvatarStorage,
   createDefaultIdentityStorage,
@@ -31,6 +32,7 @@ import {
 import type { ToyCatalogReadPort } from './interfaces/toy-catalog.ports.js';
 import type { ToyListingPorts } from './interfaces/toy-listing.ports.js';
 import type { Mailer } from './interfaces/notification.ports.js';
+import { offlineChatRealtime } from './interfaces/chat.ports.js';
 import type { UserAvatarStorage } from './interfaces/user.ports.js';
 import type { WalletLedgerPort } from './interfaces/wallet.ports.js';
 import { IdentityVerification } from './models/identity-verification.model.js';
@@ -115,6 +117,7 @@ export interface ContainerOverrides {
   advisorLlm?: AdvisorLlm;
   aiAdvisorSettings?: Partial<AiAdvisorSettings>;
   aiAssistanceService?: AiAssistanceService;
+  chatService?: ChatService;
 }
 
 export interface Container {
@@ -135,6 +138,8 @@ export interface Container {
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
   aiAssistanceService: AiAssistanceService;
+  // Chat (UC25).
+  chatService: ChatService;
 }
 
 /**
@@ -252,6 +257,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
   const aiAssistanceService =
     overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
+  const chatService =
+    overrides.chatService ?? new ChatService({ realtime: offlineChatRealtime, clock });
 
   return {
     toyImageStorage,
@@ -270,6 +277,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalTimerService,
     rentalOrderRepository,
     aiAssistanceService,
+    chatService,
   };
 }
 

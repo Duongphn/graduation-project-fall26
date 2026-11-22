@@ -18,6 +18,7 @@ import { adminOrganizationsRouter, organizationsRouter } from './organization.ro
 import { adminToyModerationRouter } from './toy-moderation.routes.js';
 import { uploadsRouter } from './upload.routes.js';
 import { createAuthRouter } from './auth.routes.js';
+import { createChatRouter } from './chat.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
@@ -77,6 +78,7 @@ export function createApiRouter(container: Container): Router {
   router.use('/uploads', authenticate, uploadsRouter);
   // Trợ lý AI: router tự kiểm tra cờ tính năng trước khi xác thực (tắt thì 503).
   router.use('/ai', createAiRouter(container.aiAssistanceService));
+  router.use('/conversations', createChatRouter(container.chatService));
 
   // Swagger UI and the OpenAPI JSON of the documented routes (never in production).
   if (featureEnv.docsEnabled) {
