@@ -9,6 +9,7 @@ import {
 import { createContainer } from './container.js';
 import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
+import { startAccountUnlockJob } from './jobs/account-unlock.job.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
 import { setNotificationPusher } from './services/notification.service.js';
@@ -20,6 +21,7 @@ const startServer = async (): Promise<void> => {
   await connectDatabase(env.mongoDbUri);
   registerEventHandlers();
   const donationExpiryJob = startDonationExpiryJob();
+  const accountUnlockJob = startAccountUnlockJob();
 
   const container = createContainer();
   const paymentExpiryJob = startPaymentExpiryJob(container.paymentService, container.payosTopupService);
@@ -45,6 +47,7 @@ const startServer = async (): Promise<void> => {
     }
     donationExpiryJob?.stop();
     paymentExpiryJob?.stop();
+    accountUnlockJob?.stop();
     socketServer.close();
     httpServer.close(async () => {
       await disconnectDatabase();
