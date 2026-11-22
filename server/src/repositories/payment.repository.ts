@@ -37,14 +37,14 @@ const PaymentModel = Payment as unknown as Model<PaymentRecord>;
 
 export interface NewTopupPayment {
   code: string;
-  gateway: 'vnpay' | 'payos';
+  gateway: 'payos';
   userId: string;
   walletId: string;
   amount: number;
   expiresAt: Date;
 }
 
-/** payments collection, used by the VNPay top-up (UC17) */
+/** payments collection, used by the PayOS top-up (UC17) */
 export class PaymentRepository {
   public async createTopup(input: NewTopupPayment): Promise<PaymentRecord> {
     const doc = await PaymentModel.create({
@@ -66,7 +66,7 @@ export class PaymentRepository {
 
   /**
    * Moves a pending payment to its final status. Only one caller can win (the filter requires
-   * status 'pending'), so the IPN and the Return URL arriving together settle it once.
+   * status 'pending'), so the webhook and the return page arriving together settle it once.
    * Returns the updated payment, or null when it was not pending any more.
    */
   public async claimPending(
@@ -87,19 +87,11 @@ export class PaymentRepository {
   }
 
   /** Pending top-ups of `gateway` whose link expired before `before` (oldest first) */
-  public async listExpiredPending(gateway: 'vnpay' | 'payos', before: Date, limit = 50): Promise<PaymentRecord[]> {
+  public async listExpiredPending(gateway: 'payos', before: Date, limit = 50): Promise<PaymentRecord[]> {
     return (await PaymentModel.find({ gateway, status: 'pending', expiresAt: { $lt: before } })
       .sort({ expiresAt: 1 })
       .limit(limit)
       .lean()) as PaymentRecord[];
   }
 
-  /** Pending top-ups of `gateway` whose link expired before `before` become failed; returns how many */
-  public async failExpired(gateway: 'vnpay' | 'payos', before: Date): Promise<number> {
-    const result = await PaymentModel.updateMany(
-      { gateway, status: 'pending', expiresAt: { $lt: before } },
-      { $set: { status: 'failed', gatewayResponseCode: 'expired' } },
-    );
-    return result.modifiedCount;
-  }
 }

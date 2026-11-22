@@ -72,13 +72,6 @@ export const env = Object.freeze({
   // Rental Scheduler
   rentalSchedulerEnabled: process.env.RENTAL_SCHEDULER_ENABLED === 'true',
 
-  // VNPay sandbox (UC17 top-up). Empty TMN code / hash secret: POST /payments/topup/vnpay returns 503.
-  vnpayTmnCode: process.env.VNPAY_TMN_CODE?.trim() ?? '',
-  vnpayHashSecret: process.env.VNPAY_HASH_SECRET?.trim() ?? '',
-  vnpayUrl: process.env.VNPAY_URL ?? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
-  // The frontend page VNPay sends the browser back to; it forwards the query to GET /payments/vnpay-return
-  vnpayReturnUrl: process.env.VNPAY_RETURN_URL ?? 'http://localhost:5173/wallet/topup/result',
-
   // PayOS (UC17 top-up by bank transfer QR, real money). Empty keys: POST /payments/topup/payos returns 503.
   payosClientId: process.env.PAYOS_CLIENT_ID?.trim() ?? '',
   payosApiKey: process.env.PAYOS_API_KEY?.trim() ?? '',
