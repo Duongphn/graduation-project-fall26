@@ -1,13 +1,14 @@
 import { Button, DatePicker, Select, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
+import type { Dayjs } from 'dayjs'
 import { z } from 'zod'
 
 import { DataTable, FilterBar, PageHeader } from '../../../components/common'
 import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb } from '../../../routes/paths'
 import { objectIdParam } from '../../../schemas/list-params'
-import { dayjs } from '../../../utils/dayjs'
-import { formatMoney } from '../../../utils/format'
+import { dayjs, inVietnam, VN_TIME_ZONE } from '../../../utils/dayjs'
+import { formatDateTime, formatMoney } from '../../../utils/format'
 import { matchesWithoutTones } from '../../../utils/text'
 import {
   auditActionLabel,
@@ -42,10 +43,15 @@ const filtersSchema = z.object({
 const filterByLabel = (input: string, option?: { label?: unknown }) =>
   matchesWithoutTones(input, option?.label)
 
+// The time range is in Vietnam days (00:00–23:59 UTC+7), the days shown in the table, whatever
+// the device time zone. The picker shows that day as a plain local date.
+const vietnamDay = (day: Dayjs) => dayjs.tz(day.format('YYYY-MM-DD'), VN_TIME_ZONE)
+const pickerDay = (iso: string) => dayjs(inVietnam(iso).format('YYYY-MM-DD'))
+
 const formatValue = (key: string, value: string | number | boolean | null): string => {
   if (value === null) return '—'
   if (typeof value === 'boolean') return value ? 'Có' : 'Không'
-  if (key === 'until' && typeof value === 'string') return dayjs(value).format('HH:mm DD/MM/YYYY')
+  if (key === 'until' && typeof value === 'string') return formatDateTime(value)
   if (key === 'amount' && typeof value === 'number') return formatMoney(value)
   return auditDetailValueLabels[key]?.[String(value)] ?? String(value)
 }
@@ -71,7 +77,7 @@ const columns: TableColumnsType<AuditLogItem> = [
     title: 'Thời gian',
     key: 'createdAt',
     width: 150,
-    render: (_, item) => dayjs(item.createdAt).format('HH:mm:ss DD/MM/YYYY'),
+    render: (_, item) => inVietnam(item.createdAt).format('HH:mm:ss DD/MM/YYYY'),
   },
   {
     title: 'Người thực hiện',
@@ -191,13 +197,13 @@ export function AuditLogPage() {
           format="DD/MM/YYYY"
           placeholder={['Từ ngày', 'Đến ngày']}
           value={[
-            filters.from ? dayjs(filters.from) : null,
-            filters.to ? dayjs(filters.to) : null,
+            filters.from ? pickerDay(filters.from) : null,
+            filters.to ? pickerDay(filters.to) : null,
           ]}
           onChange={(range) =>
             setFilters({
-              from: range?.[0]?.startOf('day').toISOString(),
-              to: range?.[1]?.endOf('day').toISOString(),
+              from: range?.[0] ? vietnamDay(range[0]).toISOString() : undefined,
+              to: range?.[1] ? vietnamDay(range[1]).endOf('day').toISOString() : undefined,
             })
           }
         />
