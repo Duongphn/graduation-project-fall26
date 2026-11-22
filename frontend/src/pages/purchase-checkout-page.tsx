@@ -3,7 +3,8 @@ import { ChevronRight, Home, MapPin, PackageCheck, Truck, type LucideIcon } from
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import { profileQuery } from '../features/profile/profile-queries'
+import type { DeliveryAddress as SavedAddress } from '../features/profile/profile-api'
+import { addressesQuery, profileQuery } from '../features/profile/profile-queries'
 import { CheckoutSummary } from '../features/purchases/components/checkout-summary'
 import { purchaseApi, type DeliveryMethod } from '../features/purchases/purchase-api'
 import { DELIVERY_METHOD_LABELS, PROVINCES } from '../features/purchases/purchase-display'
@@ -64,16 +65,21 @@ export function PurchaseCheckoutPage() {
   const provinceListId = useId()
 
   const profile = useQuery(profileQuery)
-  // Ô người dùng đã sửa; ô chưa sửa lấy từ hồ sơ (tên, số điện thoại, địa chỉ đã lưu)
+  // Sổ địa chỉ (Hồ sơ): mặc định chọn địa chỉ mặc định, người mua bấm để đổi sang địa chỉ khác
+  const addresses = useQuery(addressesQuery)
+  const book = addresses.data ?? []
+  const [addressId, setAddressId] = useState<string>()
+  const chosen = book.find((address) => address.id === addressId) ?? book.find((address) => address.isDefault) ?? book[0]
+  // Ô người dùng đã sửa; ô chưa sửa lấy từ địa chỉ đang chọn, không có thì từ hồ sơ (tên, số điện thoại)
   const [edits, setEdits] = useState<Partial<CheckoutFormValues>>({})
   const saved = profile.data
   const values: CheckoutFormValues = {
     deliveryMethod: 'DELIVERY',
-    recipientName: saved?.fullName ?? '',
-    recipientPhone: saved?.phone ?? '',
-    province: saved?.address?.province ?? '',
-    ward: saved?.address?.ward ?? '',
-    street: saved?.address?.street ?? '',
+    recipientName: chosen?.recipientName ?? saved?.fullName ?? '',
+    recipientPhone: chosen?.phone ?? saved?.phone ?? '',
+    province: chosen?.province ?? '',
+    ward: chosen?.ward ?? '',
+    street: chosen?.street ?? '',
     notes: '',
     ...edits,
   }
@@ -110,6 +116,16 @@ export function PurchaseCheckoutPage() {
   const set = <K extends keyof CheckoutFormValues>(key: K, value: CheckoutFormValues[K]) => {
     setEdits((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: undefined }))
+  }
+
+  /** Chọn một địa chỉ đã lưu: điền lại các ô địa chỉ (bỏ phần đã sửa tay), giữ cách nhận và ghi chú */
+  const pickAddress = (address: SavedAddress) => {
+    setAddressId(address.id)
+    setEdits(({ deliveryMethod, notes }) => ({
+      ...(deliveryMethod !== undefined && { deliveryMethod }),
+      ...(notes !== undefined && { notes }),
+    }))
+    setErrors(({ notes }) => (notes ? { notes } : {}))
   }
 
   const data = quote.data
@@ -206,6 +222,50 @@ export function PurchaseCheckoutPage() {
               <fieldset>
                 <legend className="text-base font-bold text-tf-ink">2. Địa chỉ nhận hàng</legend>
                 <div className="mt-3 flex flex-col gap-4">
+                  {book.length > 0 ? (
+                    <div role="radiogroup" aria-label="Địa chỉ đã lưu" className="grid gap-2 sm:grid-cols-2">
+                      {book.map((address) => (
+                        <label
+                          key={address.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tf-primary/30 ${
+                            chosen?.id === address.id ? 'border-tf-primary bg-tf-primary-fixed' : 'border-tf-surface hover:border-tf-primary'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="saved-address"
+                            value={address.id}
+                            checked={chosen?.id === address.id}
+                            onChange={() => pickAddress(address)}
+                            className="mt-1 accent-[var(--color-tf-primary)]"
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-semibold text-tf-ink">
+                              {address.recipientName} · {address.phone}
+                              {address.isDefault && (
+                                <span className="ml-2 rounded-full bg-tf-surface px-2 py-0.5 text-[11px] font-semibold text-tf-ink-muted">
+                                  Mặc định
+                                </span>
+                              )}
+                            </span>
+                            <span className="block text-tf-ink-muted">
+                              {[address.street, address.ward, address.province].filter(Boolean).join(', ')}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    addresses.isSuccess && (
+                      <p className="text-sm text-tf-ink-muted">
+                        Bạn chưa lưu địa chỉ nào.{' '}
+                        <Link to={PATHS.profile} className="font-semibold text-tf-primary hover:underline">
+                          Thêm vào sổ địa chỉ
+                        </Link>{' '}
+                        để lần sau chọn nhanh.
+                      </p>
+                    )
+                  )}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field id={ids.name} label="Họ tên người nhận" error={errors.recipientName}>
                       <input

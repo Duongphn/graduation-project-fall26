@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '../contexts/theme-provider'
 import { purchaseApi, type PurchaseOrder, type PurchaseQuote } from '../features/purchases/purchase-api'
 import { ApiError } from '../services/api-error'
 import { PurchaseCheckoutPage } from './purchase-checkout-page'
@@ -22,28 +23,36 @@ const quote = (overrides: Partial<PurchaseQuote> = {}): PurchaseQuote => ({
   ...overrides,
 })
 
-const renderPage = (balance = 1_000_000) => {
+const ADDRESSES = [
+  { id: 'a2', recipientName: 'Bà ngoại', phone: '0912000111', province: 'Đà Nẵng', ward: 'Phường Hải Châu', street: '8 Bạch Đằng', isDefault: false },
+  { id: 'a1', recipientName: 'Vương Giang Trường', phone: '0901234567', province: 'Hà Nội', ward: 'Phường Cầu Giấy', street: '1 Trần Thái Tông', isDefault: true },
+]
+
+const renderPage = (balance = 1_000_000, addresses = ADDRESSES) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  // Hồ sơ và ví đã có trong cache (trang chỉ đọc)
+  // Hồ sơ, sổ địa chỉ và ví đã có trong cache (trang chỉ đọc)
   client.setQueryData(['profile'], {
     id: 'buyer-1',
     fullName: 'Vương Giang Trường',
     email: 'a@b.c',
-    phone: '0901234567',
+    phone: '0909999999',
     verificationStatus: 'verified',
     role: 'USER',
-    address: { province: 'Hà Nội', district: '', ward: 'Phường Cầu Giấy', street: '1 Trần Thái Tông' },
   })
+  client.setQueryData(['profile', 'addresses'], addresses)
   client.setQueryData(['wallet', 'me'], { balance, availableBalance: balance, holdingBalance: 0, currency: 'VND' })
   render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/toys/t1/buy']}>
-        <Routes>
-          <Route path="/toys/:toyId/buy" element={<PurchaseCheckoutPage />} />
-          <Route path="/purchases/:orderId" element={<p>Trang đơn hàng</p>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/toys/t1/buy']}>
+          <Routes>
+            <Route path="/toys/:toyId/buy" element={<PurchaseCheckoutPage />} />
+            <Route path="/purchases/:orderId" element={<p>Trang đơn hàng</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
 }
 
@@ -56,7 +65,7 @@ describe('PurchaseCheckoutPage', () => {
     localStorage.clear()
   })
 
-  it('shows the price with the delivery fee and pre-fills the address from the profile', async () => {
+  it('shows the price with the delivery fee and pre-fills the default saved address', async () => {
     vi.spyOn(purchaseApi, 'quote').mockResolvedValue(quote())
     renderPage()
 
@@ -64,7 +73,39 @@ describe('PurchaseCheckoutPage', () => {
     expect(await within(summary).findByText('LEGO Duplo xe lửa số học')).toBeInTheDocument()
     expect(within(summary).getByText('Tổng thanh toán').nextElementSibling).toHaveTextContent('380.000')
     expect(screen.getByLabelText('Họ tên người nhận')).toHaveValue('Vương Giang Trường')
+    expect(screen.getByLabelText('Số điện thoại')).toHaveValue('0901234567')
     expect(screen.getByLabelText('Phường/Xã')).toHaveValue('Phường Cầu Giấy')
+    expect(screen.getByRole('radio', { name: /Vương Giang Trường · 0901234567/ })).toBeChecked()
+  })
+
+  it('fills the form from another saved address the buyer picks', async () => {
+    vi.spyOn(purchaseApi, 'quote').mockResolvedValue(quote())
+    const buyNow = vi.spyOn(purchaseApi, 'buyNow').mockResolvedValue({ id: 'o1' } as PurchaseOrder)
+    renderPage()
+
+    await userEvent.type(await screen.findByLabelText('Số nhà, tên đường'), ' (sửa tay)')
+    await userEvent.click(screen.getByRole('radio', { name: /Bà ngoại/ }))
+
+    expect(screen.getByLabelText('Họ tên người nhận')).toHaveValue('Bà ngoại')
+    expect(screen.getByLabelText('Tỉnh/Thành phố')).toHaveValue('Đà Nẵng')
+    // Chọn địa chỉ khác thì bỏ phần đã sửa tay
+    expect(screen.getByLabelText('Số nhà, tên đường')).toHaveValue('8 Bạch Đằng')
+
+    await userEvent.click(screen.getByRole('button', { name: /Thanh toán 380\.000/ }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Thanh toán' }))
+    expect(buyNow).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientName: 'Bà ngoại', recipientPhone: '0912000111', province: 'Đà Nẵng', street: '8 Bạch Đằng' }),
+    )
+  })
+
+  it('without a saved address: name and phone from the profile, a link to add one', async () => {
+    vi.spyOn(purchaseApi, 'quote').mockResolvedValue(quote())
+    renderPage(1_000_000, [])
+
+    expect(await screen.findByLabelText('Họ tên người nhận')).toHaveValue('Vương Giang Trường')
+    expect(screen.getByLabelText('Số điện thoại')).toHaveValue('0909999999')
+    expect(screen.getByLabelText('Số nhà, tên đường')).toHaveValue('')
+    expect(screen.getByRole('link', { name: 'Thêm vào sổ địa chỉ' })).toHaveAttribute('href', '/profile')
   })
 
   it('switches to local pickup: no address and a new quote without the delivery fee', async () => {
