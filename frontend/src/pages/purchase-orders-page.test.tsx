@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '../contexts/theme-provider'
 import { purchaseApi, type PurchaseOrder } from '../features/purchases/purchase-api'
 import { PurchaseOrdersPage } from './purchase-orders-page'
 
@@ -21,11 +22,14 @@ const order: PurchaseOrder = {
 
 const renderAs = (role: 'buyer' | 'seller') =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        <PurchaseOrdersPage role={role} />
-      </MemoryRouter>
-    </QueryClientProvider>,
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <PurchaseOrdersPage role={role} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
 
 const page = (items: PurchaseOrder[]) => ({

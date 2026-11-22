@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '../contexts/theme-provider'
 import { purchaseApi, type PurchaseOrder } from '../features/purchases/purchase-api'
 import { PurchaseOrderDetailPage } from './purchase-order-detail-page'
 
@@ -34,13 +35,16 @@ const renderAs = (userId: string, data: PurchaseOrder) => {
   localStorage.setItem('toyflow-user', JSON.stringify({ id: userId, fullName: 'X' }))
   vi.spyOn(purchaseApi, 'detail').mockResolvedValue(data)
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={['/purchases/o1']}>
-        <Routes>
-          <Route path="/purchases/:orderId" element={<PurchaseOrderDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/purchases/o1']}>
+          <Routes>
+            <Route path="/purchases/:orderId" element={<PurchaseOrderDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
 }
 
