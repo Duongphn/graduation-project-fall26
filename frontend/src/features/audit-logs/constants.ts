@@ -1,3 +1,5 @@
+import { reportReasonLabels, reportTargetKindLabels } from '../../constants/labels'
+import { statusStyles } from '../../styles/status'
 import type { AuditTargetType } from './types'
 
 // Vietnamese labels of the audit log. An action without a label is shown with its code.
@@ -10,6 +12,7 @@ export const auditAreaLabels: Record<string, string> = {
   donation: 'Quyên góp',
   user: 'Tài khoản',
   report: 'Báo cáo vi phạm',
+  chat: 'Tin nhắn',
 }
 
 export const auditActionLabels: Record<string, string> = {
@@ -44,6 +47,7 @@ export const auditActionLabels: Record<string, string> = {
   'report.remove_listing': 'Xử lý báo cáo: gỡ tin',
   'report.warn': 'Xử lý báo cáo: cảnh cáo',
   'report.lock': 'Xử lý báo cáo: khóa tài khoản',
+  'chat.contact_masked': 'Che thông tin liên hệ trong tin nhắn',
 }
 
 export const auditActionLabel = (action: string): string =>
@@ -57,6 +61,7 @@ export const auditTargetLabels: Record<AuditTargetType, string> = {
   IDENTITY_VERIFICATION: 'Yêu cầu xác minh',
   USER: 'Tài khoản',
   VIOLATION_REPORT: 'Báo cáo vi phạm',
+  MESSAGE: 'Tin nhắn',
 }
 
 // Keys of `details`, shown as "label: value".
@@ -74,4 +79,20 @@ export const auditDetailLabels: Record<string, string> = {
   targetKind: 'Loại đối tượng',
   lockDuration: 'Thời hạn khóa',
   closedWithIt: 'Báo cáo đóng kèm',
+}
+
+// `from` / `to` are donation request statuses (the only transition the server logs with them).
+const donationStatusLabels: Record<string, string> = Object.fromEntries(
+  Object.entries(statusStyles.donation).map(([status, style]) => [status, style.label]),
+)
+
+// Coded values inside `details` (status change, report target, reason, lock length), shown in Vietnamese.
+// A free-text value (a lock reason typed by the Admin) has no entry and is shown as written.
+export const auditDetailValueLabels: Record<string, Record<string, string>> = {
+  from: donationStatusLabels,
+  to: donationStatusLabels,
+  targetKind: reportTargetKindLabels,
+  reason: reportReasonLabels,
+  lockDuration: { '7d': '7 ngày', '30d': '30 ngày', permanent: 'Vĩnh viễn' },
+  duration: { '7d': '7 ngày', '30d': '30 ngày', permanent: 'Vĩnh viễn' },
 }

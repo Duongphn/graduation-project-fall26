@@ -11,6 +11,7 @@ import {
   auditActionLabel,
   auditAreaLabels,
   auditDetailLabels,
+  auditDetailValueLabels,
   auditTargetLabels,
 } from '../constants'
 import { useAuditLogFilterOptions, useAuditLogs } from '../hooks'
@@ -38,7 +39,7 @@ const formatValue = (key: string, value: string | number | boolean | null): stri
   if (value === null) return '—'
   if (typeof value === 'boolean') return value ? 'Có' : 'Không'
   if (key === 'until' && typeof value === 'string') return dayjs(value).format('HH:mm DD/MM/YYYY')
-  return String(value)
+  return auditDetailValueLabels[key]?.[String(value)] ?? String(value)
 }
 
 function AuditDetails({ details }: { details: AuditLogItem['details'] }) {
