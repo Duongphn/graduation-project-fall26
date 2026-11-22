@@ -47,17 +47,6 @@ describe('wallet API calls', () => {
     })
   })
 
-  it('uses the lead’s top-up and return paths, keeping the raw VNPay query', async () => {
-    const apiPost = vi.spyOn(http, 'apiPost').mockResolvedValue({})
-    const apiGet = vi.spyOn(http, 'apiGet').mockResolvedValue({})
-
-    await walletApi.createTopup(200_000)
-    await walletApi.confirmVnpayReturn('?vnp_TxnRef=TOPUP1&vnp_SecureHash=abc')
-
-    expect(apiPost).toHaveBeenCalledWith('/payments/topup/vnpay', { amount: 200_000 })
-    expect(apiGet).toHaveBeenCalledWith('/payments/vnpay-return?vnp_TxnRef=TOPUP1&vnp_SecureHash=abc')
-  })
-
   it('creates a PayOS top-up and asks the server about its order code', async () => {
     const apiPost = vi.spyOn(http, 'apiPost').mockResolvedValue({})
     const apiGet = vi.spyOn(http, 'apiGet').mockResolvedValue({})

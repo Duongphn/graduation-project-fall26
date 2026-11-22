@@ -143,7 +143,7 @@ export const TRUST_POINTS: IconText[] = [
   { icon: ShieldCheck, text: 'Người dùng xác minh CCCD' },
   { icon: Wallet, text: 'Tiền cọc giữ trong ví' },
   { icon: Camera, text: 'Ảnh bàn giao 2 chiều' },
-  { icon: Lock, text: 'Thanh toán VNPay, MoMo' },
+  { icon: Lock, text: 'Nạp ví qua PayOS (VietQR)' },
 ]
 
 export interface HeroBannerSlide {

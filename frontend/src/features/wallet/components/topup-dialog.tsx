@@ -1,42 +1,20 @@
 import { useMutation } from '@tanstack/react-query'
-import { CreditCard, QrCode, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { QrCode, ShieldCheck } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { walletPayosCheckoutPath } from '../../../routes/paths'
 import { ApiError } from '../../../services/api-error'
 import { formatVnd, vndInputFormatter, vndInputParser } from '../../toy-listings/format-vnd'
-import { goToPaymentGateway, rememberTopupReturn, topupAmountError } from '../topup-session'
-import { TOPUP_MAX_AMOUNT, TOPUP_MIN_AMOUNT, walletApi, type TopupGateway } from '../wallet-api'
+import { rememberTopupReturn, topupAmountError } from '../topup-session'
+import { TOPUP_MAX_AMOUNT, TOPUP_MIN_AMOUNT, walletApi } from '../wallet-api'
 import { WalletDialog } from './wallet-dialog'
 
 const PRESET_AMOUNTS = [50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000]
 
-const GATEWAYS: Array<{ value: TopupGateway; label: string; hint: string; icon: LucideIcon; name: string }> = [
-  {
-    value: 'payos',
-    label: 'Chuyển khoản QR',
-    hint: 'Quét mã VietQR ngay trên ToyFlow bằng app ngân hàng bất kỳ',
-    icon: QrCode,
-    name: 'PayOS',
-  },
-  {
-    value: 'vnpay',
-    label: 'Thẻ ngân hàng',
-    hint: 'Thẻ ATM nội địa, thẻ quốc tế qua cổng VNPay',
-    icon: CreditCard,
-    name: 'VNPay',
-  },
-]
-
-/**
- * Tạo giao dịch Pending ở cổng đã chọn. PayOS: trang mã VietQR của ToyFlow (ở lại trong ứng dụng);
- * VNPay: trang thanh toán của VNPay.
- */
-const startTopup = async ({ gateway, amount }: { gateway: TopupGateway; amount: number }) =>
-  gateway === 'payos'
-    ? { inApp: true as const, to: walletPayosCheckoutPath((await walletApi.createPayosTopup(amount)).paymentCode) }
-    : { inApp: false as const, to: (await walletApi.createTopup(amount)).paymentUrl }
+/** Tạo giao dịch PayOS Pending, trả về trang mã VietQR của ToyFlow (ở lại trong ứng dụng) */
+const startTopup = async (amount: number) =>
+  walletPayosCheckoutPath((await walletApi.createPayosTopup(amount)).paymentCode)
 
 interface TopupDialogProps {
   onClose: () => void
@@ -47,27 +25,24 @@ interface TopupDialogProps {
 }
 
 /**
- * Nạp tiền vào ví qua VNPay (UC17): chọn hoặc nhập số tiền → server tạo giao dịch Pending và trả
- * link VNPay → chuyển trang. Kết quả hiện ở /wallet/topup/result khi VNPay chuyển về.
+ * Nạp tiền vào ví bằng chuyển khoản QR qua PayOS (UC17): chọn hoặc nhập số tiền → server tạo giao
+ * dịch Pending → sang trang mã VietQR của ToyFlow; tiền vào ví khi PayOS báo đã nhận chuyển khoản.
  */
 export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogProps) {
   const inputId = useId()
   const errorId = useId()
   const [amount, setAmount] = useState<number | undefined>(initialAmount)
-  const [gateway, setGateway] = useState<TopupGateway>('payos')
   const [touched, setTouched] = useState(false)
-  const gatewayName = GATEWAYS.find((option) => option.value === gateway)?.name ?? ''
   const navigate = useNavigate()
 
   const topup = useMutation({
     mutationFn: startTopup,
-    onSuccess: ({ inApp, to }) => {
+    onSuccess: (checkoutPath) => {
       rememberTopupReturn(returnTo)
-      if (inApp) navigate(to)
-      else goToPaymentGateway(to)
+      navigate(checkoutPath)
     },
   })
-  // Đã có link VNPay: giữ trạng thái "đang chuyển" tới khi trình duyệt rời trang
+  // Đã có mã QR: giữ trạng thái "đang tạo" tới khi chuyển sang trang QR
   const busy = topup.isPending || topup.isSuccess
 
   const error = topupAmountError(amount)
@@ -82,7 +57,7 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
     event.preventDefault()
     setTouched(true)
     if (error || amount === undefined || busy) return
-    topup.mutate({ gateway, amount })
+    topup.mutate(amount)
   }
 
   return (
@@ -93,33 +68,13 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
       onClose={onClose}
     >
       <form onSubmit={submit} noValidate className="mt-4 flex flex-col gap-4">
-        <fieldset>
-          <legend className="text-sm font-semibold text-tf-ink">Cách thanh toán</legend>
-          <div className="mt-1 grid gap-2 sm:grid-cols-2">
-            {GATEWAYS.map((option) => (
-              <label
-                key={option.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tf-primary/30 ${
-                  gateway === option.value ? 'border-tf-primary bg-tf-primary-fixed' : 'border-tf-surface hover:border-tf-primary'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="topup-gateway"
-                  value={option.value}
-                  checked={gateway === option.value}
-                  onChange={() => setGateway(option.value)}
-                  className="sr-only"
-                />
-                <option.icon className="mt-0.5 size-5 shrink-0 text-tf-primary" aria-hidden />
-                <span>
-                  <span className="block text-sm font-semibold text-tf-ink">{option.label}</span>
-                  <span className="block text-xs text-tf-ink-muted">{option.hint}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <p className="flex items-start gap-3 rounded-xl border border-tf-surface bg-tf-primary-fixed p-3">
+          <QrCode className="mt-0.5 size-5 shrink-0 text-tf-primary" aria-hidden />
+          <span>
+            <span className="block text-sm font-semibold text-tf-ink">Chuyển khoản QR qua PayOS</span>
+            <span className="block text-xs text-tf-ink-muted">Quét mã VietQR ngay trên ToyFlow bằng app ngân hàng bất kỳ</span>
+          </span>
+        </p>
 
         <div role="group" aria-label="Số tiền gợi ý" className="grid grid-cols-3 gap-2">
           {PRESET_AMOUNTS.map((preset) => (
@@ -186,21 +141,13 @@ export function TopupDialog({ onClose, initialAmount, returnTo }: TopupDialogPro
           disabled={busy}
           className="inline-flex h-11 items-center justify-center rounded-full bg-tf-primary px-5 text-sm font-bold text-white hover:bg-tf-primary-container disabled:opacity-60"
         >
-          {busy
-            ? gateway === 'payos'
-              ? 'Đang tạo mã QR…'
-              : `Đang chuyển sang ${gatewayName}…`
-            : amount && !error
-              ? `Nạp ${formatVnd(amount)} qua ${gatewayName}`
-              : `Tiếp tục với ${gatewayName}`}
+          {busy ? 'Đang tạo mã QR…' : amount && !error ? `Nạp ${formatVnd(amount)} qua PayOS` : 'Tiếp tục với PayOS'}
         </button>
 
         <p className="flex items-start gap-2 text-xs text-tf-ink-muted">
           <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-          {gateway === 'payos'
-            ? 'ToyFlow hiện mã VietQR để bạn quét bằng app ngân hàng; tiền vào ví tự động khi chuyển khoản thành công.'
-            : 'Bạn sẽ được chuyển sang trang VNPay để thanh toán.'}{' '}
-          Nếu huỷ hoặc thanh toán không thành công, số dư ví không bị trừ.
+          ToyFlow hiện mã VietQR để bạn quét bằng app ngân hàng; tiền vào ví tự động khi chuyển khoản thành công. Nếu
+          huỷ hoặc thanh toán không thành công, số dư ví không bị trừ.
         </p>
       </form>
     </WalletDialog>

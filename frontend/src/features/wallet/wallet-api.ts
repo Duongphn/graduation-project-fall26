@@ -4,7 +4,6 @@ import type { Paginated } from '../../types/api'
 /**
  * API ví theo backend của lead (nhánh wallet-*):
  * - GET /wallets/me, GET /wallets/me/transactions
- * - POST /payments/topup/vnpay, GET /payments/vnpay-return (UC17)
  * - POST /payments/topup/payos, GET /payments/payos/:code, POST /payments/payos/:code/cancel,
  *   GET /payments/payos-return (UC17, chuyển khoản VietQR qua PayOS)
  * - POST /wallets/withdrawals, GET /wallets/withdrawals (UC18)
@@ -41,7 +40,7 @@ export interface WalletTransaction {
   /** credit: tiền vào ví, debit: tiền ra khỏi ví */
   type: WalletTransactionDirection
   description?: string
-  /** kind: rental_order | payment (nạp VNPay) | withdrawal | admin_credit | adjustment… */
+  /** kind: rental_order | payment (nạp qua PayOS) | withdrawal | admin_credit | adjustment… */
   reference?: { kind?: string; id?: string }
   createdAt: string
 }
@@ -78,19 +77,9 @@ export const toPaginated = <T,>(page: ListPage<T>): Paginated<T> => ({
   },
 })
 
-/** Hạn mức một lần nạp qua VNPay (khớp validateTopupInput ở backend) */
+/** Hạn mức một lần nạp (khớp validateTopupInput ở backend) */
 export const TOPUP_MIN_AMOUNT = 10_000
 export const TOPUP_MAX_AMOUNT = 100_000_000
-
-/** POST /payments/topup/vnpay: giao dịch Pending và link sang cổng VNPay */
-export interface TopupCreated {
-  paymentUrl: string
-  paymentCode: string
-  amount: number
-}
-
-/** Cổng nạp tiền: VNPay (thẻ ngân hàng) hoặc PayOS (chuyển khoản quét VietQR) */
-export type TopupGateway = 'vnpay' | 'payos'
 
 /**
  * POST /payments/topup/payos, GET /payments/payos/:code: thông tin chuyển khoản để ToyFlow tự hiện
@@ -114,10 +103,10 @@ export interface PayosCheckout {
 }
 
 /**
- * Kết quả GET /payments/vnpay-return và /payments/payos-return. invalid_checksum: chữ ký sai (link bị sửa),
- * not_found: không có giao dịch, cancelled: người dùng bấm Hủy, pending: tiền chưa về (PayOS).
+ * Kết quả GET /payments/payos-return và POST /payments/payos/:code/cancel. not_found: không có giao dịch,
+ * cancelled: người dùng bấm Hủy, pending: tiền chưa về.
  */
-export type TopupStatus = 'success' | 'failed' | 'cancelled' | 'pending' | 'invalid_checksum' | 'not_found'
+export type TopupStatus = 'success' | 'failed' | 'cancelled' | 'pending' | 'not_found'
 
 export interface TopupResult {
   success: boolean
@@ -175,12 +164,6 @@ export const walletApi = {
   me: async () => toWalletSummary(await apiGet<WalletResponse>('/wallets/me')),
   transactions: async (params: WalletTransactionParams): Promise<Paginated<WalletTransaction>> =>
     toPaginated(await apiGet<ListPage<WalletTransaction>>('/wallets/me/transactions', params)),
-  createTopup: (amount: number) => apiPost<TopupCreated>('/payments/topup/vnpay', { amount }),
-  /**
-   * Gửi nguyên query VNPay trả về (`?vnp_Amount=…&vnp_SecureHash=…`) cho server kiểm tra chữ ký.
-   * Giữ chuỗi gốc, không parse rồi ghép lại, để giá trị không bị mã hoá khác đi.
-   */
-  confirmVnpayReturn: (search: string) => apiGet<TopupResult>(`/payments/vnpay-return${search}`),
   createPayosTopup: (amount: number) => apiPost<PayosCheckout>('/payments/topup/payos', { amount }),
   getPayosCheckout: (code: string) => apiGet<PayosCheckout>(`/payments/payos/${code}`),
   /** Huỷ link PayOS; nếu tiền đã về trong lúc đó, server vẫn cộng tiền và trả success */

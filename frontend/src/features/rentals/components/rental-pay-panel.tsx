@@ -89,7 +89,7 @@ export function RentalPayPanel({ order, remaining }: RentalPayPanelProps) {
             Nạp thêm ít nhất <strong>{formatVnd(shortfall)}</strong> vào ví ToyFlow rồi quay lại thanh toán trước hạn.
           </p>
           <p className="rental-pay__topup-note">
-            Nạp qua VNPay, xong sẽ có nút quay lại đây để thanh toán.
+            Nạp bằng chuyển khoản QR qua PayOS, xong sẽ có nút quay lại đây để thanh toán.
           </p>
           <Link
             to={walletTopupLink(PATHS.wallet, suggestedTopupAmount(shortfall), pathname)}
