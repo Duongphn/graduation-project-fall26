@@ -13,6 +13,7 @@ export const auditAreaLabels: Record<string, string> = {
   user: 'Tài khoản',
   report: 'Báo cáo vi phạm',
   chat: 'Tin nhắn',
+  wallet: 'Ví',
 }
 
 export const auditActionLabels: Record<string, string> = {
@@ -48,6 +49,7 @@ export const auditActionLabels: Record<string, string> = {
   'report.warn': 'Xử lý báo cáo: cảnh cáo',
   'report.lock': 'Xử lý báo cáo: khóa tài khoản',
   'chat.contact_masked': 'Che thông tin liên hệ trong tin nhắn',
+  'wallet.credit': 'Cộng tiền vào ví',
 }
 
 export const auditActionLabel = (action: string): string =>
@@ -79,6 +81,8 @@ export const auditDetailLabels: Record<string, string> = {
   targetKind: 'Loại đối tượng',
   lockDuration: 'Thời hạn khóa',
   closedWithIt: 'Báo cáo đóng kèm',
+  amount: 'Số tiền',
+  note: 'Ghi chú',
 }
 
 // `from` / `to` are donation request statuses (the only transition the server logs with them).

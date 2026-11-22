@@ -7,6 +7,7 @@ import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb } from '../../../routes/paths'
 import { objectIdParam } from '../../../schemas/list-params'
 import { dayjs } from '../../../utils/dayjs'
+import { formatMoney } from '../../../utils/format'
 import {
   auditActionLabel,
   auditAreaLabels,
@@ -39,6 +40,7 @@ const formatValue = (key: string, value: string | number | boolean | null): stri
   if (value === null) return '—'
   if (typeof value === 'boolean') return value ? 'Có' : 'Không'
   if (key === 'until' && typeof value === 'string') return dayjs(value).format('HH:mm DD/MM/YYYY')
+  if (key === 'amount' && typeof value === 'number') return formatMoney(value)
   return auditDetailValueLabels[key]?.[String(value)] ?? String(value)
 }
 

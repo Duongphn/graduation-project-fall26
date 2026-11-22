@@ -116,6 +116,33 @@ describe('AuditLogPage (UC31)', () => {
     expect(screen.queryByText('unsafe_toy')).not.toBeInTheDocument()
   })
 
+  // DEF-ST-28: an Admin wallet credit is listed in Vietnamese with the amount and the note.
+  it('shows an Admin wallet credit with its amount and note', async () => {
+    list.mockResolvedValue({
+      items: [
+        {
+          id: '6',
+          action: 'wallet.credit',
+          actor: { id: ADMIN_ID, fullName: 'Admin Một' },
+          targetType: 'USER',
+          targetId: '64b0000000000000000000ff',
+          details: { amount: 250000, note: 'Hoàn tiền sự cố' },
+          ipAddress: '10.0.0.1',
+          createdAt: '2026-11-18T07:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    })
+    renderAt('/admin/audit-logs')
+
+    expect(await screen.findByText('Cộng tiền vào ví')).toBeInTheDocument()
+    expect(screen.getByText('Tài khoản')).toBeInTheDocument()
+    expect(screen.getByText('Số tiền:')).toBeInTheDocument()
+    expect(screen.getByText(/250\.000\s₫/)).toBeInTheDocument()
+    expect(screen.getByText('Ghi chú:')).toBeInTheDocument()
+    expect(screen.getByText('Hoàn tiền sự cố')).toBeInTheDocument()
+  })
+
   it('sends the filters of the URL (actor, action area, time range) to the API', async () => {
     const from = '2026-11-01T00:00:00.000Z'
     const to = '2026-11-18T23:59:59.999Z'
