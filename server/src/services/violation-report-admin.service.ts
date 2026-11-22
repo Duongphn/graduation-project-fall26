@@ -4,7 +4,6 @@ import { reportStatuses, type ReportAction } from '../constants/violation-report
 import * as repository from '../repositories/violation-report.repository.js';
 import { countReportsAgainst } from '../repositories/account-admin.repository.js';
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
-import type { NotificationMessage } from './notification.templates.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { buildPrivateImageUrl } from '../utils/cloudinary-signing.js';
 import { zeroFilledCounts } from '../utils/counts.js';
@@ -32,6 +31,7 @@ import {
   listingRemovedNotice,
   reportHandledNotice,
   sendNotices,
+  type AccountNotice,
 } from './account-moderation.notices.js';
 
 // UC29 Handle Reports: the Admin dismisses a report, removes the reported listing, warns the
@@ -260,7 +260,7 @@ export const resolveReport = async (
       });
     }
     const reportedUserId = report.target.userId ? String(report.target.userId) : undefined;
-    const notices: Array<{ userId: string; message: NotificationMessage }> = [];
+    const notices: AccountNotice[] = [];
     let lock: LockResult | undefined;
 
     if (body.action === 'remove_listing') {
@@ -278,7 +278,7 @@ export const resolveReport = async (
         ),
         session,
       );
-      notices.push({ userId: String(toy.ownerId), message: listingRemovedNotice(toy.title, body.note) });
+      notices.push(listingRemovedNotice(String(toy.ownerId), toy.title, body.note));
     }
 
     if (body.action === 'warn' || body.action === 'lock') {
@@ -294,7 +294,7 @@ export const resolveReport = async (
         }),
         session,
       );
-      notices.push({ userId: reportedUserId, message: accountWarnedNotice(body.note) });
+      notices.push(accountWarnedNotice(reportedUserId, body.note));
     }
     if (body.action === 'lock' && reportedUserId && body.lockDuration) {
       lock = await lockAccountInSession(
@@ -340,7 +340,7 @@ export const resolveReport = async (
     );
 
     for (const reporterId of uniqueIds([report.reporterId, ...others.map((o) => o.reporterId)])) {
-      notices.push({ userId: String(reporterId), message: reportHandledNotice(body.action) });
+      notices.push(reportHandledNotice(String(reporterId), body.action));
     }
     return {
       status,
@@ -351,9 +351,9 @@ export const resolveReport = async (
   });
 
   // After the commit: the reported user, the listing owner and the reporters are told.
-  await sendNotices(outcome.notices);
+  sendNotices(outcome.notices);
   if (outcome.lock && body.lockDuration) {
-    await notifyLocked(outcome.lock, body.lockDuration, body.note);
+    notifyLocked(outcome.lock, body.lockDuration, body.note);
   }
 
   return {

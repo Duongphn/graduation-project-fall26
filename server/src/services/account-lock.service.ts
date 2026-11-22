@@ -111,8 +111,8 @@ export const lockAccountInSession = async (
   return { userId, until: until ?? null, hiddenToyIds };
 };
 
-export const notifyLocked = (result: LockResult, duration: LockDuration, reason: string) =>
-  sendNotices([{ userId: result.userId, message: accountLockedNotice(duration, result.until, reason) }]);
+export const notifyLocked = (result: LockResult, duration: LockDuration, reason: string): void =>
+  sendNotices([accountLockedNotice(result.userId, duration, result.until, reason)]);
 
 export interface UnlockResult {
   userId: string;
@@ -153,8 +153,8 @@ export const unlockAccountInSession = async (
   return { userId, restored };
 };
 
-export const notifyUnlocked = (result: UnlockResult, reason: string | undefined) =>
-  sendNotices([{ userId: result.userId, message: accountUnlockedNotice(reason) }]);
+export const notifyUnlocked = (result: UnlockResult, reason: string | undefined): void =>
+  sendNotices([accountUnlockedNotice(result.userId, reason)]);
 
 /**
  * Ends one timed lock that has run out (system action). False when there was nothing to end, for
@@ -165,7 +165,7 @@ export const releaseExpiredLock = async (userId: string): Promise<boolean> => {
     const result = await repository.withTransaction((session) =>
       unlockAccountInSession(userId, undefined, null, session),
     );
-    await notifyUnlocked(result, undefined);
+    notifyUnlocked(result, undefined);
     return true;
   } catch (error) {
     if (error instanceof AppError && error.code === 'ACCOUNT_NOT_LOCKED') return false;

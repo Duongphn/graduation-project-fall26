@@ -3,7 +3,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import type { Types } from 'mongoose';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { env } from '../../src/config/env.js';
 import { authenticate } from '../../src/middlewares/authenticate.js';
@@ -20,10 +20,18 @@ import {
   releaseExpiredLocks,
 } from '../../src/services/account-lock.service.js';
 import { AuthService } from '../../src/services/auth.service.js';
+import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 
 useTestDatabase();
+
+// notify() delivers in the background through the notification subscriptions; no real email.
+let unsubscribe: () => void = () => undefined;
+beforeAll(() => {
+  unsubscribe = subscribeNotifications({ mailer: { send: () => Promise.resolve({ delivered: false }) } });
+});
+afterAll(() => unsubscribe());
 
 const BASE = '/api/v1/admin/users';
 const app = express();
@@ -169,7 +177,7 @@ describe('UC29 lock and unlock', () => {
     expect((await Toy.findById(pending._id).orFail()).status).toBe('pending');
     expect((await Toy.findById(ownHidden._id).orFail()).status).toBe('hidden');
     expect(await RefreshToken.countDocuments({ userId: user._id })).toBe(0);
-    expect(await Notification.countDocuments({ userId: user._id, type: 'ACCOUNT_LOCKED' })).toBe(1);
+    await vi.waitFor(async () => expect(await Notification.countDocuments({ userId: user._id, type: 'ACCOUNT', title: /bị khóa/ })).toBe(1));
     const audit = await AuditLog.findOne({ action: 'user.lock' }).orFail();
     expect(audit.details).toMatchObject({ duration: 'permanent', reason: LOCK_REASON, hiddenListings: 1 });
 
@@ -205,7 +213,7 @@ describe('UC29 lock and unlock', () => {
     expect((await Toy.findById(first._id).orFail()).status).toBe('active');
     expect((await Toy.findById(second._id).orFail()).status).toBe('hidden');
     expect((await Toy.findById(ownHidden._id).orFail()).status).toBe('hidden');
-    expect(await Notification.countDocuments({ userId: user._id, type: 'ACCOUNT_UNLOCKED' })).toBe(1);
+    await vi.waitFor(async () => expect(await Notification.countDocuments({ userId: user._id, type: 'ACCOUNT', title: /mở khóa/ })).toBe(1));
     expect(await AuditLog.countDocuments({ action: 'user.unlock', actor_id: ADMIN_ID })).toBe(1);
 
     const again = await post(`/${user._id}/unlock`, { reason: UNLOCK_REASON });

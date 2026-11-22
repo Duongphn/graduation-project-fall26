@@ -125,7 +125,7 @@ export const lockAccount = async (
   const result = await repository.withTransaction((session) =>
     lockAccountInSession(id, { duration: body.duration, reason: body.reason }, context, session),
   );
-  await notifyLocked(result, body.duration, body.reason);
+  notifyLocked(result, body.duration, body.reason);
   return {
     id,
     accountStatus: 'LOCKED',
@@ -142,6 +142,6 @@ export const unlockAccount = async (
   const result = await repository.withTransaction((session) =>
     unlockAccountInSession(id, body.reason, context, session),
   );
-  await notifyUnlocked(result, body.reason);
+  notifyUnlocked(result, body.reason);
   return { id, accountStatus: 'ACTIVE', lockedUntil: null, listingsChanged: result.restored };
 };

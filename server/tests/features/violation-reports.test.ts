@@ -1,7 +1,7 @@
 import express from 'express';
 import type { Types } from 'mongoose';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { AuditLog } from '../../src/models/audit-log.model.js';
@@ -16,10 +16,18 @@ import {
   adminViolationReportsRouter,
   violationReportsRouter,
 } from '../../src/routes/violation-report.routes.js';
+import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, useTestDatabase } from '../support/test-database.js';
 
 useTestDatabase();
+
+// notify() delivers in the background through the notification subscriptions; no real email.
+let unsubscribe: () => void = () => undefined;
+beforeAll(() => {
+  unsubscribe = subscribeNotifications({ mailer: { send: () => Promise.resolve({ delivered: false }) } });
+});
+afterAll(() => unsubscribe());
 
 const app = express();
 app.use(express.json());
@@ -333,7 +341,7 @@ describe('UC29 Admin actions on a report', () => {
     expect((await Toy.findById(toyId).orFail()).status).toBe('active');
 
     // Both reporters are told; the action is in the audit log.
-    expect(await Notification.countDocuments({ type: 'VIOLATION_REPORT_HANDLED' })).toBe(2);
+    await vi.waitFor(async () => expect(await Notification.countDocuments({ type: 'VIOLATION_REPORT' })).toBe(2));
     expect(await AuditLog.countDocuments({ action: 'report.dismiss', target_id: closed.resolution?.viaReportId })).toBe(1);
 
     const again = await resolve(first, { action: 'dismiss', note: 'Không thấy vi phạm.' });
@@ -348,7 +356,7 @@ describe('UC29 Admin actions on a report', () => {
     const toy = await Toy.findById(toyId).orFail();
     expect(toy.status).toBe('hidden');
     expect(toy.moderation?.rejectReason).toBe('Đồ chơi có chi tiết nhỏ.');
-    expect(await Notification.countDocuments({ userId: owner, type: 'LISTING_REMOVED' })).toBe(1);
+    await vi.waitFor(async () => expect(await Notification.countDocuments({ userId: owner, type: 'TOY_REVIEWED', title: /đã bị gỡ/ })).toBe(1));
     expect(await AuditLog.countDocuments({ action: 'toy.remove' })).toBe(1);
   });
 
@@ -369,7 +377,7 @@ describe('UC29 Admin actions on a report', () => {
     const [first] = await createToyReports();
     const response = await resolve(first!, { action: 'warn', note: 'Mô tả sai tình trạng đồ chơi.' });
     expect(response.body.data).toMatchObject({ status: 'resolved', action: 'warn' });
-    expect(await Notification.countDocuments({ userId: owner, type: 'ACCOUNT_WARNED' })).toBe(1);
+    await vi.waitFor(async () => expect(await Notification.countDocuments({ userId: owner, type: 'ACCOUNT', title: /Cảnh cáo/ })).toBe(1));
     expect(await AuditLog.countDocuments({ action: 'user.warn', target_id: owner })).toBe(1);
   });
 
@@ -396,7 +404,7 @@ describe('UC29 Admin actions on a report', () => {
     expect(days).toBeLessThan(7.1);
     expect((await Toy.findById(toyId).orFail()).status).toBe('hidden');
     expect(await RefreshToken.countDocuments({ userId: owner })).toBe(0);
-    expect(await Notification.countDocuments({ userId: owner, type: 'ACCOUNT_LOCKED' })).toBe(1);
+    await vi.waitFor(async () => expect(await Notification.countDocuments({ userId: owner, type: 'ACCOUNT', title: /bị khóa/ })).toBe(1));
     expect(await AuditLog.countDocuments({ action: 'user.lock' })).toBe(1);
     expect(await AuditLog.countDocuments({ action: 'report.lock' })).toBe(1);
   });
