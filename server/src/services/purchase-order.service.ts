@@ -11,7 +11,6 @@ import { withTransaction } from '../repositories/transaction.js';
 import { AppError } from '../utils/app-error.js';
 import { notify } from '../utils/notify.js';
 import {
-  type ConfirmReceivedInput,
   type ConfirmShippingInput,
   type CreateBuyNowInput,
   type QuotePurchasePricingInput,
@@ -482,13 +481,9 @@ export class PurchaseOrderService {
 
   /**
    * Buyer bấm "Đã nhận & Hài lòng" (SHIPPING -> COMPLETED)
-   * Chuyển tiền từ Escrow cho Seller (trừ 5% hoa hồng) + Đánh dấu tin Sold
+   * Chuyển tiền từ Escrow cho Seller (tiền hàng + phí giao, trừ 5% hoa hồng) + Đánh dấu tin Sold
    */
-  public async confirmReceived(
-    actor: RequestActor,
-    orderId: string,
-    _input?: ConfirmReceivedInput,
-  ): Promise<PurchaseOrderDto> {
+  public async confirmReceived(actor: RequestActor, orderId: string): Promise<PurchaseOrderDto> {
     if (!Types.ObjectId.isValid(orderId)) {
       throw new AppError(400, 'INVALID_ORDER_ID', 'Mã đơn hàng không hợp lệ.');
     }

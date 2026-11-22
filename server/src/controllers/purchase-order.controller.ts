@@ -55,8 +55,9 @@ export class PurchaseOrderController {
     try {
       const actor = req.auth!;
       const orderId = String(req.params.orderId ?? '');
-      const input = confirmReceivedSchema.parse(req.body ?? {});
-      const order = await this.service.confirmReceived(actor, orderId, input);
+      // Vẫn kiểm tra body (ghi chú ≤ 500 ký tự) để API không đổi; ghi chú hiện chưa được lưu
+      confirmReceivedSchema.parse(req.body ?? {});
+      const order = await this.service.confirmReceived(actor, orderId);
       res.status(200).json({
         success: true,
         message: 'Xác nhận đã nhận hàng thành công. Tiền đã được quyết toán cho người bán.',
