@@ -8,6 +8,7 @@ import { adminHomeCrumb } from '../../../routes/paths'
 import { objectIdParam } from '../../../schemas/list-params'
 import { dayjs } from '../../../utils/dayjs'
 import { formatMoney } from '../../../utils/format'
+import { matchesWithoutTones } from '../../../utils/text'
 import {
   auditActionLabel,
   auditAreaLabels,
@@ -35,6 +36,11 @@ const filtersSchema = z.object({
   from: isoParam,
   to: isoParam,
 })
+
+// The filter lists find a typed text without accents, case or extra spaces
+// ("khoa tai khoan" and "  khóa  " both find "Khóa tài khoản").
+const filterByLabel = (input: string, option?: { label?: unknown }) =>
+  matchesWithoutTones(input, option?.label)
 
 const formatValue = (key: string, value: string | number | boolean | null): string => {
   if (value === null) return '—'
@@ -160,7 +166,7 @@ export function AuditLogPage() {
       >
         <Select<string>
           allowClear
-          showSearch={{ optionFilterProp: 'label' }}
+          showSearch={{ filterOption: filterByLabel }}
           placeholder="Người thực hiện"
           aria-label="Người thực hiện"
           className="w-56"
@@ -171,7 +177,7 @@ export function AuditLogPage() {
         />
         <Select<string>
           allowClear
-          showSearch={{ optionFilterProp: 'label' }}
+          showSearch={{ filterOption: filterByLabel }}
           placeholder="Loại thao tác"
           aria-label="Loại thao tác"
           className="w-72"
