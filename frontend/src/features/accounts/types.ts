@@ -6,6 +6,7 @@ import type {
   UserStatus,
 } from '../../constants/domain'
 import type { PaginationParams } from '../../types/api'
+import type { DisputeRuling } from '../disputes/types'
 
 // Responses of /admin/users (server/src/validations/account-admin.validation.ts).
 
@@ -35,18 +36,42 @@ export interface AccountListItem {
 
 export type AccountCounts = Record<AccountTab, number>
 
-export interface AccountViolation {
-  reportId: string
-  reason: string
-  targetKind: string
-  action: ReportAction | null
-  note: string | null
-  resolvedAt: string | null
+// One recorded breach with its date and source (R03 III.7.2.1 (7)); `id` is the report, the
+// dispute or the rental order.
+interface AccountViolationBase {
+  id: string
+  date: string | null
 }
+
+export type AccountViolation =
+  | (AccountViolationBase & {
+      source: 'report'
+      reason: string
+      targetKind: string
+      action: ReportAction | null
+      note: string | null
+    })
+  | (AccountViolationBase & {
+      source: 'dispute'
+      orderCode: string
+      ruling: DisputeRuling
+      note: string | null
+    })
+  | (AccountViolationBase & {
+      source: 'late_return'
+      orderCode: string
+      lateDays: number
+      lateFee: number
+    })
 
 export interface AccountDetail extends AccountListItem {
   phone: string
   email: string
+  // Null until the user signs in again after sign-ins started to be recorded.
+  lastLoginAt: string | null
+  // Null while ratings (UC24) are not built.
+  averageRating: number | null
+  completedBookingCount: number
   lock: {
     reason: string | null
     lockedAt: string | null

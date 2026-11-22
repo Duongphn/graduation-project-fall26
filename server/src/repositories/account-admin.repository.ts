@@ -1,6 +1,7 @@
 import { Types, type ClientSession, type PipelineStage } from 'mongoose';
 
 import { RefreshToken } from '../models/refresh-token.model.js';
+import { RentalOrder, type IRentalOrder } from '../models/rental-order.model.js';
 import { Toy } from '../models/toy.model.js';
 import { User, type IUser } from '../models/user.model.js';
 import { ViolationReport } from '../models/violation-report.model.js';
@@ -25,11 +26,12 @@ export type AccountRecord = Pick<
   | 'verificationStatus'
   | 'trust'
   | 'lock'
+  | 'lastLoginAt'
   | 'createdAt'
 >;
 
 const ACCOUNT_FIELDS =
-  'fullName phone email avatar role status verificationStatus trust lock createdAt';
+  'fullName phone email avatar role status verificationStatus trust lock lastLoginAt createdAt';
 
 export const findAccountById = (id: string | Types.ObjectId, session?: ClientSession) =>
   User.findById(id)
@@ -282,6 +284,39 @@ export const countReportsAgainst = async (userId: Types.ObjectId) => {
   const of = (status: string) => rows.find((row) => row._id === status)?.n ?? 0;
   return { violationCount: of('resolved'), pendingReportCount: of('pending') };
 };
+
+// ---- Activity (R03 III.7.2.1 (6)-(7)) ----
+
+/** Completed rentals of the user, as Renter or as Owner. */
+export const countCompletedBookingsOf = (userId: Types.ObjectId) =>
+  RentalOrder.countDocuments({ status: 'COMPLETED', $or: [{ renterId: userId }, { ownerId: userId }] });
+
+export type RentalBreachRecord = Pick<
+  IRentalOrder,
+  '_id' | 'code' | 'renterId' | 'ownerId' | 'returnInfo' | 'settlement'
+>;
+
+/** Rentals where the user broke a rule: a late return, or a dispute ruled against them (UC19). */
+export const findRentalBreachesOf = (userId: Types.ObjectId, limit = 50) =>
+  RentalOrder.find({
+    $or: [
+      { renterId: userId, 'returnInfo.lateDays': { $gt: 0 } },
+      {
+        renterId: userId,
+        'settlement.resolution.ruling': 'RENTER_AT_FAULT',
+        'settlement.disputeId': { $exists: true },
+      },
+      {
+        ownerId: userId,
+        'settlement.resolution.ruling': 'OWNER_AT_FAULT',
+        'settlement.disputeId': { $exists: true },
+      },
+    ],
+  })
+    .select('code renterId ownerId returnInfo settlement.disputeId settlement.resolution')
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(limit)
+    .lean<RentalBreachRecord[]>();
 
 export const findResolvedReportsAgainst = (userId: Types.ObjectId, limit = 50) =>
   ViolationReport.find({ 'target.userId': userId, status: 'resolved' })

@@ -54,6 +54,9 @@ const userSchema = new Schema(
       count: { type: Number, default: 0 },
       lastAt: { type: Date },
     },
+    // Last successful sign-in, shown to the Admin (R03 III.7.2.1 (5)). Kept on the user, as the
+    // sessions are deleted at sign-out and when the account is locked.
+    lastLoginAt: { type: Date },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
@@ -135,6 +138,7 @@ export interface IUser {
     count?: number;
     lastAt?: Date;
   };
+  lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

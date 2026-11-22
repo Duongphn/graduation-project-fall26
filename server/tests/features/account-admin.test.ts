@@ -11,6 +11,7 @@ import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { AuditLog } from '../../src/models/audit-log.model.js';
 import { Notification } from '../../src/models/notification.model.js';
 import { RefreshToken } from '../../src/models/refresh-token.model.js';
+import { RentalOrder } from '../../src/models/rental-order.model.js';
 import { Toy } from '../../src/models/toy.model.js';
 import { User } from '../../src/models/user.model.js';
 import { ViolationReport } from '../../src/models/violation-report.model.js';
@@ -94,6 +95,7 @@ beforeEach(async () => {
     Notification.collection.deleteMany({}),
     RefreshToken.collection.deleteMany({}),
     AuditLog.collection.deleteMany({}),
+    RentalOrder.collection.deleteMany({}),
   ]);
   await User.create({
     _id: ADMIN_ID,
@@ -181,6 +183,96 @@ describe('UC29 account list and detail', () => {
     expect(counts.body.data).toEqual({ all: 3, active: 2, locked: 1, reported: 0 });
     expect((await get('?trustBand=thap')).status).toBe(400);
     expect((await get('/counts?trustBand=LOW')).status).toBe(400);
+  });
+
+  it('shows the last sign-in, completed bookings, no rating yet and every source of breach (R03 III.7.2.1 (5)-(7))', async () => {
+    const renter = await createUser('Người Thuê Trễ');
+    const owner = await createUser('Chủ Đồ Chơi');
+    const other = await createUser('Người Khác');
+    const at = (day: number) => new Date(Date.UTC(2026, 10, day, 3));
+    const rental = (code: string, extra: Record<string, unknown>) => ({
+      code,
+      renterId: renter._id,
+      ownerId: owner._id,
+      toyId: newId(),
+      status: 'COMPLETED',
+      createdAt: at(1),
+      updatedAt: at(1),
+      ...extra,
+    });
+    const ruling = (value: string, day: number) => ({
+      ruling: value,
+      compensationAmount: 0,
+      rentRefundAmount: 0,
+      ownerAmount: 0,
+      renterAmount: 0,
+      platformFee: 0,
+      adminDecision: `Phán quyết ${value} sau khi xem ảnh bàn giao và ảnh trả đồ.`,
+      resolvedAt: at(day),
+    });
+    const renterDisputeId = newId();
+    const ownerDisputeId = newId();
+    await RentalOrder.collection.insertMany([
+      rental('RT-LATE', { returnInfo: { photos: [], requestedAt: at(5), lateDays: 2, lateFee: 40_000 } }),
+      rental('RT-RENTER-FAULT', { settlement: { result: 'DAMAGED', disputeId: renterDisputeId, resolution: ruling('RENTER_AT_FAULT', 8) } }),
+      // The renter is the Owner here, and the ruling is against them.
+      rental('RT-AS-OWNER', { renterId: other._id, ownerId: renter._id, settlement: { disputeId: ownerDisputeId, resolution: ruling('OWNER_AT_FAULT', 7) } }),
+      // Not a breach of the renter: fair wear, the Owner at fault, a return on time, an order still running.
+      rental('RT-WEAR', { settlement: { disputeId: newId(), resolution: ruling('FAIR_WEAR_AND_TEAR', 9) } }),
+      rental('RT-OWNER-FAULT', { settlement: { disputeId: newId(), resolution: ruling('OWNER_AT_FAULT', 10) } }),
+      rental('RT-ON-TIME', { returnInfo: { photos: [], requestedAt: at(4), lateDays: 0, lateFee: 0 } }),
+      // Sent back 3 days late, not settled yet: a breach, not a completed booking.
+      rental('RT-RETURNING', { status: 'RETURNING', returnInfo: { photos: [], requestedAt: at(11), lateDays: 3, lateFee: 60_000 } }),
+      rental('RT-RUNNING', { status: 'IN_USE' }),
+      rental('RT-OTHER', { renterId: other._id, ownerId: owner._id }),
+    ]);
+    await ViolationReport.collection.insertOne({
+      reporterId: other._id,
+      target: { kind: 'user', id: renter._id, userId: renter._id },
+      reason: 'harassment',
+      isUnsafe: false,
+      description: 'x',
+      status: 'resolved',
+      resolution: { action: 'warn', note: 'Cảnh cáo vì nhắn tin quấy rối người thuê khác.', resolvedAt: at(6) },
+      createdAt: at(2),
+    });
+
+    const before = await get(`/${renter._id}`);
+    expect(before.status).toBe(200);
+    expect(before.body.data).toMatchObject({
+      lastLoginAt: null,
+      averageRating: null,
+      // As Renter or as Owner, Completed only.
+      completedBookingCount: 6,
+    });
+    // Newest first, each with its date and source.
+    expect(before.body.data.violations).toEqual([
+      { source: 'late_return', id: expect.any(String), date: at(11).toISOString(), orderCode: 'RT-RETURNING', lateDays: 3, lateFee: 60_000 },
+      { source: 'dispute', id: String(renterDisputeId), date: at(8).toISOString(), orderCode: 'RT-RENTER-FAULT', ruling: 'RENTER_AT_FAULT', note: expect.stringContaining('RENTER_AT_FAULT') },
+      { source: 'dispute', id: String(ownerDisputeId), date: at(7).toISOString(), orderCode: 'RT-AS-OWNER', ruling: 'OWNER_AT_FAULT', note: expect.any(String) },
+      { source: 'report', id: expect.any(String), date: at(6).toISOString(), reason: 'harassment', targetKind: 'user', action: 'warn', note: expect.stringContaining('quấy rối') },
+      { source: 'late_return', id: expect.any(String), date: at(5).toISOString(), orderCode: 'RT-LATE', lateDays: 2, lateFee: 40_000 },
+    ]);
+
+    // The Owner of the rentals: only the ruling against them, not the renter's late returns.
+    const ownerDetail = await get(`/${owner._id}`);
+    expect(ownerDetail.body.data.violations).toEqual([
+      expect.objectContaining({ source: 'dispute', orderCode: 'RT-OWNER-FAULT', ruling: 'OWNER_AT_FAULT' }),
+    ]);
+    expect(ownerDetail.body.data.completedBookingCount).toBe(6);
+
+    // Every successful sign-in is recorded; a wrong password is not.
+    const auth = new AuthService({
+      sendOtpEmail: () => Promise.resolve(),
+      sendResetPasswordEmail: () => Promise.resolve(),
+    } as unknown as ConstructorParameters<typeof AuthService>[0]);
+    await expect(auth.login({ identifier: renter.email, password: 'Sai@12345' } as never)).rejects.toMatchObject({ statusCode: 401 });
+    expect((await get(`/${renter._id}`)).body.data.lastLoginAt).toBeNull();
+    const signInAt = Date.now();
+    await auth.login({ identifier: `  ${renter.phone.replace('+84', '0')} `, password: PASSWORD } as never);
+    const after = (await get(`/${renter._id}`)).body.data;
+    expect(new Date(after.lastLoginAt).getTime()).toBeGreaterThanOrEqual(signInAt - 1000);
+    expect(new Date(after.lastLoginAt).getTime()).toBeLessThanOrEqual(Date.now());
   });
 
   it('is Admin only', async () => {

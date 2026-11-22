@@ -16,6 +16,7 @@ import {
   type AccountDetail,
   type AccountListItem,
   type AccountListQuery,
+  type AccountViolation,
   type LockAccountBody,
   type UnlockAccountBody,
 } from '../validations/account-admin.validation.js';
@@ -78,22 +79,79 @@ export const countAccounts = async (query: AccountCountsQuery): Promise<AccountC
 
 const accountNotFound = () => notFound('USER_NOT_FOUND', 'Không tìm thấy tài khoản.');
 
+const VIOLATION_HISTORY_LIMIT = 50;
+
+/** A rental gives a late-return entry and, when a dispute was ruled against the user, a dispute entry. */
+const rentalBreaches = (
+  order: repository.RentalBreachRecord,
+  userId: Types.ObjectId,
+): AccountViolation[] => {
+  const entries: AccountViolation[] = [];
+  const lateDays = order.returnInfo?.lateDays ?? 0;
+  if (order.renterId.equals(userId) && lateDays > 0) {
+    entries.push({
+      source: 'late_return',
+      id: String(order._id),
+      date: toIsoString(order.returnInfo?.requestedAt),
+      orderCode: order.code,
+      lateDays,
+      lateFee: order.returnInfo?.lateFee ?? 0,
+    });
+  }
+  const ruling = order.settlement?.resolution;
+  const atFault =
+    (ruling?.ruling === 'RENTER_AT_FAULT' && order.renterId.equals(userId)) ||
+    (ruling?.ruling === 'OWNER_AT_FAULT' && order.ownerId.equals(userId));
+  if (ruling && atFault && order.settlement?.disputeId) {
+    entries.push({
+      source: 'dispute',
+      id: String(order.settlement.disputeId),
+      date: toIsoString(ruling.resolvedAt),
+      orderCode: order.code,
+      ruling: ruling.ruling,
+      note: ruling.adminDecision ?? null,
+    });
+  }
+  return entries;
+};
+
 export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
   const now = new Date();
   const user = await repository.findAccountById(id);
   if (!user) throw accountNotFound();
-  const [counts, activeListingCount, violations, lockerNames] = await Promise.all([
-    repository.countReportsAgainst(user._id),
-    repository.countActiveToysOf(user._id),
-    repository.findResolvedReportsAgainst(user._id),
-    repository.findUserNames(user.lock?.lockedBy ? [user.lock.lockedBy as Types.ObjectId] : []),
-  ]);
+  const [counts, activeListingCount, completedBookingCount, reports, rentals, lockerNames] =
+    await Promise.all([
+      repository.countReportsAgainst(user._id),
+      repository.countActiveToysOf(user._id),
+      repository.countCompletedBookingsOf(user._id),
+      repository.findResolvedReportsAgainst(user._id),
+      repository.findRentalBreachesOf(user._id),
+      repository.findUserNames(user.lock?.lockedBy ? [user.lock.lockedBy as Types.ObjectId] : []),
+    ]);
+  const violations: AccountViolation[] = [
+    ...reports.map((report) => ({
+      source: 'report' as const,
+      id: String(report._id),
+      date: toIsoString(report.resolution?.resolvedAt),
+      reason: report.reason,
+      targetKind: report.target.kind,
+      action: report.resolution?.action ?? null,
+      note: report.resolution?.note ?? null,
+    })),
+    ...rentals.flatMap((order) => rentalBreaches(order, user._id)),
+  ];
+  // Newest first; an entry without a date goes last.
+  violations.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   const locked = isAdminLocked(user, now);
   const lockedBy = user.lock?.lockedBy;
   return {
     ...toListItem({ ...user, ...counts }, now),
     phone: user.phone,
     email: user.email,
+    lastLoginAt: toIsoString(user.lastLoginAt),
+    // Ratings (UC24) are not built yet: no average to show.
+    averageRating: null,
+    completedBookingCount,
     lock: locked
       ? {
           reason: user.lock?.reason ?? null,
@@ -106,14 +164,7 @@ export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
         }
       : null,
     activeListingCount,
-    violations: violations.map((report) => ({
-      reportId: String(report._id),
-      reason: report.reason,
-      targetKind: report.target.kind,
-      action: report.resolution?.action ?? null,
-      note: report.resolution?.note ?? null,
-      resolvedAt: toIsoString(report.resolution?.resolvedAt),
-    })),
+    violations: violations.slice(0, VIOLATION_HISTORY_LIMIT),
   };
 };
 
