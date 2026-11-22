@@ -50,6 +50,8 @@ export type AccountViolation =
       targetKind: string
       action: ReportAction | null
       note: string | null
+      // Reports on the same target closed by this one Admin decision (one violation).
+      reportCount: number
     })
   | (AccountViolationBase & {
       source: 'dispute'

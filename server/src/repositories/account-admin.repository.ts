@@ -205,36 +205,90 @@ const tabMatch = async (tab: AccountTab, now: Date): Promise<Record<string, unkn
 
 export type AccountRow = AccountRecord & { violationCount: number; pendingReportCount: number };
 
-const withReportCounts: PipelineStage[] = [
+/**
+ * A report that records an Admin decision: resolved, and not closed together with another report
+ * on the same target (those carry resolution.viaReportId).
+ */
+const DECISION_FILTER = { status: 'resolved', 'resolution.viaReportId': null };
+const isDecision = {
+  $and: [
+    { $eq: ['$status', 'resolved'] },
+    { $eq: [{ $ifNull: ['$resolution.viaReportId', null] }, null] },
+  ],
+};
+
+/** A rental whose dispute was ruled against the Renter or the Owner (UC19). */
+const isRulingAgainst = (ruling: 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT') => ({
+  $and: [
+    { $eq: ['$settlement.resolution.ruling', ruling] },
+    { $ne: [{ $ifNull: ['$settlement.disputeId', null] }, null] },
+  ],
+});
+
+/**
+ * Violation count and pending reports of each user (R03 III.7.2.1 (6)-(7)). One violation per
+ * entry of the violation history: one per Admin decision on violation reports (a decision that
+ * closed several reports on the same target counts once), one per dispute ruled against the user
+ * and one per late return.
+ */
+const withViolationCounts: PipelineStage[] = [
   {
     $lookup: {
       from: ViolationReport.collection.name,
       let: { userId: '$_id' },
       pipeline: [
         { $match: { $expr: { $eq: ['$target.userId', '$$userId'] } } },
-        { $group: { _id: '$status', n: { $sum: 1 } } },
+        {
+          $group: {
+            _id: null,
+            decisions: { $sum: { $cond: [isDecision, 1, 0] } },
+            pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          },
+        },
       ],
       as: 'reportCounts',
     },
   },
   {
+    $lookup: {
+      from: RentalOrder.collection.name,
+      let: { userId: '$_id' },
+      pipeline: [
+        { $match: { $expr: { $eq: ['$renterId', '$$userId'] } } },
+        {
+          $group: {
+            _id: null,
+            n: {
+              $sum: {
+                $add: [
+                  { $cond: [{ $gt: ['$returnInfo.lateDays', 0] }, 1, 0] },
+                  { $cond: [isRulingAgainst('RENTER_AT_FAULT'), 1, 0] },
+                ],
+              },
+            },
+          },
+        },
+      ],
+      as: 'asRenter',
+    },
+  },
+  {
+    $lookup: {
+      from: RentalOrder.collection.name,
+      let: { userId: '$_id' },
+      pipeline: [
+        { $match: { $expr: { $eq: ['$ownerId', '$$userId'] } } },
+        { $group: { _id: null, n: { $sum: { $cond: [isRulingAgainst('OWNER_AT_FAULT'), 1, 0] } } } },
+      ],
+      as: 'asOwner',
+    },
+  },
+  {
     $addFields: {
       violationCount: {
-        $sum: {
-          $map: {
-            input: { $filter: { input: '$reportCounts', cond: { $eq: ['$$this._id', 'resolved'] } } },
-            in: '$$this.n',
-          },
-        },
+        $add: [{ $sum: '$reportCounts.decisions' }, { $sum: '$asRenter.n' }, { $sum: '$asOwner.n' }],
       },
-      pendingReportCount: {
-        $sum: {
-          $map: {
-            input: { $filter: { input: '$reportCounts', cond: { $eq: ['$$this._id', 'pending'] } } },
-            in: '$$this.n',
-          },
-        },
-      },
+      pendingReportCount: { $sum: '$reportCounts.pending' },
     },
   },
 ];
@@ -247,7 +301,7 @@ export const listAccounts = async (
 ): Promise<{ rows: AccountRow[]; total: number }> => {
   const [result] = await User.aggregate<{ rows: AccountRow[]; total: Array<{ n: number }> }>([
     { $match: { $and: [...filterMatch(filter), await tabMatch(tab, now)] } },
-    ...withReportCounts,
+    ...withViolationCounts,
     {
       $facet: {
         rows: [
@@ -276,13 +330,16 @@ export const countAccounts = async (
 ): Promise<number> =>
   User.countDocuments({ $and: [...filterMatch(filter), await tabMatch(tab, now)] });
 
-export const countReportsAgainst = async (userId: Types.ObjectId) => {
-  const rows = await ViolationReport.aggregate<{ _id: string; n: number }>([
-    { $match: { 'target.userId': userId } },
-    { $group: { _id: '$status', n: { $sum: 1 } } },
+/** The violation count and the pending reports of one user, counted as in the list. */
+export const countViolationsOf = async (
+  userId: Types.ObjectId,
+): Promise<{ violationCount: number; pendingReportCount: number }> => {
+  const [row] = await User.aggregate<{ violationCount: number; pendingReportCount: number }>([
+    { $match: { _id: userId } },
+    ...withViolationCounts,
+    { $project: { _id: 0, violationCount: 1, pendingReportCount: 1 } },
   ]);
-  const of = (status: string) => rows.find((row) => row._id === status)?.n ?? 0;
-  return { violationCount: of('resolved'), pendingReportCount: of('pending') };
+  return row ?? { violationCount: 0, pendingReportCount: 0 };
 };
 
 // ---- Activity (R03 III.7.2.1 (6)-(7)) ----
@@ -318,8 +375,22 @@ export const findRentalBreachesOf = (userId: Types.ObjectId, limit = 50) =>
     .limit(limit)
     .lean<RentalBreachRecord[]>();
 
-export const findResolvedReportsAgainst = (userId: Types.ObjectId, limit = 50) =>
-  ViolationReport.find({ 'target.userId': userId, status: 'resolved' })
+/** Admin decisions on reports against the user, newest first, with the number of reports each closed. */
+export const findReportDecisionsAgainst = async (userId: Types.ObjectId, limit = 50) => {
+  const decisions = await ViolationReport.find({ 'target.userId': userId, ...DECISION_FILTER })
     .sort({ 'resolution.resolvedAt': -1, _id: -1 })
     .limit(limit)
     .lean();
+  const closedWith =
+    decisions.length === 0
+      ? []
+      : await ViolationReport.aggregate<{ _id: Types.ObjectId; n: number }>([
+          { $match: { 'resolution.viaReportId': { $in: decisions.map((report) => report._id) } } },
+          { $group: { _id: '$resolution.viaReportId', n: { $sum: 1 } } },
+        ]);
+  const others = new Map(closedWith.map((row) => [String(row._id), row.n]));
+  return decisions.map((report) => ({
+    ...report,
+    reportCount: 1 + (others.get(String(report._id)) ?? 0),
+  }));
+};

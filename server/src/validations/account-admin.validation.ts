@@ -77,7 +77,10 @@ export const accountListItemSchema = z
     trustScore: z.number().nullable().openapi({
       description: 'users.trust.score; 100 for an account not scored yet (GB-29).',
     }),
-    violationCount: z.number().int(),
+    violationCount: z.number().int().openapi({
+      description:
+        'One per entry of the violation history: Admin decision on reports, dispute ruled against the user, late return.',
+    }),
     pendingReportCount: z.number().int(),
     createdAt: isoDateTimeSchema,
   })
@@ -105,6 +108,9 @@ export const accountViolationSchema = z
       targetKind: z.string(),
       action: z.enum(reportActions).nullable(),
       note: z.string().nullable(),
+      reportCount: z.number().int().openapi({
+        description: 'Reports on the same target that this one decision closed (one violation).',
+      }),
     }),
     z.object({
       source: z.literal('dispute'),

@@ -121,10 +121,10 @@ export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
   if (!user) throw accountNotFound();
   const [counts, activeListingCount, completedBookingCount, reports, rentals, lockerNames] =
     await Promise.all([
-      repository.countReportsAgainst(user._id),
+      repository.countViolationsOf(user._id),
       repository.countActiveToysOf(user._id),
       repository.countCompletedBookingsOf(user._id),
-      repository.findResolvedReportsAgainst(user._id),
+      repository.findReportDecisionsAgainst(user._id),
       repository.findRentalBreachesOf(user._id),
       repository.findUserNames(user.lock?.lockedBy ? [user.lock.lockedBy as Types.ObjectId] : []),
     ]);
@@ -137,6 +137,7 @@ export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
       targetKind: report.target.kind,
       action: report.resolution?.action ?? null,
       note: report.resolution?.note ?? null,
+      reportCount: report.reportCount,
     })),
     ...rentals.flatMap((order) => rentalBreaches(order, user._id)),
   ];

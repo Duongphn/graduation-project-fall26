@@ -53,6 +53,7 @@ const account: AccountDetail = {
       targetKind: 'user',
       action: 'warn',
       note: 'Nhắn tin quấy rối.',
+      reportCount: 1,
     },
     {
       source: 'late_return',
@@ -120,6 +121,35 @@ describe('AccountDetailPage (R03 III.7.2.1 (5)-(7))', () => {
     expect(within(rows[2]!).getByText('Trả trễ đơn RT261101XYZ')).toBeInTheDocument()
     expect(within(rows[2]!).getByText('Trả trễ 2 ngày')).toBeInTheDocument()
     expect(within(rows[2]!).getByText(/Phí trả trễ 40\.000/)).toBeInTheDocument()
+  })
+
+  it('shows one row for one Admin decision that closed several reports (DEF-ST-27)', async () => {
+    detail.mockResolvedValue({
+      ...account,
+      violationCount: 1,
+      violations: [
+        {
+          source: 'report',
+          id: REPORT_ID,
+          date: '2026-11-18T03:00:00.000Z',
+          reason: 'unsafe_toy',
+          targetKind: 'toy',
+          action: 'remove_listing',
+          note: 'Đồ chơi có pin cúc áo lộ ra ngoài.',
+          reportCount: 2,
+        },
+      ],
+    })
+    renderPage()
+
+    const history = (await screen.findByText('Lịch sử vi phạm')).closest('.ant-card') as HTMLElement
+    const rows = within(history).getAllByRole('row').slice(1)
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]!).getByRole('link', { name: 'Báo cáo tin đăng' })).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('Xử lý cùng lúc 2 báo cáo')).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('Gỡ tin đăng')).toBeInTheDocument()
+    const metrics = screen.getByText('Chỉ số hoạt động').closest('.ant-card') as HTMLElement
+    expect(within(metrics).getByText('Số vi phạm').closest('tr')).toHaveTextContent('Số vi phạm1')
   })
 
   it('says so when the last sign-in is not recorded yet', async () => {

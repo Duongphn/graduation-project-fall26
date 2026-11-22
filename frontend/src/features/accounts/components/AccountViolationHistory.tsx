@@ -25,11 +25,21 @@ const withNote = (main: string, note: string | null): ReactNode => (
 )
 
 // Where the breach comes from; a report and a dispute open their Admin page. The Admin has no
-// rental order page, so a late return shows the order code only.
+// rental order page, so a late return shows the order code only. One Admin decision that closed
+// several reports on the same target is one row (one violation).
 const source = (row: AccountViolation): ReactNode => {
   if (row.source === 'report') {
     const kind = reportTargetKindLabels[row.targetKind as ReportTargetKind]?.toLowerCase() ?? ''
-    return <Link to={adminPaths.violationReport(row.id)}>Báo cáo {kind}</Link>
+    return (
+      <div className="flex flex-col">
+        <Link to={adminPaths.violationReport(row.id)}>Báo cáo {kind}</Link>
+        {row.reportCount > 1 && (
+          <Typography.Text type="secondary" className="text-xs">
+            Xử lý cùng lúc {row.reportCount} báo cáo
+          </Typography.Text>
+        )}
+      </div>
+    )
   }
   if (row.source === 'dispute') {
     return <Link to={adminPaths.dispute(row.id)}>Khiếu nại đơn {row.orderCode}</Link>

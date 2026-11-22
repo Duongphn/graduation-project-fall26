@@ -16,6 +16,7 @@ import { Toy } from '../../src/models/toy.model.js';
 import { User } from '../../src/models/user.model.js';
 import { ViolationReport } from '../../src/models/violation-report.model.js';
 import { adminAccountsRouter } from '../../src/routes/account-admin.routes.js';
+import { adminViolationReportsRouter } from '../../src/routes/violation-report.routes.js';
 import {
   assertWalletNotFrozen,
   releaseExpiredLocks,
@@ -39,6 +40,7 @@ const app = express();
 app.use(express.json());
 app.use(testAuth);
 app.use(BASE, adminAccountsRouter);
+app.use('/api/v1/admin/violation-reports', adminViolationReportsRouter);
 app.use(errorHandler);
 
 // develop's real `authenticate` in front of a probe route.
@@ -250,7 +252,7 @@ describe('UC29 account list and detail', () => {
       { source: 'late_return', id: expect.any(String), date: at(11).toISOString(), orderCode: 'RT-RETURNING', lateDays: 3, lateFee: 60_000 },
       { source: 'dispute', id: String(renterDisputeId), date: at(8).toISOString(), orderCode: 'RT-RENTER-FAULT', ruling: 'RENTER_AT_FAULT', note: expect.stringContaining('RENTER_AT_FAULT') },
       { source: 'dispute', id: String(ownerDisputeId), date: at(7).toISOString(), orderCode: 'RT-AS-OWNER', ruling: 'OWNER_AT_FAULT', note: expect.any(String) },
-      { source: 'report', id: expect.any(String), date: at(6).toISOString(), reason: 'harassment', targetKind: 'user', action: 'warn', note: expect.stringContaining('quấy rối') },
+      { source: 'report', id: expect.any(String), date: at(6).toISOString(), reason: 'harassment', targetKind: 'user', action: 'warn', note: expect.stringContaining('quấy rối'), reportCount: 1 },
       { source: 'late_return', id: expect.any(String), date: at(5).toISOString(), orderCode: 'RT-LATE', lateDays: 2, lateFee: 40_000 },
     ]);
 
@@ -279,6 +281,106 @@ describe('UC29 account list and detail', () => {
     const asUser = await request(app).get(BASE).set('x-test-user', String(newId()));
     expect(asUser.status).toBe(403);
     expect((await get(`/${newId()}`)).status).toBe(404);
+  });
+});
+
+describe('UC29 violation count: one per Admin decision (DEF-ST-27)', () => {
+  const sendReport = (reporterId: Types.ObjectId, target: { kind: string; id: Types.ObjectId; userId: Types.ObjectId }, reason: string) =>
+    ViolationReport.create({ reporterId, target, reason, isUnsafe: false, description: 'Báo cáo vi phạm để kiểm thử.' });
+  const resolveReport = (id: Types.ObjectId, body: object) =>
+    asAdmin(request(app).post(`/api/v1/admin/violation-reports/${id}/resolve`)).send(body);
+
+  it('counts a removal that closed 2 reports once, in the list, its sort, the detail and the report detail', async () => {
+    const seller = await createUser('Người Bán Vi Phạm');
+    const renter = await createUser('Người Thuê Hay Trễ');
+    const first = await createUser('Người Báo Cáo Một');
+    const second = await createUser('Người Báo Cáo Hai');
+    const toy = await createToy(seller._id, 'active');
+    const onToy = { kind: 'toy', id: toy._id, userId: seller._id };
+    const toyReport = await sendReport(first._id, onToy, 'unsafe_toy');
+    await sendReport(second._id, onToy, 'scam');
+    const userReport = await sendReport(first._id, { kind: 'user', id: seller._id, userId: seller._id }, 'harassment');
+    // Still pending (a listing of the renter): not a violation, only a new report.
+    const renterToy = await createToy(renter._id, 'active');
+    await sendReport(second._id, { kind: 'toy', id: renterToy._id, userId: renter._id }, 'spam');
+
+    // STC_ADM_14: one removal (closes both toy reports) and one warning = 2 decisions.
+    const removal = await resolveReport(toyReport._id, {
+      action: 'remove_listing',
+      note: 'Đồ chơi có pin cúc áo lộ ra ngoài.',
+    });
+    expect(removal.body.data.closedReportIds).toHaveLength(2);
+    await resolveReport(userReport._id, {
+      action: 'warn',
+      note: 'Nhắn tin xúc phạm người mua.',
+    });
+    // The renter: one warning and two late returns = 3 violations.
+    const renterReport = await sendReport(first._id, { kind: 'user', id: renter._id, userId: renter._id }, 'scam');
+    await resolveReport(renterReport._id, {
+      action: 'warn',
+      note: 'Hẹn giao đồ rồi không đến nhiều lần.',
+    });
+    await RentalOrder.collection.insertMany(
+      [3, 1].map((lateDays, index) => ({
+        code: `RT-LATE-${index}`,
+        renterId: renter._id,
+        ownerId: seller._id,
+        toyId: toy._id,
+        status: 'COMPLETED',
+        returnInfo: { photos: [], requestedAt: new Date(), lateDays, lateFee: lateDays * 20_000 },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    );
+
+    const list = await get('?role=USER&sortBy=violationCount&sortOrder=desc');
+    const rows = list.body.data as Array<{ fullName: string; violationCount: number; pendingReportCount: number }>;
+    expect(rows.slice(0, 2).map((row) => [row.fullName, row.violationCount, row.pendingReportCount])).toEqual([
+      ['Người Thuê Hay Trễ', 3, 1],
+      ['Người Bán Vi Phạm', 2, 0],
+    ]);
+
+    const detail = (await get(`/${seller._id}`)).body.data;
+    expect(detail.violationCount).toBe(2);
+    expect(detail.violations).toHaveLength(detail.violationCount);
+    expect(detail.violations).toEqual([
+      expect.objectContaining({ source: 'report', id: String(userReport._id), action: 'warn', reportCount: 1 }),
+      expect.objectContaining({ source: 'report', id: String(toyReport._id), action: 'remove_listing', reportCount: 2 }),
+    ]);
+    const renterDetail = (await get(`/${renter._id}`)).body.data;
+    expect(renterDetail.violationCount).toBe(3);
+    expect(renterDetail.violations).toHaveLength(3);
+
+    // The report screen shows the same count for the reported user.
+    const reportDetail = await asAdmin(request(app).get(`/api/v1/admin/violation-reports/${userReport._id}`));
+    expect(reportDetail.body.data.reportedUser).toMatchObject({ violationCount: 2, pendingReportCount: 0 });
+
+    // "Có báo cáo mới" still lists the users with pending reports.
+    const reported = await get('?tab=reported');
+    expect(reported.body.data.map((row: { fullName: string }) => row.fullName)).toEqual(['Người Thuê Hay Trễ']);
+  });
+
+  it('does not count a dismissed report, nor a dispute with nobody at fault', async () => {
+    const user = await createUser('Bị Báo Cáo Sai');
+    const reporter = await createUser('Người Báo Cáo');
+    const first = await sendReport(reporter._id, { kind: 'user', id: user._id, userId: user._id }, 'scam');
+    await resolveReport(first._id, {
+      action: 'dismiss',
+      note: 'Không thấy vi phạm.',
+    });
+    await RentalOrder.collection.insertOne({
+      code: 'RT-WEAR',
+      renterId: user._id,
+      ownerId: reporter._id,
+      toyId: newId(),
+      status: 'COMPLETED',
+      settlement: { disputeId: newId(), resolution: { ruling: 'FAIR_WEAR_AND_TEAR', adminDecision: 'Hao mòn tự nhiên.', resolvedAt: new Date() } },
+    });
+
+    const [row] = (await get(`?q=${encodeURIComponent('bi bao cao sai')}`)).body.data;
+    expect(row).toMatchObject({ violationCount: 0, pendingReportCount: 0 });
+    const detail = (await get(`/${user._id}`)).body.data;
+    expect(detail).toMatchObject({ violationCount: 0, violations: [] });
   });
 });
 
