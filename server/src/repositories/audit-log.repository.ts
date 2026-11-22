@@ -13,7 +13,8 @@ export type AuditTargetType =
   | 'TOY'
   | 'DONATION_REQUEST'
   | 'IDENTITY_VERIFICATION'
-  | 'USER';
+  | 'USER'
+  | 'MESSAGE';
 
 export interface AuditEntry {
   actorId?: string;

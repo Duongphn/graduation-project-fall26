@@ -1,3 +1,4 @@
+import type { MaskedContactKind } from '../constants/chat.js';
 import { normalizeSearchText, normalizeText } from './text.js';
 
 // Contact details in the title or description of a post (R03 GB-11, MSG22). Two tiers:
@@ -80,4 +81,53 @@ export const findContactDetails = (text: string): ContactFindings => {
     bankAccount,
     link: LINK.test(normalized) || EXTERNAL_CHANNELS.test(normalized),
   };
+};
+
+// ---- Chat masking (UC25, GB-11, MSG41) ----
+// Chat messages are not refused: the same fixed patterns hide the contact details before the
+// message is stored, so neither side (nor a later reader) ever sees them. Bank account numbers
+// (digit runs of 9-19 digits that are not a phone number and have no dots) are hidden too.
+
+export type { MaskedContactKind };
+
+/** What replaces each hidden contact detail in a chat message. */
+export const CONTACT_MASK = '***';
+
+export interface MaskedText {
+  text: string;
+  /** The kinds of contact details that were hidden, without duplicates; empty when none. */
+  kinds: MaskedContactKind[];
+}
+
+// Global copies of the patterns above, for replacing every match of a message.
+const EMAIL_ALL = new RegExp(EMAIL.source, 'giu');
+const LINK_ALL = /(?<![\p{L}\p{N}])(?:https?:\/\/|www\.)\S+/giu;
+const LINK_TRAILING_PUNCTUATION = /[.,;:!?)\]}'"…]+$/u;
+
+/** Hides phone numbers, email addresses, http(s)/www links and bank account numbers. */
+export const maskContactDetails = (text: string): MaskedText => {
+  const kinds = new Set<MaskedContactKind>();
+  // Links first ("https://zalo.me/0912345678" is one link), then emails, then digit runs.
+  // Punctuation that ends the sentence stays: "xem https://x.vn/a, nhé" -> "xem ***, nhé".
+  let masked = text.replace(LINK_ALL, (link) => {
+    kinds.add('LINK');
+    return CONTACT_MASK + (LINK_TRAILING_PUNCTUATION.exec(link)?.[0] ?? '');
+  });
+  masked = masked.replace(EMAIL_ALL, () => {
+    kinds.add('EMAIL');
+    return CONTACT_MASK;
+  });
+  masked = masked.replace(DIGIT_RUN, (run) => {
+    const digits = run.replace(/\D/g, '');
+    if (PHONE_DIGITS.test(digits)) {
+      kinds.add('PHONE');
+      return CONTACT_MASK;
+    }
+    if (!run.includes('.') && /^\d{9,19}$/.test(digits)) {
+      kinds.add('BANK_ACCOUNT');
+      return CONTACT_MASK;
+    }
+    return run;
+  });
+  return { text: masked, kinds: [...kinds] };
 };

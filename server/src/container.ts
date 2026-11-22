@@ -8,6 +8,8 @@ import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/maile
 import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
 import { AuthService } from './services/auth.service.js';
+import { ChatService } from './services/chat.service.js';
+import { SocketChatRealtime } from './sockets/chat.socket.js';
 import {
   createDefaultAvatarStorage,
   createDefaultIdentityStorage,
@@ -115,6 +117,7 @@ export interface ContainerOverrides {
   advisorLlm?: AdvisorLlm;
   aiAdvisorSettings?: Partial<AiAdvisorSettings>;
   aiAssistanceService?: AiAssistanceService;
+  chatService?: ChatService;
 }
 
 export interface Container {
@@ -135,6 +138,9 @@ export interface Container {
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
   aiAssistanceService: AiAssistanceService;
+  // Chat (UC25); server.ts attaches chatRealtime to the Socket.IO server.
+  chatService: ChatService;
+  chatRealtime: SocketChatRealtime;
 }
 
 /**
@@ -252,6 +258,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
   const aiAssistanceService =
     overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
+  const chatRealtime = new SocketChatRealtime();
+  const chatService = overrides.chatService ?? new ChatService({ realtime: chatRealtime, clock });
 
   return {
     toyImageStorage,
@@ -270,6 +278,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalTimerService,
     rentalOrderRepository,
     aiAssistanceService,
+    chatService,
+    chatRealtime,
   };
 }
 

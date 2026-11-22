@@ -13,6 +13,7 @@ import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
 import { setNotificationPusher } from './services/notification.service.js';
 import { createSocketPusher, createSocketServer } from './sockets/socket.js';
+import { registerChatSocket } from './sockets/chat.socket.js';
 
 const startServer = async (): Promise<void> => {
   assertRequiredSecrets();
@@ -25,6 +26,7 @@ const startServer = async (): Promise<void> => {
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
   setNotificationPusher(createSocketPusher(socketServer));
+  registerChatSocket(socketServer, container.chatService, container.chatRealtime);
 
   let stopScheduler: (() => void) | undefined;
   if (env.rentalSchedulerEnabled) {
