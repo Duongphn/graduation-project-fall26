@@ -109,7 +109,7 @@ beforeEach(async () => {
   await Promise.all([
     User.deleteMany({}),
     IdentityVerification.deleteMany({}),
-    AuditLog.deleteMany({}),
+    AuditLog.collection.deleteMany({}),
     Notification.deleteMany({}),
   ]);
 });

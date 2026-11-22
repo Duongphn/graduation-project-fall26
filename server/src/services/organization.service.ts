@@ -80,8 +80,12 @@ const assertNameFree = async (
   }
 };
 
-const auditEntry = (context: AdminContext, action: AuditEntry['action'], id: string): AuditEntry =>
-  adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
+const auditEntry = (
+  context: AdminContext,
+  action: AuditEntry['action'],
+  id: string,
+  details?: AuditEntry['details'],
+): AuditEntry => adminAuditEntry(context, action, { kind: 'ORGANIZATION', id }, details);
 
 /** API body (camelCase) -> develop's stored fields. */
 const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
@@ -202,7 +206,8 @@ export const createOrganization = async (
           isAccepting: body.isAccepting ?? true,
           status: 'active',
         },
-        (created) => auditEntry(context, 'organization.create', String(created._id)),
+        (created) =>
+          auditEntry(context, 'organization.create', String(created._id), { name: created.name }),
         session,
       );
     });
@@ -321,7 +326,10 @@ export const deleteOrganizationById = async (id: string, context: AdminContext):
       );
     }
     if (!(await deleteOrganization(record._id, session))) throw organizationNotFound();
-    await writeAuditLog(auditEntry(context, 'organization.delete', id), session);
+    await writeAuditLog(
+      auditEntry(context, 'organization.delete', id, { name: record.name }),
+      session,
+    );
   });
 };
 

@@ -30,5 +30,9 @@ export const featureEnv = Object.freeze({
       enabled: env.nodeEnv !== 'test' && process.env.PAYMENT_EXPIRY_JOB_ENABLED !== 'false',
       intervalMinutes: positiveNumber('PAYMENT_EXPIRY_JOB_INTERVAL_MINUTES', 5),
     },
+    accountUnlock: {
+      enabled: env.nodeEnv !== 'test' && process.env.ACCOUNT_UNLOCK_JOB_ENABLED !== 'false',
+      intervalMinutes: positiveNumber('ACCOUNT_UNLOCK_JOB_INTERVAL_MINUTES', 15),
+    },
   },
 });

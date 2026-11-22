@@ -173,10 +173,12 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
 
     if (actor.isAdmin) {
       await writeAuditLog(
-        adminAuditEntry(adminContextOf(actor), auditActionFor(to), {
-          kind: 'DONATION_REQUEST',
-          id: String(current._id),
-        }),
+        adminAuditEntry(
+          adminContextOf(actor),
+          auditActionFor(to),
+          { kind: 'DONATION_REQUEST', id: String(current._id) },
+          { from, to },
+        ),
         session,
       );
     }

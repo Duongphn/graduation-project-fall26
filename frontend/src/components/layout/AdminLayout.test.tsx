@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeProvider } from '../../contexts/theme-provider'
 import { identityVerificationsApi } from '../../features/identity-verifications/api'
 import { toyModerationApi } from '../../features/toy-moderation/api'
+import { violationReportsApi } from '../../features/violation-reports/api'
 import { adminMenuItems } from '../../routes/admin-menu'
 import { adminPaths } from '../../routes/paths'
 import { palette } from '../../styles/palette'
@@ -37,9 +38,13 @@ vi.mock('../../features/toy-moderation/api', () => ({
 vi.mock('../../features/identity-verifications/api', () => ({
   identityVerificationsApi: { counts: vi.fn() },
 }))
+vi.mock('../../features/violation-reports/api', () => ({
+  violationReportsApi: { counts: vi.fn() },
+}))
 
 const toyCounts = vi.mocked(toyModerationApi.counts)
 const identityCounts = vi.mocked(identityVerificationsApi.counts)
+const reportCounts = vi.mocked(violationReportsApi.counts)
 
 const renderLayout = () => {
   const router = createMemoryRouter(
@@ -54,6 +59,8 @@ const menuItem = (label: string) => screen.getByText(label).closest('li') as HTM
 beforeEach(() => {
   toyCounts.mockReset()
   identityCounts.mockReset()
+  reportCounts.mockReset()
+  reportCounts.mockResolvedValue({ pending: 0, resolved: 0, dismissed: 0 })
   toyCounts.mockResolvedValue({ pending: 0, active: 0, hidden: 0 })
   identityCounts.mockResolvedValue({ pending: 0, verified: 0, rejected: 0 })
 })
@@ -71,6 +78,16 @@ describe('AdminLayout pending counters (L7)', () => {
     ).toBeInTheDocument()
     // Counted over every listing, not a filtered view.
     expect(toyCounts).toHaveBeenCalledWith({})
+  })
+
+  it('shows the pending violation reports next to their menu entry (UC29)', async () => {
+    reportCounts.mockResolvedValue({ pending: 3, resolved: 5, dismissed: 1 })
+    renderLayout()
+
+    expect(
+      await within(menuItem('Báo cáo vi phạm')).findByTitle('3 đang chờ duyệt'),
+    ).toBeInTheDocument()
+    expect(reportCounts).toHaveBeenCalledWith({})
   })
 
   it('shows no counter when nothing is pending', async () => {

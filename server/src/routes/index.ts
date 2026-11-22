@@ -4,6 +4,8 @@ import { featureEnv } from '../config/feature-env.js';
 import { createDocsRouter } from '../config/openapi.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { createAiRouter } from './ai.routes.js';
+import { adminAccountsRouter } from './account-admin.routes.js';
+import { adminAuditLogsRouter } from './audit-log.routes.js';
 import { adminCategoriesRouter } from './category-admin.routes.js';
 import { createDonationPostsRouter } from './donation-post.routes.js';
 import {
@@ -17,6 +19,10 @@ import { notificationsRouter } from './notification.routes.js';
 import { adminOrganizationsRouter, organizationsRouter } from './organization.routes.js';
 import { adminToyModerationRouter } from './toy-moderation.routes.js';
 import { uploadsRouter } from './upload.routes.js';
+import {
+  adminViolationReportsRouter,
+  violationReportsRouter,
+} from './violation-report.routes.js';
 import { createAuthRouter } from './auth.routes.js';
 import { createChatRouter } from './chat.routes.js';
 import { categoriesRouter } from './category.routes.js';
@@ -66,6 +72,10 @@ export function createApiRouter(container: Container): Router {
     authenticate,
     createAdminDisputeRouter(container.rentalDisputeService),
   );
+  router.use('/admin/audit-logs', authenticate, adminAuditLogsRouter);
+  router.use('/admin/violation-reports', authenticate, adminViolationReportsRouter);
+  router.use('/admin/users', authenticate, adminAccountsRouter);
+  router.use('/violation-reports', authenticate, violationReportsRouter);
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);
