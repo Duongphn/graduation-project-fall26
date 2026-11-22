@@ -12,8 +12,9 @@ import { registerEventHandlers } from './event-handlers.js';
 import { startAccountUnlockJob } from './jobs/account-unlock.job.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
+import { setOpenConnectionCloser } from './services/account-lock.service.js';
 import { setNotificationPusher } from './services/notification.service.js';
-import { createSocketPusher, createSocketServer } from './sockets/socket.js';
+import { createSocketPusher, createSocketServer, disconnectUser } from './sockets/socket.js';
 import { registerChatSocket } from './sockets/chat.socket.js';
 
 const startServer = async (): Promise<void> => {
@@ -28,6 +29,7 @@ const startServer = async (): Promise<void> => {
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
   setNotificationPusher(createSocketPusher(socketServer));
+  setOpenConnectionCloser((userId) => disconnectUser(socketServer, userId));
   registerChatSocket(socketServer, container.chatService, container.chatRealtime);
 
   let stopScheduler: (() => void) | undefined;
