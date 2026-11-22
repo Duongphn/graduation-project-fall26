@@ -102,14 +102,16 @@ export interface MaskedText {
 // Global copies of the patterns above, for replacing every match of a message.
 const EMAIL_ALL = new RegExp(EMAIL.source, 'giu');
 const LINK_ALL = /(?<![\p{L}\p{N}])(?:https?:\/\/|www\.)\S+/giu;
+const LINK_TRAILING_PUNCTUATION = /[.,;:!?)\]}'"…]+$/u;
 
 /** Hides phone numbers, email addresses, http(s)/www links and bank account numbers. */
 export const maskContactDetails = (text: string): MaskedText => {
   const kinds = new Set<MaskedContactKind>();
   // Links first ("https://zalo.me/0912345678" is one link), then emails, then digit runs.
-  let masked = text.replace(LINK_ALL, () => {
+  // Punctuation that ends the sentence stays: "xem https://x.vn/a, nhé" -> "xem ***, nhé".
+  let masked = text.replace(LINK_ALL, (link) => {
     kinds.add('LINK');
-    return CONTACT_MASK;
+    return CONTACT_MASK + (LINK_TRAILING_PUNCTUATION.exec(link)?.[0] ?? '');
   });
   masked = masked.replace(EMAIL_ALL, () => {
     kinds.add('EMAIL');

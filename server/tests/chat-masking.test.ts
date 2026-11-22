@@ -42,6 +42,13 @@ describe('maskContactDetails (chat, GB-11)', () => {
     expect(result.kinds.sort()).toEqual(['EMAIL', 'LINK', 'PHONE']);
   });
 
+  it('keeps the punctuation that follows a link', () => {
+    expect(maskContactDetails('Xem https://shopee.vn/abc, rồi gọi nhé.').text).toBe(
+      `Xem ${CONTACT_MASK}, rồi gọi nhé.`,
+    );
+    expect(maskContactDetails('(www.shop.vn).').text).toBe(`(${CONTACT_MASK}).`);
+  });
+
   it('keeps line breaks', () => {
     expect(maskContactDetails('Chào bạn\nSĐT 0912345678').text).toBe(
       `Chào bạn\nSĐT ${CONTACT_MASK}`,
