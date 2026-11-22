@@ -57,8 +57,8 @@ export function createApiRouter(container: Container): Router {
   );
 
   router.use(createWalletRouter(container.walletService, container.withdrawalService));
-  // UC17 VNPay top-up: /payments/topup/vnpay, /vnpay-return, /vnpay-ipn, /:code/status
-  router.use('/payments', createPaymentRouter(container.paymentService, container.payosTopupService));
+  // UC17 PayOS top-up: /payments/topup/payos, /payos/:code, /payos/:code/cancel, /payos-return, /payos-webhook
+  router.use('/payments', createPaymentRouter(container.payosTopupService));
   router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).

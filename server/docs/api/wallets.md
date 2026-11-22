@@ -51,7 +51,7 @@ Same query and response as the lead's wallet API (branches `feature/wallet-*`), 
 - **Query**:
   - `page` (default `1`), `limit` (default `20`, max `100`)
   - `type` (optional): `all` (default) | `credit` (money in) | `debit` (money out)
-  - `kind` (optional): `reference.kind` of the posting — `rental_order`, `payment` (VNPay top-up), `withdrawal`, `admin_credit`; `all` = no filter
+  - `kind` (optional): `reference.kind` of the posting — `rental_order`, `payment` (PayOS top-up), `withdrawal`, `admin_credit`; `all` = no filter
   - `startDate`, `endDate` (optional): ISO dates, `createdAt` range with both ends included; `startDate` after `endDate` → `400`
 - **Response (`200 OK`)**: newest first; the list and its paging are inside `data`
   ```json

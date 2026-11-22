@@ -3,33 +3,18 @@ import { PaymentController } from '../controllers/payment.controller.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { requireActor } from '../middlewares/require-actor.js';
 import { validateRequest } from '../middlewares/validate.js';
-import type { PaymentService } from '../services/payment.service.js';
 import type { PayosTopupService } from '../services/payos-topup.service.js';
 import {
-  paymentCodeParamsSchema,
   payosCodeParamsSchema,
   payosReturnQuerySchema,
   payosTopupBodySchema,
-  topupBodySchema,
 } from '../validations/payment.validation.js';
 
-/** Mounted at /api/v1/payments (VNPay paths are the same as the lead's API) */
-export function createPaymentRouter(service: PaymentService, payos: PayosTopupService): Router {
+/** Mounted at /api/v1/payments: UC17 top-up by bank transfer (VietQR) through PayOS, real money */
+export function createPaymentRouter(payos: PayosTopupService): Router {
   const router = Router();
-  const controller = new PaymentController(service, payos);
+  const controller = new PaymentController(payos);
 
-  router.post(
-    '/topup/vnpay',
-    authenticate,
-    requireActor,
-    validateRequest({ body: topupBodySchema }),
-    controller.createTopup,
-  );
-  // Public: VNPay's checksum proves the query, there is no user token on these calls
-  router.get('/vnpay-return', controller.handleReturn);
-  router.get('/vnpay-ipn', controller.handleIpn);
-
-  // PayOS: bank transfer by VietQR (real money)
   router.post(
     '/topup/payos',
     authenticate,
@@ -60,13 +45,6 @@ export function createPaymentRouter(service: PaymentService, payos: PayosTopupSe
   );
   // Public: the SDK checks PayOS's signature with the checksum key
   router.post('/payos-webhook', controller.handlePayosWebhook);
-  router.get(
-    '/:code/status',
-    authenticate,
-    requireActor,
-    validateRequest({ params: paymentCodeParamsSchema }),
-    controller.getStatus,
-  );
 
   return router;
 }

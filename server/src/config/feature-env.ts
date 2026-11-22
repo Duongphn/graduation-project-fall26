@@ -25,7 +25,7 @@ export const featureEnv = Object.freeze({
       enabled: env.nodeEnv !== 'test' && process.env.DONATION_EXPIRY_JOB_ENABLED !== 'false',
       intervalMinutes: positiveNumber('DONATION_EXPIRY_JOB_INTERVAL_MINUTES', 5),
     },
-    // Marks VNPay top-ups still pending long after their payment link expired as failed (UC17).
+    // Checks PayOS top-ups still pending after their link expired: credited if paid, else failed (UC17).
     paymentExpiry: {
       enabled: env.nodeEnv !== 'test' && process.env.PAYMENT_EXPIRY_JOB_ENABLED !== 'false',
       intervalMinutes: positiveNumber('PAYMENT_EXPIRY_JOB_INTERVAL_MINUTES', 5),

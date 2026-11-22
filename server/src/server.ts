@@ -24,7 +24,7 @@ const startServer = async (): Promise<void> => {
   const accountUnlockJob = startAccountUnlockJob();
 
   const container = createContainer();
-  const paymentExpiryJob = startPaymentExpiryJob(container.paymentService, container.payosTopupService);
+  const paymentExpiryJob = startPaymentExpiryJob(container.payosTopupService);
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
   setNotificationPusher(createSocketPusher(socketServer));

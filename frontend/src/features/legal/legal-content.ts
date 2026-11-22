@@ -72,7 +72,7 @@ export const TERMS_OF_SERVICE: LegalDocument = {
       id: 'ky-quy-dat-coc',
       heading: '4. Ví, đặt cọc và ký quỹ',
       items: [
-        'Bạn thanh toán bằng ví ToyFlow, nạp qua VNPay hoặc MoMo. Trong giai đoạn hiện tại, ví chạy trên môi trường thử nghiệm (sandbox) của cổng thanh toán và không giữ tiền thật.',
+        'Bạn thanh toán bằng ví ToyFlow, nạp bằng chuyển khoản ngân hàng (quét mã VietQR) qua cổng thanh toán PayOS. Đây là giao dịch bằng tiền thật: số tiền bạn chuyển khoản được cộng vào ví sau khi PayOS xác nhận, và bạn có thể gửi yêu cầu rút số dư khả dụng về tài khoản ngân hàng của mình.',
         'Khi thuê, bạn trả tiền thuê và tiền cọc cùng lúc; khi mua, bạn trả giá đồ chơi. ToyFlow giữ số tiền này (ký quỹ) cho đến khi đơn hoàn tất, rồi mới trả cho người cho thuê hoặc người bán.',
         'ToyFlow thu phí nền tảng trên tiền thuê và hoa hồng trên giá bán theo mức Admin công bố trong cài đặt hệ thống. Thay đổi phí chỉ áp dụng cho giao dịch tạo sau thời điểm thay đổi.',
         'Mỗi lần số dư thay đổi đều được ghi thành một giao dịch ví không sửa, không xoá được. Khi rút tiền, tài khoản ngân hàng phải đứng tên bạn, bạn cần đủ số dư khả dụng và không có tranh chấp đang mở.',
@@ -167,7 +167,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         'Người dùng khác chỉ thấy thông tin công khai: họ tên, ảnh đại diện, huy hiệu đã xác minh, điểm uy tín, đánh giá và tin đăng.',
         'Địa chỉ và số điện thoại của bạn chỉ hiện cho bên kia của đơn hoặc lượt quyên góp đang diễn ra, và chỉ đến khi hoàn tất.',
         'Admin thấy dữ liệu cần cho việc duyệt, xử lý vi phạm và tranh chấp; trong danh sách quản trị, số điện thoại được che bớt.',
-        'Dịch vụ bên ngoài chỉ nhận phần dữ liệu cần thiết: cổng thanh toán (VNPay, MoMo) nhận thông tin giao dịch nạp tiền; dịch vụ email nhận địa chỉ email để gửi mã và thông báo; Google nhận yêu cầu đăng nhập khi bạn chọn đăng nhập bằng Google; Cloudinary lưu ảnh.',
+        'Dịch vụ bên ngoài chỉ nhận phần dữ liệu cần thiết: cổng thanh toán PayOS nhận thông tin giao dịch nạp tiền; dịch vụ email nhận địa chỉ email để gửi mã và thông báo; Google nhận yêu cầu đăng nhập khi bạn chọn đăng nhập bằng Google; Cloudinary lưu ảnh.',
         'Trợ lý AI chỉ nhận độ tuổi và sở thích bạn nhập trong câu hỏi; không gửi hồ sơ trẻ, họ tên, thông tin liên hệ hay dữ liệu ví. ToyFlow không lưu số thẻ ngân hàng.',
       ],
     },

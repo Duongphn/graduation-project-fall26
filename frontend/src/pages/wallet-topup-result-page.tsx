@@ -5,7 +5,7 @@ import { Link, useLocation } from 'react-router-dom'
 
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { clearTopupReturn, readTopupReturn } from '../features/wallet/topup-session'
-import { walletApi, type TopupGateway, type TopupResult } from '../features/wallet/wallet-api'
+import { walletApi, type TopupResult } from '../features/wallet/wallet-api'
 import { myWalletQuery, walletKeys } from '../features/wallet/wallet-queries'
 import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
@@ -20,7 +20,7 @@ interface ResultView {
 
 const FAILED_TONE = 'bg-red-50 text-red-700'
 
-/** PayOS: tiền chuyển khoản có thể về sau vài giây — tự kiểm tra lại */
+/** Tiền chuyển khoản có thể về sau vài giây — tự kiểm tra lại */
 const PENDING_RECHECK_MS = 5_000
 
 function viewOf(result: TopupResult, balance: number | undefined): ResultView {
@@ -55,7 +55,7 @@ function viewOf(result: TopupResult, balance: number | undefined): ResultView {
         description: 'Giao dịch bị từ chối hoặc đã quá hạn. Số dư ví không thay đổi.',
       }
     default:
-      // invalid_checksum, not_found: link bị sửa hoặc không có giao dịch
+      // not_found: không có giao dịch (link sai hoặc của người khác)
       return {
         icon: XCircle,
         tone: FAILED_TONE,
@@ -66,23 +66,21 @@ function viewOf(result: TopupResult, balance: number | undefined): ResultView {
 }
 
 /**
- * Cổng thanh toán chuyển về đây sau khi trả tiền hoặc huỷ (UC17):
- * - VNPay: ?vnp_…&vnp_SecureHash=… → gửi nguyên query cho GET /payments/vnpay-return kiểm tra chữ ký;
- * - PayOS: ?orderCode=…&status=… → GET /payments/payos-return, server hỏi lại PayOS trạng thái.
+ * PayOS (hoặc trang mã VietQR của ToyFlow) chuyển về đây sau khi trả tiền hoặc huỷ (UC17):
+ * ?orderCode=…&status=… → GET /payments/payos-return, server hỏi lại PayOS trạng thái.
  * Server ghi nhận kết quả (cộng tiền đúng một lần), trang hiển thị thành công / đang chờ / huỷ / thất bại.
  */
-export function WalletTopupResultPage({ gateway = 'vnpay' }: { gateway?: TopupGateway }) {
+export function WalletTopupResultPage() {
   const { search } = useLocation()
   const queryClient = useQueryClient()
-  const params = new URLSearchParams(search)
-  const orderCode = params.get('orderCode') ?? ''
-  const hasPaymentParams = gateway === 'payos' ? /^\d+$/.test(orderCode) : params.has('vnp_TxnRef')
+  const orderCode = new URLSearchParams(search).get('orderCode') ?? ''
+  const hasPaymentParams = /^\d+$/.test(orderCode)
   // Đọc một lần: trang cần quay lại (vd. đơn thuê đang chờ thanh toán)
   const [returnTo] = useState(readTopupReturn)
 
   const result = useQuery({
-    queryKey: ['wallet-topup-return', gateway, gateway === 'payos' ? orderCode : search],
-    queryFn: () => (gateway === 'payos' ? walletApi.confirmPayosReturn(orderCode) : walletApi.confirmVnpayReturn(search)),
+    queryKey: ['wallet-topup-return', orderCode],
+    queryFn: () => walletApi.confirmPayosReturn(orderCode),
     enabled: hasPaymentParams,
     retry: false,
     staleTime: Infinity,
@@ -132,9 +130,7 @@ export function WalletTopupResultPage({ gateway = 'vnpay' }: { gateway?: TopupGa
         {!view ? (
           <>
             <Loader2 className="mx-auto size-10 animate-spin text-tf-primary" aria-hidden />
-            <h1 className="mt-4 text-lg font-bold text-tf-ink">
-              Đang xác nhận giao dịch với {gateway === 'payos' ? 'PayOS' : 'VNPay'}…
-            </h1>
+            <h1 className="mt-4 text-lg font-bold text-tf-ink">Đang xác nhận giao dịch với PayOS…</h1>
             <p className="mt-1 text-sm text-tf-ink-muted">Vui lòng không đóng trang.</p>
           </>
         ) : (

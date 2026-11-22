@@ -25,8 +25,6 @@ export const PATHS = {
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
   wallet: '/wallet',
-  /** VNPay chuyển về đây sau khi thanh toán (VNPAY_RETURN_URL ở server) */
-  walletTopupResult: '/wallet/topup/result',
   /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */
   walletTopupPayosResult: '/wallet/topup/payos-result',
   /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */

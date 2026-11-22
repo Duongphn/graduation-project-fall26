@@ -381,14 +381,6 @@ export const router = createBrowserRouter([
     HydrateFallback: PageLoadingFallback,
   },
   {
-    path: PATHS.walletTopupResult,
-    element: (
-      <RequireAuth>
-        <WalletTopupResultPage gateway="vnpay" />
-      </RequireAuth>
-    ),
-  },
-  {
     path: PATHS.walletPayosCheckout,
     element: (
       <RequireAuth>
@@ -400,7 +392,7 @@ export const router = createBrowserRouter([
     path: PATHS.walletTopupPayosResult,
     element: (
       <RequireAuth>
-        <WalletTopupResultPage gateway="payos" />
+        <WalletTopupResultPage />
       </RequireAuth>
     ),
   },

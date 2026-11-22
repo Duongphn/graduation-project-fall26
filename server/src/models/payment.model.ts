@@ -9,7 +9,7 @@ const paymentSchema = new Schema(
     amount: { type: Number, required: true },
     gateway: { type: String, required: true },
     gatewayTransactionNo: { type: String },
-    // vnp_ResponseCode of the result: '00' success, '24' cancelled by the user… (status stays 'failed')
+    // Result code: '00' paid; CANCELLED / EXPIRED / FAILED (PayOS link status), 'expired', 'link_error' → status 'failed'
     gatewayResponseCode: { type: String },
     // PayOS paymentLinkId of the checkout page
     gatewayLinkId: { type: String },
