@@ -67,8 +67,8 @@ export const shipDonationSchema = z
   })
 export type ShipDonationValues = z.infer<typeof shipDonationSchema>
 
-/** API value of each handover method (POST /donation-requests/:id/handover, GB-58). */
-const handoverMethodValues = { CARRIER: 'carrier', SELF: 'drop_off' } as const
+/** API value of each handover method (POST /donation-requests/:id/handover, POST /donation-posts, GB-58). */
+export const handoverMethodValues = { CARRIER: 'carrier', SELF: 'drop_off' } as const
 
 /** Body of POST /donation-requests/:id/handover: the carrier fields only for a carrier. */
 export const toHandoverInput = ({ method, carrier, trackingCode, photos, note }: ShipDonationValues): HandoverInput => ({

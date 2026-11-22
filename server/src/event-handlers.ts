@@ -1,3 +1,4 @@
+import { subscribeDonations } from './services/donation.subscriptions.js';
 import { subscribeNotifications } from './services/notification.subscriptions.js';
 
 // Composition root for domain events (backend-architecture.md): features never import each
@@ -5,4 +6,5 @@ import { subscribeNotifications } from './services/notification.subscriptions.js
 // subscription.
 export const registerEventHandlers = (): void => {
   subscribeNotifications();
+  subscribeDonations();
 };

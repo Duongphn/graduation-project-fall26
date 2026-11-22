@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '../../../services/api-error'
@@ -13,7 +14,12 @@ const renderDialog = (props: Partial<Parameters<typeof TopupDialog>[0]> = {}) =>
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <TopupDialog onClose={onClose} {...props} />
+      <MemoryRouter initialEntries={['/wallet']}>
+        <Routes>
+          <Route path="/wallet" element={<TopupDialog onClose={onClose} {...props} />} />
+          <Route path="/wallet/topup/payos/:code" element={<p>Trang mã QR</p>} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
   return { onClose }
@@ -31,13 +37,18 @@ describe('TopupDialog', () => {
     sessionStorage.clear()
   })
 
-  it('starts on PayOS (bank transfer QR) and sends the user to the PayOS checkout', async () => {
+  it('starts on PayOS (bank transfer QR) and opens ToyFlow’s own QR page', async () => {
     const createPayosTopup = vi.spyOn(walletApi, 'createPayosTopup').mockResolvedValue({
       checkoutUrl: 'https://pay.payos.vn/web/1763600000123',
       qrCode: '000201010212',
       paymentCode: '1763600000123',
       amount: 100_000,
+      status: 'pending',
       expiresAt: '2026-11-20T10:15:00.000Z',
+      bankBin: '970422',
+      accountNumber: 'VQRQANTED5398',
+      accountName: 'LE VU CUONG',
+      description: 'NAP VI 1763600000123',
     })
     const createTopup = vi.spyOn(walletApi, 'createTopup')
     renderDialog()
@@ -48,7 +59,9 @@ describe('TopupDialog', () => {
 
     expect(createPayosTopup).toHaveBeenCalledWith(100_000)
     expect(createTopup).not.toHaveBeenCalled()
-    expect(gateway).toHaveBeenCalledWith('https://pay.payos.vn/web/1763600000123')
+    // Stays inside ToyFlow
+    expect(await screen.findByText('Trang mã QR')).toBeInTheDocument()
+    expect(gateway).not.toHaveBeenCalled()
   })
 
   it('creates a pending top-up and sends the user to VNPay', async () => {

@@ -104,6 +104,38 @@ describe('notification templates', () => {
     expect(message.link).toMatch(/^\/donations\/[0-9a-f]{24}$/);
   });
 
+  // MSG54 (R03 V.2): "Your donation {code} was accepted by {organization}. Please hand over the
+  // toy by {date}."
+  it('tells the donor the handover deadline when an organization accepts (MSG54)', () => {
+    const message = renderDonationStatusChanged(
+      donationEvent({
+        code: 'DN1234ABCD',
+        receiverType: 'ORGANIZATION',
+        from: 'pending',
+        to: 'accepted',
+        handoverDueAt: '2026-11-25T18:30:00.000Z',
+      }),
+      'DONOR',
+      { ...context, organizationName: 'Mái ấm Hoa Mai' },
+    );
+    expect(message.body).toContain('DN1234ABCD');
+    expect(message.body).toContain('đã được Mái ấm Hoa Mai chấp nhận');
+    // 01:30 on 26/11 in Viet Nam.
+    expect(message.body).toContain('trước ngày 26/11/2026');
+  });
+
+  // MSG55 (R03 V.2): "{organization} received "{toy_name}" on {date}. Thank you for your donation."
+  it('tells the donor the received date and where the receipt photos are (MSG55)', () => {
+    const message = renderDonationStatusChanged(
+      donationEvent({ receiverType: 'ORGANIZATION', receivedAt: '2026-11-14T17:00:00.000Z' }),
+      'DONOR',
+      { ...context, organizationName: 'Mái ấm Hoa Mai' },
+    );
+    expect(message.body).toContain('Mái ấm Hoa Mai đã nhận đồ chơi "Bộ xếp hình <gỗ>" ngày 15/11/2026.');
+    expect(message.body).toContain('ảnh nhận hàng');
+    expect(message.link).toMatch(/^\/donations\/[0-9a-f]{24}$/);
+  });
+
   it('links the requester side to the user page, or the Admin page for an organization', () => {
     const event = donationEvent({ to: 'shipping', from: 'accepted' });
     const id = event.donationRequestId;

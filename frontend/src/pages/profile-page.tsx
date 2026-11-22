@@ -5,9 +5,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { DonationSummaryCard } from '../features/donations/components/donation-summary-card'
 import { PersonalInfoForm } from '../features/profile/components/personal-info-form'
 import { ProfileHero } from '../features/profile/components/profile-hero'
-import { ShippingAddressCard } from '../features/profile/components/shipping-address-card'
+import { AddressBookCard } from '../features/profile/components/address-book-card'
 import { getProfileErrorMessage, isUnauthorizedError } from '../features/profile/profile-api'
-import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
+import { addressesQuery, latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
 import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
 
@@ -18,6 +18,7 @@ export function ProfilePage() {
   // Đã được loader của route tải sẵn vào cache
   const profileResult = useQuery(profileQuery)
   const verificationResult = useQuery(latestVerificationQuery)
+  const addressesResult = useQuery(addressesQuery)
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,10 +67,15 @@ export function ProfilePage() {
         <div className="tf-card load-state">Đang tải hồ sơ...</div>
       ) : (
         <div className="profile-page">
-          <ProfileHero profile={profile} latestVerification={verificationResult.data} onAvatarSaved={notify('Đã cập nhật ảnh đại diện.')} />
+          <ProfileHero
+            profile={profile}
+            latestVerification={verificationResult.data}
+            hasAddress={(addressesResult.data?.length ?? 0) > 0}
+            onAvatarSaved={notify('Đã cập nhật ảnh đại diện.')}
+          />
           <DonationSummaryCard userId={profile.id} />
           <PersonalInfoForm profile={profile} onSaved={notify('Đã lưu thông tin cá nhân.')} />
-          <ShippingAddressCard profile={profile} onSaved={notify('Đã lưu địa chỉ nhận hàng.')} />
+          <AddressBookCard profile={profile} onSaved={setToast} />
         </div>
       )}
 

@@ -12,16 +12,44 @@ const MINUTE = 60_000;
 /** PayOS statuses after which the link cannot be paid any more */
 const CLOSED_STATUSES = new Set<PayOSLinkState['status']>(['CANCELLED', 'EXPIRED', 'FAILED']);
 
-/** POST /payments/topup/payos */
-export interface PayosTopupResult {
-  /** PayOS checkout page (shows the VietQR and the bank details) */
-  checkoutUrl: string;
-  /** VietQR content, for showing the QR inside ToyFlow */
-  qrCode: string;
+/** Transfer details for ToyFlow's own QR page (POST /payments/topup/payos, GET /payments/payos/:code) */
+export interface PayosCheckoutDto {
   paymentCode: string;
   amount: number;
+  /** pending | success | failed | cancelled */
+  status: TopupReturnResult['status'];
   expiresAt: string;
+  /** VietQR content any banking app can scan */
+  qrCode: string;
+  /** PayOS's own checkout page, as a fallback */
+  checkoutUrl: string;
+  /** NAPAS BIN of the receiving bank (970422 = MB…) */
+  bankBin: string;
+  accountNumber: string;
+  accountName: string;
+  /** Transfer note to type when not scanning */
+  description: string;
 }
+
+/** Kept for callers of the creation endpoint */
+export type PayosTopupResult = PayosCheckoutDto;
+
+const toCheckoutDto = (payment: PaymentRecord): PayosCheckoutDto | null => {
+  const checkout = payment.checkout;
+  if (!checkout?.qrCode || !payment.expiresAt) return null;
+  return {
+    paymentCode: payment.code,
+    amount: payment.amount,
+    status: toReturnResult(payment).status,
+    expiresAt: payment.expiresAt.toISOString(),
+    qrCode: checkout.qrCode,
+    checkoutUrl: checkout.checkoutUrl,
+    bankBin: checkout.bin,
+    accountNumber: checkout.accountNumber,
+    accountName: checkout.accountName,
+    description: checkout.description,
+  };
+};
 
 const notFound = (): TopupReturnResult => ({
   success: false,
@@ -78,9 +106,55 @@ export class PayosTopupService {
       console.error('[payos] create payment link failed', error);
       throw new AppError(502, 'PAYOS_GATEWAY_ERROR', 'Không tạo được mã thanh toán PayOS. Vui lòng thử lại sau.');
     }
-    await this.payments.setGatewayLinkId(code, link.paymentLinkId);
+    const checkout = {
+      qrCode: link.qrCode,
+      checkoutUrl: link.checkoutUrl,
+      bin: link.bin,
+      accountNumber: link.accountNumber,
+      accountName: link.accountName,
+      description: link.description,
+    };
+    await this.payments.saveCheckout(code, link.paymentLinkId, checkout);
 
-    return { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, paymentCode: code, amount, expiresAt: expiresAt.toISOString() };
+    return {
+      paymentCode: code,
+      amount,
+      status: 'pending',
+      expiresAt: expiresAt.toISOString(),
+      qrCode: checkout.qrCode,
+      checkoutUrl: checkout.checkoutUrl,
+      bankBin: checkout.bin,
+      accountNumber: checkout.accountNumber,
+      accountName: checkout.accountName,
+      description: checkout.description,
+    };
+  }
+
+  /** GET /payments/payos/:code — the QR page of the owner's PayOS top-up */
+  public async getCheckout(actor: RequestActor, code: string): Promise<PayosCheckoutDto> {
+    const payment = await this.payments.findByCode(code);
+    const dto = payment && payment.gateway === 'payos' && payment.userId.toString() === actor.userId ? toCheckoutDto(payment) : null;
+    if (!dto) throw new AppError(404, 'PAYMENT_NOT_FOUND', 'Không tìm thấy giao dịch nạp tiền.');
+    return dto;
+  }
+
+  /**
+   * POST /payments/payos/:code/cancel — the user gives up on the QR. The PayOS link is cancelled
+   * first; if PayOS refuses (e.g. it was paid meanwhile) the real status is checked instead, so a
+   * paid transfer is still credited.
+   */
+  public async cancel(actor: RequestActor, code: string): Promise<TopupReturnResult> {
+    const payment = await this.payments.findByCode(code);
+    if (!payment || payment.gateway !== 'payos' || payment.userId.toString() !== actor.userId) return notFound();
+    if (payment.status !== 'pending') return toReturnResult(payment);
+
+    try {
+      await this.gateway.cancelPaymentLink(Number(code), 'Người dùng huỷ nạp tiền trên ToyFlow');
+    } catch (error) {
+      console.error(`[payos] cancel ${code} failed`, error);
+      return this.confirmReturn(actor, code);
+    }
+    return this.settled(payment, await this.settlement.fail(payment, 'CANCELLED'));
   }
 
   /**

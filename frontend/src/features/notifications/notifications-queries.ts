@@ -2,6 +2,7 @@ import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useSyncExternalStore } from 'react'
 
 import { useApiMutation } from '../../hooks/useApiMutation'
+import { useIsSignedIn } from '../../hooks/use-is-signed-in'
 import {
   isNotificationSocketConnected,
   subscribeNotificationSocket,
@@ -92,11 +93,19 @@ export function useNotificationRealtime(): boolean {
   return useSyncExternalStore(subscribeSocketStatus, isNotificationSocketConnected)
 }
 
-/** Số chưa đọc: đẩy qua Socket.IO, hỏi lại 30 giây một lần khi mất kết nối */
+/**
+ * Số chưa đọc: đẩy qua Socket.IO, hỏi lại 30 giây một lần khi mất kết nối. Đăng xuất thì thôi hỏi
+ * (socket cũng tự đóng khi token bị xoá), để không gọi API rồi nhận 401.
+ */
 export function useUnreadCount() {
   const connected = useNotificationRealtime()
-  const query = useQuery({ ...unreadCountQuery, refetchInterval: connected ? false : UNREAD_POLL_MS })
-  return query.data?.count ?? 0
+  const signedIn = useIsSignedIn()
+  const query = useQuery({
+    ...unreadCountQuery,
+    enabled: signedIn,
+    refetchInterval: connected || !signedIn ? false : UNREAD_POLL_MS,
+  })
+  return signedIn ? (query.data?.count ?? 0) : 0
 }
 
 const invalidate = [notificationKeys.lists(), notificationKeys.unreadCount()]

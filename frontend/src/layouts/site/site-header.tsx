@@ -1,6 +1,6 @@
 import { Heart, Menu, Plus, Search, Sparkles } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, type Location } from 'react-router-dom'
 import { ThemeToggle } from '../../components/ui/theme-toggle'
 import { useIsSignedIn } from '../../hooks/use-is-signed-in'
 import { useScrolledPast } from '../../hooks/use-scrolled-past'
@@ -12,7 +12,18 @@ import { NotificationMenu } from './notification-menu'
 import { SiteBrand } from './site-brand'
 import { SiteMenuDrawer } from './site-menu-drawer'
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) => `site-nav__link ${isActive ? 'is-active' : ''}`
+/**
+ * Mục menu đang chọn: cùng đường dẫn và cùng tham số / #neo của link.
+ * Không dùng NavLink vì NavLink chỉ so pathname: "Quyên góp" (/#do-choi-quyen-gop) luôn sáng ở trang chủ,
+ * "Thuê đồ chơi" và "Mua lại" (/toys?type=…) cùng sáng ở /toys.
+ */
+function isNavItemActive(location: Pick<Location, 'pathname' | 'search' | 'hash'>, to: string) {
+  const target = new URL(to, 'http://site.local')
+  if (target.pathname !== location.pathname) return false
+  if (target.hash && target.hash !== location.hash) return false
+  const current = new URLSearchParams(location.search)
+  return [...target.searchParams].every(([key, value]) => current.get(key) === value)
+}
 
 /** Chiều cao header (h-16) — ô tìm kiếm ở trang được coi là "đã khuất" khi trượt xuống dưới header */
 const HEADER_HEIGHT_PX = 64
@@ -46,11 +57,19 @@ export function SiteHeader({ revealSearchAfterId }: SiteHeaderProps) {
         </div>
 
         <nav aria-label="Điều hướng chính" className="site-nav">
-          {SITE_NAV.map((item) => (
-            <NavLink key={item.label} to={item.to} className={navLinkClass}>
-              {item.label}
-            </NavLink>
-          ))}
+          {SITE_NAV.map((item) => {
+            const isActive = isNavItemActive(location, item.to)
+            return (
+              <Link
+                key={item.label}
+                to={item.to}
+                className={`site-nav__link ${isActive ? 'is-active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
           {/* Link có #neo (không dùng NavLink: NavLink coi mọi URL "/" là đang chọn) → trang chủ cuộn tới thẻ AI */}
           <Link to={AI_ADVISOR_NAV_ITEM.to} className="site-nav__link site-nav__link--ai">
             <Sparkles aria-hidden /> {AI_ADVISOR_NAV_ITEM.label}
@@ -135,7 +154,10 @@ function HeaderSearchForm({ onSubmitted }: { onSubmitted: () => void }) {
         // Mở hộp tìm kiếm là để gõ ngay
         autoFocus
       />
-      <button type="submit" className="home-button home-button--primary home-button--small">
+      <button
+        type="submit"
+        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-site-primary px-4 py-2 text-sm font-semibold whitespace-nowrap text-white transition-[background-color,color,box-shadow,transform] duration-200 ease-out-quint hover:bg-site-primary-hover hover:shadow-[0_8px_20px_-10px_rgb(20_40_75/0.8)] focus-ring active:scale-[0.98]"
+      >
         Tìm
       </button>
     </form>

@@ -45,7 +45,7 @@ export const createRequestBodySchema = z
 export type CreateRequestBody = z.infer<typeof createRequestBodySchema>;
 
 /** MSG52 (R03 V.2): a handover needs a method. */
-const handoverMethodSchema = z
+export const handoverMethodSchema = z
   .enum(handoverMethods, { error: 'Vui lòng chọn mang đến hoặc gửi qua vận chuyển.' })
   .openapi({ description: 'drop_off (at the receiving point) or carrier (GB-58).' });
 

@@ -20,6 +20,8 @@ import {
   TOY_WITHDRAWN_REASON,
 } from '../../src/services/donation-request.lifecycle.js';
 import { backfillExpiredStatus } from '../../src/repositories/donation-request.repository.js';
+import { donationTransitions } from '../../src/constants/donation-request-transitions.js';
+import { toyMoveFor } from '../../src/services/donation-request.policy.js';
 import { createToyListingPorts } from '../../src/repositories/toy-listing.repository.js';
 import { ToyListingService } from '../../src/services/toy-listing.service.js';
 import { domainEvents, type DonationStatusChangedEvent } from '../../src/utils/domain-events.js';
@@ -73,12 +75,15 @@ const get = (who: Who, path: string) => request(app).get(`/api/v1${path}`).set(h
 const toyStatus = async () => (await Toy.findById(toyId).lean())?.status;
 const requestDoc = (id: string) => DonationRequest.findById(id).lean();
 
+// The category of the test toy; the test organization takes it (GB-53).
+const TOY_CATEGORY = newId();
+
 const createDonationToy = async () =>
   String(
     (
       await Toy.create({
         ownerId: oid(ids.donor),
-        categoryId: newId(),
+        categoryId: TOY_CATEGORY,
         title: 'Wooden train set',
         description: 'Complete set with 20 pieces.',
         condition: 'good',
@@ -106,6 +111,8 @@ beforeAll(async () => {
       passwordHash: 'x',
       fullName: who,
       role,
+      // GB-06: Donors and Receivers are verified Users.
+      verificationStatus: 'verified',
     });
     ids[who] = String(user._id);
   }
@@ -124,6 +131,18 @@ beforeEach(async () => {
     address: '1 Street',
     contact_info: '+84901999999',
     support_criteria: 'Children',
+    // GB-51: requests go through the receiving point.
+    receivingPoint: {
+      province: 'Hà Nội',
+      ward: 'Phường Ba Đình',
+      street: '1 Hoàng Hoa Thám',
+      openingHours: '8:00 – 17:00',
+      contactName: 'Nguyễn Văn Nam',
+      contactPhone: '+84987654321',
+      acceptsDropOff: true,
+      acceptsParcel: true,
+    },
+    categoryIds: [TOY_CATEGORY],
   });
   orgId = String(org._id);
 });
@@ -390,6 +409,134 @@ describe('the Donor hides or deletes a donation post (D-06)', () => {
     expect((await requestDoc(id))?.status).toBe('accepted');
     expect(await Toy.findById(toyId)).not.toBeNull();
   });
+
+  it('shows a hidden post again, but never one that was given away (GB-08, GB-60)', async () => {
+    await Toy.updateOne(
+      { _id: toyId },
+      { $set: { 'moderation.reviewedAt': new Date(), 'moderation.submittedAt': new Date(0) } },
+    );
+    await listings.hide(donor(), toyId);
+    expect((await listings.show(donor(), toyId)).status).toBe('active');
+
+    const id = await accepted();
+    await DonationRequest.updateOne({ _id: id }, { $set: { status: 'completed' } });
+    expect(await toyStatus()).toBe('hidden');
+    await expect(listings.show(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'TOY_DONATED',
+    });
+    expect(await toyStatus()).toBe('hidden');
+  });
+});
+
+describe('GB-60: the toy at each move of a request', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('leaves the lists on accept and comes back only when an Accepted request ends', () => {
+    const moves = Object.entries(donationTransitions).flatMap(([from, targets]) =>
+      targets.map((to) => `${from}->${to}: ${toyMoveFor(from as never, to)?.to ?? 'no move'}`),
+    );
+    expect(moves).toEqual([
+      'pending->accepted: hidden',
+      'pending->rejected: no move',
+      'pending->cancelled: no move',
+      'pending->expired: no move',
+      'accepted->shipping: no move',
+      'accepted->cancelled: active',
+      'accepted->expired: active',
+      'shipping->completed: no move',
+      // Lost or unusable toy (UC33 7b, UC35 6.2): it stays hidden.
+      'shipping->cancelled: no move',
+      'received->completed: no move',
+    ]);
+  });
+
+  it('keeps the toy hidden when the Admin cancels a Shipping request, until the Donor edits the post', async () => {
+    const id = await shipping();
+    const res = await post('admin', `/admin/donation-requests/${id}/cancel`, {
+      reason: 'Bưu kiện bị thất lạc',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.status).toBe('cancelled');
+    expect(await toyStatus()).toBe('hidden');
+    // Hidden: nobody can ask for it.
+    expect((await post('other', '/donation-requests', { toyId })).body.error.code).toBe(
+      'TOY_NOT_AVAILABLE',
+    );
+
+    // The Donor edits the post: it goes back to review (GB-08), then to the lists once approved.
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    const edited = await listings.update(donor(), toyId, {
+      title: 'Wooden train set (đủ bộ)',
+      safetyDeclaration: false,
+    });
+    expect(edited.status).toBe('pending');
+    expect(await toyStatus()).toBe('pending');
+  });
+
+  it('keeps a hidden post hidden on edit when no Shipping request was cancelled', async () => {
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          status: 'hidden',
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    await listings.update(donor(), toyId, {
+      title: 'Wooden train set (đủ bộ)',
+      safetyDeclaration: false,
+    });
+    expect(await toyStatus()).toBe('hidden');
+  });
+});
+
+describe('a rejected donation post (UC33 5.1, BF-04 3a)', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('is sent back to review when the Donor edits it, without the reject reason', async () => {
+    const reviewedAt = new Date();
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          status: 'hidden',
+          moderation: { submittedAt: reviewedAt, reviewedAt, rejectReason: 'Ảnh bị mờ' },
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    const edited = await listings.update(donor(), toyId, {
+      description: 'Bộ tàu gỗ 20 chi tiết, đã chụp lại rõ từng mặt theo góp ý của Admin.',
+      safetyDeclaration: false,
+    });
+    expect(edited.status).toBe('pending');
+    expect(edited.listingType).toBe('donate');
+    expect(edited.moderation?.rejectReason).toBeUndefined();
+    const toy = await Toy.findById(toyId).lean();
+    expect(toy?.status).toBe('pending');
+    expect(toy?.moderation?.rejectReason).toBeUndefined();
+    expect(toy?.moderation?.submittedAt?.getTime()).toBeGreaterThan(reviewedAt.getTime() - 1);
+  });
 });
 
 describe('contact sharing (D-03)', () => {
@@ -432,12 +579,12 @@ describe('contact sharing (D-03)', () => {
     ]);
   });
 
-  it('organization request: the donor sees the organization contact once accepted', async () => {
+  it('organization request: the donor sees the receiving point contact once accepted (GB-62)', async () => {
     const res = await post('admin', '/admin/donation-requests', { toyId, organizationId: orgId });
     const id = res.body.data.id as string;
     expect(await contactOf('donor', id)).toBeNull();
     expect((await post('donor', `/donation-requests/${id}/accept`)).status).toBe(200);
-    expect(await contactOf('donor', id)).toEqual({ name: 'Org A', phone: '+84901999999' });
+    expect(await contactOf('donor', id)).toEqual({ name: 'Nguyễn Văn Nam', phone: '+84987654321' });
     const admin = await get('admin', `/admin/donation-requests/${id}`);
     expect(admin.body.data.organization.contactInfo).toBe('+84901999999');
   });
@@ -445,14 +592,7 @@ describe('contact sharing (D-03)', () => {
 
 describe('donation posts (POST /donation-posts)', () => {
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
-  // The description the web form sends: the Donor's text, then the handover method and the
-  // preferred organization (composeDonationDescription in the frontend).
-  const DESCRIPTION = [
-    'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.',
-    '',
-    'Cách bàn giao: Gửi qua đơn vị vận chuyển',
-    'Đơn vị tiếp nhận mong muốn: Để ToyFlow ghép tổ chức phù hợp',
-  ].join('\n');
+  const DESCRIPTION = 'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.';
   // A donation post has 3 to 10 photos (R03 GB-10).
   const send = (
     who: Who,

@@ -45,6 +45,10 @@ export interface DonationStatusChangedEvent {
   reason?: string;
   // The user or Admin who made the change; absent for system changes.
   changedBy?: string;
+  // MSG54: the handover deadline of an accepted request (ISO).
+  handoverDueAt?: string;
+  // MSG55: the received date of a confirmed request (ISO).
+  receivedAt?: string;
 }
 
 /** Recipients of a notification: user ids, or every active Admin. */

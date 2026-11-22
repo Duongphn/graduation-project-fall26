@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '../contexts/theme-provider'
 import { rememberTopupReturn } from '../features/wallet/topup-session'
 import { walletApi, type TopupResult } from '../features/wallet/wallet-api'
 import { WalletTopupResultPage } from './wallet-topup-result-page'
@@ -14,11 +15,14 @@ const renderAt = (url: string, gateway: 'vnpay' | 'payos' = 'vnpay') => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[url]}>
-        <WalletTopupResultPage gateway={gateway} />
-      </MemoryRouter>
-    </QueryClientProvider>,
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[url]}>
+          <WalletTopupResultPage gateway={gateway} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   )
   return { invalidate }
 }

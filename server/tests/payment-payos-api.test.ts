@@ -21,7 +21,9 @@ const Payment = PaymentModel as unknown as Model<PaymentRecord>;
 class FakePayOS implements PayOSGateway {
   public links: PayOSCreateLinkInput[] = [];
   public states = new Map<number, PayOSLinkState>();
+  public cancelled: number[] = [];
   public failCreate = false;
+  public failCancel = false;
 
   public async createPaymentLink(input: PayOSCreateLinkInput) {
     if (this.failCreate) throw new Error('PayOS is down');
@@ -31,7 +33,17 @@ class FakePayOS implements PayOSGateway {
       checkoutUrl: `https://pay.payos.vn/web/${input.orderCode}`,
       qrCode: `000201010212${input.orderCode}`,
       paymentLinkId: `link-${input.orderCode}`,
+      bin: '970422',
+      accountNumber: 'VQRQANTED5398',
+      accountName: 'LE VU CUONG',
+      description: input.description,
     };
+  }
+
+  public async cancelPaymentLink(orderCode: number) {
+    if (this.failCancel) throw new Error('already paid');
+    this.cancelled.push(orderCode);
+    this.states.set(orderCode, { status: 'CANCELLED', amount: 0, amountPaid: 0 });
   }
 
   public async getPaymentLink(orderCode: number) {
@@ -224,6 +236,64 @@ describe('PayOS top-up API', () => {
     expect(await Payment.findOne({ code: fresh.paymentCode }).lean()).toMatchObject({ status: 'pending' });
     // The VNPay expiry does not touch PayOS payments
     expect(await container.paymentService.expireStalePayments()).toEqual({ expired: 0 });
+  });
+
+  it('gives the owner the transfer details for ToyFlow’s own QR page', async () => {
+    const created = await request(app).post('/api/v1/payments/topup/payos').set(authHeader(userId)).send({ amount: 10_000 });
+    expect(created.body.data).toMatchObject({
+      amount: 10_000,
+      status: 'pending',
+      bankBin: '970422',
+      accountNumber: 'VQRQANTED5398',
+      accountName: 'LE VU CUONG',
+    });
+    const code = created.body.data.paymentCode as string;
+    expect(created.body.data.description).toBe(`NAP VI ${code}`);
+
+    const res = await request(app).get(`/api/v1/payments/payos/${code}`).set(authHeader(userId));
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      paymentCode: code,
+      amount: 10_000,
+      status: 'pending',
+      qrCode: `000201010212${code}`,
+      checkoutUrl: `https://pay.payos.vn/web/${code}`,
+      bankBin: '970422',
+    });
+
+    const other = (await createUser())._id.toString();
+    expect((await request(app).get(`/api/v1/payments/payos/${code}`).set(authHeader(other))).status).toBe(404);
+    expect((await request(app).get('/api/v1/payments/payos/abc').set(authHeader(userId))).status).toBe(400);
+
+    // After payment the page sees the final status
+    await webhook(code, 10_000);
+    expect((await request(app).get(`/api/v1/payments/payos/${code}`).set(authHeader(userId))).body.data.status).toBe(
+      'success',
+    );
+  });
+
+  it('cancels the PayOS link from ToyFlow and marks the top-up cancelled', async () => {
+    const { paymentCode } = await startTopup();
+
+    const res = await request(app).post(`/api/v1/payments/payos/${paymentCode}/cancel`).set(authHeader(userId));
+
+    expect(res.body).toMatchObject({ success: false, data: { status: 'cancelled' } });
+    expect(payos.cancelled).toEqual([Number(paymentCode)]);
+    expect(await Payment.findOne({ code: paymentCode }).lean()).toMatchObject({
+      status: 'failed',
+      gatewayResponseCode: 'CANCELLED',
+    });
+  });
+
+  it('still credits a transfer that arrived when PayOS refuses to cancel', async () => {
+    const { paymentCode } = await startTopup(60_000);
+    markPaid(paymentCode, 60_000);
+    payos.failCancel = true;
+
+    const res = await request(app).post(`/api/v1/payments/payos/${paymentCode}/cancel`).set(authHeader(userId));
+
+    expect(res.body.data.status).toBe('success');
+    expect(await balanceOf()).toBe(60_000);
   });
 
   it('does not credit a partly paid link', async () => {

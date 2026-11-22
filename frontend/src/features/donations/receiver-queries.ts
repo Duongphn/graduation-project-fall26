@@ -51,6 +51,9 @@ export function createRequestErrorMessage(error: unknown): string {
       return 'Người tặng đang tạm khoá, chưa thể nhận yêu cầu.'
     case 'TOY_NOT_FOUND':
       return 'Đồ chơi không còn trên ToyFlow.'
+    // MSG17
+    case 'USER_NOT_VERIFIED':
+      return 'Vui lòng xác minh danh tính trước khi tiếp tục.'
   }
   if (error.status === 403) return 'Tài khoản của bạn chưa được phép gửi yêu cầu. Hãy xác minh danh tính trước.'
   return error.message

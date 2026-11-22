@@ -5,6 +5,7 @@ import {
   GiftOutlined,
   HeartOutlined,
   IdcardOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
@@ -29,5 +30,6 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'identity-verifications', label: 'Xác minh danh tính', icon: <IdcardOutlined />, path: adminPaths.identityVerifications, pendingCounter: 'identityVerifications' },
   { key: 'categories', label: 'Danh mục đồ chơi', icon: <AppstoreOutlined />, path: adminPaths.categories },
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
+  { key: 'disputes', label: 'Giải quyết khiếu nại', icon: <SafetyCertificateOutlined />, path: adminPaths.disputes },
   { key: 'donation-requests', label: 'Yêu cầu nhận tặng', icon: <GiftOutlined />, path: adminPaths.donationRequests },
 ]

@@ -124,6 +124,19 @@ Webhook URL to confirm in the PayOS dashboard: `https://<public host>/api/v1/pay
   The transfer note is `NAP VI <orderCode>`; the link expires after 15 minutes.
 - **Errors**: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `502 PAYOS_GATEWAY_ERROR` (PayOS refused or unreachable; the payment is marked failed), `503 PAYMENT_GATEWAY_NOT_CONFIGURED`.
 
+The response also carries the transfer details (`status`, `bankBin`, `accountNumber`, `accountName`, `description`, `expiresAt`), so the frontend shows **its own QR page** (`/wallet/topup/payos/:code`) instead of sending the user to PayOS; `checkoutUrl` stays as a fallback.
+
+### 5b. Transfer details of a PayOS top-up
+- **Method / Path**: `GET /api/v1/payments/payos/:code`
+- **Auth**: User token, owner of the payment (others `404 PAYMENT_NOT_FOUND`)
+- **Response (`200 OK`)**: `{ paymentCode, amount, status, expiresAt, qrCode, checkoutUrl, bankBin, accountNumber, accountName, description }` — `qrCode` is the VietQR content; the frontend draws the QR itself.
+
+### 5c. Cancel a PayOS top-up
+- **Method / Path**: `POST /api/v1/payments/payos/:code/cancel`
+- **Auth**: User token, owner of the payment
+- **Effect**: cancels the PayOS link and marks the payment `failed` (`CANCELLED`). If PayOS refuses (the transfer arrived meanwhile), the real status is checked and a paid transfer is still credited.
+- **Response (`200 OK`)**: same shape as the return result (`status: cancelled`, or `success` when it had been paid).
+
 ### 6. PayOS return result
 - **Method / Path**: `GET /api/v1/payments/payos-return?orderCode=1763600000123` (PayOS also adds `code`, `id`, `cancel`, `status`, ignored)
 - **Auth**: User token, owner of the payment (others get `status: not_found`)

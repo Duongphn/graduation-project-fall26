@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { FOOTER_COLUMNS, FOOTER_TAGLINE } from '../../features/home/home-content'
+import { PATHS } from '../../routes/paths'
 import { SiteBrand } from './site-brand'
 
 export function SiteFooter() {
@@ -31,6 +32,14 @@ export function SiteFooter() {
 
       <div className="home-container site-footer__bottom">
         <p>© {year} ToyFlow</p>
+        <nav aria-label="Pháp lý" className="site-footer__legal">
+          <Link to={PATHS.terms} className="site-footer__link">
+            Điều khoản dịch vụ
+          </Link>
+          <Link to={PATHS.privacy} className="site-footer__link">
+            Chính sách bảo mật
+          </Link>
+        </nav>
       </div>
     </footer>
   )

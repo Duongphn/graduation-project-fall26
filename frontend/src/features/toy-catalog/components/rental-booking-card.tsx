@@ -430,7 +430,8 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
               </p>
             )}
 
-            {quoteError && (
+            {/* Một thông báo lỗi: lỗi khi gửi (kèm khoảng gợi ý) thay cho lỗi báo giá khi báo giá tải lại sau 409 */}
+            {quoteError && !failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <div>
@@ -444,7 +445,7 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
               </div>
             )}
 
-            {unavailable && (
+            {unavailable && !failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <p>Khoảng ngày này vừa có người đặt. Vui lòng chọn ngày khác trên lịch.</p>

@@ -139,3 +139,94 @@ describe('AdminLayout', () => {
     expect(await screen.findByText('Trang tổ chức')).toBeInTheDocument()
   })
 })
+
+// Admin review 20/11 #1: at 390 px the 240 px menu took most of the screen and the page scrolled
+// sideways. Below the md breakpoint the menu is hidden and opens from the top bar.
+describe('AdminLayout on a phone', () => {
+  const originalMatchMedia = window.matchMedia
+  beforeEach(() => {
+    // Every max-width query matches, as on a 390 px screen.
+    window.matchMedia = ((query: string) => ({
+      ...originalMatchMedia(query),
+      matches: query.includes('max-width'),
+    })) as typeof window.matchMedia
+  })
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  const sider = () => document.querySelector('.ant-layout-sider') as HTMLElement
+
+  it('hides the menu and opens it from the menu button, then closes it after a pick', async () => {
+    renderAt(adminPaths.categories)
+    expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+
+    await vi.waitFor(() => expect(sider()).toHaveClass('ant-layout-sider-collapsed'))
+    expect(sider().style.width).toBe('0px')
+
+    const user = userEvent.setup()
+    const toggle = screen.getByRole('button', { name: 'Mở menu quản trị' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(sider()).not.toHaveClass('ant-layout-sider-collapsed')
+    expect(sider().style.width).toBe('240px')
+
+    await user.click(screen.getByRole('link', { name: 'Tổ chức từ thiện' }))
+    expect(await screen.findByText('Trang tổ chức')).toBeInTheDocument()
+    expect(sider()).toHaveClass('ant-layout-sider-collapsed')
+  })
+
+  it('keeps the full menu on a wide screen', async () => {
+    window.matchMedia = originalMatchMedia
+    renderAt(adminPaths.categories)
+    expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+    expect(sider()).not.toHaveClass('ant-layout-sider-collapsed')
+    expect(screen.queryByRole('button', { name: 'Mở menu quản trị' })).not.toBeInTheDocument()
+  })
+})
+
+// Admin review 20/11 #2: /admin/notifications and unknown /admin/... links lit up "Tổng quan".
+describe('AdminLayout selected menu entry', () => {
+  const renderSelected = (url: string) => {
+    const page = (text: string) => <p>{text}</p>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/admin',
+          element: <AdminLayout />,
+          children: [
+            { index: true, element: page('Trang tổng quan') },
+            { path: 'toys/:id', element: page('Trang chi tiết tin') },
+            { path: 'disputes', element: page('Trang khiếu nại') },
+            { path: 'notifications', element: page('Trang thông báo') },
+            { path: '*', element: page('Không tìm thấy trang') },
+          ],
+        },
+      ],
+      { initialEntries: [url] },
+    )
+    renderWithProviders(<RouterProvider router={router} />)
+  }
+  const selectedEntries = () =>
+    [...document.querySelectorAll('.ant-menu-item-selected')].map((item) => item.textContent)
+
+  it.each([
+    ['/admin/notifications', 'Trang thông báo'],
+    ['/admin/link-la', 'Không tìm thấy trang'],
+  ])('selects no entry on %s', async (url, text) => {
+    renderSelected(url)
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(selectedEntries()).toEqual([])
+  })
+
+  it.each([
+    ['/admin', 'Trang tổng quan', 'Tổng quan'],
+    ['/admin/', 'Trang tổng quan', 'Tổng quan'],
+    ['/admin/toys/64b000000000000000000001', 'Trang chi tiết tin', 'Duyệt tin đăng'],
+    ['/admin/disputes', 'Trang khiếu nại', 'Giải quyết khiếu nại'],
+  ])('selects only the matching entry on %s', async (url, text, label) => {
+    renderSelected(url)
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(selectedEntries()).toEqual([label])
+  })
+})

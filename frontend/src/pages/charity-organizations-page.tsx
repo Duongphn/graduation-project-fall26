@@ -5,7 +5,9 @@ import { useEffect, useMemo, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { QueryErrorAlert } from '../components/common'
 import { OrganizationCard, OrganizationCardSkeleton } from '../features/organizations/components/organization-card'
+import { OrganizationFiltersBar } from '../features/organizations/components/organization-filters'
 import { OrganizationProfile } from '../features/organizations/components/organization-profile'
+import { useCategoryNames } from '../features/organizations/hooks'
 import {
   ORGANIZATION_PAGE_SIZE,
   organizationListQuery,
@@ -13,18 +15,22 @@ import {
   toOrganizationSearch,
   type OrganizationFilters,
 } from '../features/organizations/public-queries'
+import { categoriesQuery } from '../features/toy-listings/toy-listing-queries'
 import { SiteLayout } from '../layouts/site/site-layout'
 import { PATHS } from '../routes/paths'
 
 const countFormatter = new Intl.NumberFormat('vi-VN')
 
-/** Donor xem tổ chức từ thiện đã được Admin xác minh: địa chỉ, nhu cầu (UC27) */
+/** Donor xem tổ chức từ thiện đã được Admin xác minh: địa chỉ, nhu cầu, lọc theo GB-52 (UC33, R03 III.5.2.3) */
 export function CharityOrganizationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseOrganizationSearch(searchParams), [searchParams])
   const selectedId = searchParams.get('id')
   // Giữ danh sách cũ trên màn hình trong lúc tải bộ lọc mới, tránh chớp trống
   const list = useQuery({ ...organizationListQuery(filters), placeholderData: keepPreviousData })
+  // GB-52 lọc theo danh mục, GB-53 hiện danh mục tổ chức nhận
+  const categories = useQuery(categoriesQuery)
+  const categoryNames = useCategoryNames()
 
   useEffect(() => {
     document.title = 'Tổ chức từ thiện | ToyFlow'
@@ -87,7 +93,7 @@ export function CharityOrganizationsPage() {
           </p>
         </header>
 
-        {/* Bộ lọc: từ khoá — tham số của GET /organizations */}
+        {/* Bộ lọc: từ khoá và GB-52 (tỉnh, nhóm tuổi, danh mục, vùng khó khăn) — tham số của GET /organizations */}
         <section aria-label="Lọc tổ chức" className="mt-6 flex flex-col gap-3 rounded-xl border border-tf-surface bg-white p-4">
           <div className="flex flex-col gap-3 md:flex-row">
             <form role="search" onSubmit={submitKeyword} className="min-w-0 flex-1" key={filters.q ?? ''}>
@@ -103,6 +109,12 @@ export function CharityOrganizationsPage() {
               />
             </form>
           </div>
+          <OrganizationFiltersBar
+            filters={filters}
+            categories={categories.data ?? []}
+            categoriesLoading={categories.isPending}
+            onChange={updateFilters}
+          />
         </section>
 
         <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
@@ -118,7 +130,7 @@ export function CharityOrganizationsPage() {
             {list.isSuccess && items.length === 0 && (
               <div className="rounded-xl border border-dashed border-tf-outline bg-white px-6 py-10 text-center">
                 <p className="font-semibold text-tf-ink">Không có tổ chức nào phù hợp.</p>
-                <p className="mt-1 text-sm text-tf-ink-muted">Thử bỏ bớt bộ lọc tỉnh/thành hoặc độ tuổi.</p>
+                <p className="mt-1 text-sm text-tf-ink-muted">Thử bỏ bớt bộ lọc tỉnh/thành, độ tuổi hoặc danh mục.</p>
                 <button
                   type="button"
                   onClick={() => setSearchParams(new URLSearchParams())}
@@ -135,6 +147,7 @@ export function CharityOrganizationsPage() {
                 organization={organization}
                 isSelected={organization.id === selected?.id}
                 selectHref={selectHref(organization.id)}
+                categoryNames={categoryNames}
               />
             ))}
 
@@ -156,7 +169,7 @@ export function CharityOrganizationsPage() {
               aria-label={`Hồ sơ ${selected.name}`}
               className="sticky top-20 hidden rounded-xl border border-tf-surface bg-white p-5 lg:block"
             >
-              <OrganizationProfile organization={selected} />
+              <OrganizationProfile organization={selected} categoryNames={categoryNames} />
             </aside>
           )}
         </div>

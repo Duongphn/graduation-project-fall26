@@ -57,9 +57,14 @@ export function DonationProgress({
   const steps: Step[] = [
     {
       icon: HandHeart,
-      title: forReceiver ? 'Đã gửi yêu cầu nhận' : 'Có người đăng ký nhận',
+      // GB-56: yêu cầu người tặng gửi tới tổ chức do Admin quyết định thay tổ chức
+      title: forReceiver ? 'Đã gửi yêu cầu nhận' : request.decider === 'ADMIN' ? 'Đã gửi tới tổ chức' : 'Có người đăng ký nhận',
       at: request.createdAt,
-      hint: forReceiver ? 'Chờ người tặng đồng ý' : 'Chờ bạn đồng ý tặng',
+      hint: forReceiver
+        ? 'Chờ người tặng đồng ý'
+        : request.decider === 'ADMIN'
+          ? 'Chờ ToyFlow xác nhận thay tổ chức'
+          : 'Chờ bạn đồng ý tặng',
     },
     {
       icon: UserRoundCheck,

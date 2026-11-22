@@ -52,6 +52,7 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
             settledAt: doc.settlement.settledAt,
             autoSettled: doc.settlement.autoSettled ?? undefined,
             disputeId: doc.settlement.disputeId?.toString() ?? undefined,
+            resolution: doc.settlement.resolution ?? undefined,
           }
         : undefined,
     createdAt: doc.createdAt,

@@ -65,12 +65,15 @@ export const refreshAccessToken = (): Promise<string> => {
   return refreshing
 }
 
-/** Phiên hết hạn hẳn: xoá token rồi về trang đăng nhập, đăng nhập xong quay lại đúng trang */
+/** `?reason=` của trang đăng nhập khi phiên bị thu hồi/hết hạn hẳn: trang báo MSG58 */
+export const SESSION_ENDED_REASON = 'session-ended'
+
+/** Phiên hết hạn hẳn: xoá token rồi về trang đăng nhập (báo MSG58), đăng nhập xong quay lại đúng trang */
 const redirectToLogin = () => {
   clearAuthTokens()
   const { pathname, search } = window.location
   if (pathname === '/login') return
-  window.location.assign(`/login?redirect=${encodeURIComponent(pathname + search)}`)
+  window.location.assign(`/login?redirect=${encodeURIComponent(pathname + search)}&reason=${SESSION_ENDED_REASON}`)
 }
 
 // Access token hết hạn (401): làm mới một lần rồi gửi lại request; làm mới thất bại thì đăng xuất

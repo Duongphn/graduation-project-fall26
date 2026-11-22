@@ -1,7 +1,9 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 
 import { useApiMutation } from '../../hooks/useApiMutation'
 import type { WithMessage } from '../../types/api'
+import { categoriesQuery } from '../toy-listings/toy-listing-queries'
 import { organizationsApi } from './api'
 import type { OrganizationInput, OrganizationListParams } from './types'
 
@@ -69,3 +71,12 @@ export const useDeleteOrganization = () =>
     successMessage: messageOr('Đã xoá tổ chức.'),
     invalidate,
   })
+
+/** Tên các danh mục đang hoạt động theo id (GET /categories), để hiện danh mục tổ chức nhận (GB-53) */
+export function useCategoryNames(): ReadonlyMap<string, string> {
+  const categories = useQuery(categoriesQuery)
+  return useMemo(
+    () => new Map((categories.data ?? []).map((category) => [category.id, category.name])),
+    [categories.data],
+  )
+}

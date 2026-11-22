@@ -68,7 +68,7 @@ export const accept = (context: AdminContext, id: string) => service.accept(toAc
 export const reject = (context: AdminContext, id: string, reason: string) =>
   service.reject(toActor(context), id, reason);
 
-/** Also the way out of a stuck SHIPPING request: the toy goes back to ACTIVE (audited). */
+/** Also the way out of a stuck SHIPPING request: the toy stays hidden (GB-60, audited). */
 export const cancel = (context: AdminContext, id: string, reason: string) =>
   service.cancel(toActor(context), id, { note: reason });
 

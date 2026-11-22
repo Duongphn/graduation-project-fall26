@@ -20,7 +20,10 @@ export function LoginForm({ defaultIdentifier = '', onSuccess }: LoginFormProps)
   const { control, handleSubmit } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { identifier: defaultIdentifier, password: '', rememberMe: true },
-    mode: 'onTouched',
+    // R03 III.1.2.1 (8): nút Đăng nhập mới kiểm tra hai ô; sau đó lỗi cập nhật khi gõ.
+    // Không kiểm tra khi rời ô: ô đầu tự focus, bấm nút đổi giao diện sẽ hiện lỗi "Vui lòng nhập…" oan
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   })
 
   const loginMutation = useMutation({

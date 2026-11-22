@@ -3,6 +3,16 @@ import { Payment } from '../models/index.js';
 
 export type PaymentStatus = 'pending' | 'success' | 'failed';
 
+/** PayOS transfer details of a payment (for ToyFlow's QR page) */
+export interface PaymentCheckout {
+  qrCode: string;
+  checkoutUrl: string;
+  bin: string;
+  accountNumber: string;
+  accountName: string;
+  description: string;
+}
+
 export interface PaymentRecord {
   _id: Types.ObjectId;
   code: string;
@@ -15,6 +25,7 @@ export interface PaymentRecord {
   gatewayTransactionNo?: string;
   gatewayResponseCode?: string;
   gatewayLinkId?: string;
+  checkout?: PaymentCheckout;
   status: PaymentStatus;
   expiresAt?: Date;
   createdAt: Date;
@@ -70,9 +81,9 @@ export class PaymentRepository {
     ).lean()) as PaymentRecord | null;
   }
 
-  /** Records the PayOS link id on the pending payment (for support lookups) */
-  public async setGatewayLinkId(code: string, linkId: string): Promise<void> {
-    await PaymentModel.updateOne({ code }, { $set: { gatewayLinkId: linkId } });
+  /** Records the PayOS link id and transfer details on the pending payment */
+  public async saveCheckout(code: string, linkId: string, checkout: PaymentCheckout): Promise<void> {
+    await PaymentModel.updateOne({ code }, { $set: { gatewayLinkId: linkId, checkout } });
   }
 
   /** Pending top-ups of `gateway` whose link expired before `before` (oldest first) */

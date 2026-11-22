@@ -14,6 +14,8 @@ export const notificationLinks = {
   myRental: (orderId: string) => `/rentals/mine/${orderId}`,
   /** A booking request seen by the Owner. */
   rentalRequest: (orderId: string) => `/rentals/requests/${orderId}`,
+  /** A dispute case seen by the Admin (UC19). */
+  adminDispute: (disputeId: string) => `/admin/disputes/${disputeId}`,
 } as const;
 
 /** Only app paths are stored: a notification never sends the user to another site. */

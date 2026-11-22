@@ -5,6 +5,7 @@ import type { PayosTopupService } from '../services/payos-topup.service.js';
 import { sendSuccess } from '../utils/response.js';
 import type {
   PaymentCodeParams,
+  PayosCodeParams,
   PayosReturnQuery,
   PayosTopupBody,
   TopupBody,
@@ -37,6 +38,26 @@ export class PaymentController {
     try {
       const { orderCode } = getValidatedQuery<PayosReturnQuery>(res);
       const result = await this.payos.confirmReturn(req.auth!, orderCode);
+      res.status(200).json({ success: result.success, data: result });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** ToyFlow's QR page: transfer details of the owner's PayOS top-up */
+  public getPayosCheckout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { code } = getValidatedParams<PayosCodeParams>(res);
+      sendSuccess(res, await this.payos.getCheckout(req.auth!, code));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public cancelPayosTopup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { code } = getValidatedParams<PayosCodeParams>(res);
+      const result = await this.payos.cancel(req.auth!, code);
       res.status(200).json({ success: result.success, data: result });
     } catch (err) {
       next(err);

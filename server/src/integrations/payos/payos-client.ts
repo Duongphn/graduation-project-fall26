@@ -43,7 +43,15 @@ export class PayOSClient implements PayOSGateway {
       cancelUrl: input.cancelUrl,
       expiredAt: input.expiredAt,
     });
-    return { checkoutUrl: link.checkoutUrl, qrCode: link.qrCode, paymentLinkId: link.paymentLinkId };
+    return {
+      checkoutUrl: link.checkoutUrl,
+      qrCode: link.qrCode,
+      paymentLinkId: link.paymentLinkId,
+      bin: link.bin,
+      accountNumber: link.accountNumber,
+      accountName: link.accountName,
+      description: link.description,
+    };
   }
 
   public async getPaymentLink(orderCode: number): Promise<PayOSLinkState> {
@@ -54,6 +62,10 @@ export class PayOSClient implements PayOSGateway {
       amountPaid: link.amountPaid,
       reference: link.transactions[0]?.reference,
     };
+  }
+
+  public async cancelPaymentLink(orderCode: number, reason: string): Promise<void> {
+    await this.client().paymentRequests.cancel(orderCode, reason);
   }
 
   public async verifyWebhook(body: unknown): Promise<PayOSWebhookData> {

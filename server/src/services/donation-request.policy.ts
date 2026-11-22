@@ -94,20 +94,21 @@ export const canConfirmReceipt = (record: DonationRecord, actor: DonationActor) 
   actor.isAdmin || (receiverTypeOf(record) === 'USER' && isRequester(record, actor));
 
 /**
- * The move of the toy that goes with a request move, if any. Develop's toys have no
- * reserved/donated statuses: an accepted toy is 'hidden' (off the catalog) and stays hidden once
- * donated; a cancelled accepted/shipping request, or an expired accepted one (GB-57), puts it
- * back to 'active'.
+ * The move of the toy that goes with a request move, if any (GB-60). Develop's toys have no
+ * reserved/donated statuses: an accepted toy is 'hidden' (off the toy lists) and stays hidden
+ * while Shipping and once donated (Confirmed). An Accepted request that ends without a handover
+ * (cancelled or expired) puts it back to 'active'. A cancelled Shipping request keeps it hidden
+ * (the toy may be lost or with the receiver) until the Donor edits or deletes the post. Pending
+ * requests never moved the toy, so their end moves nothing.
  */
 export const toyMoveFor = (
   from: StoredDonationStatus,
   to: StoredDonationStatus,
 ): { from: ToyStatus; to: ToyStatus } | undefined => {
   if (to === 'accepted') return { from: 'active', to: 'hidden' };
-  if (to === 'cancelled' && (from === 'accepted' || from === 'shipping')) {
+  if (from === 'accepted' && (to === 'cancelled' || to === 'expired')) {
     return { from: 'hidden', to: 'active' };
   }
-  if (to === 'expired' && from === 'accepted') return { from: 'hidden', to: 'active' };
   return undefined;
 };
 

@@ -52,13 +52,13 @@ export class RentalSystemService extends RentalOrderCore {
         updated,
         'renter',
         'Đơn thuê đã tự động xác nhận nhận hàng',
-        'Thời hạn 48 giờ đã hết, đơn thuê tự động chuyển sang trạng thái đang sử dụng.',
+        `Thời hạn ${s.receiptAutoConfirmHours} giờ đã hết, đơn thuê tự động chuyển sang trạng thái đang sử dụng.`,
       );
       await this.notifyParty(
         updated,
         'owner',
         'Đơn thuê đã tự động xác nhận nhận hàng',
-        'Thời hạn 48 giờ đã hết, đơn thuê tự động chuyển sang trạng thái đang sử dụng.',
+        `Thời hạn ${s.receiptAutoConfirmHours} giờ đã hết, đơn thuê tự động chuyển sang trạng thái đang sử dụng.`,
       );
     } catch (err) {
       if (err instanceof AppError && err.code === 'INVALID_RENTAL_TRANSITION') {
@@ -131,6 +131,8 @@ export class RentalSystemService extends RentalOrderCore {
     const fromStatus: RentalOrderStatus = kind === 'OWNER_RESPONSE' ? 'PENDING' : 'ACCEPTED';
     const note = `system:${kind}`;
     const now = this.clock.now();
+    // Số giờ trong thông báo lấy theo cấu hình hệ thống (Admin đổi được), không ghi cứng 24 h / 12 h
+    const s = await this.settings.getRentalSettings();
 
     try {
       const updated = await this.transition({
@@ -150,26 +152,26 @@ export class RentalSystemService extends RentalOrderCore {
           updated,
           'renter',
           'Yêu cầu thuê đã hết hạn',
-          'Chủ đồ chơi đã không phản hồi yêu cầu thuê trong vòng 24 giờ. Yêu cầu đã hết hạn.',
+          `Chủ đồ chơi đã không phản hồi yêu cầu thuê trong vòng ${s.ownerResponseHours} giờ. Yêu cầu đã hết hạn.`,
         );
         await this.notifyParty(
           updated,
           'owner',
           'Yêu cầu thuê đã hết hạn',
-          'Thời hạn 24 giờ phản hồi đã hết. Yêu cầu thuê đã hết hạn.',
+          `Thời hạn ${s.ownerResponseHours} giờ phản hồi đã hết. Yêu cầu thuê đã hết hạn.`,
         );
       } else {
         await this.notifyParty(
           updated,
           'renter',
           'Đơn thuê đã hết hạn thanh toán',
-          'Thời hạn 12 giờ thanh toán đã hết. Đơn thuê đã bị hủy.',
+          `Thời hạn ${s.paymentHours} giờ thanh toán đã hết. Đơn thuê đã bị hủy.`,
         );
         await this.notifyParty(
           updated,
           'owner',
           'Đơn thuê đã hết hạn thanh toán',
-          'Người thuê đã không thanh toán đơn thuê trong vòng 12 giờ. Đơn thuê đã bị hủy.',
+          `Người thuê đã không thanh toán đơn thuê trong vòng ${s.paymentHours} giờ. Đơn thuê đã bị hủy.`,
         );
       }
     } catch (err) {

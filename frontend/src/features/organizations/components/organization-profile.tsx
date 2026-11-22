@@ -1,9 +1,10 @@
-import { Clock, Gift, HandHeart, MapPin, UserRound, type LucideIcon } from 'lucide-react'
+import { Clock, Gift, HandHeart, MapPin, PauseCircle, UserRound, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
 import type { PublicOrganization, PublicReceivingPoint } from '../types'
 import { OrganizationLogo } from './organization-logo'
+import { OrganizationNeeds, RemoteAreaBadge } from './organization-needs'
 
 function ProfileSection({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
   return (
@@ -25,7 +26,14 @@ const pointMethods = (point: PublicReceivingPoint) =>
 /**
  * Hồ sơ đầy đủ của một tổ chức — dùng ở khung bên phải trang danh sách và ở trang chi tiết.
  */
-export function OrganizationProfile({ organization }: { organization: PublicOrganization }) {
+export function OrganizationProfile({
+  organization,
+  categoryNames = new Map(),
+}: {
+  organization: PublicOrganization
+  /** Tên danh mục theo id (useCategoryNames) */
+  categoryNames?: ReadonlyMap<string, string>
+}) {
   const point = organization.receivingPoint
   return (
     <div className="flex flex-col gap-4">
@@ -33,6 +41,7 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
         <OrganizationLogo name={organization.name} />
         <div className="min-w-0">
           <h2 className="text-lg leading-7 font-bold tracking-[-0.01em] text-tf-ink">{organization.name}</h2>
+          {organization.isRemoteArea && <RemoteAreaBadge />}
         </div>
       </header>
 
@@ -43,7 +52,10 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
       )}
 
       <ProfileSection icon={HandHeart} title="Nhu cầu hiện tại">
-        <p className="text-sm leading-6 whitespace-pre-line text-tf-ink">{organization.supportCriteria}</p>
+        <OrganizationNeeds organization={organization} categoryNames={categoryNames} />
+        {organization.supportCriteria && (
+          <p className="text-sm leading-6 whitespace-pre-line text-tf-ink">{organization.supportCriteria}</p>
+        )}
       </ProfileSection>
 
       <ProfileSection icon={MapPin} title={point ? 'Điểm nhận đồ chơi' : 'Địa chỉ'}>
@@ -60,12 +72,22 @@ export function OrganizationProfile({ organization }: { organization: PublicOrga
         </ProfileSection>
       )}
 
-      <Link
-        to={`${PATHS.newDonation}?organizationId=${organization.id}`}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-tf-primary px-5 text-sm font-bold text-white transition-colors hover:bg-tf-primary-container"
-      >
-        <Gift className="size-4" aria-hidden /> Quyên góp cho tổ chức này
-      </Link>
+      {/* GB-51/GB-55: an organization that is not accepting toys (or has no receiving point) takes no new donation. */}
+      {organization.isAccepting && point ? (
+        <Link
+          to={`${PATHS.newDonation}?organizationId=${organization.id}`}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-tf-primary px-5 text-sm font-bold text-white transition-colors hover:bg-tf-primary-container"
+        >
+          <Gift className="size-4" aria-hidden /> Quyên góp cho tổ chức này
+        </Link>
+      ) : (
+        <p role="status" className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+          <PauseCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {organization.isAccepting
+            ? 'Tổ chức chưa có điểm nhận nên chưa nhận quyên góp.'
+            : 'Tổ chức đang tạm ngừng nhận đồ chơi. Bạn có thể chọn tổ chức khác hoặc quay lại sau.'}
+        </p>
+      )}
     </div>
   )
 }

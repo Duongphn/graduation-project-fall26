@@ -74,3 +74,63 @@ export function settlementEntries(
     { walletId: wallets.renter, amount: D - L },
   ].filter((entry) => entry.amount !== 0);
 }
+
+export interface RulingAmounts {
+  rentalFee: number;
+  depositAmount: number;
+  platformFeeRate: number;
+  lateFee: number;
+  /** K: bồi thường cho chủ đồ, lấy từ tiền cọc */
+  compensation: number;
+  /** G: tiền thuê hoàn cho người thuê */
+  rentRefund: number;
+}
+
+export interface RulingSplit {
+  /** R + D: toàn bộ tiền đang bị giữ ở escrow */
+  frozen: number;
+  /** R − G − F' + L + K */
+  owner: number;
+  /** F' = p × (R − G) */
+  platform: number;
+  /** D − L − K + G */
+  renter: number;
+}
+
+/**
+ * Chia tiền theo phán quyết khiếu nại đơn thuê (R03 I.2.6.6): escrow trả hết R + D trong một bút toán.
+ * Giới hạn: L + K ≤ D (bồi thường chỉ lấy từ cọc) và G ≤ R.
+ */
+export function rulingSplit(amounts: RulingAmounts): RulingSplit {
+  const {
+    rentalFee: R,
+    depositAmount: D,
+    platformFeeRate: p,
+    lateFee: L,
+    compensation: K,
+    rentRefund: G,
+  } = amounts;
+  if (![K, G].every((v) => Number.isInteger(v) && v >= 0)) {
+    throw new Error('INVALID_RULING_AMOUNT');
+  }
+  if (L + K > D || G > R) {
+    throw new Error('RULING_EXCEEDS_LIMIT');
+  }
+  const platform = Math.round(p * (R - G));
+  return {
+    frozen: R + D,
+    owner: R - G - platform + L + K,
+    platform,
+    renter: D - L - K + G,
+  };
+}
+
+/** Bút toán phán quyết: escrow −(R + D), chia cho chủ đồ, nền tảng, người thuê; bỏ dòng 0 đồng. */
+export function rulingEntries(split: RulingSplit, wallets: SettleWallets): LedgerEntry[] {
+  return [
+    { walletId: wallets.escrow, amount: -split.frozen },
+    { walletId: wallets.owner, amount: split.owner },
+    { walletId: wallets.platform, amount: split.platform },
+    { walletId: wallets.renter, amount: split.renter },
+  ].filter((entry) => entry.amount !== 0);
+}
