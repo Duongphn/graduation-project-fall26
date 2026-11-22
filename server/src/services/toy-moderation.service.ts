@@ -236,10 +236,12 @@ const decide = async (
     }
 
     await writeAuditLog(
-      adminAuditEntry(context, decision.to === 'active' ? 'toy.approve' : 'toy.reject', {
-        kind: 'TOY',
-        id: String(current._id),
-      }),
+      adminAuditEntry(
+        context,
+        decision.to === 'active' ? 'toy.approve' : 'toy.reject',
+        { kind: 'TOY', id: String(current._id) },
+        decision.to === 'hidden' ? { reason: decision.reason } : undefined,
+      ),
       session,
     );
     return { before: current, after: updated };

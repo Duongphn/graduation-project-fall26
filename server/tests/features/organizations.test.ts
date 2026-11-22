@@ -92,7 +92,7 @@ beforeEach(async () => {
   await Promise.all([
     Organization.deleteMany({}),
     DonationRequest.deleteMany({}),
-    AuditLog.deleteMany({}),
+    AuditLog.collection.deleteMany({}),
     Category.deleteMany({}),
   ]);
   const [puzzle, outdoor, hidden] = await Category.create([

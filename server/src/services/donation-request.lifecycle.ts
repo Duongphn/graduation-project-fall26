@@ -67,6 +67,7 @@ const closeOne = async (command: CloseCommand): Promise<DonationStatusChangedEve
           ...(command.actorId ? { actorId: command.actorId } : {}),
           action: command.auditAction,
           target: { kind: 'DONATION_REQUEST', id: String(current._id) },
+          details: { from: command.from, to: command.to },
         },
         session,
       );

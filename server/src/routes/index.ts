@@ -4,6 +4,7 @@ import { featureEnv } from '../config/feature-env.js';
 import { createDocsRouter } from '../config/openapi.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { createAiRouter } from './ai.routes.js';
+import { adminAuditLogsRouter } from './audit-log.routes.js';
 import { adminCategoriesRouter } from './category-admin.routes.js';
 import { createDonationPostsRouter } from './donation-post.routes.js';
 import {
@@ -66,6 +67,7 @@ export function createApiRouter(container: Container): Router {
     authenticate,
     createAdminDisputeRouter(container.rentalDisputeService),
   );
+  router.use('/admin/audit-logs', authenticate, adminAuditLogsRouter);
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);
