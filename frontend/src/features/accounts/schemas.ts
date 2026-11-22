@@ -2,12 +2,13 @@ import { z } from 'zod'
 
 import { lockDurations, userRoles } from '../../constants/domain'
 import { enumParam, searchParam } from '../../schemas/list-params'
-import { accountTabs } from './types'
+import { accountTabs, accountTrustBands } from './types'
 
-// Filters of the account list read from the URL (?tab=locked&role=USER&q=…).
+// Filters of the account list read from the URL (?tab=locked&role=USER&trustBand=low&q=…).
 export const accountFiltersSchema = z.object({
   tab: z.enum(accountTabs).catch('all'),
   role: enumParam(userRoles),
+  trustBand: enumParam(accountTrustBands),
   q: searchParam,
 })
 

@@ -45,7 +45,7 @@ const toListItem = (
     accountStatus: locked ? 'LOCKED' : 'ACTIVE',
     lockedUntil: locked ? toIsoString(row.lock?.until) : null,
     verificationStatus: row.verificationStatus,
-    trustScore: row.trust?.score ?? null,
+    trustScore: row.trust?.score ?? repository.STARTING_TRUST_SCORE,
     violationCount: row.violationCount,
     pendingReportCount: row.pendingReportCount,
     createdAt: row.createdAt.toISOString(),
@@ -59,7 +59,7 @@ export const listAccounts = async (
   const paging = toMongoPaging(query, accountSortFields);
   const { rows, total } = await repository.listAccounts(
     query.tab,
-    { role: query.role, q: query.q || undefined },
+    { role: query.role, trustBand: query.trustBand, q: query.q || undefined },
     paging,
     now,
   );
@@ -69,7 +69,7 @@ export const listAccounts = async (
 /** Counters of the status tabs (All, Active, Locked, New reports). */
 export const countAccounts = async (query: AccountCountsQuery): Promise<AccountCounts> => {
   const now = new Date();
-  const filter = { role: query.role, q: query.q || undefined };
+  const filter = { role: query.role, trustBand: query.trustBand, q: query.q || undefined };
   const counts = await Promise.all(
     accountListTabs.map((tab) => repository.countAccounts(tab, filter, now)),
   );

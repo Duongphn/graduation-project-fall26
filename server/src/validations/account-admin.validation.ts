@@ -13,8 +13,18 @@ export type AccountListTab = (typeof accountListTabs)[number];
 
 export const accountSortFields = ['createdAt', 'violationCount'] as const;
 
+/**
+ * Trust Score bands of the User List (R03 III.7.2.1 (2)), from GB-29: the score goes from 0 to
+ * 100 and starts at 100; below 50 a Renter cannot rent toys with a high deposit.
+ */
+export const accountTrustBands = ['low', 'medium', 'full'] as const;
+export type AccountTrustBand = (typeof accountTrustBands)[number];
+
 const accountFilterShape = {
   role: z.enum(['USER', 'ADMIN']).optional(),
+  trustBand: z.enum(accountTrustBands).optional().openapi({
+    description: 'low = below 50, medium = 50 to 99, full = 100 (also an account not scored yet).',
+  }),
   q: searchQuerySchema.openapi({ description: 'Name, phone number or email.' }),
 };
 
@@ -63,7 +73,9 @@ export const accountListItemSchema = z
     accountStatus: accountStatusSchema,
     lockedUntil: isoDateTimeSchema.nullable(),
     verificationStatus: z.enum(['unverified', 'pending', 'verified', 'rejected']),
-    trustScore: z.number().nullable(),
+    trustScore: z.number().nullable().openapi({
+      description: 'users.trust.score; 100 for an account not scored yet (GB-29).',
+    }),
     violationCount: z.number().int(),
     pendingReportCount: z.number().int(),
     createdAt: isoDateTimeSchema,

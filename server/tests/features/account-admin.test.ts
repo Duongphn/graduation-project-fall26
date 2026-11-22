@@ -150,6 +150,39 @@ describe('UC29 account list and detail', () => {
     });
   });
 
+  it('filters by Trust Score band (R03 III.7.2.1 (2), GB-29), with the search and the tab counters', async () => {
+    await createUser('Điểm Không', { trust: { score: 0 } });
+    await createUser('Điểm Bốn Chín', { trust: { score: 49 } });
+    await createUser('Điểm Năm Mươi', { trust: { score: 50 } });
+    await createUser('Điểm Chín Chín', { trust: { score: 99 } });
+    await createUser('Điểm Một Trăm', { trust: { score: 100 } });
+    // No score stored yet: every account starts at 100.
+    const fresh = await createUser('Chưa Chấm Điểm');
+    await createUser('Khoá Điểm Thấp', { trust: { score: 20 }, status: 'LOCKED', lock: { reason: 'Vi phạm' } });
+
+    const names = async (query: string) =>
+      ((await get(`?role=USER&limit=50&${query}`)).body.data as Array<{ fullName: string }>)
+        .map((row) => row.fullName)
+        .sort();
+
+    expect(await names('trustBand=low')).toEqual(['Khoá Điểm Thấp', 'Điểm Bốn Chín', 'Điểm Không'].sort());
+    expect(await names('trustBand=medium')).toEqual(['Điểm Chín Chín', 'Điểm Năm Mươi'].sort());
+    expect(await names('trustBand=full')).toEqual(['Chưa Chấm Điểm', 'Điểm Một Trăm'].sort());
+    expect(await names('')).toHaveLength(7);
+    // The band and the search both narrow the list (both use $or inside).
+    expect(await names(`trustBand=low&q=${encodeURIComponent('diem bon')}`)).toEqual(['Điểm Bốn Chín']);
+    expect(await names(`trustBand=full&q=${encodeURIComponent('  CHUA CHAM ')}`)).toEqual(['Chưa Chấm Điểm']);
+    expect(await names(`trustBand=medium&q=${encodeURIComponent('chưa chấm')}`)).toEqual([]);
+
+    const detail = await get(`/${fresh._id}`);
+    expect(detail.body.data.trustScore).toBe(100);
+
+    const counts = await get('/counts?role=USER&trustBand=low');
+    expect(counts.body.data).toEqual({ all: 3, active: 2, locked: 1, reported: 0 });
+    expect((await get('?trustBand=thap')).status).toBe(400);
+    expect((await get('/counts?trustBand=LOW')).status).toBe(400);
+  });
+
   it('is Admin only', async () => {
     const asUser = await request(app).get(BASE).set('x-test-user', String(newId()));
     expect(asUser.status).toBe(403);

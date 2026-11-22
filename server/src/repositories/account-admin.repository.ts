@@ -4,8 +4,10 @@ import { RefreshToken } from '../models/refresh-token.model.js';
 import { Toy } from '../models/toy.model.js';
 import { User, type IUser } from '../models/user.model.js';
 import { ViolationReport } from '../models/violation-report.model.js';
+import { DEFAULT_RENTAL_SETTINGS } from '../types/rental-order.types.js';
 import { phoneSearchDigits } from '../utils/phone.js';
 import { accentInsensitivePattern, escapeRegex } from '../utils/text.js';
+import type { AccountTrustBand } from '../validations/account-admin.validation.js';
 
 export { withTransaction } from '../utils/transaction.js';
 
@@ -145,10 +147,24 @@ export const findUserNames = async (ids: Types.ObjectId[]) => {
 
 export interface AccountFilter {
   role?: 'USER' | 'ADMIN' | undefined;
+  trustBand?: AccountTrustBand | undefined;
   q?: string | undefined;
 }
 
 export type AccountTab = 'all' | 'active' | 'locked' | 'reported';
+
+/** GB-29: every account starts at 100; an account with no score stored yet counts as 100. */
+export const STARTING_TRUST_SCORE = 100;
+
+const trustBandMatch = (band: AccountTrustBand | undefined): Record<string, unknown> => {
+  const threshold = DEFAULT_RENTAL_SETTINGS.minTrustScore;
+  if (band === 'low') return { 'trust.score': { $lt: threshold } };
+  if (band === 'medium') return { 'trust.score': { $gte: threshold, $lt: STARTING_TRUST_SCORE } };
+  if (band === 'full') {
+    return { $or: [{ 'trust.score': { $gte: STARTING_TRUST_SCORE } }, { 'trust.score': null }] };
+  }
+  return {};
+};
 
 const searchMatch = (q: string | undefined): Record<string, unknown> => {
   if (!q) return {};
@@ -161,6 +177,13 @@ const searchMatch = (q: string | undefined): Record<string, unknown> => {
     ],
   };
 };
+
+/** Role, search and Trust Score band; each its own $and item, as two of them use $or. */
+const filterMatch = (filter: AccountFilter): Array<Record<string, unknown>> => [
+  filter.role ? { role: filter.role } : {},
+  searchMatch(filter.q),
+  trustBandMatch(filter.trustBand),
+];
 
 /** Locked = an Admin lock that is still running. */
 const lockedMatch = (now: Date) => ({
@@ -220,12 +243,8 @@ export const listAccounts = async (
   paging: { skip: number; limit: number; sort: Record<string, 1 | -1> },
   now: Date,
 ): Promise<{ rows: AccountRow[]; total: number }> => {
-  const match = {
-    ...(filter.role ? { role: filter.role } : {}),
-    ...searchMatch(filter.q),
-  };
   const [result] = await User.aggregate<{ rows: AccountRow[]; total: Array<{ n: number }> }>([
-    { $match: { $and: [match, await tabMatch(tab, now)] } },
+    { $match: { $and: [...filterMatch(filter), await tabMatch(tab, now)] } },
     ...withReportCounts,
     {
       $facet: {
@@ -253,12 +272,7 @@ export const countAccounts = async (
   filter: AccountFilter,
   now: Date,
 ): Promise<number> =>
-  User.countDocuments({
-    $and: [
-      { ...(filter.role ? { role: filter.role } : {}), ...searchMatch(filter.q) },
-      await tabMatch(tab, now),
-    ],
-  });
+  User.countDocuments({ $and: [...filterMatch(filter), await tabMatch(tab, now)] });
 
 export const countReportsAgainst = async (userId: Types.ObjectId) => {
   const rows = await ViolationReport.aggregate<{ _id: string; n: number }>([

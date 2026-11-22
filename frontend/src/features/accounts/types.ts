@@ -12,6 +12,10 @@ import type { PaginationParams } from '../../types/api'
 export const accountTabs = ['all', 'active', 'locked', 'reported'] as const
 export type AccountTab = (typeof accountTabs)[number]
 
+// Trust Score bands (R03 III.7.2.1 (2), GB-29): below 50, 50 to 99, and 100 (also not scored yet).
+export const accountTrustBands = ['low', 'medium', 'full'] as const
+export type AccountTrustBand = (typeof accountTrustBands)[number]
+
 export interface AccountListItem {
   id: string
   fullName: string
@@ -64,6 +68,7 @@ export interface AccountActionResult {
 
 export interface AccountFilters {
   role?: UserRole
+  trustBand?: AccountTrustBand
   q?: string
 }
 
