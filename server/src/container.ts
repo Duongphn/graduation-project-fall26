@@ -9,6 +9,7 @@ import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
 import { AuthService } from './services/auth.service.js';
 import { ChatService } from './services/chat.service.js';
+import { SocketChatRealtime } from './sockets/chat.socket.js';
 import {
   createDefaultAvatarStorage,
   createDefaultIdentityStorage,
@@ -32,7 +33,6 @@ import {
 import type { ToyCatalogReadPort } from './interfaces/toy-catalog.ports.js';
 import type { ToyListingPorts } from './interfaces/toy-listing.ports.js';
 import type { Mailer } from './interfaces/notification.ports.js';
-import { offlineChatRealtime } from './interfaces/chat.ports.js';
 import type { UserAvatarStorage } from './interfaces/user.ports.js';
 import type { WalletLedgerPort } from './interfaces/wallet.ports.js';
 import { IdentityVerification } from './models/identity-verification.model.js';
@@ -138,8 +138,9 @@ export interface Container {
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
   aiAssistanceService: AiAssistanceService;
-  // Chat (UC25).
+  // Chat (UC25); server.ts attaches chatRealtime to the Socket.IO server.
   chatService: ChatService;
+  chatRealtime: SocketChatRealtime;
 }
 
 /**
@@ -257,8 +258,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
   const aiAssistanceService =
     overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
-  const chatService =
-    overrides.chatService ?? new ChatService({ realtime: offlineChatRealtime, clock });
+  const chatRealtime = new SocketChatRealtime();
+  const chatService = overrides.chatService ?? new ChatService({ realtime: chatRealtime, clock });
 
   return {
     toyImageStorage,
@@ -278,6 +279,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalOrderRepository,
     aiAssistanceService,
     chatService,
+    chatRealtime,
   };
 }
 

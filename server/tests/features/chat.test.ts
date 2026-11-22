@@ -17,6 +17,7 @@ import { User } from '../../src/models/user.model.js';
 import { createChatRouter } from '../../src/routes/chat.routes.js';
 import { renderChatMessage } from '../../src/services/chat.notifications.js';
 import { ChatService } from '../../src/services/chat.service.js';
+import { createChatSocketHandlers } from '../../src/sockets/chat.socket.js';
 import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
 import { domainEvents, type NotifyEvent } from '../../src/utils/domain-events.js';
 import { testAuth } from '../support/test-auth.js';
@@ -608,5 +609,34 @@ describe('offline recipient', () => {
     expect(
       renderChatMessage({ ...notice, senderName: 'L'.repeat(100), preview: '' }).title,
     ).toHaveLength('Tin nhắn mới từ '.length + 80);
+  });
+});
+
+// ---- socket handlers -------------------------------------------------------------------------
+
+describe('chat socket handlers', () => {
+  it('join checks the participant, send and read answer the ack shape', async () => {
+    const { renter, owner, conversationId } = await rentalChat();
+    const handlers = createChatSocketHandlers(service);
+    const rooms: string[] = [];
+
+    const joined = await handlers.join(renter, { conversationId }, (room) => rooms.push(room));
+    expect(joined).toMatchObject({ ok: true, data: { id: conversationId } });
+    expect(rooms).toEqual([`conversation:${conversationId}`]);
+
+    const stranger = await createUser();
+    const refused = await handlers.join(stranger, { conversationId }, (room) => rooms.push(room));
+    expect(refused).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+    expect(rooms).toHaveLength(1);
+
+    const sent = await handlers.send(renter, { conversationId, text: 'mail lan@gmail.com' });
+    expect(sent).toMatchObject({ ok: true, data: { text: 'mail ***', masked: true } });
+    const invalid = await handlers.send(renter, { conversationId, text: '' });
+    expect(invalid).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+    const noRoom = await handlers.send(renter, { text: 'Hi' });
+    expect(noRoom).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+
+    const read = await handlers.read(owner, { conversationId });
+    expect(read).toMatchObject({ ok: true, data: { updatedCount: 1 } });
   });
 });
