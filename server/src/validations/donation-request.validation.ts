@@ -226,7 +226,10 @@ const toySummarySchema = z
     imageUrl: z.string().nullable(),
     condition: z.string(),
     ageRange: z.object({ minAge: z.number(), maxAge: z.number() }).nullable(),
-    status: z.enum(['pending', 'active', 'hidden']),
+    status: z.enum(['pending', 'active', 'hidden', 'donated']).openapi({
+      description:
+        'Stored toy status, or donated once a request for it is confirmed (GB-60, derived).',
+    }),
   })
   .openapi('DonationToy');
 

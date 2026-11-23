@@ -161,7 +161,8 @@ export const toDonationRequestDto = (
           imageUrl: toy.images[0]?.url ?? null,
           condition: toy.condition,
           ageRange: toy.ageRange ?? null,
-          status: toy.status,
+          // GB-60: 'donated' once a request for it is confirmed (derived, R04 3.3).
+          status: relations.donatedToyIds.has(String(toy._id)) ? 'donated' : toy.status,
         }
       : null,
     donor: person(relations, record.donorId, withContacts),

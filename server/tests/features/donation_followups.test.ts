@@ -376,3 +376,79 @@ describe('GB-51: an organization without a receiving point takes no toy', () => 
     expect(sent.status, JSON.stringify(sent.body)).toBe(200);
   });
 });
+
+describe('GB-60: the toy across Donor-, Receiver- and Admin-created requests', () => {
+  const toyStatus = async (id = toyId) => (await Toy.findById(id).lean())?.status;
+  const decide = (who: Who, id: string, verb: 'accept' | 'reject', body: object = {}) =>
+    post(who, `${who === 'admin' ? '/admin' : ''}/donation-requests/${id}/${verb}`, body);
+  const kinds: Array<{ name: string; create: (toy: string) => Promise<string>; decider: Who }> = [
+    { name: 'Donor to organization', create: (toy) => donorRequest(orgId, toy), decider: 'admin' },
+    { name: 'Receiver', create: (toy) => receiverRequest(toy), decider: 'donor' },
+    { name: 'Admin for organization', create: (toy) => adminRequest(orgId, toy), decider: 'donor' },
+  ];
+
+  it('stays listed while Pending or Rejected, leaves on accept and comes back on an accepted cancel', async () => {
+    for (const { name, create, decider } of kinds) {
+      const toy = await createToy({ title: `${name} toy` });
+      const rejected = await create(toy);
+      expect(await toyStatus(toy), name).toBe('active');
+      const reject = await decide(decider, rejected, 'reject', { reason: 'Không phù hợp lúc này' });
+      expect(reject.body.data.status, name).toBe('rejected');
+      expect(await toyStatus(toy), name).toBe('active');
+
+      const cancelled = await create(toy);
+      expect((await decide(decider, cancelled, 'accept')).status, name).toBe(200);
+      expect(await toyStatus(toy), name).toBe('hidden');
+      const cancel = await post('admin', `/admin/donation-requests/${cancelled}/cancel`, {
+        reason: 'Hai bên đã thống nhất huỷ',
+      });
+      expect(cancel.body.data.status, name).toBe('cancelled');
+      expect(await toyStatus(toy), name).toBe('active');
+    }
+  });
+
+  it('shows the toy as donated once the receipt is confirmed, for every kind of request', async () => {
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    for (const { name, create, decider } of kinds) {
+      const toy = await createToy({ title: `${name} gift` });
+      const id = await create(toy);
+      await decide(decider, id, 'accept');
+      expect((await handOver(id)).body.data.toy.status, name).toBe('hidden');
+      const done =
+        name === 'Receiver'
+          ? await post('receiver', `/donation-requests/${id}/confirm-received`, {
+              photos: [photo('receiver')],
+            })
+          : await post('admin', `/admin/donation-requests/${id}/confirm-received`, {
+              confirmedBy: 'Chị Lan',
+              channel: 'in_person',
+              receivedAt: today,
+              photos: [photo('admin')],
+            });
+      expect(done.body.data, name).toMatchObject({
+        status: 'completed',
+        toy: { status: 'donated' },
+      });
+      // Stored hidden; Donated is derived (R04 3.3), on every view and in the lists.
+      expect(await toyStatus(toy), name).toBe('hidden');
+      expect((await get('donor', `/donation-requests/${id}`)).body.data.toy.status).toBe('donated');
+      const listed = await get('admin', `/admin/donation-requests?status=completed`);
+      expect(
+        listed.body.data.find((item: { id: string }) => item.id === id)?.toy.status,
+        name,
+      ).toBe('donated');
+      // A donated toy never takes another request.
+      const again = await post('receiver', '/donation-requests', { toyId: toy });
+      expect(again.body.error?.code, name).toBe('TOY_NOT_AVAILABLE');
+    }
+  });
+
+  it('keeps the toy hidden, not donated, after a cancelled handover', async () => {
+    const id = await shippingRequest();
+    const cancel = await post('admin', `/admin/donation-requests/${id}/cancel`, {
+      reason: 'Đồ chơi thất lạc khi gửi',
+    });
+    expect(cancel.body.data).toMatchObject({ status: 'cancelled', toy: { status: 'hidden' } });
+    expect(await toyStatus()).toBe('hidden');
+  });
+});

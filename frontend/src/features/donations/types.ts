@@ -26,7 +26,8 @@ export interface DonationToy {
   // Free text in develop's toys model.
   condition: string
   ageRange: { minAge: number; maxAge: number } | null
-  status: ToyStatus
+  // 'donated' once a request for it is confirmed (GB-60, derived by the server).
+  status: ToyStatus | 'donated'
 }
 
 // GB-51: the public part of the receiving point; the Admin view adds its contact.

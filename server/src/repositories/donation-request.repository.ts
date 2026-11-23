@@ -342,7 +342,7 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
     ]),
   );
   const organizationIds = unique(records.map((item) => item.receiver?.organizationId));
-  const [toys, users, organizations] = await Promise.all([
+  const [toys, users, organizations, donatedToyIds] = await Promise.all([
     Toy.find({ _id: { $in: toyIds } })
       .select(toySummaryFields)
       .lean<ToySummary[]>(),
@@ -359,9 +359,12 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
           : 'name status isAccepting receivingPoint contact_info',
       )
       .lean<IOrganization[]>(),
+    // GB-60: the toy of a confirmed (completed) request is Donated, derived and never stored.
+    DonationRequest.distinct('toyId', { toyId: { $in: toyIds }, status: 'completed' }),
   ]);
   return {
     toys: new Map(toys.map((toy) => [String(toy._id), toy])),
+    donatedToyIds: new Set(donatedToyIds.map(String)),
     users: new Map(users.map((user) => [String(user._id), user])),
     organizations: new Map(organizations.map((org) => [String(org._id), org])),
   };
