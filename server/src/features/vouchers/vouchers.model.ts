@@ -12,6 +12,7 @@ export interface IVoucher {
   validFrom: Date;
   validTo: Date;
   status: 'active' | 'used_up' | 'expired' | 'disabled';
+  applicableToyIds?: mongoose.Types.ObjectId[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -29,6 +30,7 @@ const voucherSchema = new Schema<IVoucher>(
     validFrom: { type: Date, required: true },
     validTo: { type: Date, required: true },
     status: { type: String, required: true, default: 'active' },
+    applicableToyIds: [{ type: Schema.Types.ObjectId, ref: 'Toy' }],
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
