@@ -40,7 +40,14 @@ const base: DonationRequestDetail = {
     name: 'Mái ấm Hoa Hồng',
     status: 'active',
     isAccepting: true,
-    receivingPoint: null,
+    receivingPoint: {
+      province: 'Hà Nội',
+      ward: 'Phường Láng',
+      street: '12 Chùa Láng',
+      openingHours: '8:00 – 17:00',
+      acceptsDropOff: true,
+      acceptsParcel: true,
+    },
   },
   counterpartContact: null,
   decidedAt: null,
@@ -88,6 +95,12 @@ describe('DonationActions (Admin)', () => {
   it('disables accept while the organization is hidden', () => {
     renderActions({ organization: { ...base.organization!, status: 'hidden' } })
     expect(screen.getByRole('button', { name: 'Chấp nhận' })).toBeDisabled()
+  })
+
+  it('disables accept, but not reject, for an organization without a receiving point (GB-51)', () => {
+    renderActions({ organization: { ...base.organization!, receivingPoint: null } })
+    expect(screen.getByRole('button', { name: 'Chấp nhận' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Từ chối' })).toBeEnabled()
   })
 
   it("asks for the organization's receipt details and a photo before confirming (GB-59)", async () => {

@@ -322,3 +322,57 @@ describe('Donation List filters (UC35 step 1)', () => {
     expect(counts.body.data).toMatchObject({ pending: 1 });
   });
 });
+
+describe('GB-51: an organization without a receiving point takes no toy', () => {
+  const toyStatus = async (id = toyId) => (await Toy.findById(id).lean())?.status;
+  const dropPoints = () => Organization.updateMany({}, { $unset: { receivingPoint: 1 } });
+  const restorePoints = () => Organization.updateMany({}, { $set: { receivingPoint } });
+
+  it('refuses the accept of an older request until the Admin enters the point', async () => {
+    const fromDonor = await donorRequest();
+    const fromAdmin = await adminRequest(orgId, await createToy());
+    await dropPoints();
+
+    const byAdmin = await post('admin', `/admin/donation-requests/${fromDonor}/accept`);
+    expect(byAdmin.status).toBe(409);
+    expect(byAdmin.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    const byDonor = await post('donor', `/donation-requests/${fromAdmin}/accept`);
+    expect(byDonor.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    expect(await toyStatus()).toBe('active');
+    expect(await DonationRequest.countDocuments({ status: 'pending' })).toBe(2);
+
+    // The Admin can still reject it (UC35 3.2), and accept once the point is back.
+    await restorePoints();
+    expect((await post('admin', `/admin/donation-requests/${fromDonor}/accept`)).status).toBe(200);
+    expect(await toyStatus()).toBe('hidden');
+  });
+
+  it('refuses the handover while the point is missing, for either method', async () => {
+    const id = await donorRequest();
+    expect((await post('admin', `/admin/donation-requests/${id}/accept`)).status).toBe(200);
+    await dropPoints();
+    for (const handoverMethod of ['drop_off', 'carrier']) {
+      const sent = await post('donor', `/donation-requests/${id}/handover`, {
+        handoverMethod,
+        photos: [photo('donor')],
+      });
+      expect(sent.status).toBe(409);
+      expect(sent.body.error.code).toBe('ORGANIZATION_NO_RECEIVING_POINT');
+    }
+    expect((await DonationRequest.findById(id).lean())?.status).toBe('accepted');
+    await restorePoints();
+    expect((await handOver(id)).status).toBe(200);
+  });
+
+  it('still lets a user receiver take the toy by either method', async () => {
+    const id = await receiverRequest();
+    await dropPoints();
+    expect((await post('donor', `/donation-requests/${id}/accept`)).status).toBe(200);
+    const sent = await post('donor', `/donation-requests/${id}/handover`, {
+      handoverMethod: 'carrier',
+      carrierName: 'GHN',
+      photos: [photo('donor')],
+    });
+    expect(sent.status, JSON.stringify(sent.body)).toBe(200);
+  });
+});

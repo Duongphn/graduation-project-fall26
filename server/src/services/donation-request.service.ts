@@ -85,18 +85,20 @@ export const listPage = async (
 
 // ---- Create (receiver, an Admin for an organization, or the Donor to an organization) ---------
 
-/** GB-51/GB-58: the methods a receiving point accepts. No point (older organization): both. */
-const allowedMethodsOf = (point: OrganizationPoint | undefined): HandoverMethod[] =>
-  point
-    ? [
-        ...(point.acceptsDropOff ? (['drop_off'] as const) : []),
-        ...(point.acceptsParcel ? (['carrier'] as const) : []),
-      ]
-    : ['drop_off', 'carrier'];
+/** GB-51/GB-58: the methods a receiving point accepts. */
+const allowedMethodsOf = (point: OrganizationPoint): HandoverMethod[] => [
+  ...(point.acceptsDropOff ? (['drop_off'] as const) : []),
+  ...(point.acceptsParcel ? (['carrier'] as const) : []),
+];
 
 type OrganizationPoint = { acceptsDropOff: boolean; acceptsParcel: boolean };
 
+/**
+ * GB-51/GB-58: the method must be one the receiving point accepts. An organization saved before
+ * receiving points existed has none until the Admin enters it, so it takes no toy (409).
+ */
 const assertMethodAllowed = (method: HandoverMethod, point: OrganizationPoint | undefined) => {
+  if (!point) throw organizationWithoutPoint();
   const allowed = allowedMethodsOf(point);
   if (!allowed.includes(method)) {
     throw unprocessable(
@@ -441,7 +443,10 @@ const handover = (
   at: new Date(),
 });
 
-/** GB-58: an organization's receiving point limits the method; a User receiver takes both. */
+/**
+ * GB-58: an organization's receiving point limits the method (none: 409
+ * ORGANIZATION_NO_RECEIVING_POINT, GB-51); a User receiver takes both.
+ */
 const assertMethodForRequest =
   (method: HandoverMethod) => async (record: DonationRecord, session: ClientSession) => {
     const organizationId = record.receiver?.organizationId;

@@ -46,7 +46,8 @@ export const organizationNotAccepting = () =>
 
 /**
  * GB-51: an organization receives toys through its receiving point. One saved before receiving
- * points existed has none until the Admin enters it, so it takes no new request.
+ * points existed has none until the Admin enters it, so it takes no new request, no accept and
+ * no handover.
  */
 export const organizationWithoutPoint = () =>
   conflict(
@@ -132,9 +133,13 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
 
     if (to === 'accepted' && current.receiver?.organizationId) {
       // A write, so a concurrent hide of the organization write-conflicts with the accept.
-      if (!(await repository.touchActiveOrganization(current.receiver.organizationId, session))) {
-        throw organizationNotAvailable();
-      }
+      const organization = await repository.touchActiveOrganization(
+        current.receiver.organizationId,
+        session,
+      );
+      if (!organization) throw organizationNotAvailable();
+      // GB-51: the toy goes to the receiving point; an older organization has none yet.
+      if (!organization.receivingPoint) throw organizationWithoutPoint();
     }
 
     // The conditional toy move also guarantees one accepted request per toy.
