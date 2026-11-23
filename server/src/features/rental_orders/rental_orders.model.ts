@@ -12,6 +12,11 @@ const rentalOrderSchema = new Schema(
     },
     rentalFee: { type: Number, required: true },
     depositAmount: { type: Number, required: true },
+    originalRentalFee: { type: Number },
+    discountAmount: { type: Number, default: 0 },
+    totalAmount: { type: Number },
+    voucherId: { type: Schema.Types.ObjectId, ref: 'Voucher' },
+    voucherCode: { type: String },
     status: { type: String, required: true, default: 'pending' },
     timer: {
       dueAt: { type: Date },
@@ -41,6 +46,11 @@ export interface IRentalOrder {
   };
   rentalFee: number;
   depositAmount: number;
+  originalRentalFee?: number;
+  discountAmount?: number;
+  totalAmount?: number;
+  voucherId?: mongoose.Types.ObjectId;
+  voucherCode?: string;
   status: string;
   timer?: {
     dueAt?: Date;
