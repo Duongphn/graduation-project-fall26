@@ -11,7 +11,13 @@ import { palette } from '../../../styles/palette'
 import { formatDate, formatDateTime } from '../../../utils/format'
 import { useAccountCounts, useAccounts } from '../hooks'
 import { accountFiltersSchema, accountSortFields } from '../schemas'
-import { accountTabs, type AccountListItem, type AccountTab } from '../types'
+import {
+  accountTabs,
+  accountTrustBands,
+  type AccountListItem,
+  type AccountTab,
+  type AccountTrustBand,
+} from '../types'
 
 const tabLabels: Record<AccountTab, string> = {
   all: 'Tất cả',
@@ -21,6 +27,13 @@ const tabLabels: Record<AccountTab, string> = {
 }
 
 const roleLabels: Record<UserRole, string> = { USER: 'Người dùng', ADMIN: 'Quản trị viên' }
+
+// GB-29: the score goes from 0 to 100 and starts at 100; below 50 blocks high-deposit rentals.
+const trustBandLabels: Record<AccountTrustBand, string> = {
+  low: 'Dưới 50 (hạn chế thuê)',
+  medium: 'Từ 50 đến 99',
+  full: '100 (điểm tối đa)',
+}
 
 // UC29, R03 III.7.2.1: every account with its status, Trust Score and violation count.
 export function AccountListPage() {
@@ -32,6 +45,7 @@ export function AccountListPage() {
   const accounts = useAccounts(params)
   const counts = useAccountCounts({
     ...(filters.role ? { role: filters.role } : {}),
+    ...(filters.trustBand ? { trustBand: filters.trustBand } : {}),
     ...(filters.q ? { q: filters.q } : {}),
   })
 
@@ -144,6 +158,15 @@ export function AccountListPage() {
           value={filters.role}
           options={(['USER', 'ADMIN'] as const).map((role) => ({ value: role, label: roleLabels[role] }))}
           onChange={(value) => setFilter('role', value)}
+        />
+        <Select<AccountTrustBand>
+          allowClear
+          placeholder="Điểm tin cậy"
+          aria-label="Điểm tin cậy"
+          className="w-52"
+          value={filters.trustBand}
+          options={accountTrustBands.map((band) => ({ value: band, label: trustBandLabels[band] }))}
+          onChange={(value) => setFilter('trustBand', value)}
         />
         <Select<'createdAt' | 'violationCount'>
           aria-label="Sắp xếp"

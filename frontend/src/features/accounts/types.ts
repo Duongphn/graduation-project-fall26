@@ -6,11 +6,16 @@ import type {
   UserStatus,
 } from '../../constants/domain'
 import type { PaginationParams } from '../../types/api'
+import type { DisputeRuling } from '../disputes/types'
 
 // Responses of /admin/users (server/src/validations/account-admin.validation.ts).
 
 export const accountTabs = ['all', 'active', 'locked', 'reported'] as const
 export type AccountTab = (typeof accountTabs)[number]
+
+// Trust Score bands (R03 III.7.2.1 (2), GB-29): below 50, 50 to 99, and 100 (also not scored yet).
+export const accountTrustBands = ['low', 'medium', 'full'] as const
+export type AccountTrustBand = (typeof accountTrustBands)[number]
 
 export interface AccountListItem {
   id: string
@@ -31,18 +36,44 @@ export interface AccountListItem {
 
 export type AccountCounts = Record<AccountTab, number>
 
-export interface AccountViolation {
-  reportId: string
-  reason: string
-  targetKind: string
-  action: ReportAction | null
-  note: string | null
-  resolvedAt: string | null
+// One recorded breach with its date and source (R03 III.7.2.1 (7)); `id` is the report, the
+// dispute or the rental order.
+interface AccountViolationBase {
+  id: string
+  date: string | null
 }
+
+export type AccountViolation =
+  | (AccountViolationBase & {
+      source: 'report'
+      reason: string
+      targetKind: string
+      action: ReportAction | null
+      note: string | null
+      // Reports on the same target closed by this one Admin decision (one violation).
+      reportCount: number
+    })
+  | (AccountViolationBase & {
+      source: 'dispute'
+      orderCode: string
+      ruling: DisputeRuling
+      note: string | null
+    })
+  | (AccountViolationBase & {
+      source: 'late_return'
+      orderCode: string
+      lateDays: number
+      lateFee: number
+    })
 
 export interface AccountDetail extends AccountListItem {
   phone: string
   email: string
+  // Null until the user signs in again after sign-ins started to be recorded.
+  lastLoginAt: string | null
+  // Null while ratings (UC24) are not built.
+  averageRating: number | null
+  completedBookingCount: number
   lock: {
     reason: string | null
     lockedAt: string | null
@@ -64,6 +95,7 @@ export interface AccountActionResult {
 
 export interface AccountFilters {
   role?: UserRole
+  trustBand?: AccountTrustBand
   q?: string
 }
 

@@ -1,3 +1,4 @@
+import { disputeRulings } from '../constants/dispute-ruling.js';
 import { lockDurations, reportActions } from '../constants/violation-report.js';
 import {
   isoDateTimeSchema,
@@ -13,8 +14,18 @@ export type AccountListTab = (typeof accountListTabs)[number];
 
 export const accountSortFields = ['createdAt', 'violationCount'] as const;
 
+/**
+ * Trust Score bands of the User List (R03 III.7.2.1 (2)), from GB-29: the score goes from 0 to
+ * 100 and starts at 100; below 50 a Renter cannot rent toys with a high deposit.
+ */
+export const accountTrustBands = ['low', 'medium', 'full'] as const;
+export type AccountTrustBand = (typeof accountTrustBands)[number];
+
 const accountFilterShape = {
   role: z.enum(['USER', 'ADMIN']).optional(),
+  trustBand: z.enum(accountTrustBands).optional().openapi({
+    description: 'low = below 50, medium = 50 to 99, full = 100 (also an account not scored yet).',
+  }),
   q: searchQuerySchema.openapi({ description: 'Name, phone number or email.' }),
 };
 
@@ -63,8 +74,13 @@ export const accountListItemSchema = z
     accountStatus: accountStatusSchema,
     lockedUntil: isoDateTimeSchema.nullable(),
     verificationStatus: z.enum(['unverified', 'pending', 'verified', 'rejected']),
-    trustScore: z.number().nullable(),
-    violationCount: z.number().int(),
+    trustScore: z.number().nullable().openapi({
+      description: 'users.trust.score; 100 for an account not scored yet (GB-29).',
+    }),
+    violationCount: z.number().int().openapi({
+      description:
+        'One per entry of the violation history: Admin decision on reports, dispute ruled against the user, late return.',
+    }),
     pendingReportCount: z.number().int(),
     createdAt: isoDateTimeSchema,
   })
@@ -76,10 +92,57 @@ export const accountCountsSchema = z
   .openapi('AdminAccountCounts');
 export type AccountCounts = z.infer<typeof accountCountsSchema>;
 
+/**
+ * One recorded breach of the violation history (R03 III.7.2.1 (7)), with its date and source:
+ * an Admin decision on a violation report, a dispute ruled against the user (UC19) or a late
+ * return. `id` is the report, the dispute or the rental order.
+ */
+const violationEntryBase = { id: z.string(), date: isoDateTimeSchema.nullable() };
+
+export const accountViolationSchema = z
+  .discriminatedUnion('source', [
+    z.object({
+      source: z.literal('report'),
+      ...violationEntryBase,
+      reason: z.string(),
+      targetKind: z.string(),
+      action: z.enum(reportActions).nullable(),
+      note: z.string().nullable(),
+      reportCount: z.number().int().openapi({
+        description: 'Reports on the same target that this one decision closed (one violation).',
+      }),
+    }),
+    z.object({
+      source: z.literal('dispute'),
+      ...violationEntryBase,
+      orderCode: z.string(),
+      ruling: z.enum(disputeRulings),
+      note: z.string().nullable(),
+    }),
+    z.object({
+      source: z.literal('late_return'),
+      ...violationEntryBase,
+      orderCode: z.string(),
+      lateDays: z.number().int(),
+      lateFee: z.number(),
+    }),
+  ])
+  .openapi('AdminAccountViolation');
+export type AccountViolation = z.infer<typeof accountViolationSchema>;
+
 export const accountDetailSchema = accountListItemSchema
   .extend({
     phone: z.string(),
     email: z.string(),
+    lastLoginAt: isoDateTimeSchema.nullable().openapi({
+      description: 'Last successful sign-in; null when not recorded yet.',
+    }),
+    averageRating: z.number().nullable().openapi({
+      description: 'Average star rating received; null while ratings (UC24) are not built.',
+    }),
+    completedBookingCount: z.number().int().openapi({
+      description: 'Completed rentals, as Renter or Owner.',
+    }),
     lock: z
       .object({
         reason: z.string().nullable(),
@@ -90,18 +153,10 @@ export const accountDetailSchema = accountListItemSchema
       })
       .nullable(),
     activeListingCount: z.number().int(),
-    violations: z
-      .array(
-        z.object({
-          reportId: z.string(),
-          reason: z.string(),
-          targetKind: z.string(),
-          action: z.enum(reportActions).nullable(),
-          note: z.string().nullable(),
-          resolvedAt: isoDateTimeSchema.nullable(),
-        }),
-      )
-      .openapi({ description: 'Resolved reports against the user, newest first (max 50).' }),
+    violations: z.array(accountViolationSchema).openapi({
+      description:
+        'Resolved reports against the user, disputes ruled against them and late returns, newest first (max 50).',
+    }),
   })
   .openapi('AdminAccountDetail');
 export type AccountDetail = z.infer<typeof accountDetailSchema>;

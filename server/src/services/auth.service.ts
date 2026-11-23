@@ -121,9 +121,12 @@ export class AuthService {
   public constructor(private readonly mailer: AuthMailer) {}
 
   /**
-   * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập
+   * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập; ghi lại lần đăng nhập
+   * gần nhất để Admin xem (R03 III.7.2.1 (5))
    */
   private async issueSession(user: UserDocument): Promise<AuthSessionResponse> {
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+
     const accessToken = jwt.sign(
       {
         userId: String(user._id),

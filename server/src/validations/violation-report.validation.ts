@@ -204,7 +204,9 @@ const reportedUserDetailSchema = z
     role: z.enum(['USER', 'ADMIN']),
     accountStatus: z.enum(['ACTIVE', 'LOCKED']),
     lockedUntil: isoDateTimeSchema.nullable(),
-    violationCount: z.number().int().openapi({ description: 'Resolved reports against the user.' }),
+    violationCount: z.number().int().openapi({
+      description: 'As in the User List: one per Admin decision, dispute ruled against the user or late return.',
+    }),
     pendingReportCount: z.number().int(),
   })
   .openapi('ReportedUserSummary');

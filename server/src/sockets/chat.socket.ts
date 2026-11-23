@@ -9,7 +9,7 @@ import { AppError } from '../utils/app-error.js';
 import { objectIdSchema } from '../validations/common.validation.js';
 import { sendMessageBodySchema } from '../validations/chat.validation.js';
 import { z } from '../validations/zod.js';
-import { userRoom, type SocketUser } from './socket.js';
+import { findSocketLockError, userRoom, type SocketUser } from './socket.js';
 
 // Chat over the shared Socket.IO connection (UC25, R04 III.1.2). sockets/socket.ts checks the
 // JWT at the handshake and puts every connection in its "user:<id>" room, which the chat and the
@@ -81,22 +81,31 @@ export const createChatSocketHandlers = (service: ChatService) => {
       return toAckError(error);
     }
   };
+  // UC29 safety net: an account locked while its connection stays open is refused like REST.
+  const runAs = (userId: string, task: () => Promise<unknown>) =>
+    run(async () => {
+      const locked = await findSocketLockError(userId);
+      if (locked) throw locked;
+      return task();
+    });
   return {
     join: (userId: string, payload: unknown, joinRoom: (room: string) => unknown) =>
-      run(async () => {
+      runAs(userId, async () => {
         const { conversationId } = parse(roomPayloadSchema, payload);
         const conversation = await service.getConversation(userId, conversationId);
         await joinRoom(conversationRoom(conversationId));
         return conversation;
       }),
     send: (userId: string, payload: unknown) =>
-      run(() => {
+      runAs(userId, () => {
         const { conversationId, ...rest } = parse(sendPayloadSchema, payload);
         // Same rules as POST /conversations/:id/messages.
         return service.sendMessage(userId, conversationId, sendMessageBodySchema.parse(rest));
       }),
     read: (userId: string, payload: unknown) =>
-      run(() => service.markRead(userId, parse(roomPayloadSchema, payload).conversationId)),
+      runAs(userId, () =>
+        service.markRead(userId, parse(roomPayloadSchema, payload).conversationId),
+      ),
     leave: (payload: unknown, leaveRoom: (room: string) => unknown) =>
       run(async () => {
         const { conversationId } = parse(roomPayloadSchema, payload);
@@ -109,6 +118,8 @@ export const createChatSocketHandlers = (service: ChatService) => {
 const replyTo = (ack: unknown) => (result: AckResult) => {
   if (typeof ack === 'function') (ack as (result: AckResult) => void)(result);
 };
+
+const LOCKED_CODE = 'USER_INACTIVE';
 
 /** Wires the chat events into the Socket.IO server made by createSocketServer. */
 export const registerChatSocket = (
@@ -124,18 +135,23 @@ export const registerChatSocket = (
     // Chat is for Users (R03 IV.1); an Admin connection only receives its notifications.
     if (user?.role !== 'USER') return;
     const { userId } = user;
+    // A refused event of a locked account also closes the connection (notifications included).
+    const answer = (ack: unknown) => (result: AckResult) => {
+      replyTo(ack)(result);
+      if (!result.ok && result.error.code === LOCKED_CODE) socket.disconnect(true);
+    };
 
     socket.on(chatSocketEvents.join, (payload: unknown, ack?: unknown) => {
-      void handlers.join(userId, payload, (room) => socket.join(room)).then(replyTo(ack));
+      void handlers.join(userId, payload, (room) => socket.join(room)).then(answer(ack));
     });
     socket.on(chatSocketEvents.leave, (payload: unknown, ack?: unknown) => {
       void handlers.leave(payload, (room) => socket.leave(room)).then(replyTo(ack));
     });
     socket.on(chatSocketEvents.send, (payload: unknown, ack?: unknown) => {
-      void handlers.send(userId, payload).then(replyTo(ack));
+      void handlers.send(userId, payload).then(answer(ack));
     });
     socket.on(chatSocketEvents.read, (payload: unknown, ack?: unknown) => {
-      void handlers.read(userId, payload).then(replyTo(ack));
+      void handlers.read(userId, payload).then(answer(ack));
     });
   });
 };

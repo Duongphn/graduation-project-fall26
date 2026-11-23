@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -116,6 +117,33 @@ describe('AuditLogPage (UC31)', () => {
     expect(screen.queryByText('unsafe_toy')).not.toBeInTheDocument()
   })
 
+  // DEF-ST-28: an Admin wallet credit is listed in Vietnamese with the amount and the note.
+  it('shows an Admin wallet credit with its amount and note', async () => {
+    list.mockResolvedValue({
+      items: [
+        {
+          id: '6',
+          action: 'wallet.credit',
+          actor: { id: ADMIN_ID, fullName: 'Admin Một' },
+          targetType: 'USER',
+          targetId: '64b0000000000000000000ff',
+          details: { amount: 250000, note: 'Hoàn tiền sự cố' },
+          ipAddress: '10.0.0.1',
+          createdAt: '2026-11-18T07:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    })
+    renderAt('/admin/audit-logs')
+
+    expect(await screen.findByText('Cộng tiền vào ví')).toBeInTheDocument()
+    expect(screen.getByText('Tài khoản')).toBeInTheDocument()
+    expect(screen.getByText('Số tiền:')).toBeInTheDocument()
+    expect(screen.getByText(/250\.000\s₫/)).toBeInTheDocument()
+    expect(screen.getByText('Ghi chú:')).toBeInTheDocument()
+    expect(screen.getByText('Hoàn tiền sự cố')).toBeInTheDocument()
+  })
+
   it('sends the filters of the URL (actor, action area, time range) to the API', async () => {
     const from = '2026-11-01T00:00:00.000Z'
     const to = '2026-11-18T23:59:59.999Z'
@@ -125,5 +153,58 @@ describe('AuditLogPage (UC31)', () => {
     expect(list).toHaveBeenCalledWith({ page: 1, limit: 20, actorId: ADMIN_ID, action: 'user', from, to })
     // A broken value is ignored instead of breaking the page.
     expect(screen.getByRole('button', { name: 'Xóa bộ lọc' })).toBeInTheDocument()
+  })
+
+  // DEF-ST-29: the two filter lists match what an Admin types without accents, in any case,
+  // with spaces around it, and with đ typed as d.
+  describe('filter lists typed without accents', () => {
+    const OTHER_ADMIN_ID = '64b000000000000000000003'
+    const optionTitles = () =>
+      Array.from(document.querySelectorAll('.ant-select-item-option')).map((option) => option.getAttribute('title'))
+    const search = (box: HTMLElement, text: string) => fireEvent.change(box, { target: { value: text } })
+
+    beforeEach(() => {
+      filters.mockResolvedValue({
+        actions: ['category.delete', 'donation.confirm_received', 'user.lock', 'user.unlock'],
+        actors: [
+          { id: ADMIN_ID, fullName: 'Admin Một' },
+          { id: OTHER_ADMIN_ID, fullName: 'Đỗ Văn Đạt' },
+        ],
+      })
+    })
+
+    it('finds an action type', async () => {
+      renderAt('/admin/audit-logs')
+      const user = userEvent.setup()
+      const action = await screen.findByRole('combobox', { name: 'Loại thao tác' })
+      await user.click(action)
+
+      search(action, 'khoa tai khoan')
+      expect(await screen.findByTitle('Khóa tài khoản')).toBeInTheDocument()
+      expect(optionTitles()).toEqual(['Khóa tài khoản', 'Mở khóa tài khoản'])
+
+      search(action, '  XÁC NHẬN  ')
+      expect(await screen.findByTitle('Xác nhận đã nhận')).toBeInTheDocument()
+      expect(optionTitles()).toEqual(['Xác nhận đã nhận'])
+
+      search(action, 'xoa danh muc')
+      await user.click(await screen.findByTitle('Xóa danh mục'))
+      expect(list).toHaveBeenLastCalledWith({ page: 1, limit: 20, action: 'category.delete' })
+    }, 15_000)
+
+    it('finds an actor', async () => {
+      renderAt('/admin/audit-logs')
+      const user = userEvent.setup()
+      const actor = await screen.findByRole('combobox', { name: 'Người thực hiện' })
+      await user.click(actor)
+
+      search(actor, ' admin mot ')
+      expect(await screen.findByTitle('Admin Một')).toBeInTheDocument()
+      expect(optionTitles()).toEqual(['Admin Một'])
+
+      search(actor, 'DO VAN DAT')
+      await user.click(await screen.findByTitle('Đỗ Văn Đạt'))
+      expect(list).toHaveBeenLastCalledWith({ page: 1, limit: 20, actorId: OTHER_ADMIN_ID })
+    }, 15_000)
   })
 })

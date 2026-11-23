@@ -1,11 +1,14 @@
 import { Types, type ClientSession, type PipelineStage } from 'mongoose';
 
 import { RefreshToken } from '../models/refresh-token.model.js';
+import { RentalOrder, type IRentalOrder } from '../models/rental-order.model.js';
 import { Toy } from '../models/toy.model.js';
 import { User, type IUser } from '../models/user.model.js';
 import { ViolationReport } from '../models/violation-report.model.js';
+import { DEFAULT_RENTAL_SETTINGS } from '../types/rental-order.types.js';
 import { phoneSearchDigits } from '../utils/phone.js';
 import { accentInsensitivePattern, escapeRegex } from '../utils/text.js';
+import type { AccountTrustBand } from '../validations/account-admin.validation.js';
 
 export { withTransaction } from '../utils/transaction.js';
 
@@ -23,11 +26,12 @@ export type AccountRecord = Pick<
   | 'verificationStatus'
   | 'trust'
   | 'lock'
+  | 'lastLoginAt'
   | 'createdAt'
 >;
 
 const ACCOUNT_FIELDS =
-  'fullName phone email avatar role status verificationStatus trust lock createdAt';
+  'fullName phone email avatar role status verificationStatus trust lock lastLoginAt createdAt';
 
 export const findAccountById = (id: string | Types.ObjectId, session?: ClientSession) =>
   User.findById(id)
@@ -145,10 +149,24 @@ export const findUserNames = async (ids: Types.ObjectId[]) => {
 
 export interface AccountFilter {
   role?: 'USER' | 'ADMIN' | undefined;
+  trustBand?: AccountTrustBand | undefined;
   q?: string | undefined;
 }
 
 export type AccountTab = 'all' | 'active' | 'locked' | 'reported';
+
+/** GB-29: every account starts at 100; an account with no score stored yet counts as 100. */
+export const STARTING_TRUST_SCORE = 100;
+
+const trustBandMatch = (band: AccountTrustBand | undefined): Record<string, unknown> => {
+  const threshold = DEFAULT_RENTAL_SETTINGS.minTrustScore;
+  if (band === 'low') return { 'trust.score': { $lt: threshold } };
+  if (band === 'medium') return { 'trust.score': { $gte: threshold, $lt: STARTING_TRUST_SCORE } };
+  if (band === 'full') {
+    return { $or: [{ 'trust.score': { $gte: STARTING_TRUST_SCORE } }, { 'trust.score': null }] };
+  }
+  return {};
+};
 
 const searchMatch = (q: string | undefined): Record<string, unknown> => {
   if (!q) return {};
@@ -161,6 +179,13 @@ const searchMatch = (q: string | undefined): Record<string, unknown> => {
     ],
   };
 };
+
+/** Role, search and Trust Score band; each its own $and item, as two of them use $or. */
+const filterMatch = (filter: AccountFilter): Array<Record<string, unknown>> => [
+  filter.role ? { role: filter.role } : {},
+  searchMatch(filter.q),
+  trustBandMatch(filter.trustBand),
+];
 
 /** Locked = an Admin lock that is still running. */
 const lockedMatch = (now: Date) => ({
@@ -180,36 +205,90 @@ const tabMatch = async (tab: AccountTab, now: Date): Promise<Record<string, unkn
 
 export type AccountRow = AccountRecord & { violationCount: number; pendingReportCount: number };
 
-const withReportCounts: PipelineStage[] = [
+/**
+ * A report that records an Admin decision: resolved, and not closed together with another report
+ * on the same target (those carry resolution.viaReportId).
+ */
+const DECISION_FILTER = { status: 'resolved', 'resolution.viaReportId': null };
+const isDecision = {
+  $and: [
+    { $eq: ['$status', 'resolved'] },
+    { $eq: [{ $ifNull: ['$resolution.viaReportId', null] }, null] },
+  ],
+};
+
+/** A rental whose dispute was ruled against the Renter or the Owner (UC19). */
+const isRulingAgainst = (ruling: 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT') => ({
+  $and: [
+    { $eq: ['$settlement.resolution.ruling', ruling] },
+    { $ne: [{ $ifNull: ['$settlement.disputeId', null] }, null] },
+  ],
+});
+
+/**
+ * Violation count and pending reports of each user (R03 III.7.2.1 (6)-(7)). One violation per
+ * entry of the violation history: one per Admin decision on violation reports (a decision that
+ * closed several reports on the same target counts once), one per dispute ruled against the user
+ * and one per late return.
+ */
+const withViolationCounts: PipelineStage[] = [
   {
     $lookup: {
       from: ViolationReport.collection.name,
       let: { userId: '$_id' },
       pipeline: [
         { $match: { $expr: { $eq: ['$target.userId', '$$userId'] } } },
-        { $group: { _id: '$status', n: { $sum: 1 } } },
+        {
+          $group: {
+            _id: null,
+            decisions: { $sum: { $cond: [isDecision, 1, 0] } },
+            pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          },
+        },
       ],
       as: 'reportCounts',
     },
   },
   {
+    $lookup: {
+      from: RentalOrder.collection.name,
+      let: { userId: '$_id' },
+      pipeline: [
+        { $match: { $expr: { $eq: ['$renterId', '$$userId'] } } },
+        {
+          $group: {
+            _id: null,
+            n: {
+              $sum: {
+                $add: [
+                  { $cond: [{ $gt: ['$returnInfo.lateDays', 0] }, 1, 0] },
+                  { $cond: [isRulingAgainst('RENTER_AT_FAULT'), 1, 0] },
+                ],
+              },
+            },
+          },
+        },
+      ],
+      as: 'asRenter',
+    },
+  },
+  {
+    $lookup: {
+      from: RentalOrder.collection.name,
+      let: { userId: '$_id' },
+      pipeline: [
+        { $match: { $expr: { $eq: ['$ownerId', '$$userId'] } } },
+        { $group: { _id: null, n: { $sum: { $cond: [isRulingAgainst('OWNER_AT_FAULT'), 1, 0] } } } },
+      ],
+      as: 'asOwner',
+    },
+  },
+  {
     $addFields: {
       violationCount: {
-        $sum: {
-          $map: {
-            input: { $filter: { input: '$reportCounts', cond: { $eq: ['$$this._id', 'resolved'] } } },
-            in: '$$this.n',
-          },
-        },
+        $add: [{ $sum: '$reportCounts.decisions' }, { $sum: '$asRenter.n' }, { $sum: '$asOwner.n' }],
       },
-      pendingReportCount: {
-        $sum: {
-          $map: {
-            input: { $filter: { input: '$reportCounts', cond: { $eq: ['$$this._id', 'pending'] } } },
-            in: '$$this.n',
-          },
-        },
-      },
+      pendingReportCount: { $sum: '$reportCounts.pending' },
     },
   },
 ];
@@ -220,13 +299,9 @@ export const listAccounts = async (
   paging: { skip: number; limit: number; sort: Record<string, 1 | -1> },
   now: Date,
 ): Promise<{ rows: AccountRow[]; total: number }> => {
-  const match = {
-    ...(filter.role ? { role: filter.role } : {}),
-    ...searchMatch(filter.q),
-  };
   const [result] = await User.aggregate<{ rows: AccountRow[]; total: Array<{ n: number }> }>([
-    { $match: { $and: [match, await tabMatch(tab, now)] } },
-    ...withReportCounts,
+    { $match: { $and: [...filterMatch(filter), await tabMatch(tab, now)] } },
+    ...withViolationCounts,
     {
       $facet: {
         rows: [
@@ -253,24 +328,69 @@ export const countAccounts = async (
   filter: AccountFilter,
   now: Date,
 ): Promise<number> =>
-  User.countDocuments({
-    $and: [
-      { ...(filter.role ? { role: filter.role } : {}), ...searchMatch(filter.q) },
-      await tabMatch(tab, now),
-    ],
-  });
+  User.countDocuments({ $and: [...filterMatch(filter), await tabMatch(tab, now)] });
 
-export const countReportsAgainst = async (userId: Types.ObjectId) => {
-  const rows = await ViolationReport.aggregate<{ _id: string; n: number }>([
-    { $match: { 'target.userId': userId } },
-    { $group: { _id: '$status', n: { $sum: 1 } } },
+/** The violation count and the pending reports of one user, counted as in the list. */
+export const countViolationsOf = async (
+  userId: Types.ObjectId,
+): Promise<{ violationCount: number; pendingReportCount: number }> => {
+  const [row] = await User.aggregate<{ violationCount: number; pendingReportCount: number }>([
+    { $match: { _id: userId } },
+    ...withViolationCounts,
+    { $project: { _id: 0, violationCount: 1, pendingReportCount: 1 } },
   ]);
-  const of = (status: string) => rows.find((row) => row._id === status)?.n ?? 0;
-  return { violationCount: of('resolved'), pendingReportCount: of('pending') };
+  return row ?? { violationCount: 0, pendingReportCount: 0 };
 };
 
-export const findResolvedReportsAgainst = (userId: Types.ObjectId, limit = 50) =>
-  ViolationReport.find({ 'target.userId': userId, status: 'resolved' })
+// ---- Activity (R03 III.7.2.1 (6)-(7)) ----
+
+/** Completed rentals of the user, as Renter or as Owner. */
+export const countCompletedBookingsOf = (userId: Types.ObjectId) =>
+  RentalOrder.countDocuments({ status: 'COMPLETED', $or: [{ renterId: userId }, { ownerId: userId }] });
+
+export type RentalBreachRecord = Pick<
+  IRentalOrder,
+  '_id' | 'code' | 'renterId' | 'ownerId' | 'returnInfo' | 'settlement'
+>;
+
+/** Rentals where the user broke a rule: a late return, or a dispute ruled against them (UC19). */
+export const findRentalBreachesOf = (userId: Types.ObjectId, limit = 50) =>
+  RentalOrder.find({
+    $or: [
+      { renterId: userId, 'returnInfo.lateDays': { $gt: 0 } },
+      {
+        renterId: userId,
+        'settlement.resolution.ruling': 'RENTER_AT_FAULT',
+        'settlement.disputeId': { $exists: true },
+      },
+      {
+        ownerId: userId,
+        'settlement.resolution.ruling': 'OWNER_AT_FAULT',
+        'settlement.disputeId': { $exists: true },
+      },
+    ],
+  })
+    .select('code renterId ownerId returnInfo settlement.disputeId settlement.resolution')
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(limit)
+    .lean<RentalBreachRecord[]>();
+
+/** Admin decisions on reports against the user, newest first, with the number of reports each closed. */
+export const findReportDecisionsAgainst = async (userId: Types.ObjectId, limit = 50) => {
+  const decisions = await ViolationReport.find({ 'target.userId': userId, ...DECISION_FILTER })
     .sort({ 'resolution.resolvedAt': -1, _id: -1 })
     .limit(limit)
     .lean();
+  const closedWith =
+    decisions.length === 0
+      ? []
+      : await ViolationReport.aggregate<{ _id: Types.ObjectId; n: number }>([
+          { $match: { 'resolution.viaReportId': { $in: decisions.map((report) => report._id) } } },
+          { $group: { _id: '$resolution.viaReportId', n: { $sum: 1 } } },
+        ]);
+  const others = new Map(closedWith.map((row) => [String(row._id), row.n]));
+  return decisions.map((report) => ({
+    ...report,
+    reportCount: 1 + (others.get(String(report._id)) ?? 0),
+  }));
+};

@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/format'
 import {
   WALLET_TYPE_KINDS,
   walletTransactionTypes,
@@ -32,13 +33,5 @@ export function transactionTitle(transaction: WalletTransaction): string {
   return type ? WALLET_TYPE_LABELS[type] : WALLET_DIRECTION_LABELS[transaction.type]
 }
 
-const dateTimeFormatter = new Intl.DateTimeFormat('vi-VN', {
-  hour: '2-digit',
-  minute: '2-digit',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-})
-
-/** "2026-11-13T01:46:34Z" → "08:46 13/11/2026" (giờ máy người dùng) */
-export const formatTransactionTime = (iso: string) => dateTimeFormatter.format(new Date(iso))
+/** "2026-11-13T01:46:34Z" → "08:46 13/11/2026" (giờ Việt Nam, máy đặt múi giờ nào cũng vậy) */
+export const formatTransactionTime = (iso: string) => formatDateTime(iso)

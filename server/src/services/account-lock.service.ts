@@ -111,8 +111,26 @@ export const lockAccountInSession = async (
   return { userId, until: until ?? null, hiddenToyIds };
 };
 
-export const notifyLocked = (result: LockResult, duration: LockDuration, reason: string): void =>
+// Closes the open Socket.IO connections (chat, notifications) of a user. server.ts sets it once
+// the socket server is up; without it (tests, jobs run alone) there is nothing to close.
+let closeOpenConnections: ((userId: string) => void) | undefined;
+
+export const setOpenConnectionCloser = (closer: ((userId: string) => void) | undefined): void => {
+  closeOpenConnections = closer;
+};
+
+/**
+ * After the commit: the lock ends the current session (R03 III.7.2.1 (10)). The refresh tokens
+ * went with the lock; the open Socket.IO connections are closed here, then the user is told.
+ */
+export const notifyLocked = (result: LockResult, duration: LockDuration, reason: string): void => {
+  try {
+    closeOpenConnections?.(result.userId);
+  } catch (error) {
+    console.error('[accounts] Closing the connections of a locked account failed:', error);
+  }
   sendNotices([accountLockedNotice(result.userId, duration, result.until, reason)]);
+};
 
 export interface UnlockResult {
   userId: string;
@@ -191,7 +209,7 @@ export const assertNotAdminLocked = (user: LockFields): void => {
   if (isAdminLocked(user)) throw accountLockedError(user);
 };
 
-/** Hook for `authenticate`: the running Admin lock of a user, or null. */
+/** Hook for `authenticate` and the socket handshake: the running Admin lock of a user, or null. */
 export const findRunningLock = async (userId: string): Promise<LockFields | null> => {
   const user = await repository.findLockOf(userId);
   return user && isAdminLocked(user) ? user : null;

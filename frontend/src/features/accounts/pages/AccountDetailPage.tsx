@@ -1,18 +1,12 @@
-import { Card, Descriptions, Empty, Skeleton, Table, Typography } from 'antd'
-import { Link, useParams } from 'react-router-dom'
+import { Card, Descriptions, Skeleton } from 'antd'
+import { useParams } from 'react-router-dom'
 
 import { PageHeader, QueryErrorAlert, StatusTag } from '../../../components/common'
-import type { ReportReason, ReportTargetKind } from '../../../constants/domain'
-import {
-  reportActionLabels,
-  reportReasonLabels,
-  reportTargetKindLabels,
-} from '../../../constants/labels'
 import { adminHomeCrumb, adminPaths } from '../../../routes/paths'
 import { formatDate, formatDateTime } from '../../../utils/format'
 import { AccountEnforcementCard } from '../components/AccountEnforcementCard'
+import { AccountViolationHistory } from '../components/AccountViolationHistory'
 import { useAccount } from '../hooks'
-import type { AccountViolation } from '../types'
 
 // UC29, R03 III.7.2.1 (4)-(10): read-only profile, metrics, violation history and the lock or
 // unlock form.
@@ -48,11 +42,31 @@ export function AccountDetailPage() {
                   { key: 'email', label: 'Email', children: account.email },
                   { key: 'joined', label: 'Ngày tham gia', children: formatDate(account.createdAt) },
                   {
+                    key: 'lastLogin',
+                    label: 'Đăng nhập gần nhất',
+                    children: account.lastLoginAt ? formatDateTime(account.lastLoginAt) : 'Chưa ghi nhận',
+                  },
+                  {
                     key: 'identity',
                     label: 'Xác minh danh tính',
                     children: <StatusTag domain="identity" status={account.verificationStatus} />,
                   },
+                ]}
+              />
+            </Card>
+            <Card title="Chỉ số hoạt động">
+              <Descriptions
+                column={{ xs: 1, md: 2 }}
+                items={[
                   { key: 'trust', label: 'Điểm tin cậy', children: account.trustScore ?? '—' },
+                  {
+                    key: 'rating',
+                    label: 'Đánh giá trung bình',
+                    // Ratings (UC24) are not built yet.
+                    children:
+                      account.averageRating === null ? 'Chưa có' : `${account.averageRating.toFixed(1)} / 5`,
+                  },
+                  { key: 'bookings', label: 'Đơn thuê hoàn tất', children: account.completedBookingCount },
                   { key: 'violations', label: 'Số vi phạm', children: account.violationCount },
                   { key: 'pending', label: 'Báo cáo chờ xử lý', children: account.pendingReportCount },
                   { key: 'listings', label: 'Tin đang hiển thị', children: account.activeListingCount },
@@ -78,47 +92,7 @@ export function AccountDetailPage() {
               </Card>
             )}
             <Card title="Lịch sử vi phạm">
-              {account.violations.length === 0 ? (
-                <Empty description="Chưa có vi phạm nào." />
-              ) : (
-                <Table<AccountViolation>
-                  rowKey="reportId"
-                  size="small"
-                  pagination={false}
-                  dataSource={account.violations}
-                  columns={[
-                    { title: 'Ngày', key: 'date', render: (_, row) => formatDate(row.resolvedAt) },
-                    {
-                      title: 'Nguồn',
-                      key: 'source',
-                      render: (_, row) => (
-                        <Link to={adminPaths.violationReport(row.reportId)}>
-                          Báo cáo {reportTargetKindLabels[row.targetKind as ReportTargetKind]?.toLowerCase() ?? ''}
-                        </Link>
-                      ),
-                    },
-                    {
-                      title: 'Lý do',
-                      key: 'reason',
-                      render: (_, row) => reportReasonLabels[row.reason as ReportReason] ?? row.reason,
-                    },
-                    {
-                      title: 'Xử lý',
-                      key: 'action',
-                      render: (_, row) => (
-                        <div className="flex flex-col">
-                          <span>{row.action ? reportActionLabels[row.action] : '—'}</span>
-                          {row.note && (
-                            <Typography.Text type="secondary" className="text-xs">
-                              {row.note}
-                            </Typography.Text>
-                          )}
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              )}
+              <AccountViolationHistory violations={account.violations} />
             </Card>
           </div>
           <AccountEnforcementCard key={account.accountStatus} account={account} />

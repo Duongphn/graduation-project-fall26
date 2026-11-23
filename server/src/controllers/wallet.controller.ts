@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { getValidatedQuery } from '../middlewares/validate.js';
 import { type WalletService } from '../services/wallet.service.js';
+import { getAdminContext } from '../utils/admin-context.js';
 import { sendSuccess } from '../utils/response.js';
 import {
   validateAdminCreditInput,
@@ -47,7 +48,7 @@ export class WalletController {
     try {
       const input = validateAdminCreditInput(req.body);
       const userId = req.params.userId as string;
-      const data = await this.service.adminCredit(req.auth!, userId, input);
+      const data = await this.service.adminCredit(getAdminContext(req), userId, input);
       res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);

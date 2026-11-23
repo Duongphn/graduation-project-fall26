@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 
 import { reportStatuses, type ReportAction } from '../constants/violation-report.js';
 import * as repository from '../repositories/violation-report.repository.js';
-import { countReportsAgainst } from '../repositories/account-admin.repository.js';
+import { countViolationsOf } from '../repositories/account-admin.repository.js';
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { buildPrivateImageUrl } from '../utils/cloudinary-signing.js';
@@ -185,7 +185,7 @@ export const getReportDetail = async (id: string): Promise<AdminReportDetail> =>
   const toy = report.target.kind === 'toy' ? lookups.toys.get(targetId) : undefined;
   const message = report.target.kind === 'message' ? lookups.messages.get(targetId) : undefined;
   const [counts, others] = await Promise.all([
-    reportedUser ? countReportsAgainst(reportedUser._id) : null,
+    reportedUser ? countViolationsOf(reportedUser._id) : null,
     report.status === 'pending' ? repository.findOtherPendingOnTarget(report) : [],
   ]);
 
