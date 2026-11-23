@@ -27,6 +27,8 @@ const base: DonationRequestDetail = {
   trackingCode: null,
   receipt: null,
   dueAt: null,
+  confirmDueAt: '2026-11-15T03:00:00.000Z',
+  overdue: true,
   toy: {
     id: '64b0000000000000000000c1',
     title: 'Bộ tàu hỏa gỗ',
@@ -69,15 +71,45 @@ const renderPage = () => {
 beforeEach(() => detail.mockReset())
 
 describe('AdminDonationRequestDetailPage', () => {
+  it('flags a shipping request past DONATION_CONFIRM_DAYS and shows its deadline (GB-57)', async () => {
+    detail.mockResolvedValue(base)
+    renderPage()
+
+    expect(await screen.findByText('Quá hạn xác nhận')).toBeInTheDocument()
+    expect(screen.getByText(/Hạn \d{2}:\d{2} 15\/11\/2026/)).toBeInTheDocument()
+  })
+
+  it('shows the decision deadline of a pending request, without the overdue flag', async () => {
+    detail.mockResolvedValue({
+      ...base,
+      status: 'pending',
+      dueAt: '2026-12-07T10:00:00.000Z',
+      confirmDueAt: null,
+      overdue: false,
+    })
+    renderPage()
+
+    expect(await screen.findByText(/Hạn 17:00 07\/12\/2026/)).toBeInTheDocument()
+    expect(screen.queryByText('Quá hạn xác nhận')).not.toBeInTheDocument()
+  })
+
   it('shows the toy of a confirmed request as donated (GB-60)', async () => {
-    detail.mockResolvedValue({ ...base, status: 'completed', toy: { ...base.toy!, status: 'donated' } })
+    detail.mockResolvedValue({
+      ...base,
+      status: 'completed',
+      overdue: false,
+      confirmDueAt: null,
+      toy: { ...base.toy!, status: 'donated' },
+    })
     renderPage()
 
     expect(await screen.findByText('Đã quyên góp')).toBeInTheDocument()
+    expect(screen.queryByText('Quá hạn xác nhận')).not.toBeInTheDocument()
+    expect(screen.queryByText(/· Hạn/)).not.toBeInTheDocument()
   })
 
   it('keeps the stored status of a toy that was not donated', async () => {
-    detail.mockResolvedValue({ ...base, status: 'cancelled' })
+    detail.mockResolvedValue({ ...base, status: 'cancelled', overdue: false, confirmDueAt: null })
     renderPage()
 
     expect(await screen.findByText('Bộ tàu hỏa gỗ')).toBeInTheDocument()

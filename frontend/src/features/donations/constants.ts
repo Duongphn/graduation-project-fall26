@@ -1,5 +1,7 @@
 // Quick reasons offered in the Admin reason modals (content, not statuses).
 export const rejectReasonPresets = [
+  'Tổ chức tạm ngừng nhận đồ chơi, vui lòng chọn tổ chức khác',
+  'Tổ chức đã đủ đồ chơi loại này, vui lòng chọn tổ chức khác',
   'Tổ chức không phù hợp với độ tuổi của đồ chơi',
   'Thông tin yêu cầu chưa đầy đủ',
   'Đồ chơi không còn phù hợp để tặng',

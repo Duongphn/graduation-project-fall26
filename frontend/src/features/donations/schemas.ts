@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { donationReceiverTypes, donationStatuses } from '../../constants/domain'
 import { reasonSchema } from '../../schemas/common'
-import { enumParam, searchParam } from '../../schemas/list-params'
+import { enumParam, objectIdParam, searchParam } from '../../schemas/list-params'
 import { handoverMethods } from './constants'
 import type { HandoverInput } from './types'
 
@@ -33,9 +33,13 @@ export type OrganizationReceiptInput = z.input<typeof organizationReceiptSchema>
 export type OrganizationReceiptValues = z.output<typeof organizationReceiptSchema>
 
 // Filters of the Admin list read from the URL (useListParams).
+// UC35 step 1: status, organization, province of its receiving point and overdue confirmation.
 export const donationFiltersSchema = z.object({
   status: enumParam(donationStatuses),
   receiverType: enumParam(donationReceiverTypes),
+  organizationId: objectIdParam,
+  province: searchParam,
+  overdue: enumParam(['true']),
   q: searchParam,
 })
 

@@ -77,7 +77,12 @@ export function DonationActions({ request }: { request: DonationRequestDetail })
       />
       <ReasonModal
         open={modal === 'cancel'}
-        title={isShipping ? 'Huỷ yêu cầu đang bàn giao' : 'Huỷ yêu cầu nhận tặng'}
+        // GB-60: a cancelled handover keeps the toy hidden; before it, the toy is listed again.
+        title={
+          isShipping
+            ? 'Huỷ yêu cầu đang bàn giao (đồ chơi vẫn ẩn tới khi người tặng sửa hoặc xoá tin)'
+            : 'Huỷ yêu cầu nhận tặng'
+        }
         okText="Huỷ yêu cầu"
         presets={cancelReasonPresets}
         loading={actions.cancel.isPending}
