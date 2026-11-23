@@ -182,6 +182,49 @@ describe('UC33: a new donation post sent to an organization', () => {
     expect((await Toy.findById(id).lean())?.status).toBe('hidden');
   });
 
+  it('carries the note to the organization (R03 III.5.2.1 (8)) into the request', async () => {
+    const note = `  ${'Thiếu một bánh xe, '.repeat(20).slice(0, 299)}.  `;
+    expect(note.trim()).toHaveLength(300);
+    const res = await sendPost({ organizationId: orgId, handoverMethod: 'drop_off', note });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.donationTarget).toEqual({
+      organizationId: orgId,
+      handoverMethod: 'drop_off',
+      note: note.trim(),
+    });
+    await approve(res.body.data.id);
+    const created = await requestOf(res.body.data.id);
+    expect(created?.itemDetails).toBe(note.trim());
+    const detail = await request(app)
+      .get(`/admin/donation-requests/${String(created?._id)}`)
+      .set(asAdmin);
+    expect(detail.body.data.message).toBe(note.trim());
+  });
+
+  it('checks the note: at most 300 characters, only with an organization, blank = none', async () => {
+    const tooLong = await sendPost({
+      organizationId: orgId,
+      handoverMethod: 'carrier',
+      note: 'a'.repeat(301),
+    });
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body.error.details).toEqual({ field: 'note' });
+    const alone = await sendPost({ note: 'Còn đủ 20 chi tiết' });
+    expect(alone.status).toBe(400);
+    expect(alone.body.error.details).toEqual({ field: 'organizationId' });
+    expect(await Toy.countDocuments({})).toBe(0);
+
+    const blank = await sendPost({ organizationId: orgId, handoverMethod: 'carrier', note: '   ' });
+    expect(blank.status).toBe(201);
+    expect(blank.body.data.donationTarget).toEqual({
+      organizationId: orgId,
+      handoverMethod: 'carrier',
+    });
+    await approve(blank.body.data.id);
+    // No note: the request keeps develop's default message (the toy title).
+    expect((await requestOf(blank.body.data.id))?.itemDetails).toBe('Bộ tàu hỏa gỗ');
+  });
+
   it('keeps a post without an organization open for requests (FE-02)', async () => {
     const res = await sendPost();
     expect(res.status).toBe(201);

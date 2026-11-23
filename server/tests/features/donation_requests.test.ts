@@ -210,7 +210,7 @@ describe('create', () => {
     const toOrganization = await request(app)
       .post('/donation-requests/to-organization')
       .set(as(donor))
-      .send({ toyId, organizationId });
+      .send({ toyId, organizationId, handoverMethod: 'drop_off' });
     expect(toOrganization.body.error.code).toBe('USER_NOT_VERIFIED');
     expect(await DonationRequest.countDocuments({})).toBe(0);
     await User.updateMany({}, { $set: { verificationStatus: 'verified' } });
@@ -603,8 +603,12 @@ describe('races on create', () => {
 });
 
 describe('Donor to organization (UC33, GB-56)', () => {
+  // MSG52: the Donor's request names a handover method (drop-off unless the test says otherwise).
   const sendToOrganization = (body: object, userId = donor) =>
-    request(app).post('/donation-requests/to-organization').set(as(userId)).send(body);
+    request(app)
+      .post('/donation-requests/to-organization')
+      .set(as(userId))
+      .send({ handoverMethod: 'drop_off', ...body });
 
   const withPoint = (overrides: Record<string, unknown> = {}) =>
     Organization.updateOne(
@@ -742,7 +746,12 @@ describe('Donor to organization (UC33, GB-56)', () => {
 
   it('checks the handover method against the receiving point; shows its contact once accepted', async () => {
     await withPoint({ acceptsDropOff: false, acceptsParcel: true });
-    const res = await sendToOrganization({ toyId, organizationId });
+    for (const handoverMethod of [undefined, '', 'DROP_OFF', 'post']) {
+      const wrong = await sendToOrganization({ toyId, organizationId, handoverMethod });
+      expect(wrong.status, String(handoverMethod)).toBe(400);
+      expect(wrong.body.error.code).toBe('VALIDATION_ERROR');
+    }
+    const res = await sendToOrganization({ toyId, organizationId, handoverMethod: 'carrier' });
     const id = res.body.data.id as string;
     expect(res.body.data.organization.receivingPoint).toMatchObject({ province: 'Hà Nội' });
     expect(JSON.stringify(res.body.data)).not.toContain('987654321');

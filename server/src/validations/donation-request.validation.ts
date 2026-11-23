@@ -51,9 +51,9 @@ export const handoverMethodSchema = z
   .openapi({ description: 'drop_off (at the receiving point) or carrier (GB-58).' });
 
 /**
- * UC33, GB-56: the Donor sends their own Active donation post to an organization that is
- * accepting toys; the Admin decides it. The optional method is checked against the receiving
- * point now and can still change at the handover.
+ * UC33 2.1, GB-56: the Donor sends their own Active donation post to an organization that is
+ * accepting toys; the Admin decides it. The Donor picks the method (required, MSG52); it is
+ * checked against the receiving point now and can still change at the handover.
  */
 export const donorOrganizationRequestBodySchema = z
   .object({
@@ -65,7 +65,7 @@ export const donorOrganizationRequestBodySchema = z
       .max(DONOR_REQUEST_NOTE_MAX, `Ghi chú tối đa ${DONOR_REQUEST_NOTE_MAX} ký tự.`)
       .optional()
       .openapi({ description: 'Note to the organization (R03 III.5.2.1 (8)).' }),
-    handoverMethod: handoverMethodSchema.optional(),
+    handoverMethod: handoverMethodSchema,
   })
   .strict()
   .openapi('DonorOrganizationRequest');

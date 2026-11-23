@@ -35,6 +35,8 @@ export interface IToy {
 export interface ToyDonationTarget {
   organizationId: mongoose.Types.ObjectId;
   handoverMethod: 'drop_off' | 'carrier';
+  // R03 III.5.2.1 (8): the Donor's note to the organization, at most 300 characters.
+  note?: string | undefined;
 }
 
 export type ToyDocument = Document<mongoose.Types.ObjectId> & IToy;
@@ -111,6 +113,7 @@ export const toySchema = new Schema<IToy>(
         {
           organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
           handoverMethod: { type: String, required: true, enum: ['drop_off', 'carrier'] },
+          note: { type: String },
         },
         { _id: false },
       ),

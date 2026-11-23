@@ -195,8 +195,9 @@ Request: multipart form data.
 - `description` (required): 50 to 1000 characters.
 - `condition` (required), `categoryId` (required, an active category), `ageRange` (required, JSON `{ "minAge": 1, "maxAge": 3 }`).
 - `images`: 3 to 10 photos, JPG, PNG or WebP, at most 5 MB each (R03 GB-10, III.5.2.1 (2)).
-- `organizationId` (optional): the organization to send the toy to (UC33 step 4), checked like `POST /donation-requests/to-organization`: active and accepting toys. Without it, the post stays open for requests (FE-02).
+- `organizationId` (optional): the organization to send the toy to (UC33 step 4), checked like `POST /donation-requests/to-organization`: active, accepting toys and with a receiving point. Without it, the post stays open for requests (FE-02).
 - `handoverMethod` (required with `organizationId`): `drop_off` or `carrier`, as its receiving point allows (GB-58, MSG52).
+- `note` (optional, only with `organizationId`): the Donor's note to the organization, at most 300 characters after trimming (R03 III.5.2.1 (8)), for example missing parts or defects. It becomes the `message` of the request.
 - When the Admin approves the post, the donation request to that organization is created as `pending`, with the Donor as its creator (the Admin decides it, GB-56). If the organization no longer takes toys by then, no request is created and the post stays open.
 - Price and deposit fields are ignored.
 
@@ -207,7 +208,8 @@ Errors:
 - `400 CONTACT_DETAILS_NOT_ALLOWED` with `details: { field }` (GB-11, see "Contact details" above).
 - `400 CATEGORY_NOT_FOUND` when the category is not active, also when an Admin hides or deletes it during the upload ("Category rules" above).
 - `400 INVALID_IMAGE_FORMAT` for a file that is not JPG, PNG or WebP; `400 INVALID_IMAGE_UPLOAD` for an 11th photo or a file over 5 MB.
-- With `organizationId`: `400 VALIDATION_ERROR` with `details: { field }` for an invalid id or a missing method; `404 ORGANIZATION_NOT_FOUND`; `409 ORGANIZATION_NOT_AVAILABLE` (hidden) or `409 ORGANIZATION_NOT_ACCEPTING` (MSG51); `422 HANDOVER_METHOD_NOT_ALLOWED`.
+- `400 VALIDATION_ERROR` with `details: { field: "organizationId" }` for a `note` without an organization.
+- With `organizationId`: `400 VALIDATION_ERROR` with `details: { field }` for an invalid id, a missing method or a note over 300 characters; `404 ORGANIZATION_NOT_FOUND`; `409 ORGANIZATION_NOT_AVAILABLE` (hidden), `409 ORGANIZATION_NOT_ACCEPTING` (MSG51) or `409 ORGANIZATION_NO_RECEIVING_POINT`; `422 HANDOVER_METHOD_NOT_ALLOWED`.
 
 Response `201 Created` (`donationTarget` is `null` without an organization):
 
@@ -228,7 +230,7 @@ Response `201 Created` (`donationTarget` is `null` without an organization):
     "images": [{ "url": "https://res.cloudinary.com/...", "publicId": "toyflow/toys/..." }],
     "quantity": 1,
     "status": "pending",
-    "donationTarget": { "organizationId": "66a...", "handoverMethod": "drop_off" },
+    "donationTarget": { "organizationId": "66a...", "handoverMethod": "drop_off", "note": "Thiếu 1 bánh xe" },
     "createdAt": "2026-11-17T03:00:00.000Z",
     "updatedAt": "2026-11-17T03:00:00.000Z"
   }

@@ -77,6 +77,9 @@ export const findBannedTerms = (...texts: string[]): string[] => {
 /** Giá trị đặc biệt: để ToyFlow chọn tổ chức phù hợp */
 export const AUTO_MATCH = 'AUTO'
 
+/** R03 III.5.2.1 (8): ghi chú cho tổ chức, không bắt buộc */
+export const ORGANIZATION_NOTE_MAX = 300
+
 /**
  * GB-51: cách bàn giao mà điểm nhận của tổ chức chấp nhận (SELF = mang đến, CARRIER = bưu kiện).
  * Chưa chọn tổ chức (tin để mở) thì cả hai.
@@ -116,6 +119,12 @@ export const donationPostSchema = z
     // id tổ chức, hoặc AUTO_MATCH
     receiver: z.string(),
     handoverMethod: z.enum(handoverMethods),
+    // Chỉ gửi khi đã chọn tổ chức (khai thiếu chi tiết, vết xước…)
+    note: z
+      .string()
+      .trim()
+      .max(ORGANIZATION_NOTE_MAX, `Ghi chú cho tổ chức tối đa ${ORGANIZATION_NOTE_MAX} ký tự`)
+      .optional(),
   })
   .refine((values) => Object.values(values.safety).every(Boolean), {
     message: 'Cần xác nhận đủ 4 tiêu chí an toàn trước khi gửi phiếu.',
@@ -136,6 +145,7 @@ export const EMPTY_DONATION_POST: Partial<DonationPostValues> = {
   safety: { noSharpParts: false, batteriesRemoved: false, noSmallParts: false, cleaned: false },
   receiver: AUTO_MATCH,
   handoverMethod: 'CARRIER',
+  note: '',
 }
 
 export const isPhotoCountValid = (count: number) => count >= MIN_DONATION_PHOTOS && count <= MAX_IMAGES

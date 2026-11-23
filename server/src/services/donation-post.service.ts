@@ -9,6 +9,7 @@ import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
 import { objectIdSchema } from '../validations/common.validation.js';
 import { handoverMethodSchema } from '../validations/donation-request.validation.js';
+import { DONOR_REQUEST_NOTE_MAX } from '../constants/donation-request-transitions.js';
 import { assertOrganizationTakesToys } from './donation-request.service.js';
 import {
   assertListingTextRules,
@@ -26,9 +27,9 @@ import {
 // phone number, email address or http/www link (GB-11). Like POST /toys, the toy is saved in the
 // transaction that touches its category, so an Admin hide or delete during the upload cannot
 // leave the post on that category ("Category rules" in docs/api/toys.md).
-// UC33 step 4: the post can name an organization and a handover method, checked like
-// POST /donation-requests/to-organization; the request to it is created as Pending once the Admin
-// approves the post (step 5, donation.subscriptions.ts).
+// UC33 step 4: the post can name an organization, a handover method and a note to it, checked
+// like POST /donation-requests/to-organization; the request to it is created as Pending once the
+// Admin approves the post (step 5, donation.subscriptions.ts).
 
 const isVerifiedUser = async (userId: string) =>
   (await IdentityVerification.exists({ userId, status: { $regex: /^verified$/i } })) !== null;
@@ -54,13 +55,18 @@ const textField = (body: Record<string, unknown>, name: string): string | undefi
 };
 
 /**
- * UC33 step 4 (R03 III.5.2.1 (5)–(7)): the organization chosen on the form and the handover
- * method its receiving point allows (required with an organization, MSG52). Without an
- * organization the post stays open for requests (FE-02, "Keep open for requests").
+ * UC33 step 4 (R03 III.5.2.1 (5)–(8)): the organization chosen on the form, the handover method
+ * its receiving point allows (required with an organization, MSG52) and an optional note of up
+ * to 300 characters. Without an organization the post stays open for requests (FE-02, "Keep
+ * open for requests"), and a note has nobody to go to.
  */
 const parseDonationTarget = (body: Record<string, unknown>) => {
   const organizationId = textField(body, 'organizationId');
-  if (!organizationId) return undefined;
+  const note = textField(body, 'note');
+  if (!organizationId) {
+    if (note) throw invalid('organizationId', 'Vui lòng chọn tổ chức nhận trước khi ghi chú.');
+    return undefined;
+  }
   if (!objectIdSchema.safeParse(organizationId).success) {
     throw invalid('organizationId', 'Mã tổ chức không hợp lệ.');
   }
@@ -68,7 +74,10 @@ const parseDonationTarget = (body: Record<string, unknown>) => {
   if (!handoverMethod.success) {
     throw invalid('handoverMethod', 'Vui lòng chọn mang đến hoặc gửi qua vận chuyển.');
   }
-  return { organizationId, handoverMethod: handoverMethod.data };
+  if (note && note.length > DONOR_REQUEST_NOTE_MAX) {
+    throw invalid('note', `Ghi chú cho tổ chức tối đa ${DONOR_REQUEST_NOTE_MAX} ký tự.`);
+  }
+  return { organizationId, handoverMethod: handoverMethod.data, ...(note ? { note } : {}) };
 };
 
 export const createDonationPost = async (
@@ -130,8 +139,8 @@ export const createDonationPost = async (
         ...(target
           ? {
               donationTarget: {
+                ...target,
                 organizationId: new mongoose.Types.ObjectId(target.organizationId),
-                handoverMethod: target.handoverMethod,
               },
             }
           : {}),

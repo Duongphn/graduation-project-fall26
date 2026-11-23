@@ -270,11 +270,17 @@ export const assertOrganizationTakesToys = async (
 export const createRequestForApprovedPost = async (toyId: string) => {
   const toy = await repository.takeDonationTarget(toyId);
   if (!toy) return undefined;
-  const { organizationId, handoverMethod } = toy.donationTarget;
+  const { organizationId, handoverMethod, note } = toy.donationTarget;
   try {
     return await insertPendingRequest(
       { userId: String(toy.ownerId), isAdmin: false },
-      { toyId, organizationId: String(organizationId), handoverMethod },
+      {
+        toyId,
+        organizationId: String(organizationId),
+        handoverMethod,
+        // R03 III.5.2.1 (8): the note goes to the organization with the request.
+        ...(note ? { message: note } : {}),
+      },
       'DONOR',
     );
   } catch (error) {
