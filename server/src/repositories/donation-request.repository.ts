@@ -104,8 +104,13 @@ export const takeDonationTarget = (toyId: string) =>
       donationTarget: { $type: 'object' },
     },
     { $unset: { donationTarget: 1 } },
-    { new: false, timestamps: false, projection: 'ownerId donationTarget' },
-  ).lean<{ _id: Types.ObjectId; ownerId: Types.ObjectId; donationTarget: ToyDonationTarget }>();
+    { new: false, timestamps: false, projection: 'ownerId title donationTarget' },
+  ).lean<{
+    _id: Types.ObjectId;
+    ownerId: Types.ObjectId;
+    title: string;
+    donationTarget: ToyDonationTarget;
+  }>();
 
 /** Ids of the pending requests of a toy. */
 export const findPendingRequestIdsOfToy = async (toyId: string) =>

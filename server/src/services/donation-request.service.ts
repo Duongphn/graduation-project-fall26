@@ -4,6 +4,8 @@ import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.reposi
 import { AppError } from '../utils/app-error.js';
 import { conflict, forbidden, notFound, unprocessable } from '../utils/http-errors.js';
 import { domainEvents } from '../utils/domain-events.js';
+import { notify } from '../utils/notify.js';
+import { notificationLinks } from './notification.links.js';
 import { toMongoPaging } from '../utils/response.js';
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
 import { type HandoverMethod } from '../constants/donation-request-transitions.js';
@@ -264,15 +266,17 @@ export const assertOrganizationTakesToys = async (
 /**
  * UC33 step 5: the Admin approved a new donation post sent to an organization, so its request is
  * created as Pending, as if the Donor had sent the Active post to it (the Donor is its creator;
- * the Admin decides it, GB-56). When the organization no longer takes toys, no request is
- * created and the post stays open (step 6.1). Returns the request, or undefined.
+ * the Admin decides it, GB-56), and the Donor is told (GB-61). When the organization no longer
+ * takes toys, no request is created, the post stays open and the Donor is told to choose
+ * another organization (step 6.1, MSG51). Returns the request, or undefined.
  */
 export const createRequestForApprovedPost = async (toyId: string) => {
   const toy = await repository.takeDonationTarget(toyId);
   if (!toy) return undefined;
   const { organizationId, handoverMethod, note } = toy.donationTarget;
+  const donorId = String(toy.ownerId);
   try {
-    return await insertPendingRequest(
+    const created = await insertPendingRequest(
       { userId: String(toy.ownerId), isAdmin: false },
       {
         toyId,
@@ -283,9 +287,34 @@ export const createRequestForApprovedPost = async (toyId: string) => {
       },
       'DONOR',
     );
+    const receiver = created.organization?.name ?? 'tổ chức đã chọn';
+    notify({
+      type: 'DONATION_STATUS_CHANGED',
+      to: donorId,
+      title: `Phiếu quyên góp "${toy.title}" đã được gửi tới ${receiver}`,
+      body:
+        `Tin quyên góp của bạn đã được duyệt. Phiếu quyên góp ${created.code} đã được gửi tới ` +
+        `${receiver}; ToyFlow sẽ chấp nhận hoặc từ chối thay tổ chức.`,
+      link: notificationLinks.myDonation(created.id),
+    });
+    return created;
   } catch (error) {
     if (error instanceof AppError && error.statusCode < 500) {
       console.info(`Donation request not created for the approved post ${toyId}: ${error.code}`);
+      const organization = await repository.findOrganization(organizationId).catch(() => null);
+      const why =
+        error.code === 'HANDOVER_METHOD_NOT_ALLOWED'
+          ? 'điểm nhận của tổ chức không còn nhận cách bàn giao bạn đã chọn'
+          : 'tổ chức hiện không nhận đồ chơi';
+      notify({
+        type: 'DONATION_STATUS_CHANGED',
+        to: donorId,
+        title: `Chưa gửi được "${toy.title}" tới ${organization?.name ?? 'tổ chức đã chọn'}`,
+        body:
+          `Tin quyên góp của bạn đã được duyệt, nhưng ${why} nên chưa có yêu cầu quyên góp. ` +
+          'Tin vẫn mở: vui lòng chọn tổ chức khác, hoặc chờ người nhận và ToyFlow ghép tổ chức phù hợp.',
+        link: notificationLinks.toyDetail(toyId),
+      });
       return undefined;
     }
     throw error;
