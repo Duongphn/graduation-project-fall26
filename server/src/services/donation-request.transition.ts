@@ -19,10 +19,14 @@ import {
 import * as repository from '../repositories/donation-request.repository.js';
 import type { DonationRecord } from '../repositories/donation-request.repository.js';
 import { donationTransitions } from '../constants/donation-request-transitions.js';
+import { SystemSettingService } from './system-setting.service.js';
 
 // The ONE path for every status move of a donation request:
 // read -> permission -> assertTransition -> conditional update -> toy move -> sibling rejects
 // -> audit (Admin) -> commit -> DONATION_STATUS_CHANGED events.
+
+/** GB-57 time limits from the System Settings (UC30), read on every use. */
+export const donationSettings = () => new SystemSettingService().getDonationSettings();
 
 export const requestNotFound = () =>
   notFound('DONATION_REQUEST_NOT_FOUND', 'Không tìm thấy yêu cầu nhận tặng.');

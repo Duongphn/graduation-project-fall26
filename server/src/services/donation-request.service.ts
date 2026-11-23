@@ -6,11 +6,7 @@ import { conflict, forbidden, notFound, unprocessable } from '../utils/http-erro
 import { domainEvents } from '../utils/domain-events.js';
 import { toMongoPaging } from '../utils/response.js';
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
-import {
-  HANDOVER_EXPIRY_DAYS,
-  PENDING_EXPIRY_DAYS,
-  type HandoverMethod,
-} from '../constants/donation-request-transitions.js';
+import { type HandoverMethod } from '../constants/donation-request-transitions.js';
 import {
   type DonationView,
   encodePhoto,
@@ -41,6 +37,7 @@ import {
 } from '../validations/donation-request.validation.js';
 import {
   adminContextOf,
+  donationSettings,
   organizationNotAccepting,
   organizationNotAvailable,
   organizationWithoutPoint,
@@ -59,12 +56,20 @@ export const viewOf = (actor: DonationActor): DonationView =>
   actor.isAdmin ? { admin: true } : { admin: false, viewerId: actor.userId };
 
 export const toDtos = async (records: DonationRecord[], view: DonationView) => {
-  const relations = await repository.loadRelations(records, view.admin);
-  return records.map((record) => toDonationRequestDto(record, relations, view));
+  const [relations, { confirmDays }] = await Promise.all([
+    repository.loadRelations(records, view.admin),
+    donationSettings(),
+  ]);
+  return records.map((record) => toDonationRequestDto(record, relations, view, confirmDays));
 };
 
-export const toDetail = async (record: DonationRecord, view: DonationView) =>
-  toDonationRequestDetailDto(record, await repository.loadRelations([record], view.admin), view);
+export const toDetail = async (record: DonationRecord, view: DonationView) => {
+  const [relations, { confirmDays }] = await Promise.all([
+    repository.loadRelations([record], view.admin),
+    donationSettings(),
+  ]);
+  return toDonationRequestDetailDto(record, relations, view, confirmDays);
+};
 
 export const listPage = async (
   filter: RequestFilter,
@@ -123,6 +128,8 @@ const insertPendingRequest = async (
   if (!actor.isAdmin && !(await repository.isVerifiedUser(actor.userId))) {
     throw new AppError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.');
   }
+  // GB-57: the Pending deadline (DONATION_DECISION_DAYS, UC30).
+  const { decisionDays } = await donationSettings();
   const created = await repository
     .withTransaction(async (session) => {
       // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a
@@ -185,7 +192,7 @@ const insertPendingRequest = async (
           ...(input.organizationId ? { organizationId: input.organizationId } : {}),
           // develop's itemDetails (required): the requester's message, else the toy title.
           itemDetails: input.message || toy.title,
-          dueAt: daysFromNow(PENDING_EXPIRY_DAYS),
+          dueAt: daysFromNow(decisionDays),
           ...(input.handoverMethod ? { handoverMethod: input.handoverMethod } : {}),
         },
         session,
@@ -349,19 +356,21 @@ const assertDecider = (actor: DonationActor) => (record: DonationRecord) => {
   }
 };
 
-export const accept = async (actor: DonationActor, id: string) =>
-  detailOf(
+export const accept = async (actor: DonationActor, id: string) => {
+  const { handoverDays } = await donationSettings();
+  return detailOf(
     await transition({
       id,
       to: 'accepted',
       actor,
       allowed: canDecide,
       check: assertDecider(actor),
-      // The donor now has HANDOVER_EXPIRY_DAYS to hand the toy over.
-      set: { ...decided(actor), 'timer.dueAt': daysFromNow(HANDOVER_EXPIRY_DAYS) },
+      // GB-57: the donor now has DONATION_HANDOVER_DAYS to hand the toy over.
+      set: { ...decided(actor), 'timer.dueAt': daysFromNow(handoverDays) },
     }),
     actor,
   );
+};
 
 export const reject = async (actor: DonationActor, id: string, reason: string) =>
   detailOf(

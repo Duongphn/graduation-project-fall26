@@ -5,6 +5,7 @@ import { maskEmail } from '../utils/privacy.js';
 import { counterpartOf, deciderOf, receiverTypeOf } from './donation-request.policy.js';
 import type { DonationRecord, Relations } from '../repositories/donation-request.repository.js';
 import { EXPIRED_HANDOVER_REASON, EXPIRED_PENDING_REASON } from './donation-request.lifecycle.js';
+import { DEFAULT_DONATION_SETTINGS } from '../constants/donation-request-transitions.js';
 
 /**
  * Why the expiry job set the request to expired (GB-57): an accepted request (decided) missed
@@ -110,13 +111,27 @@ const counterpartContact = (record: DonationRecord, relations: Relations, view: 
   return user ? { name: user.fullName, phone: user.phone ?? null } : null;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * GB-57: a shipping request waits DONATION_CONFIRM_DAYS for the receipt, counted from the
+ * handover; past it, it is flagged as overdue for the Admin (never confirmed automatically).
+ */
+const confirmDueOf = (record: DonationRecord, confirmDays: number): Date | null => {
+  if (record.status !== 'shipping') return null;
+  const sent = record.handovers?.find((handover) => handover.step === 'DONOR_SENT');
+  return sent ? new Date(sent.at.getTime() + confirmDays * DAY_MS) : null;
+};
+
 export const toDonationRequestDto = (
   record: DonationRecord,
   relations: Relations,
   view: DonationView = { admin: false },
+  confirmDays: number = DEFAULT_DONATION_SETTINGS.confirmDays,
 ) => {
   const withContacts = view.admin;
   const toy = relations.toys.get(String(record.toyId));
+  const confirmDueAt = confirmDueOf(record, confirmDays);
   return {
     id: String(record._id),
     code: record.code,
@@ -137,6 +152,8 @@ export const toDonationRequestDto = (
           }
         : null,
     dueAt: iso(record.timer?.dueAt),
+    confirmDueAt: iso(confirmDueAt),
+    overdue: confirmDueAt !== null && confirmDueAt.getTime() < Date.now(),
     toy: toy
       ? {
           id: String(toy._id),
@@ -234,8 +251,9 @@ export const toDonationRequestDetailDto = (
   record: DonationRecord,
   relations: Relations,
   view: DonationView = { admin: false },
+  confirmDays?: number,
 ) => ({
-  ...toDonationRequestDto(record, relations, view),
+  ...toDonationRequestDto(record, relations, view, confirmDays),
   decidedBy: record.decidedBy ? String(record.decidedBy) : null,
   handovers: record.handovers.map((handover) => ({
     step: handover.step as 'DONOR_SENT' | 'RECEIVER_RECEIVED',

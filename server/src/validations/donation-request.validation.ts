@@ -7,6 +7,7 @@ import {
   searchQuerySchema,
 } from './common.validation.js';
 import { z } from './zod.js';
+import { normalizeText } from '../utils/text.js';
 import {
   DONOR_REQUEST_NOTE_MAX,
   handoverMethods,
@@ -168,6 +169,30 @@ export type MyRequestsQuery = z.infer<typeof myRequestsQuerySchema>;
 const adminFilterShape = {
   receiverType: z.enum(donationReceiverTypes).optional(),
   organizationId: objectIdSchema.optional(),
+  // UC35 step 1: the province of the organization's receiving point, as the Admin types it.
+  province: z
+    .string()
+    .max(100)
+    .transform((value) => normalizeText(value) || undefined)
+    .refine((value) => value === undefined || value.length >= 2, {
+      message: 'Tỉnh/Thành phố cần từ 2 đến 100 ký tự.',
+    })
+    .optional()
+    .openapi({
+      description:
+        "Province of the organization's receiving point. Accents, case, extra spaces and a " +
+        '"TP."/"Thành phố"/"Tỉnh" prefix are ignored.',
+      example: 'Hồ Chí Minh',
+    }),
+  overdue: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value === 'true'))
+    .openapi({
+      description:
+        'true: only shipping requests past DONATION_CONFIRM_DAYS (GB-57); false: the others.',
+      example: 'true',
+    }),
   q: searchQuerySchema.openapi({
     description: 'Request code (prefix) or toy title (accents ignored).',
   }),
@@ -275,6 +300,14 @@ export const donationRequestSchema = z
       .nullable()
       .openapi({ description: "GB-59: the organization's confirmation recorded by the Admin." }),
     dueAt: isoDateTimeSchema.nullable(),
+    confirmDueAt: isoDateTimeSchema.nullable().openapi({
+      description:
+        'GB-57: while shipping, the handover date plus DONATION_CONFIRM_DAYS; null otherwise.',
+    }),
+    overdue: z.boolean().openapi({
+      description:
+        'GB-57: shipping and past confirmDueAt (flagged for the Admin, never confirmed).',
+    }),
     toy: toySummarySchema.nullable(),
     donor: personSchema.nullable(),
     requester: personSchema.nullable(),

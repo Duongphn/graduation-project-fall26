@@ -297,6 +297,14 @@ export const findDonationToyIdsByTitle = async (pattern: string, limit = 500) =>
       .lean()
   ).map((toy) => toy._id);
 
+/** Ids of the organizations whose receiving point is in a province (for the admin filter). */
+export const findOrganizationIdsByProvince = async (pattern: string) =>
+  (
+    await Organization.find({ 'receivingPoint.province': { $regex: pattern, $options: 'i' } })
+      .select('_id')
+      .lean()
+  ).map((organization) => organization._id);
+
 export const countCompletedByDonor = (donorId: string) =>
   DonationRequest.countDocuments({ donorId: oid(donorId), status: 'completed' });
 
