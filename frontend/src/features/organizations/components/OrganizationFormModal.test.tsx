@@ -27,6 +27,8 @@ const organization: Organization = {
   name: 'Mái ấm Hoa Hồng',
   address: '123 Lê Văn Sỹ, Phường Nhiêu Lộc',
   contactInfo: 'Chị Lan',
+  verificationNote: 'Đã xem giấy phép hoạt động.',
+  verifiedAt: '2026-11-01T00:00:00.000Z',
   supportCriteria: null,
   receivingPoint: {
     province: 'TP. Hồ Chí Minh',
@@ -82,6 +84,7 @@ describe('OrganizationFormModal', () => {
       name: organization.name,
       address: organization.address,
       contactInfo: organization.contactInfo,
+      verificationNote: organization.verificationNote,
       receivingPoint: {
         ...organization.receivingPoint,
         contactPhone: '0912345678',
@@ -116,6 +119,8 @@ describe('OrganizationFormModal', () => {
       ageGroups: [],
       categoryIds: [],
       areaProvince: null,
+      verificationNote: null,
+      verifiedAt: null,
     })
     const { user } = renderForm(organization.id)
 
@@ -123,6 +128,8 @@ describe('OrganizationFormModal', () => {
     await user.click(screen.getByRole('button', { name: /Lưu/ }))
 
     expect(await screen.findByText('Chọn ít nhất một nhóm tuổi.')).toBeInTheDocument()
+    // UC34: the Admin records what was checked.
+    expect(screen.getByText('Ghi chú xác minh cần từ 5 đến 500 ký tự.')).toBeInTheDocument()
     expect(screen.getByText('Chọn ít nhất một danh mục.')).toBeInTheDocument()
     expect(screen.getByText('Tỉnh/Thành phố cần từ 2 đến 100 ký tự.')).toBeInTheDocument()
     expect(update).not.toHaveBeenCalled()

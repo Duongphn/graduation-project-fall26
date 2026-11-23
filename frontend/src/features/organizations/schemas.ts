@@ -15,6 +15,8 @@ export const organizationFormSchema = z.object({
   name: text(2, 150, 'Tên tổ chức cần từ 2 đến 150 ký tự.'),
   address: text(5, 300, 'Địa chỉ cần từ 5 đến 300 ký tự.'),
   contactInfo: text(2, 300, 'Thông tin liên hệ cần từ 2 đến 300 ký tự.'),
+  // UC34: what the Admin checked before adding the organization (required).
+  verificationNote: text(5, 500, 'Ghi chú xác minh cần từ 5 đến 500 ký tự.'),
   // Optional free-text note next to the structured needs.
   supportCriteria: z
     .string()
@@ -64,6 +66,7 @@ export const emptyOrganizationForm: OrganizationFormInput = {
   name: '',
   address: '',
   contactInfo: '',
+  verificationNote: '',
   supportCriteria: '',
   receivingPoint: {
     province: '',
@@ -90,6 +93,8 @@ export const toFormValues = (organization: Organization): OrganizationFormInput 
   name: organization.name,
   address: organization.address,
   contactInfo: organization.contactInfo,
+  // null for an organization saved before 18/11/2026: the Admin records the check now.
+  verificationNote: organization.verificationNote ?? '',
   supportCriteria: organization.supportCriteria ?? '',
   receivingPoint: organization.receivingPoint
     ? {

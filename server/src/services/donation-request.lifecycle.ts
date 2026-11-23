@@ -89,9 +89,9 @@ export interface ExpiryResult {
 /**
  * JOB-10 (GB-57): a pending or accepted request whose timer.dueAt has passed is set to expired
  * (R04 3.9 status Expired, expired_at); an accepted toy goes back to active. Both sides are
- * notified (MSG56). The deadline is set when the request is created (PENDING_EXPIRY_DAYS) and
- * again when it is accepted (HANDOVER_EXPIRY_DAYS); shipping requests have no timer (the Admin
- * resolves them).
+ * notified (MSG56). The deadline is set when the request is created (DONATION_DECISION_DAYS)
+ * and again when it is accepted (DONATION_HANDOVER_DAYS); shipping requests have no timer: past
+ * DONATION_CONFIRM_DAYS they are only flagged as overdue for the Admin (GB-57).
  */
 export const expireStaleRequests = async (now: Date = new Date()): Promise<ExpiryResult> => {
   const expire = async (from: 'pending' | 'accepted', reason: string): Promise<number> => {

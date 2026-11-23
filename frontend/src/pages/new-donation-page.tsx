@@ -177,9 +177,14 @@ export function NewDonationPage() {
         maxAge: values.maxAge,
         description: values.description,
         images: photos.newFiles,
-        // UC33 bước 4–5: tổ chức và cách bàn giao lưu cùng tin; Admin duyệt tin thì yêu cầu được tạo
+        // UC33 bước 4–5: tổ chức, cách bàn giao và ghi chú lưu cùng tin; Admin duyệt tin thì yêu cầu
+        // được tạo
         ...(organizationId
-          ? { organizationId, handoverMethod: handoverMethodValues[values.handoverMethod] }
+          ? {
+              organizationId,
+              handoverMethod: handoverMethodValues[values.handoverMethod],
+              ...(values.note ? { note: values.note } : {}),
+            }
           : {}),
       })
     },

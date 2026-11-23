@@ -6,7 +6,7 @@ import type { DonationHandoverMethod } from './types'
 export type DonationPost = Omit<ToyListing, 'listingType'> & {
   listingType: 'donate'
   // Tổ chức đã chọn (null: tin mở cho mọi người xin)
-  donationTarget?: { organizationId: string; handoverMethod: DonationHandoverMethod } | null
+  donationTarget?: { organizationId: string; handoverMethod: DonationHandoverMethod; note?: string } | null
 }
 
 export interface DonationPostInput {
@@ -20,6 +20,8 @@ export interface DonationPostInput {
   // UC33 bước 4: tổ chức nhận và cách bàn giao; không có thì tin mở cho mọi người xin (FE-02)
   organizationId?: string
   handoverMethod?: DonationHandoverMethod
+  // R03 III.5.2.1 (8): ghi chú cho tổ chức đã chọn, tối đa 300 ký tự
+  note?: string
 }
 
 /**
@@ -37,6 +39,7 @@ export async function createDonationPost(input: DonationPostInput): Promise<Dona
   if (input.organizationId && input.handoverMethod) {
     form.append('organizationId', input.organizationId)
     form.append('handoverMethod', input.handoverMethod)
+    if (input.note) form.append('note', input.note)
   }
 
   const { data } = await httpClient.post<ApiResponse<DonationPost>>('/donation-posts', form, {
@@ -45,7 +48,8 @@ export async function createDonationPost(input: DonationPostInput): Promise<Dona
   return data.data
 }
 
-export interface DonationPostUpdate extends Omit<DonationPostInput, 'images' | 'organizationId' | 'handoverMethod'> {
+export interface DonationPostUpdate
+  extends Omit<DonationPostInput, 'images' | 'organizationId' | 'handoverMethod' | 'note'> {
   /** categoryId hiện tại của tin: chỉ gửi categoryId khi đã đổi (như form đăng tin) */
   savedCategoryId: string
   newImages: File[]

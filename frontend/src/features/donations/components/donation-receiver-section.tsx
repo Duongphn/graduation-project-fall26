@@ -1,12 +1,12 @@
-import { Radio, Select } from 'antd'
+import { Input, Radio, Select } from 'antd'
 import { MapPin, Sparkles } from 'lucide-react'
-import type { Control } from 'react-hook-form'
+import { useWatch, type Control } from 'react-hook-form'
 
 import { FormField } from '../../../components/common'
 import { OrganizationNeeds, RemoteAreaBadge } from '../../organizations/components/organization-needs'
 import type { PublicOrganization } from '../../organizations/types'
 import { handoverMethodLabels, handoverMethods, type HandoverMethod } from '../constants'
-import { AUTO_MATCH, type DonationPostValues } from '../donation-post-schema'
+import { AUTO_MATCH, ORGANIZATION_NOTE_MAX, type DonationPostValues } from '../donation-post-schema'
 import { DonationPostSection } from './donation-post-section'
 
 /** Giá trị "mọi tỉnh" của bộ lọc tỉnh */
@@ -50,6 +50,7 @@ export function DonationReceiverSection({
   droppedOrganizationName,
   allowedMethods,
 }: DonationReceiverSectionProps) {
+  const receiver = useWatch({ control, name: 'receiver' })
   return (
     <>
       <DonationPostSection
@@ -143,6 +144,26 @@ export function DonationReceiverSection({
             </Radio.Group>
           )}
         </FormField>
+        {/* R03 III.5.2.1 (8): ghi chú gửi kèm yêu cầu tới tổ chức đã chọn */}
+        {receiver && receiver !== AUTO_MATCH && (
+          <FormField
+            control={control}
+            name="note"
+            label="Ghi chú cho tổ chức"
+            extra="Không bắt buộc. Ví dụ: thiếu chi tiết, vết xước, cần lưu ý khi nhận."
+          >
+            {(field) => (
+              <Input.TextArea
+                {...field}
+                value={field.value ?? ''}
+                rows={3}
+                maxLength={ORGANIZATION_NOTE_MAX}
+                showCount
+                placeholder="Ghi chú ngắn cho tổ chức nhận"
+              />
+            )}
+          </FormField>
+        )}
       </DonationPostSection>
     </>
   )

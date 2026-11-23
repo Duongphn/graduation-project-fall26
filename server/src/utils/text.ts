@@ -42,3 +42,22 @@ export const accentInsensitivePattern = (search: string): string =>
       return variants ? `[${variants}${variants.toUpperCase()}]` : escapeRegex(char);
     })
     .join('');
+
+/** What people put before a province name or leave out: "TP.", "Thành phố", "Tỉnh". */
+const PROVINCE_PREFIX = /^(?:tp\.?|thanh pho|tinh)\s*/;
+
+/**
+ * A RegExp source that matches a stored province name the way people type it: accents, case
+ * and runs of spaces are ignored, and so is a "TP."/"Thành phố"/"Tỉnh" prefix on either side,
+ * so "ho chi minh" matches "TP. Hồ Chí Minh" and "Thành phố Hồ Chí Minh". Use it with "i".
+ */
+export const provinceNamePattern = (province: string): string => {
+  const typed = normalizeSearchText(province);
+  const name = typed.replace(PROVINCE_PREFIX, '') || typed;
+  const prefixes = [
+    'tp\\.?',
+    accentInsensitivePattern('thanh pho'),
+    accentInsensitivePattern('tinh'),
+  ];
+  return `^(?:(?:${prefixes.join('|')})\\s*)?${accentInsensitivePattern(name)}$`;
+};

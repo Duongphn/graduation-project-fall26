@@ -32,6 +32,8 @@ const base: DonationRequestDetail = {
   trackingCode: null,
   receipt: null,
   dueAt: null,
+  confirmDueAt: null,
+  overdue: false,
   toy: null,
   donor: null,
   requester: null,
@@ -40,7 +42,14 @@ const base: DonationRequestDetail = {
     name: 'Mái ấm Hoa Hồng',
     status: 'active',
     isAccepting: true,
-    receivingPoint: null,
+    receivingPoint: {
+      province: 'Hà Nội',
+      ward: 'Phường Láng',
+      street: '12 Chùa Láng',
+      openingHours: '8:00 – 17:00',
+      acceptsDropOff: true,
+      acceptsParcel: true,
+    },
   },
   counterpartContact: null,
   decidedAt: null,
@@ -90,6 +99,12 @@ describe('DonationActions (Admin)', () => {
     expect(screen.getByRole('button', { name: 'Chấp nhận' })).toBeDisabled()
   })
 
+  it('disables accept, but not reject, for an organization without a receiving point (GB-51)', () => {
+    renderActions({ organization: { ...base.organization!, receivingPoint: null } })
+    expect(screen.getByRole('button', { name: 'Chấp nhận' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Từ chối' })).toBeEnabled()
+  })
+
   it("asks for the organization's receipt details and a photo before confirming (GB-59)", async () => {
     const user = renderActions({ status: 'shipping' })
 
@@ -102,6 +117,22 @@ describe('DonationActions (Admin)', () => {
     expect(within(dialog).getByText('Chọn kênh xác nhận.')).toBeInTheDocument()
     expect(within(dialog).getByText('Chọn ngày nhận.')).toBeInTheDocument()
     expect(api.confirmReceived).not.toHaveBeenCalled()
+  })
+
+  // GB-60: a cancelled handover keeps the toy hidden; UC33 6.1: a rejected Donor can choose again.
+  it('says the toy stays hidden when a shipping request is cancelled, and offers the reject presets', async () => {
+    const shipping = renderActions({ status: 'shipping' })
+    await shipping.click(screen.getByRole('button', { name: 'Huỷ yêu cầu' }))
+    expect(
+      await screen.findByText('Huỷ yêu cầu đang bàn giao (đồ chơi vẫn ẩn tới khi người tặng sửa hoặc xoá tin)'),
+    ).toBeInTheDocument()
+  })
+
+  it('offers reject reasons that send the Donor to another organization (MSG51)', async () => {
+    const user = renderActions()
+    await user.click(screen.getByRole('button', { name: 'Từ chối' }))
+    expect(await screen.findByText('Tổ chức tạm ngừng nhận đồ chơi, vui lòng chọn tổ chức khác')).toBeInTheDocument()
+    expect(screen.getByText('Tổ chức đã đủ đồ chơi loại này, vui lòng chọn tổ chức khác')).toBeInTheDocument()
   })
 
   it('keeps the reason form for a USER receiver', async () => {

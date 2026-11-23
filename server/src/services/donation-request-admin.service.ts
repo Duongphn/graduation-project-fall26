@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 
 import type { AdminContext } from '../utils/admin-context.js';
 import { zeroFilledCounts } from '../utils/counts.js';
-import { escapeRegex, accentInsensitivePattern } from '../utils/text.js';
+import { escapeRegex, accentInsensitivePattern, provinceNamePattern } from '../utils/text.js';
 import type { DonationActor } from './donation-request.policy.js';
 import * as repository from '../repositories/donation-request.repository.js';
 import { storedDonationStatuses } from '../constants/donation-request-transitions.js';
@@ -14,6 +14,7 @@ import type {
   AdminListQuery,
 } from '../validations/donation-request.validation.js';
 import * as service from './donation-request.service.js';
+import { donationSettings } from './donation-request.transition.js';
 
 // Admin use cases: the queue of every request; the decision on a request a Donor sent to an
 // organization (GB-56; the Donor decides the others: 409 DONOR_DECISION_REQUIRED); requests and
@@ -27,22 +28,46 @@ export const toActor = (context: AdminContext): DonationActor => ({
   ...(context.ipAddress ? { ipAddress: context.ipAddress } : {}),
 });
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// R03 III.7.5.2 and UC35 step 1: status, receiver type, organization, province of its receiving
+// point, overdue confirmation and a search. Each filter is one clause of an $and.
 const buildFilter = async (filters: AdminFilters): Promise<RequestFilter> => {
-  const filter: RequestFilter = {};
+  const clauses: RequestFilter[] = [];
   if (filters.receiverType) {
-    filter['receiver.organizationId'] = { $exists: filters.receiverType === 'ORGANIZATION' };
+    clauses.push({
+      'receiver.organizationId': { $exists: filters.receiverType === 'ORGANIZATION' },
+    });
   }
   if (filters.organizationId) {
-    filter['receiver.organizationId'] = new Types.ObjectId(filters.organizationId);
+    clauses.push({ 'receiver.organizationId': new Types.ObjectId(filters.organizationId) });
+  }
+  if (filters.province) {
+    const organizationIds = await repository.findOrganizationIdsByProvince(
+      provinceNamePattern(filters.province),
+    );
+    clauses.push({ 'receiver.organizationId': { $in: organizationIds } });
+  }
+  if (filters.overdue !== undefined) {
+    // GB-57: shipping, handed over more than DONATION_CONFIRM_DAYS ago.
+    const { confirmDays } = await donationSettings();
+    const sentBefore = {
+      step: 'DONOR_SENT',
+      at: { $lt: new Date(Date.now() - confirmDays * DAY_MS) },
+    };
+    const overdue = { status: 'shipping', handovers: { $elemMatch: sentBefore } };
+    clauses.push(filters.overdue ? overdue : { $nor: [overdue] });
   }
   if (filters.q) {
     const toyIds = await repository.findDonationToyIdsByTitle(accentInsensitivePattern(filters.q));
-    filter.$or = [
-      { code: { $regex: `^${escapeRegex(filters.q.toUpperCase())}` } },
-      { toyId: { $in: toyIds } },
-    ];
+    clauses.push({
+      $or: [
+        { code: { $regex: `^${escapeRegex(filters.q.toUpperCase())}` } },
+        { toyId: { $in: toyIds } },
+      ],
+    });
   }
-  return filter;
+  return clauses.length > 0 ? { $and: clauses } : {};
 };
 
 export const list = async (query: AdminListQuery) => {
