@@ -30,6 +30,10 @@ const contactInfoSchema = text(2, 300, 'Thông tin liên hệ cần từ 2 đế
 const supportCriteriaSchema = text(5, 1000, 'Tiêu chí hỗ trợ cần từ 5 đến 1000 ký tự.').openapi({
   example: 'Sách tranh, đồ chơi xếp hình, đồ chơi vận động còn dùng tốt.',
 });
+/** UC34, R03 III.7.5.1 (2): what the Admin checked (documents, visit, call). */
+const verificationNoteSchema = text(5, 500, 'Ghi chú xác minh cần từ 5 đến 500 ký tự.').openapi({
+  example: 'Đã xem giấy phép hoạt động số 123/GP và gọi xác nhận với người phụ trách.',
+});
 const provinceSchema = text(2, 100, 'Tỉnh/Thành phố cần từ 2 đến 100 ký tự.').openapi({
   example: 'TP. Hồ Chí Minh',
 });
@@ -127,6 +131,8 @@ export const createOrganizationBodySchema = z
     address: addressSchema,
     contactInfo: contactInfoSchema,
     supportCriteria: supportCriteriaSchema.optional(),
+    // The Admin adds an organization only after checking it (UC34): required.
+    verificationNote: verificationNoteSchema,
     receivingPoint: receivingPointSchema,
     ...needsShape,
   })
@@ -144,6 +150,7 @@ export const updateOrganizationBodySchema = z
     address: addressSchema.optional(),
     contactInfo: contactInfoSchema.optional(),
     supportCriteria: supportCriteriaSchema.optional(),
+    verificationNote: verificationNoteSchema.optional(),
     receivingPoint: receivingPointSchema.optional(),
     ageGroups: ageGroupsSchema.optional(),
     categoryIds: categoryIdsSchema.optional(),
@@ -264,6 +271,12 @@ export const adminOrganizationSchema = z
       .extend({ contactName: z.string(), contactPhone: z.string() })
       .nullable(),
     status: z.enum(organizationStatuses),
+    verificationNote: z.string().nullable().openapi({
+      description: 'What the Admin checked (UC34); null for an organization saved before it.',
+    }),
+    verifiedAt: isoDateTimeSchema.nullable().openapi({
+      description: 'Set when the Admin adds the organization (UC34).',
+    }),
     openRequestCount: z.number().int().openapi({
       description: 'Donation requests still in progress (pending, accepted, shipping).',
     }),

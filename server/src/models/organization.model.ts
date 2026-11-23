@@ -38,6 +38,10 @@ const organizationSchema = new Schema(
     // Free-text note on what the organization needs; the structured needs are below.
     support_criteria: { type: String },
     status: { type: String, required: true, default: 'active' },
+    // UC34: what the Admin checked before adding it, and when (R04 3.8 verification_note,
+    // verified_at). Organizations saved before 18/11/2026 have neither.
+    verificationNote: { type: String },
+    verifiedAt: { type: Date },
     receivingPoint: { type: receivingPointSchema, default: undefined },
     // Needs profile (GB-53).
     ageGroups: { type: [ageGroupSchema], default: undefined },
@@ -72,6 +76,8 @@ export interface IOrganization {
   contact_info: string;
   support_criteria?: string;
   status: string;
+  verificationNote?: string;
+  verifiedAt?: Date;
   receivingPoint?: IOrganizationReceivingPoint;
   ageGroups?: Array<{ minAge: number; maxAge: number }>;
   categoryIds?: mongoose.Types.ObjectId[];
