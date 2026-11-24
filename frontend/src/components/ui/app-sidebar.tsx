@@ -9,6 +9,7 @@ import {
   Package,
   ReceiptText,
   Search,
+  ShoppingBag,
   Star,
   Wallet,
   type LucideIcon,
@@ -28,6 +29,7 @@ export type SidebarItemKey =
   | "listings"
   | "donationRequests"
   | "rentals"
+  | "purchases"
   | "wallet"
   | "favorites"
   | "reviews"
@@ -69,6 +71,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     to: PATHS.myDonationRequests,
   },
   { key: "rentals", label: "Đơn đặt thuê", icon: ReceiptText, to: PATHS.myRentals },
+  { key: "purchases", label: "Đơn mua bán", icon: ShoppingBag, to: PATHS.purchases },
   { key: "wallet", label: "Ví ToyFlow", icon: Wallet, to: PATHS.wallet },
   { key: "favorites", label: "Danh sách yêu thích", icon: Heart },
   { key: "reviews", label: "Đánh giá nhận được", icon: Star },

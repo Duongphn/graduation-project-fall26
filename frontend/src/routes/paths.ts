@@ -30,6 +30,12 @@ export const PATHS = {
   /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */
   walletPayosCheckout: '/wallet/topup/payos/:code',
   notifications: '/notifications',
+  /** UC12: trang Mua ngay của một tin bán lại */
+  toyBuy: '/toys/:toyId/buy',
+  /** UC12–13: đơn mua (người mua) và đơn bán (người bán); thông báo của server trỏ tới /purchases/:id */
+  purchases: '/purchases',
+  sales: '/purchases/sales',
+  purchaseOrder: '/purchases/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
@@ -92,6 +98,10 @@ export const adminChildPath = (path: string, suffix = '') =>
 export const adminHomeCrumb = { title: 'Quản trị', to: ADMIN_ROOT }
 
 export const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId', toyId)
+
+export const toyBuyPath = (toyId: string) => PATHS.toyBuy.replace(':toyId', toyId)
+
+export const purchaseOrderPath = (orderId: string) => PATHS.purchaseOrder.replace(':orderId', orderId)
 
 export interface BrowseToysFilters {
   type?: 'rent' | 'sell'

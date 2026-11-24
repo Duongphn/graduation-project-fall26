@@ -1,7 +1,13 @@
 // What a ledger posting is about (wallet_transactions.reference.kind) and the history filters.
 
-/** `payment` is a wallet top-up (PayOS), as in the lead's payment service. */
-export const ledgerReferenceKinds = ['rental_order', 'admin_credit', 'payment', 'withdrawal'] as const;
+/** `payment` is a wallet top-up (PayOS); `purchase_order` is buy-now resale. */
+export const ledgerReferenceKinds = [
+  'rental_order',
+  'purchase_order',
+  'admin_credit',
+  'payment',
+  'withdrawal',
+] as const;
 export type LedgerReferenceKind = (typeof ledgerReferenceKinds)[number];
 
 /** `type` filter of GET /wallets/me/transactions: money in, money out or both. */
@@ -38,3 +44,6 @@ export const ESCROW_HELD_RENTAL_STATUSES = [
   'RETURNING',
   'DISPUTING',
 ] as const;
+
+/** Purchase statuses whose totalPayable sits in escrow: paid by the buyer, not settled yet. */
+export const ESCROW_HELD_PURCHASE_STATUSES = ['PAID', 'SHIPPING', 'DISPUTING'] as const;

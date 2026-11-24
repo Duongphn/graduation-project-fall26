@@ -53,6 +53,7 @@ import { RentalDisputeService } from './services/rental-dispute.service.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
+import { PurchaseOrderService } from './services/purchase-order.service.js';
 import { SystemSettingService } from './services/system-setting.service.js';
 import { ToyCatalogService } from './services/toy-catalog.service.js';
 import { ToyListingService } from './services/toy-listing.service.js';
@@ -102,6 +103,7 @@ export interface ContainerOverrides {
   rentalDisputeService?: RentalDisputeService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
+  purchaseOrderService?: PurchaseOrderService;
   // Trợ lý AI: bản giả của Gemini và cấu hình (bật/tắt, giới hạn lượt) cho test.
   advisorLlm?: AdvisorLlm;
   aiAdvisorSettings?: Partial<AiAdvisorSettings>;
@@ -125,6 +127,7 @@ export interface Container {
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
+  purchaseOrderService: PurchaseOrderService;
   aiAssistanceService: AiAssistanceService;
   // Chat (UC25); server.ts attaches chatRealtime to the Socket.IO server.
   chatService: ChatService;
@@ -229,6 +232,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       clock,
     );
 
+  const purchaseOrderService =
+    overrides.purchaseOrderService ?? new PurchaseOrderService(walletLedger);
+
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
   const aiAssistanceService =
     overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
@@ -250,6 +256,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,
+    purchaseOrderService,
     aiAssistanceService,
     chatService,
     chatRealtime,

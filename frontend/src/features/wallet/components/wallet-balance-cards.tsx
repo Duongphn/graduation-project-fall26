@@ -30,7 +30,7 @@ export function WalletBalanceCards({ wallet }: WalletBalanceCardsProps) {
           {amountOrDots(wallet?.holdingBalance)}
         </p>
         <p className="mt-1 text-xs text-tf-ink-muted">
-          Tiền thuê, tiền cọc của đơn đang thuê và lệnh rút đang chờ xử lý. Vẫn là tiền của bạn.
+          Tiền đơn thuê, đơn mua đang ký quỹ và lệnh rút đang chờ xử lý. Vẫn là tiền của bạn.
         </p>
       </section>
     </div>

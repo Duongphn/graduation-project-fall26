@@ -12,6 +12,7 @@ import { registerEventHandlers } from './event-handlers.js';
 import { startAccountUnlockJob } from './jobs/account-unlock.job.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
+import { startPurchaseOrderTimerJob } from './jobs/purchase-order-timer.job.js';
 import { setOpenConnectionCloser } from './services/account-lock.service.js';
 import { setNotificationPusher } from './services/notification.service.js';
 import { createSocketPusher, createSocketServer, disconnectUser } from './sockets/socket.js';
@@ -26,6 +27,7 @@ const startServer = async (): Promise<void> => {
 
   const container = createContainer();
   const paymentExpiryJob = startPaymentExpiryJob(container.payosTopupService);
+  const purchaseOrderTimerJob = startPurchaseOrderTimerJob(container.purchaseOrderService);
   const httpServer = createServer(createApp(undefined, container));
   const socketServer = createSocketServer(httpServer, env.corsOrigin);
   setNotificationPusher(createSocketPusher(socketServer));
@@ -49,6 +51,7 @@ const startServer = async (): Promise<void> => {
     }
     donationExpiryJob?.stop();
     paymentExpiryJob?.stop();
+    purchaseOrderTimerJob?.stop();
     accountUnlockJob?.stop();
     socketServer.close();
     httpServer.close(async () => {

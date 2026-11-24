@@ -34,6 +34,7 @@ import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
 import { createUsersRouter } from './user.routes.js';
 import { createPaymentRouter } from './payment.routes.js';
+import { createPurchaseOrderRouter } from './purchase-order.routes.js';
 import { createWalletRouter } from './wallet.routes.js';
 
 export function createApiRouter(container: Container): Router {
@@ -60,6 +61,7 @@ export function createApiRouter(container: Container): Router {
   // UC17 PayOS top-up: /payments/topup/payos, /payos/:code, /payos/:code/cancel, /payos-return, /payos-webhook
   router.use('/payments', createPaymentRouter(container.payosTopupService));
   router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
+  router.use('/purchase-orders', createPurchaseOrderRouter(container.purchaseOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).
   router.use('/admin/categories', authenticate, adminCategoriesRouter);

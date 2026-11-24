@@ -11,6 +11,7 @@ import {
   Plus,
   ReceiptText,
   ShieldCheck,
+  ShoppingBag,
   UserRound,
   Wallet,
 } from 'lucide-react'
@@ -66,6 +67,9 @@ export function AccountMenu() {
           </Link>
           <Link to={PATHS.rentalRequests} className="account-menu__link" onClick={close}>
             <ReceiptText aria-hidden /> Yêu cầu thuê nhận được
+          </Link>
+          <Link to={PATHS.purchases} className="account-menu__link" onClick={close}>
+            <ShoppingBag aria-hidden /> Đơn mua bán
           </Link>
           <Link to={PATHS.wallet} className="account-menu__link" onClick={close}>
             <Wallet aria-hidden /> Ví ToyFlow
