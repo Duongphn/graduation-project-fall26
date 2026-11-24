@@ -45,6 +45,9 @@ export interface Organization extends NeedsProfile {
   // null for an organization saved before receiving points existed.
   receivingPoint: ReceivingPoint | null
   status: VisibilityStatus
+  // UC34: what the Admin checked and when; null for an organization saved before 18/11/2026.
+  verificationNote: string | null
+  verifiedAt: string | null
   openRequestCount: number
   requestCount: number
   createdAt: string
@@ -90,6 +93,7 @@ export interface OrganizationInput {
   name: string
   address: string
   contactInfo: string
+  verificationNote: string
   supportCriteria?: string
   receivingPoint: ReceivingPoint
   ageGroups: AgeGroup[]

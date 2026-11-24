@@ -276,6 +276,107 @@ describe('notification templates', () => {
     ]);
   });
 
+  // GB-61: a request the Donor sent to an organization (UC33) is a donation, not a request to
+  // receive the toy.
+  it('words a request the Donor sent to an organization as a donation', () => {
+    const donorId = String(newId());
+    const sent = (overrides: Partial<DonationStatusChangedEvent>) =>
+      donationEvent({
+        code: 'DN0A1B2C3D4E',
+        receiverType: 'ORGANIZATION',
+        organizationId: String(newId()),
+        donorId,
+        requestedBy: donorId,
+        ...overrides,
+      });
+    const withOrg = { ...context, organizationName: 'Mái ấm Hoa Mai' };
+
+    const pending = renderDonationStatusChanged(sent({ to: 'pending' }), 'REQUESTER', withOrg);
+    expect(pending.title).toBe('Có phiếu quyên góp mới "Bộ xếp hình <gỗ>"');
+    expect(pending.body).toContain(
+      'Người quyên góp muốn tặng đồ chơi "Bộ xếp hình <gỗ>" cho Mái ấm Hoa Mai.',
+    );
+    expect(pending.body).toContain('chấp nhận hoặc từ chối thay tổ chức');
+    expect(pending.link).toMatch(/^\/admin\/donation-requests\//);
+
+    // MSG54 keeps the code, the organization and the deadline.
+    const accepted = renderDonationStatusChanged(
+      sent({ from: 'pending', to: 'accepted', handoverDueAt: '2026-11-25T18:30:00.000Z' }),
+      'DONOR',
+      withOrg,
+    );
+    expect(accepted.title).toBe('Phiếu quyên góp "Bộ xếp hình <gỗ>" đã được chấp nhận');
+    expect(accepted.body).toContain('đã được Mái ấm Hoa Mai chấp nhận');
+    expect(accepted.body).toContain('trước ngày 26/11/2026');
+    expect(accepted.link).toMatch(/^\/donations\//);
+
+    const rejected = renderDonationStatusChanged(
+      sent({ from: 'pending', to: 'rejected', reason: 'Tổ chức đã đủ đồ chơi loại này' }),
+      'DONOR',
+      withOrg,
+    );
+    expect(rejected.title).toBe('Phiếu quyên góp "Bộ xếp hình <gỗ>" không được chấp nhận');
+    expect(rejected.body).toContain('Lý do: Tổ chức đã đủ đồ chơi loại này');
+    expect(rejected.body).toContain('bạn có thể gửi đồ chơi tới tổ chức khác');
+    expect(rejected.body).not.toContain('Yêu cầu nhận');
+    // Rejected because the toy went to another request: the post is no longer open.
+    const sibling = renderDonationStatusChanged(
+      sent({ from: 'pending', to: 'rejected', reason: 'Đồ chơi đã được tặng cho người khác.' }),
+      'DONOR',
+      withOrg,
+    );
+    expect(sibling.body).not.toContain('tổ chức khác');
+
+    const cancelled = renderDonationStatusChanged(
+      sent({ from: 'shipping', to: 'cancelled', reason: 'Đồ chơi thất lạc' }),
+      'DONOR',
+      withOrg,
+    );
+    expect(cancelled.title).toBe('Phiếu quyên góp "Bộ xếp hình <gỗ>" đã bị hủy');
+    // GB-60: a cancelled handover keeps the toy hidden.
+    expect(cancelled.body).toContain(
+      'Đồ chơi vẫn được ẩn cho tới khi bạn sửa hoặc xoá tin quyên góp.',
+    );
+
+    // The Admins record the organization's receipt (GB-59).
+    const shipping = renderDonationStatusChanged(
+      sent({ from: 'accepted', to: 'shipping' }),
+      'REQUESTER',
+      withOrg,
+    );
+    expect(shipping.body).toContain('Khi tổ chức báo đã nhận');
+  });
+
+  it("keeps the receiving wording for a Receiver's request and the Admin's request", () => {
+    const fromReceiver = renderDonationStatusChanged(
+      donationEvent({ to: 'pending' }),
+      'DONOR',
+      context,
+    );
+    expect(fromReceiver.title).toBe('Có yêu cầu nhận đồ chơi "Bộ xếp hình <gỗ>"');
+    const fromAdmin = renderDonationStatusChanged(
+      donationEvent({ to: 'pending', receiverType: 'ORGANIZATION' }),
+      'DONOR',
+      { ...context, organizationName: 'Mái ấm Hoa Mai' },
+    );
+    expect(fromAdmin.title).toBe('Có yêu cầu nhận đồ chơi "Bộ xếp hình <gỗ>"');
+    expect(fromAdmin.body).toContain('cho Mái ấm Hoa Mai');
+    // GB-60: the Donor learns the toy is listed again after an accepted request is cancelled.
+    const cancelled = renderDonationStatusChanged(
+      donationEvent({ from: 'accepted', to: 'cancelled' }),
+      'DONOR',
+      context,
+    );
+    expect(cancelled.body).toContain('Đồ chơi đã trở lại danh sách quyên góp.');
+    expect(
+      renderDonationStatusChanged(
+        donationEvent({ from: 'accepted', to: 'cancelled' }),
+        'REQUESTER',
+        context,
+      ).body,
+    ).not.toContain('trở lại danh sách');
+  });
+
   it('masks email addresses in logs', () => {
     expect(maskEmail('another@example.com')).toBe('an***@example.com');
   });

@@ -83,5 +83,42 @@ export const uploadPurposes = [
   'IDENTITY_DOCUMENT',
   'HANDOVER_PHOTO',
   'DISPUTE_EVIDENCE',
+  'REPORT_EVIDENCE',
 ] as const
 export type UploadPurpose = (typeof uploadPurposes)[number]
+
+// violation_reports (UC28, UC29): server/src/constants/violation-report.ts.
+export const reportTargetKinds = ['toy', 'user', 'message'] as const
+export type ReportTargetKind = (typeof reportTargetKinds)[number]
+
+// 'unsafe_toy' is for toy posts only; those reports come first in the Admin list (GB-49).
+export const reportReasons = [
+  'unsafe_toy',
+  'scam',
+  'wrong_description',
+  'prohibited_item',
+  'contact_outside',
+  'harassment',
+  'spam',
+  'other',
+] as const
+export type ReportReason = (typeof reportReasons)[number]
+
+export const unsafeIssues = [
+  'small_parts',
+  'broken_or_sharp',
+  'battery',
+  'recalled',
+  'smell_or_paint',
+  'other',
+] as const
+export type UnsafeIssue = (typeof unsafeIssues)[number]
+
+export const reportStatuses = ['pending', 'resolved', 'dismissed'] as const
+export type ReportStatus = (typeof reportStatuses)[number]
+
+export const reportActions = ['dismiss', 'remove_listing', 'warn', 'lock'] as const
+export type ReportAction = (typeof reportActions)[number]
+
+export const lockDurations = ['7d', '30d', 'permanent'] as const
+export type LockDuration = (typeof lockDurations)[number]

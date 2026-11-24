@@ -9,7 +9,7 @@ import type {
   WithMessage,
 } from '../types/api'
 import { ApiError } from './api-error'
-import { httpClient } from './http-client'
+import { httpClient, TIMEOUT_MESSAGE } from './http-client'
 
 // Helpers over develop's httpClient (same base URL and Bearer token) for the endpoints that
 // answer with the success envelope { success, data, pagination? }. They unwrap the envelope and
@@ -25,6 +25,7 @@ const toApiError = (error: unknown): ApiError => {
       return new ApiError(error.response.status, 'HTTP_ERROR', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
     }
   }
+  if (isAxiosError(error) && error.code === 'ECONNABORTED') return new ApiError(0, 'TIMEOUT', TIMEOUT_MESSAGE)
   return new ApiError(0, 'NETWORK_ERROR', 'Không kết nối được máy chủ. Vui lòng thử lại.')
 }
 
@@ -48,7 +49,7 @@ export const apiGetPage = <T>(url: string, params?: PaginationParams & object): 
 export const apiPost = <T>(url: string, body?: unknown): Promise<T> =>
   call(async () => (await httpClient.post<ApiResponse<T>>(url, body)).data.data)
 
-// Multipart upload (photos…): longer timeout than the 15s default since files go through the API.
+// Multipart upload (photos…): files go through the API, so it gets its own timeout.
 export const apiPostForm = <T>(url: string, form: FormData, timeout = 60_000): Promise<T> =>
   call(async () => (await httpClient.post<ApiResponse<T>>(url, form, { timeout })).data.data)
 

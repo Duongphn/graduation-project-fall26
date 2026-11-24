@@ -26,7 +26,8 @@ export interface DonationToy {
   // Free text in develop's toys model.
   condition: string
   ageRange: { minAge: number; maxAge: number } | null
-  status: ToyStatus
+  // 'donated' once a request for it is confirmed (GB-60, derived by the server).
+  status: ToyStatus | 'donated'
 }
 
 // GB-51: the public part of the receiving point; the Admin view adds its contact.
@@ -91,6 +92,10 @@ export interface DonationRequest {
   receipt: DonationReceipt | null
   // Expiry deadline of the current step (develop's timer.dueAt).
   dueAt: string | null
+  // GB-57: while SHIPPING, the sent date plus DONATION_CONFIRM_DAYS; overdue once it has passed
+  // (flagged for the Admin, never confirmed automatically).
+  confirmDueAt: string | null
+  overdue: boolean
   toy: DonationToy | null
   donor: DonationPerson | null
   requester: DonationPerson | null
@@ -182,6 +187,11 @@ export interface DonationListParams extends Omit<PaginationParams, 'sortBy'> {
   sortBy?: DonationSortField
   status?: DonationStatus
   receiverType?: DonationReceiverType
+  organizationId?: string
+  // Province of the organization's receiving point (accents ignored).
+  province?: string
+  // 'true': SHIPPING requests past DONATION_CONFIRM_DAYS (GB-57).
+  overdue?: 'true'
   // Request code or toy title (accents ignored).
   q?: string
 }

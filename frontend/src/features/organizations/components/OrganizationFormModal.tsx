@@ -124,6 +124,15 @@ function OrganizationForm({
       >
         {(field) => <Input {...field} maxLength={300} />}
       </FormField>
+      <FormField
+        control={control}
+        name="verificationNote"
+        label="Ghi chú xác minh"
+        required
+        extra="Những gì Admin đã kiểm tra trước khi thêm tổ chức: giấy phép, cuộc gọi, chuyến thăm…"
+      >
+        {(field) => <Input.TextArea {...field} rows={2} maxLength={500} showCount />}
+      </FormField>
 
       <Divider titlePlacement="start">Điểm nhận đồ chơi</Divider>
       <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">

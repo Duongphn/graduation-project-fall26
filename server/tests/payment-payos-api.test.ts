@@ -234,8 +234,6 @@ describe('PayOS top-up API', () => {
       gatewayResponseCode: 'expired',
     });
     expect(await Payment.findOne({ code: fresh.paymentCode }).lean()).toMatchObject({ status: 'pending' });
-    // The VNPay expiry does not touch PayOS payments
-    expect(await container.paymentService.expireStalePayments()).toEqual({ expired: 0 });
   });
 
   it('gives the owner the transfer details for ToyFlow’s own QR page', async () => {

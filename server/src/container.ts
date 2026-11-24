@@ -8,6 +8,8 @@ import { sendOtpEmail, sendResetPasswordEmail } from './integrations/email/maile
 import { getDefaultMailer } from './integrations/email/notification-mailer.js';
 import type { AuthMailer } from './interfaces/auth.ports.js';
 import { AuthService } from './services/auth.service.js';
+import { ChatService } from './services/chat.service.js';
+import { SocketChatRealtime } from './sockets/chat.socket.js';
 import {
   createDefaultAvatarStorage,
   createDefaultIdentityStorage,
@@ -59,16 +61,9 @@ import { UsersService } from './services/user.service.js';
 import { WalletService } from './services/wallet.service.js';
 import { env } from './config/env.js';
 import { PayOSClient } from './integrations/payos/payos-client.js';
-import { VNPayClient } from './integrations/vnpay/vnpay-client.js';
-import type {
-  PayOSConfig,
-  PayOSGateway,
-  VNPayConfig,
-  VNPayPaymentGateway,
-} from './interfaces/payment.ports.js';
+import type { PayOSConfig, PayOSGateway } from './interfaces/payment.ports.js';
 import { PaymentRepository } from './repositories/payment.repository.js';
 import { WithdrawalRepository } from './repositories/withdrawal.repository.js';
-import { PaymentService } from './services/payment.service.js';
 import { PayosTopupService } from './services/payos-topup.service.js';
 import { WithdrawalService } from './services/withdrawal.service.js';
 import type { ToyCatalogPorts, ToyCatalogRepository } from './types/toy-catalog.types.js';
@@ -86,9 +81,6 @@ export interface ContainerOverrides {
   toyCatalogRepository?: ToyCatalogRepository;
   toyCatalogPorts?: ToyCatalogPorts;
   walletLedger?: WalletLedgerPort;
-  /** VNPay link builder / checksum and its settings (tests pass a known secret) */
-  paymentGateway?: VNPayPaymentGateway;
-  vnpayConfig?: VNPayConfig;
   /** PayOS SDK wrapper and its keys (tests pass a fake gateway) */
   payosGateway?: PayOSGateway;
   payosConfig?: PayOSConfig;
@@ -105,7 +97,6 @@ export interface ContainerOverrides {
   toyListingService?: ToyListingService;
   toyCatalogService?: ToyCatalogService;
   walletService?: WalletService;
-  paymentService?: PaymentService;
   payosTopupService?: PayosTopupService;
   withdrawalService?: WithdrawalService;
   rentalOrderService?: RentalOrderService;
@@ -117,6 +108,7 @@ export interface ContainerOverrides {
   advisorLlm?: AdvisorLlm;
   aiAdvisorSettings?: Partial<AiAdvisorSettings>;
   aiAssistanceService?: AiAssistanceService;
+  chatService?: ChatService;
 }
 
 export interface Container {
@@ -128,7 +120,6 @@ export interface Container {
   toyListingService: ToyListingService;
   toyCatalogService: ToyCatalogService;
   walletService: WalletService;
-  paymentService: PaymentService;
   payosTopupService: PayosTopupService;
   withdrawalService: WithdrawalService;
   rentalOrderService: RentalOrderService;
@@ -138,6 +129,9 @@ export interface Container {
   rentalOrderRepository: RentalOrderRepository;
   purchaseOrderService: PurchaseOrderService;
   aiAssistanceService: AiAssistanceService;
+  // Chat (UC25); server.ts attaches chatRealtime to the Socket.IO server.
+  chatService: ChatService;
+  chatRealtime: SocketChatRealtime;
 }
 
 /**
@@ -189,20 +183,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const walletLedger = overrides.walletLedger ?? new WalletLedgerRepository();
   const walletService = overrides.walletService ?? new WalletService(walletLedger);
   const clockNow = () => (overrides.clock ?? systemClock).now();
-  const paymentService =
-    overrides.paymentService ??
-    new PaymentService(
-      new PaymentRepository(),
-      walletLedger,
-      overrides.paymentGateway ?? new VNPayClient(),
-      overrides.vnpayConfig ?? {
-        tmnCode: env.vnpayTmnCode,
-        hashSecret: env.vnpayHashSecret,
-        paymentUrl: env.vnpayUrl,
-        returnUrl: env.vnpayReturnUrl,
-      },
-      clockNow,
-    );
   const payosConfig = overrides.payosConfig ?? {
     clientId: env.payosClientId,
     apiKey: env.payosApiKey,
@@ -258,6 +238,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   // Trợ lý AI: chỉ tạo client Gemini thật khi test không truyền bản giả.
   const aiAssistanceService =
     overrides.aiAssistanceService ?? createAiAssistanceService(overrides, clock);
+  const chatRealtime = new SocketChatRealtime();
+  const chatService = overrides.chatService ?? new ChatService({ realtime: chatRealtime, clock });
 
   return {
     toyImageStorage,
@@ -267,7 +249,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     toyListingService,
     toyCatalogService,
     walletService,
-    paymentService,
     payosTopupService,
     withdrawalService,
     rentalOrderService,
@@ -277,6 +258,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     rentalOrderRepository,
     purchaseOrderService,
     aiAssistanceService,
+    chatService,
+    chatRealtime,
   };
 }
 

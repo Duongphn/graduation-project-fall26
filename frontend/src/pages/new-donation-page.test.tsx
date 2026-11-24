@@ -263,14 +263,21 @@ describe('NewDonationPage', () => {
       new File(['3'], '3.jpg', { type: 'image/jpeg' }),
     ])
     for (const box of screen.getAllByRole('checkbox')) await user.click(box)
+    // R03 III.5.2.1 (8): the note to the organization appears once an organization is chosen.
+    expect(screen.queryByLabelText('Ghi chú cho tổ chức')).not.toBeInTheDocument()
     await user.click(await screen.findByRole('radio', { name: /Mái ấm Hoa Sen/ }))
     await user.click(screen.getByRole('radio', { name: /Tự mang đến tận nơi/ }))
+    const note = screen.getByLabelText('Ghi chú cho tổ chức')
+    expect(note).toHaveAttribute('maxlength', '300')
+    await user.click(note)
+    await user.paste('  Thiếu 1 bánh xe sau  ')
     await submit(user)
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
     const form = post.mock.calls[0]?.[1] as FormData
     expect(form.get('organizationId')).toBe(HOA_SEN.id)
     expect(form.get('handoverMethod')).toBe('drop_off')
+    expect(form.get('note')).toBe('Thiếu 1 bánh xe sau')
     expect(form.get('description')).toBe(text)
     expect(await screen.findByText(/yêu cầu quyên góp tới Mái ấm Hoa Sen được tạo/)).toBeInTheDocument()
   }, 30_000)

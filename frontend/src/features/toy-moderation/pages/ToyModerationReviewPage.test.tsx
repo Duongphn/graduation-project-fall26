@@ -123,4 +123,33 @@ describe('ToyModerationReviewPage safety checklist (GB-48)', () => {
     expect(first).toBeDisabled()
     expect(screen.queryByRole('button', { name: /Duyệt/ })).not.toBeInTheDocument()
   })
+
+  // DEF-ST-56 (R03 IV.2.1): keyboard only. Enter on "Duyệt" moves the focus into the confirmation,
+  // Esc gives it back to "Duyệt", and Enter in the confirmation approves.
+  it('moves the keyboard focus into the confirmation and back', async () => {
+    detail.mockResolvedValue(pendingToy)
+    approve.mockResolvedValue({} as ToyModerationDecision)
+    const user = renderPage()
+
+    await screen.findByText('Kiểm tra an toàn')
+    for (const item of safetyChecklistItems) await user.click(screen.getByLabelText(item.label))
+    approveButton().focus()
+
+    await user.keyboard('{Enter}')
+    const confirmOk = await screen.findByRole('button', { name: 'Duyệt' })
+    await waitFor(() => expect(confirmOk).toHaveFocus())
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(approveButton()).toHaveFocus())
+    expect(approve).not.toHaveBeenCalled()
+
+    // Opened again, the confirmation takes the focus again; Shift+Tab reaches "Huỷ".
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Duyệt' })).toHaveFocus())
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(screen.getByRole('button', { name: 'Huỷ' })).toHaveFocus()
+    await user.keyboard('{Tab}')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(approve).toHaveBeenCalledTimes(1))
+  }, 15_000)
 })

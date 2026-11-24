@@ -64,6 +64,7 @@ const validBody = (overrides: Record<string, unknown> = {}) => ({
   address: '123 Lê Văn Sỹ, Phường Nhiêu Lộc',
   contactInfo: 'Chị Lan, phụ trách tiếp nhận',
   supportCriteria: 'Sách tranh và đồ chơi xếp hình còn dùng tốt.',
+  verificationNote: 'Đã xem giấy phép hoạt động và gọi xác nhận với người phụ trách.',
   receivingPoint: receivingPoint(),
   ageGroups: [{ minAge: 3, maxAge: 6 }],
   categoryIds: [puzzleCategoryId],
@@ -92,7 +93,7 @@ beforeEach(async () => {
   await Promise.all([
     Organization.deleteMany({}),
     DonationRequest.deleteMany({}),
-    AuditLog.deleteMany({}),
+    AuditLog.collection.deleteMany({}),
     Category.deleteMany({}),
   ]);
   const [puzzle, outdoor, hidden] = await Category.create([
@@ -111,9 +112,12 @@ describe('admin create and edit', () => {
     expect(created).toMatchObject({
       status: 'active',
       contactInfo: 'Chị Lan, phụ trách tiếp nhận',
+      verificationNote: 'Đã xem giấy phép hoạt động và gọi xác nhận với người phụ trách.',
       openRequestCount: 0,
       requestCount: 0,
     });
+    // UC34: verified when the Admin adds it.
+    expect(Date.now() - Date.parse(created.verifiedAt as string)).toBeLessThan(60_000);
     const stored = await Organization.findById(created.id).lean();
     expect(stored?.contact_info).toBe('Chị Lan, phụ trách tiếp nhận');
     expect(stored?.support_criteria).toBe('Sách tranh và đồ chơi xếp hình còn dùng tốt.');
@@ -135,6 +139,7 @@ describe('admin create and edit', () => {
         'receivingPoint',
         'ageGroups',
         'categoryIds',
+        'verificationNote',
       ]),
     );
   });
@@ -249,6 +254,47 @@ describe('receiving point and needs profile (GB-51, GB-53)', () => {
     expect(await Organization.countDocuments()).toBe(0);
   });
 
+  // UC34, R03 III.7.5.1 (2), R04 3.8: what the Admin checked (required) and when.
+  it('requires a verification note of 5 to 500 characters, trimmed, and keeps it from Donors', async () => {
+    const without = await adminApi.create(validBody({ verificationNote: undefined }));
+    expect(without.status).toBe(400);
+    expect(without.body.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'verificationNote' })]),
+    );
+    for (const verificationNote of ['', '    ', 'abcd', '  ab   c ', 'x'.repeat(501)]) {
+      const response = await adminApi.create(validBody({ verificationNote }));
+      expect(response.status, JSON.stringify(verificationNote)).toBe(400);
+    }
+    const created = await createOrganization({
+      verificationNote: `  Đã   gọi xác nhận ${'x'.repeat(470)}  `,
+    });
+    expect(created.verificationNote).toBe(`Đã gọi xác nhận ${'x'.repeat(470)}`);
+    expect(
+      (await createOrganization({ name: 'Mái ấm 500', verificationNote: 'x'.repeat(500) }))
+        .verificationNote,
+    ).toHaveLength(500);
+
+    // Donors never see it (it is the Admin's record).
+    const publicDetail = await request(app).get(`/api/v1/organizations/${created.id}`);
+    expect(publicDetail.status).toBe(200);
+    expect(JSON.stringify(publicDetail.body)).not.toContain('Đã gọi xác nhận');
+    expect(publicDetail.body.data.verifiedAt).toBeUndefined();
+  });
+
+  it('keeps the verified date when the note is edited, and audits the change', async () => {
+    const created = await createOrganization();
+    const edited = await adminApi.update(created.id, {
+      verificationNote: 'Đã đến thăm cơ sở ngày 20/11 và xem sổ theo dõi trẻ.',
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data).toMatchObject({
+      verificationNote: 'Đã đến thăm cơ sở ngày 20/11 và xem sổ theo dõi trẻ.',
+      verifiedAt: created.verifiedAt,
+    });
+    expect(await AuditLog.countDocuments({ action: 'organization.update' })).toBe(1);
+    expect((await adminApi.update(created.id, { verificationNote: 'abc' })).status).toBe(400);
+  });
+
   it('switches accepting toys off and audits it (GB-55)', async () => {
     const { id } = await createOrganization();
     const response = await adminApi.update(id, { isAccepting: false, isRemoteArea: true });
@@ -273,6 +319,8 @@ describe('receiving point and needs profile (GB-51, GB-53)', () => {
     expect(detail.status).toBe(200);
     expect(detail.body.data).toMatchObject({
       receivingPoint: null,
+      verificationNote: null,
+      verifiedAt: null,
       ageGroups: [],
       categoryIds: [],
       areaProvince: null,
@@ -293,7 +341,14 @@ describe('receiving point and needs profile (GB-51, GB-53)', () => {
       receivingPoint: { province: 'Hà Nội' },
       areaProvince: 'Hà Nội',
       ageGroups: [{ minAge: 0, maxAge: 1 }],
+      verifiedAt: null,
     });
+    // UC34: the Admin records the check at the next edit; the date is set with it, once.
+    const checked = await adminApi.update(id, { verificationNote: 'Đã xem giấy phép hoạt động.' });
+    expect(checked.body.data.verificationNote).toBe('Đã xem giấy phép hoạt động.');
+    expect(Date.now() - Date.parse(checked.body.data.verifiedAt)).toBeLessThan(60_000);
+    const later = await adminApi.update(id, { verificationNote: 'Đã gọi lại người phụ trách.' });
+    expect(later.body.data.verifiedAt).toBe(checked.body.data.verifiedAt);
     const listedNow = await request(app).get('/api/v1/organizations');
     expect(listedNow.body.data.map((o: { name: string }) => o.name)).toEqual(['Nhà mở cũ']);
   });

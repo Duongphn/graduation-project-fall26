@@ -25,8 +25,6 @@ export const PATHS = {
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
   wallet: '/wallet',
-  /** VNPay chuyển về đây sau khi thanh toán (VNPAY_RETURN_URL ở server) */
-  walletTopupResult: '/wallet/topup/result',
   /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */
   walletTopupPayosResult: '/wallet/topup/payos-result',
   /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */
@@ -85,6 +83,11 @@ export const adminPaths = {
   disputes: `${ADMIN_ROOT}/disputes`,
   dispute: (id: string) => `${ADMIN_ROOT}/disputes/${id}`,
   notifications: `${ADMIN_ROOT}/notifications`,
+  violationReports: `${ADMIN_ROOT}/violation-reports`,
+  violationReport: (id: string) => `${ADMIN_ROOT}/violation-reports/${id}`,
+  users: `${ADMIN_ROOT}/users`,
+  user: (id: string) => `${ADMIN_ROOT}/users/${id}`,
+  auditLogs: `${ADMIN_ROOT}/audit-logs`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.

@@ -9,6 +9,7 @@ import { renderEmail, type EmailContent, type EmailSpec } from './notification.e
 import { absoluteUrl, isAppLink, notificationLinks } from './notification.links.js';
 import { notificationTypeRules, type NotificationType } from '../constants/notification-types.js';
 import { formatVietnamDate } from '../utils/dates.js';
+import { SIBLING_REJECT_REASON } from './donation-request.policy.js';
 
 type DonationStatus = StoredDonationStatus;
 
@@ -261,7 +262,10 @@ const donationTexts = (
       return {
         title: `Đồ chơi "${name}" đã được gửi đi`,
         summary: `Người quyên góp đã gửi đồ chơi "${toy}"${receiver}.`,
-        nextStep: 'Khi nhận được đồ chơi, vui lòng xác nhận đã nhận trên ToyFlow.',
+        // GB-59: for an organization, the Admin records its confirmation.
+        nextStep: dates.organization
+          ? 'Khi tổ chức báo đã nhận, vui lòng ghi nhận xác nhận và ảnh nhận hàng trên ToyFlow.'
+          : 'Khi nhận được đồ chơi, vui lòng xác nhận đã nhận trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
     case 'received':
@@ -288,7 +292,8 @@ const donationTexts = (
       return {
         title: `Yêu cầu nhận "${name}" đã bị hủy`,
         summary: `Yêu cầu nhận đồ chơi quyên góp "${toy}"${receiver} đã bị hủy.`,
-        nextStep: 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
+        nextStep:
+          (forDonor && toyAfterCancel(from)) || 'Bạn có thể xem chi tiết yêu cầu trên ToyFlow.',
         actionLabel: VIEW_REQUEST,
       };
     // MSG56 (R03 V.2): "Your donation request {code} has expired. {reason}"; the reason is the
@@ -305,6 +310,84 @@ const donationTexts = (
         actionLabel: VIEW_REQUEST,
       };
     }
+  }
+};
+
+/** GB-60: where the toy is after a cancel, for the Donor. */
+const toyAfterCancel = (from: DonationStatus | undefined): string | undefined => {
+  if (from === 'accepted') return 'Đồ chơi đã trở lại danh sách quyên góp.';
+  if (from === 'shipping') {
+    return 'Đồ chơi vẫn được ẩn cho tới khi bạn sửa hoặc xoá tin quyên góp.';
+  }
+  return undefined;
+};
+
+/**
+ * GB-61: a request the Donor sent to an organization (UC33) is the Donor's donation, which the
+ * Admin accepts or rejects for the organization, not a request to receive the toy. The other
+ * statuses (shipping, completed, expired) read the same for every request.
+ */
+const donorSentTexts = (
+  status: DonationStatus,
+  party: DonationParty,
+  toy: string,
+  name: string,
+  receiver: string,
+  code: string,
+  from: DonationStatus | undefined,
+  dates: { organization?: string | undefined; handoverDue?: string; receivedOn?: string },
+  reason: string | undefined,
+): DonationText | undefined => {
+  const forDonor = party === 'DONOR';
+  const donation = `Phiếu quyên góp ${code ? `${code} ` : ''}`;
+  switch (status) {
+    case 'pending':
+      return {
+        title: `Có phiếu quyên góp mới "${name}"`,
+        summary: `Người quyên góp muốn tặng đồ chơi "${toy}"${receiver}.`,
+        nextStep: 'Vui lòng xem phiếu và chấp nhận hoặc từ chối thay tổ chức.',
+        actionLabel: VIEW_REQUEST,
+      };
+    case 'accepted':
+      // MSG54 for the Donor (R03 V.2): the code, the organization and the handover deadline.
+      return forDonor
+        ? {
+            title: `Phiếu quyên góp "${name}" đã được chấp nhận`,
+            summary: dates.organization
+              ? `Yêu cầu quyên góp ${code ? `${code} ` : ''}(đồ chơi "${toy}") đã được ${dates.organization} chấp nhận.`
+              : `Admin đã chấp nhận đồ chơi "${toy}" bạn quyên góp${receiver}.`,
+            nextStep: dates.handoverDue
+              ? `Vui lòng bàn giao đồ chơi trước ngày ${dates.handoverDue} và tải ảnh bàn giao lên ToyFlow khi gửi đi.`
+              : 'Vui lòng mang đến hoặc gửi đồ chơi tới điểm nhận và tải ảnh bàn giao lên ToyFlow.',
+            actionLabel: VIEW_REQUEST,
+          }
+        : {
+            title: `Phiếu quyên góp "${name}" đã được chấp nhận`,
+            summary: `${donation}(đồ chơi "${toy}")${receiver} đã được chấp nhận.`,
+            nextStep: 'Người quyên góp sẽ mang đến hoặc gửi đồ chơi tới điểm nhận.',
+            actionLabel: VIEW_REQUEST,
+          };
+    case 'rejected':
+      return {
+        title: `Phiếu quyên góp "${name}" không được chấp nhận`,
+        summary: `${donation}(đồ chơi "${toy}")${receiver} không được chấp nhận.`,
+        // UC33 6.1: the post stays open, unless the toy went to another request (GB-60).
+        nextStep:
+          forDonor && reason !== SIBLING_REJECT_REASON
+            ? 'Tin quyên góp vẫn mở: bạn có thể gửi đồ chơi tới tổ chức khác.'
+            : 'Bạn có thể xem chi tiết phiếu trên ToyFlow.',
+        actionLabel: VIEW_REQUEST,
+      };
+    case 'cancelled':
+      return {
+        title: `Phiếu quyên góp "${name}" đã bị hủy`,
+        summary: `${donation}(đồ chơi "${toy}")${receiver} đã bị hủy.`,
+        nextStep:
+          (forDonor && toyAfterCancel(from)) || 'Bạn có thể xem chi tiết phiếu trên ToyFlow.',
+        actionLabel: VIEW_REQUEST,
+      };
+    default:
+      return undefined;
   }
 };
 
@@ -327,25 +410,29 @@ export const renderDonationStatusChanged = (
 ): NotificationMessage => {
   const organization = context.organizationName?.trim();
   const receiver = organization ? ` cho ${organization}` : '';
+  const texts = [
+    event.to,
+    party,
+    event.toyTitle,
+    shorten(event.toyTitle, MAX_NAME),
+    receiver,
+    event.code ?? '',
+    event.from,
+    {
+      organization,
+      ...(event.handoverDueAt ? { handoverDue: formatVietnamDate(event.handoverDueAt) } : {}),
+      ...(event.receivedAt ? { receivedOn: formatVietnamDate(event.receivedAt) } : {}),
+    },
+  ] as const;
+  // A request the Donor sent to an organization (UC33): the Donor created it.
+  const donorSent = event.receiverType === 'ORGANIZATION' && event.requestedBy === event.donorId;
   return buildMessage(
     {
       type: 'DONATION_STATUS_CHANGED',
       link: donationLink(event, party),
       reason: WITH_REASON.includes(event.to) ? event.reason : undefined,
-      ...donationTexts(
-        event.to,
-        party,
-        event.toyTitle,
-        shorten(event.toyTitle, MAX_NAME),
-        receiver,
-        event.code ?? '',
-        event.from,
-        {
-          organization,
-          ...(event.handoverDueAt ? { handoverDue: formatVietnamDate(event.handoverDueAt) } : {}),
-          ...(event.receivedAt ? { receivedOn: formatVietnamDate(event.receivedAt) } : {}),
-        },
-      ),
+      ...((donorSent ? donorSentTexts(...texts, event.reason) : undefined) ??
+        donationTexts(...texts)),
     },
     context.appPublicUrl,
   );

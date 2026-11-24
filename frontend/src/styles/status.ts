@@ -3,6 +3,7 @@ import type {
   DonationStatus,
   IdentityStatus,
   ListingType,
+  ReportStatus,
   ToyStatus,
   UserStatus,
   VisibilityStatus,
@@ -58,6 +59,12 @@ export const statusStyles = {
     resolved: { label: 'Đã giải quyết', tone: 'success' },
     closed: { label: 'Đã đóng', tone: 'default' },
   },
+  // Violation reports (UC28, UC29).
+  report: {
+    pending: { label: 'Chờ xử lý', tone: 'warning' },
+    resolved: { label: 'Đã xử lý', tone: 'success' },
+    dismissed: { label: 'Đã bỏ qua', tone: 'default' },
+  },
 } as const satisfies {
   toy: StatusMap<ToyStatus>
   identity: StatusMap<IdentityStatus>
@@ -65,6 +72,7 @@ export const statusStyles = {
   visibility: StatusMap<VisibilityStatus>
   donation: StatusMap<DonationStatus>
   dispute: StatusMap<DisputeStatus>
+  report: StatusMap<ReportStatus>
 }
 
 export type StatusDomain = keyof typeof statusStyles

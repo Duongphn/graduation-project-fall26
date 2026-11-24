@@ -80,8 +80,12 @@ const assertNameFree = async (
   }
 };
 
-const auditEntry = (context: AdminContext, action: AuditEntry['action'], id: string): AuditEntry =>
-  adminAuditEntry(context, action, { kind: 'ORGANIZATION', id });
+const auditEntry = (
+  context: AdminContext,
+  action: AuditEntry['action'],
+  id: string,
+  details?: AuditEntry['details'],
+): AuditEntry => adminAuditEntry(context, action, { kind: 'ORGANIZATION', id }, details);
 
 /** API body (camelCase) -> develop's stored fields. */
 const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
@@ -90,6 +94,7 @@ const toStored = (body: UpdateOrganizationBody): Record<string, unknown> => {
   if (body.address !== undefined) stored.address = body.address;
   if (body.contactInfo !== undefined) stored.contact_info = body.contactInfo;
   if (body.supportCriteria !== undefined) stored.support_criteria = body.supportCriteria;
+  if (body.verificationNote !== undefined) stored.verificationNote = body.verificationNote;
   if (body.receivingPoint !== undefined) stored.receivingPoint = body.receivingPoint;
   if (body.ageGroups !== undefined) stored.ageGroups = body.ageGroups;
   if (body.categoryIds !== undefined) {
@@ -201,8 +206,11 @@ export const createOrganization = async (
           isRemoteArea: body.isRemoteArea ?? false,
           isAccepting: body.isAccepting ?? true,
           status: 'active',
+          // UC34: the Admin has just checked it.
+          verifiedAt: new Date(),
         },
-        (created) => auditEntry(context, 'organization.create', String(created._id)),
+        (created) =>
+          auditEntry(context, 'organization.create', String(created._id), { name: created.name }),
         session,
       );
     });
@@ -224,6 +232,8 @@ export const updateOrganization = async (
       if (!before) throw organizationNotFound();
       await assertNameFree(body.name, before._id, session);
       const set = toStored(body);
+      // UC34: an organization added before the check was recorded gets its date with its note.
+      if (body.verificationNote !== undefined && !before.verifiedAt) set.verifiedAt = new Date();
       const after = await updateOrganizationFields(before._id, set, [], session);
       if (!after) throw organizationNotFound();
 
@@ -321,7 +331,10 @@ export const deleteOrganizationById = async (id: string, context: AdminContext):
       );
     }
     if (!(await deleteOrganization(record._id, session))) throw organizationNotFound();
-    await writeAuditLog(auditEntry(context, 'organization.delete', id), session);
+    await writeAuditLog(
+      auditEntry(context, 'organization.delete', id, { name: record.name }),
+      session,
+    );
   });
 };
 

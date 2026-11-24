@@ -53,8 +53,9 @@ export function OrganizationRowActions({ organization, onEdit }: OrganizationRow
         <Popconfirm
           title="Ẩn tổ chức?"
           description={
+            // MSG57
             organization.openRequestCount > 0
-              ? `${organization.openRequestCount} yêu cầu đang chạy vẫn tiếp tục; tổ chức không nhận yêu cầu mới.`
+              ? `${organization.openRequestCount} yêu cầu quyên góp vẫn đang mở. Yêu cầu đã chấp nhận sẽ tiếp tục. Yêu cầu đang chờ cần được từ chối hoặc huỷ.`
               : 'Người tặng sẽ không thấy tổ chức này nữa.'
           }
           okText="Ẩn"
