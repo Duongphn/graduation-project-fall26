@@ -6,10 +6,11 @@ import { adminHomeCrumb, adminPaths } from '../../../routes/paths'
 import { formatDate, formatDateTime } from '../../../utils/format'
 import { AccountEnforcementCard } from '../components/AccountEnforcementCard'
 import { AccountViolationHistory } from '../components/AccountViolationHistory'
+import { TrustBlockCard } from '../components/TrustBlockCard'
 import { useAccount } from '../hooks'
 
 // UC29, R03 III.7.2.1 (4)-(10): read-only profile, metrics, violation history and the lock or
-// unlock form.
+// unlock form; screen 47: the Trust Score block of a Renter and its review (FE-09).
 export function AccountDetailPage() {
   const { id } = useParams<{ id: string }>()
   const detail = useAccount(id)
@@ -95,7 +96,10 @@ export function AccountDetailPage() {
               <AccountViolationHistory violations={account.violations} />
             </Card>
           </div>
-          <AccountEnforcementCard key={account.accountStatus} account={account} />
+          <div className="flex flex-col gap-4">
+            <TrustBlockCard account={account} />
+            <AccountEnforcementCard key={account.accountStatus} account={account} />
+          </div>
         </div>
       )}
     </>

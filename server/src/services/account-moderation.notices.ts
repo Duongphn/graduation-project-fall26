@@ -67,6 +67,42 @@ export const accountUnlockedNotice = (userId: string, reason: string | undefined
   link: notificationLinks.myListings(),
 });
 
+const vnd = (amount: number): string => `${amount.toLocaleString('vi-VN')} đ`;
+
+/** UC29, FE-09: the Admin lifted the Trust Score block; the link opens the toy the Renter wanted. */
+export const trustBlockLiftedNotice = (
+  userId: string,
+  score: number,
+  reason: string,
+  toyId: string | undefined,
+): AccountNotice => ({
+  type: 'ACCOUNT',
+  to: userId,
+  title: 'Bạn đã được gỡ chặn thuê đồ chơi có tiền cọc cao',
+  body:
+    `Admin đã xem xét và cho phép bạn đặt thuê đồ chơi có tiền cọc cao dù điểm tin cậy của bạn là ${score}. ` +
+    `Lý do: ${asSentence(reason)} ` +
+    `Việc gỡ chặn còn hiệu lực khi điểm tin cậy của bạn không thấp hơn ${score}.`,
+  ...(toyId ? { link: notificationLinks.toyDetail(toyId) } : {}),
+});
+
+/** UC29, FE-09: the Admin kept the block, or put it back after a lift (`liftRevoked`). */
+export const trustBlockKeptNotice = (
+  userId: string,
+  input: { threshold: number; depositLimit: number; reason: string; liftRevoked: boolean },
+): AccountNotice => ({
+  type: 'ACCOUNT',
+  to: userId,
+  title: input.liftRevoked
+    ? 'Admin đã áp dụng lại chặn thuê đồ chơi có tiền cọc cao'
+    : 'Bạn vẫn chưa thể thuê đồ chơi có tiền cọc cao',
+  body:
+    `Admin đã xem xét và ${input.liftRevoked ? 'áp dụng lại' : 'giữ'} giới hạn: khi điểm tin cậy dưới ` +
+    `${input.threshold}, bạn chưa thể thuê đồ chơi có tiền cọc trên ${vnd(input.depositLimit)}. ` +
+    `Lý do: ${asSentence(input.reason)} ` +
+    'Bạn vẫn thuê được đồ chơi có tiền cọc thấp hơn; trả đồ đúng hẹn và nhận đánh giá tốt sẽ giúp tăng điểm tin cậy.',
+});
+
 export const accountWarnedNotice = (userId: string, note: string): AccountNotice => ({
   type: 'ACCOUNT',
   to: userId,

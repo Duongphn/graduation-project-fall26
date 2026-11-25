@@ -29,3 +29,12 @@ export const accountActionFormSchema = z.object({
   reason: accountReasonSchema,
 })
 export type AccountActionFormValues = z.infer<typeof accountActionFormSchema>
+
+// Trust Score decisions (UC29, FE-09): the same 20–300 character reason as a lock; a lock from the
+// review also needs one of the three durations.
+export const trustReasonFormSchema = z.object({ reason: accountReasonSchema })
+export const trustLockFormSchema = z.object({
+  duration: z.enum(lockDurations, { error: 'Vui lòng chọn thời hạn khóa.' }),
+  reason: accountReasonSchema,
+})
+export type TrustDecisionFormValues = { reason: string; duration?: (typeof lockDurations)[number] }

@@ -1,5 +1,7 @@
 import { Types, type ClientSession, type PipelineStage } from 'mongoose';
 
+import { STARTING_TRUST_SCORE } from '../constants/trust-review.js';
+
 import { RefreshToken } from '../models/refresh-token.model.js';
 import { RentalOrder, type IRentalOrder } from '../models/rental-order.model.js';
 import { Toy } from '../models/toy.model.js';
@@ -153,10 +155,9 @@ export interface AccountFilter {
   q?: string | undefined;
 }
 
-export type AccountTab = 'all' | 'active' | 'locked' | 'reported';
+export type AccountTab = 'all' | 'active' | 'locked' | 'reported' | 'trust_review';
 
-/** GB-29: every account starts at 100; an account with no score stored yet counts as 100. */
-export const STARTING_TRUST_SCORE = 100;
+export { STARTING_TRUST_SCORE };
 
 const trustBandMatch = (band: AccountTrustBand | undefined): Record<string, unknown> => {
   const threshold = DEFAULT_RENTAL_SETTINGS.minTrustScore;
@@ -200,6 +201,8 @@ const tabMatch = async (tab: AccountTab, now: Date): Promise<Record<string, unkn
     const ids = await ViolationReport.distinct('target.userId', { status: 'pending' });
     return { _id: { $in: ids } };
   }
+  // Renters refused for a low Trust Score who wait for an Admin (UC29, FE-09).
+  if (tab === 'trust_review') return { 'trust.review.requestedAt': { $exists: true } };
   return {};
 };
 
