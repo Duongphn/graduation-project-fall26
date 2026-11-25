@@ -13,6 +13,7 @@ import {
 import { WalletLedgerRepository } from '../src/repositories/wallet-ledger.repository.js';
 import { PurchaseOrderService } from '../src/services/purchase-order.service.js';
 import { withOrderPolicy } from '../src/services/rental-policy.js';
+import { domainEvents } from '../src/utils/domain-events.js';
 import { DEFAULT_RENTAL_SETTINGS } from '../src/types/rental-order.types.js';
 import {
   authHeader,
@@ -278,12 +279,25 @@ describe('Purchase orders keep the commission and deadlines they were created wi
     expect((await Wallet.findOne({ userId: older.seller.id }))?.balance).toBe(220_000);
   });
 
-  it('the new order ships within its own (shorter) deadline and the message names it', async () => {
+  it('cancels a new order after its own (shorter) ship deadline and names it in the messages', async () => {
     await setSettings({ 'purchase.shipDeadlineHours': '24' });
     const { order } = await buy();
-    const result = await service.runDueTimers(new Date(Date.now() + 25 * HOUR));
-    expect(result.cancelled).toBe(1);
+    const bodies: string[] = [];
+    const stop = domainEvents.subscribe('NOTIFY', (event) => {
+      bodies.push(event.body);
+    });
+    try {
+      // 23 hours: not due yet (the default would also wait); 25 hours: cancelled
+      expect((await service.runDueTimers(new Date(Date.now() + 23 * HOUR))).cancelled).toBe(0);
+      const result = await service.runDueTimers(new Date(Date.now() + 25 * HOUR));
+      expect(result.cancelled).toBe(1);
+    } finally {
+      stop();
+    }
     expect((await PurchaseOrder.findById(order.id))?.status).toBe('CANCELLED');
+    expect(bodies.some((body) => body.includes('trong 24 giờ'))).toBe(true);
+    expect(bodies.some((body) => body.includes('quá 24 giờ chưa gửi hàng'))).toBe(true);
+    expect(bodies.some((body) => body.includes('48 giờ'))).toBe(false);
   });
 
   it('quotes with the commission and delivery fee in force', async () => {
