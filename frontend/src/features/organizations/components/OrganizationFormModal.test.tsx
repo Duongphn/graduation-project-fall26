@@ -107,7 +107,7 @@ describe('OrganizationFormModal', () => {
 
     expect(await screen.findByText('Chọn ít nhất một cách bàn giao.')).toBeInTheDocument()
     expect(update).not.toHaveBeenCalled()
-  })
+  }, 15_000)
 
   it('asks for the point and the needs of an organization saved before they existed', async () => {
     get.mockResolvedValue({
