@@ -134,7 +134,7 @@ describe('UC29 account list and detail', () => {
     expect(list.body.data[0]).not.toHaveProperty('phone');
 
     const counts = await get('/counts?role=USER');
-    expect(counts.body.data).toEqual({ all: 3, active: 2, locked: 1, reported: 1 });
+    expect(counts.body.data).toEqual({ all: 3, active: 2, locked: 1, reported: 1, trust_review: 0 });
 
     const locked = await get('?tab=locked');
     expect(locked.body.data.map((row: { fullName: string }) => row.fullName)).toEqual(['Lê Cường']);
@@ -182,7 +182,7 @@ describe('UC29 account list and detail', () => {
     expect(detail.body.data.trustScore).toBe(100);
 
     const counts = await get('/counts?role=USER&trustBand=low');
-    expect(counts.body.data).toEqual({ all: 3, active: 2, locked: 1, reported: 0 });
+    expect(counts.body.data).toEqual({ all: 3, active: 2, locked: 1, reported: 0, trust_review: 0 });
     expect((await get('?trustBand=thap')).status).toBe(400);
     expect((await get('/counts?trustBand=LOW')).status).toBe(400);
   });

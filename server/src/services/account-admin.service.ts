@@ -27,6 +27,7 @@ import {
   notifyUnlocked,
   unlockAccountInSession,
 } from './account-lock.service.js';
+import { getTrustBlockView, trustBlockStatusOf } from './trust-review.service.js';
 
 // Admin account management (UC29, R03 III.7.2.1): accounts with their violation count, lock
 // and unlock with a reason. Phones and emails are masked in the list (GB-35).
@@ -49,6 +50,7 @@ const toListItem = (
     trustScore: row.trust?.score ?? repository.STARTING_TRUST_SCORE,
     violationCount: row.violationCount,
     pendingReportCount: row.pendingReportCount,
+    trustBlockStatus: row.role === 'ADMIN' ? null : trustBlockStatusOf(row.trust),
     createdAt: row.createdAt.toISOString(),
   };
 };
@@ -67,7 +69,7 @@ export const listAccounts = async (
   return { items: rows.map((row) => toListItem(row, now)), totalItems: total };
 };
 
-/** Counters of the status tabs (All, Active, Locked, New reports). */
+/** Counters of the status tabs (All, Active, Locked, New reports, blocked by the Trust Score). */
 export const countAccounts = async (query: AccountCountsQuery): Promise<AccountCounts> => {
   const now = new Date();
   const filter = { role: query.role, trustBand: query.trustBand, q: query.q || undefined };
@@ -119,7 +121,7 @@ export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
   const now = new Date();
   const user = await repository.findAccountById(id);
   if (!user) throw accountNotFound();
-  const [counts, activeListingCount, completedBookingCount, reports, rentals, lockerNames] =
+  const [counts, activeListingCount, completedBookingCount, reports, rentals, lockerNames, trustBlock] =
     await Promise.all([
       repository.countViolationsOf(user._id),
       repository.countActiveToysOf(user._id),
@@ -127,6 +129,7 @@ export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
       repository.findReportDecisionsAgainst(user._id),
       repository.findRentalBreachesOf(user._id),
       repository.findUserNames(user.lock?.lockedBy ? [user.lock.lockedBy as Types.ObjectId] : []),
+      getTrustBlockView(user.trust, repository.findUserNames),
     ]);
   const violations: AccountViolation[] = [
     ...reports.map((report) => ({
@@ -166,6 +169,7 @@ export const getAccountDetail = async (id: string): Promise<AccountDetail> => {
       : null,
     activeListingCount,
     violations: violations.slice(0, VIOLATION_HISTORY_LIMIT),
+    trustBlock,
   };
 };
 
