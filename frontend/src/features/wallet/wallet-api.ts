@@ -1,3 +1,4 @@
+import type { WithdrawalStatus } from '../../constants/domain'
 import { apiGet, apiPost } from '../../services/http'
 import type { Paginated } from '../../types/api'
 
@@ -55,7 +56,7 @@ export interface WalletTransactionParams {
 }
 
 /** GET /wallets/me/transactions và GET /wallets/withdrawals trả danh sách trong `data` */
-interface ListPage<T> {
+export interface ListPage<T> {
   items: T[]
   total: number
   page: number
@@ -130,7 +131,7 @@ export interface BankInfo {
 }
 
 /** pending: đang chờ, tiền đã tạm trừ · approved: đã duyệt · completed: đã chuyển khoản · rejected: bị từ chối, tiền hoàn về ví */
-export type WithdrawalStatus = 'pending' | 'approved' | 'completed' | 'rejected'
+export type { WithdrawalStatus } from '../../constants/domain'
 
 export interface WithdrawalRequest {
   id: string
@@ -140,6 +141,8 @@ export interface WithdrawalRequest {
   status: WithdrawalStatus
   /** Ghi chú của Admin, vd. lý do từ chối */
   notes?: string
+  /** Lúc Admin chuyển khoản (completed) hoặc từ chối và hoàn tiền (rejected) */
+  processedAt?: string
   createdAt: string
   updatedAt: string
 }
