@@ -12,6 +12,8 @@ const withdrawalRequestSchema = new Schema({
     },
     status: { type: String, required: true, default: 'pending' },
     processedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    // Lúc Admin chuyển khoản xong (completed) hoặc từ chối và hoàn tiền (rejected)
+    processedAt: { type: Date },
     notes: { type: String }
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 
