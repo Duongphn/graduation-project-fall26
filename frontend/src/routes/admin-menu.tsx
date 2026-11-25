@@ -15,7 +15,7 @@ import type { ReactNode } from 'react'
 import { adminPaths } from './paths'
 
 // Menu entries that show how many items wait for an Admin (useAdminPendingCounts).
-export type AdminPendingCounter = 'toys' | 'identityVerifications' | 'violationReports'
+export type AdminPendingCounter = 'toys' | 'identityVerifications' | 'violationReports' | 'users'
 
 export interface AdminMenuItem {
   key: string
@@ -36,6 +36,6 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'disputes', label: 'Giải quyết khiếu nại', icon: <SafetyCertificateOutlined />, path: adminPaths.disputes },
   { key: 'donation-requests', label: 'Yêu cầu nhận tặng', icon: <GiftOutlined />, path: adminPaths.donationRequests },
   { key: 'violation-reports', label: 'Báo cáo vi phạm', icon: <WarningOutlined />, path: adminPaths.violationReports, pendingCounter: 'violationReports' },
-  { key: 'users', label: 'Quản lý người dùng', icon: <TeamOutlined />, path: adminPaths.users },
+  { key: 'users', label: 'Quản lý người dùng', icon: <TeamOutlined />, path: adminPaths.users, pendingCounter: 'users' },
   { key: 'audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, path: adminPaths.auditLogs },
 ]

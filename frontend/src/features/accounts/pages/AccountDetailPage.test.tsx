@@ -36,6 +36,8 @@ const account: AccountDetail = {
   completedBookingCount: 4,
   lock: null,
   activeListingCount: 2,
+  trustBlockStatus: null,
+  trustBlock: { threshold: 50, depositLimit: 500_000, blocked: false, review: null, lift: null, lastDecision: null },
   violations: [
     {
       source: 'dispute',

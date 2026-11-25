@@ -44,6 +44,9 @@ export const auditActionLabels: Record<string, string> = {
   'user.lock': 'Khóa tài khoản',
   'user.unlock': 'Mở khóa tài khoản',
   'user.warn': 'Cảnh cáo người dùng',
+  'user.trust_lift': 'Gỡ chặn Trust Score',
+  'user.trust_keep': 'Giữ chặn Trust Score',
+  'user.trust_lock': 'Xử lý chặn Trust Score: khóa tài khoản',
   'report.dismiss': 'Bỏ qua báo cáo',
   'report.remove_listing': 'Xử lý báo cáo: gỡ tin',
   'report.warn': 'Xử lý báo cáo: cảnh cáo',
@@ -83,6 +86,10 @@ export const auditDetailLabels: Record<string, string> = {
   closedWithIt: 'Báo cáo đóng kèm',
   amount: 'Số tiền',
   note: 'Ghi chú',
+  score: 'Điểm tin cậy',
+  threshold: 'Ngưỡng',
+  attempts: 'Lượt bị chặn',
+  liftRevoked: 'Áp dụng lại sau khi gỡ chặn',
 }
 
 // `from` / `to` are donation request statuses (the only transition the server logs with them).

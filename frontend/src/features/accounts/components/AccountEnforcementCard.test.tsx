@@ -34,6 +34,8 @@ const account: AccountDetail = {
   lock: null,
   activeListingCount: 3,
   violations: [],
+  trustBlockStatus: null,
+  trustBlock: { threshold: 50, depositLimit: 500_000, blocked: false, review: null, lift: null, lastDecision: null },
 }
 
 const REASON = 'Nhiều lần đăng đồ chơi không an toàn.'

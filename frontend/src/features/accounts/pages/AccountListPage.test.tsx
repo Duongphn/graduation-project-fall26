@@ -26,6 +26,7 @@ const row: AccountListItem = {
   trustScore: 49,
   violationCount: 0,
   pendingReportCount: 0,
+  trustBlockStatus: null,
   createdAt: '2026-10-01T00:00:00.000Z',
 }
 
@@ -44,7 +45,7 @@ beforeEach(() => {
     items: [row],
     pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
   })
-  counts.mockResolvedValue({ all: 1, active: 1, locked: 0, reported: 0 })
+  counts.mockResolvedValue({ all: 1, active: 1, locked: 0, reported: 0, trust_review: 0 })
 })
 
 describe('AccountListPage: Trust Score band filter (R03 III.7.2.1 (2))', () => {
@@ -78,5 +79,39 @@ describe('AccountListPage: Trust Score band filter (R03 III.7.2.1 (2))', () => {
 
     expect(await screen.findByText('Người thuê điểm thấp')).toBeInTheDocument()
     expect(list).toHaveBeenCalledWith({ page: 1, limit: 10, tab: 'all' })
+  })
+})
+
+describe('AccountListPage: Renters blocked by a low Trust Score (UC29, FE-09)', () => {
+  it('shows the "Bị chặn do Trust Score" tab with its counter and lists the open reviews', async () => {
+    const user = userEvent.setup()
+    counts.mockResolvedValue({ all: 4, active: 4, locked: 0, reported: 0, trust_review: 2 })
+    list.mockResolvedValue({
+      items: [
+        { ...row, trustBlockStatus: 'review' },
+        { ...row, id: '64b000000000000000000042', fullName: 'Người đã được gỡ chặn', trustScore: 40, trustBlockStatus: 'lifted' },
+      ],
+      pagination: { page: 1, limit: 10, totalItems: 2, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    })
+    const router = renderAt('/admin/users')
+
+    const tab = await screen.findByRole('tab', { name: /Bị chặn do Trust Score/ })
+    await waitFor(() => expect(tab).toHaveTextContent('2'))
+    expect(screen.getByText('Chờ xem xét Trust Score')).toBeInTheDocument()
+    expect(screen.getByText('Đã gỡ chặn Trust Score')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Xem xét/ })).toBeInTheDocument()
+
+    await user.click(tab)
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ page: 1, limit: 10, tab: 'trust_review' }))
+    expect(router.state.location.search).toBe('?tab=trust_review')
+  }, 15_000)
+
+  it('opens the tab from the URL and falls back to "all" for an unknown tab', async () => {
+    renderAt('/admin/users?tab=trust_review&trustBand=low')
+    await screen.findByText('Người thuê điểm thấp')
+    expect(list).toHaveBeenCalledWith({ page: 1, limit: 10, tab: 'trust_review', trustBand: 'low' })
+    list.mockClear()
+    renderAt('/admin/users?tab=TRUST_REVIEW')
+    await waitFor(() => expect(list).toHaveBeenCalledWith({ page: 1, limit: 10, tab: 'all' }))
   })
 })
