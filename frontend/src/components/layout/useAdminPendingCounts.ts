@@ -2,6 +2,7 @@ import { useAccountCounts } from '../../features/accounts/hooks'
 import { useIdentityCounts } from '../../features/identity-verifications/hooks'
 import { useToyStatusCounts } from '../../features/toy-moderation/hooks'
 import { useReportCounts } from '../../features/violation-reports/hooks'
+import { useWithdrawalCounts } from '../../features/withdrawal-requests/hooks'
 import type { AdminPendingCounter } from '../../routes/admin-menu'
 
 const ALL_TOYS = {}
@@ -16,10 +17,12 @@ export function useAdminPendingCounts(): Partial<Record<AdminPendingCounter, num
   const identity = useIdentityCounts()
   const reports = useReportCounts(ALL_REPORTS)
   const accounts = useAccountCounts(ALL_ACCOUNTS)
+  const withdrawals = useWithdrawalCounts()
   return {
     toys: toys.data?.pending,
     identityVerifications: identity.data?.pending,
     violationReports: reports.data?.pending,
     users: accounts.data?.trust_review,
+    withdrawals: withdrawals.data?.pending,
   }
 }

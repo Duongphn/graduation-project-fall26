@@ -116,14 +116,34 @@ curl -X GET http://localhost:3000/api/v1/wallets/me \
     }
   }
   ```
-- **Errors**: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `409 INSUFFICIENT_BALANCE`, `409 PENDING_WITHDRAWAL_EXISTS`.
+- **Errors**: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 WALLET_FROZEN` (account locked by an Admin), `409 INSUFFICIENT_BALANCE`, `409 PENDING_WITHDRAWAL_EXISTS`.
 
 ### 4. My Withdrawal Requests
 - **Method / Path**: `GET /api/v1/wallets/withdrawals?page=1&limit=20`
 - **Auth**: User token
-- **Response (`200 OK`)**: newest first, `data: { items, total, page, limit, totalPages, hasNextPage, hasPrevPage }`; `status` is `pending` | `approved` | `completed` | `rejected` (with Admin `notes`).
+- **Response (`200 OK`)**: newest first, `data: { items, total, page, limit, totalPages, hasNextPage, hasPrevPage }`; `status` is `pending` | `approved` | `completed` | `rejected` (with Admin `notes`); `processedAt` once an Admin has paid it out or refused it.
 
-Admin processing of withdrawal requests (approve, pay out, reject with refund) is not part of UC18.
+### 4b. Admin: withdrawal queue
+- **Method / Path**: `GET /api/v1/wallets/admin/withdrawals?status=pending&page=1&limit=20&startDate=2026-11-01&endDate=2026-11-30` (same path as the lead's API)
+- **Auth**: Admin token
+- **Query**: `status` = `all` (default) | `pending` | `approved` | `completed` | `rejected`; `startDate` / `endDate` = days in Vietnam time (inclusive).
+- **Response (`200 OK`)**: `data: { items, total, page, limit, totalPages, hasNextPage, hasPrevPage }`. Pending requests come oldest first (first come, first paid), other statuses newest first. Each item is the request with the **full** bank details (the Admin needs them to transfer) and its owner: `user: { id, fullName, email, phone }`, plus `processedBy` and `processedAt` once processed.
+
+### 4c. Admin: number of requests per status
+- **Method / Path**: `GET /api/v1/wallets/admin/withdrawals/counts`
+- **Auth**: Admin token
+- **Response (`200 OK`)**: `data: { "pending": 3, "completed": 12, "rejected": 1 }` (tabs and the menu badge of the Admin screen).
+
+### 4d. Admin: process a withdrawal request
+- **Method / Path**: `PATCH /api/v1/wallets/admin/withdrawals/:id/process` (same path and body as the lead's API)
+- **Auth**: Admin token
+- **Body**: `{ "status": "completed" }` once the Admin has transferred the money (`approved` means the same), or `{ "status": "rejected", "notes": "Sai tên chủ tài khoản" }` — a reason of 5–500 characters is required to reject.
+- **Effect** (one transaction, only from `pending`, so the money moves once even when two Admins act together):
+  - `completed`: escrow −amount, external +amount (`withdrawal:<id>:payout`). The user's wallet was already debited when the request was made. Refused with `403 WALLET_FROZEN` while the owner's account is locked.
+  - `rejected`: escrow −amount, user's wallet +amount (`withdrawal:<id>:refund`, history line "Hoàn tiền lệnh rút … bị từ chối: <reason>"). Allowed for a locked account (refunds still reach a frozen wallet).
+  - Audit row `withdrawal.complete` / `withdrawal.reject` (target `WITHDRAWAL_REQUEST`), then a `WALLET` notification to the user with the result (and the reason when rejected).
+- **Response (`200 OK`)**: the processed request (same item shape as 4b) with a message.
+- **Errors**: `400 VALIDATION_ERROR` (missing reason, unknown status), `403 WALLET_FROZEN`, `404 WITHDRAWAL_NOT_FOUND`, `409 WITHDRAWAL_ALREADY_PROCESSED`.
 
 ---
 
@@ -175,3 +195,6 @@ curl -X POST http://localhost:3000/api/v1/admin/wallets/6adfe1d362325b45c1aded00
 | `USER_NOT_FOUND` | 404 | User ID specified in route does not exist |
 | `INSUFFICIENT_BALANCE` | 409 | Attempting to debit an amount greater than the current wallet balance |
 | `PENDING_WITHDRAWAL_EXISTS` | 409 | The user already has a pending withdrawal request |
+| `WALLET_FROZEN` | 403 | The account is locked: no withdrawal request, no payout (refunds still allowed) |
+| `WITHDRAWAL_NOT_FOUND` | 404 | No withdrawal request with this id |
+| `WITHDRAWAL_ALREADY_PROCESSED` | 409 | The request is no longer pending (another Admin processed it) |

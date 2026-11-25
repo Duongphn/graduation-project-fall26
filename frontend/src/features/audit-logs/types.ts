@@ -10,6 +10,7 @@ export type AuditTargetType =
   | 'IDENTITY_VERIFICATION'
   | 'USER'
   | 'VIOLATION_REPORT'
+  | 'WITHDRAWAL_REQUEST'
   | 'MESSAGE'
 
 export interface AuditLogItem {

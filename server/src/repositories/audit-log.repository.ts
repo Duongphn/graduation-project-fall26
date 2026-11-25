@@ -18,6 +18,7 @@ export const auditTargetTypes = [
   'USER',
   'MESSAGE',
   'VIOLATION_REPORT',
+  'WITHDRAWAL_REQUEST',
 ] as const;
 export type AuditTargetType = (typeof auditTargetTypes)[number];
 

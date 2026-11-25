@@ -116,18 +116,22 @@ describe('WithdrawDialog', () => {
 })
 
 describe('WithdrawalList', () => {
-  it('shows the status and the rejection reason', () => {
+  it('shows the status and what happened: transferred, or refunded with the reason', () => {
     render(
       <WithdrawalList
         withdrawals={[
           created,
-          { ...created, id: 'w2', status: 'rejected', notes: 'Sai tên chủ tài khoản' },
+          { ...created, id: 'w2', status: 'rejected', notes: 'Sai tên chủ tài khoản', processedAt: '2026-11-20T03:00:00.000Z' },
+          { ...created, id: 'w3', status: 'completed', processedAt: '2026-11-21T03:00:00.000Z' },
         ]}
       />,
     )
     expect(screen.getByText('Đang chờ xử lý')).toBeInTheDocument()
+    expect(screen.getByText(/ToyFlow sẽ chuyển khoản sau khi duyệt/)).toBeInTheDocument()
     expect(screen.getByText('Bị từ chối, đã hoàn tiền')).toBeInTheDocument()
-    expect(screen.getByText('Lý do: Sai tên chủ tài khoản')).toBeInTheDocument()
-    expect(screen.getAllByText(/•••• 6789/)).toHaveLength(2)
+    expect(screen.getByText(/Đã hoàn .* vào ví lúc 10:00 20\/11\/2026\. Lý do: Sai tên chủ tài khoản/)).toBeInTheDocument()
+    expect(screen.getByText('Đã chuyển khoản')).toBeInTheDocument()
+    expect(screen.getByText('Đã chuyển về tài khoản của bạn lúc 10:00 21/11/2026.')).toBeInTheDocument()
+    expect(screen.getAllByText(/•••• 6789/)).toHaveLength(3)
   })
 })
