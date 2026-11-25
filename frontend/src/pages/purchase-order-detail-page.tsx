@@ -41,6 +41,18 @@ function Row({ label, value, strong = false }: { label: string; value: ReactNode
   )
 }
 
+/** Hạn của đơn (giữ từ lúc tạo, GB-38); đơn tạo trước khi có Cấu hình hệ thống dùng 48 giờ / 7 ngày */
+const policyOf = (order: PurchaseOrder) => ({
+  shipDeadlineHours: order.policy?.shipDeadlineHours ?? 48,
+  autoCompleteDays: order.policy?.autoCompleteDays ?? 7,
+})
+
+/** 0.05 → "5%": tỉ lệ hoa hồng lưu trên đơn, hoặc tính lại từ số tiền với đơn cũ */
+const commissionPercent = ({ platformFeeRate, platformFee, itemPrice }: PurchaseOrder['pricing']) => {
+  const rate = platformFeeRate ?? (itemPrice > 0 ? platformFee / itemPrice : 0)
+  return `${(Math.round(rate * 10_000) / 100).toLocaleString('vi-VN')}%`
+}
+
 /** Người mua thấy số đã trả; người bán thấy số sẽ nhận: giá món + phí giao (để tự gửi hàng) − hoa hồng */
 function MoneyCard({ order, role }: { order: PurchaseOrder; role: PurchaseRole }) {
   const { pricing, settlement } = order
@@ -60,7 +72,7 @@ function MoneyCard({ order, role }: { order: PurchaseOrder; role: PurchaseRole }
         ) : (
           <>
             {pricing.shippingFee > 0 && <Row label="Phí giao hàng" value={`+${formatVnd(pricing.shippingFee)}`} />}
-            <Row label="Hoa hồng ToyFlow (5%)" value={`−${formatVnd(pricing.platformFee)}`} />
+            <Row label={`Hoa hồng ToyFlow (${commissionPercent(pricing)})`} value={`−${formatVnd(pricing.platformFee)}`} />
             <Row
               label={settlement ? 'Đã nhận vào ví' : 'Bạn sẽ nhận'}
               value={formatVnd(settlement?.sellerReceived ?? pricing.sellerNet)}
@@ -85,13 +97,15 @@ function WaitingNote({ order, role }: { order: PurchaseOrder; role: PurchaseRole
   } else if (order.status === 'SHIPPING' && role === 'seller') {
     text = `Đã gửi hàng. Tiền về ví khi người mua xác nhận đã nhận và hài lòng${dueAt ? `, hoặc tự động lúc ${dueAt} nếu người mua không xác nhận hay khiếu nại` : ''}.`
   } else if (order.status === 'COMPLETED') {
-    const auto = order.settlement?.autoSettled ? 'tự hoàn tất sau 7 ngày kể từ khi gửi hàng' : 'đã hoàn tất'
+    const auto = order.settlement?.autoSettled
+      ? `tự hoàn tất sau ${policyOf(order).autoCompleteDays} ngày kể từ khi gửi hàng`
+      : 'đã hoàn tất'
     text = role === 'seller' ? `Đơn ${auto}, tiền đã vào ví của bạn.` : `Đơn ${auto}. Cảm ơn bạn đã mua trên ToyFlow!`
   } else if (order.status === 'CANCELLED') {
     text =
       role === 'seller'
-        ? 'Đơn đã tự huỷ vì quá 48 giờ chưa gửi hàng. Tiền đã hoàn cho người mua và tin được mở bán lại.'
-        : 'Đơn đã tự huỷ vì người bán không gửi hàng trong 48 giờ. ToyFlow đã hoàn toàn bộ tiền vào ví của bạn.'
+        ? `Đơn đã tự huỷ vì quá ${policyOf(order).shipDeadlineHours} giờ chưa gửi hàng. Tiền đã hoàn cho người mua và tin được mở bán lại.`
+        : `Đơn đã tự huỷ vì người bán không gửi hàng trong ${policyOf(order).shipDeadlineHours} giờ. ToyFlow đã hoàn toàn bộ tiền vào ví của bạn.`
   }
   if (!text) return null
   const walletLink = (order.status === 'COMPLETED' && role === 'seller') || (order.status === 'CANCELLED' && role === 'buyer')
