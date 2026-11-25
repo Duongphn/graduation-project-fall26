@@ -35,6 +35,8 @@ export interface PurchasePricing {
   itemPrice: number;
   shippingFee: number;
   platformFee: number;
+  /** Commission rate (fraction) from System Settings when the order was created (GB-38) */
+  platformFeeRate?: number | undefined;
   totalPayable: number;
   sellerNet: number;
 }
@@ -86,8 +88,23 @@ const pricingSchema = new Schema(
     itemPrice: { type: Number, required: true },
     shippingFee: { type: Number, required: true, default: 0 },
     platformFee: { type: Number, required: true, default: 0 },
+    platformFeeRate: { type: Number },
     totalPayable: { type: Number, required: true },
     sellerNet: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+/** Time limits from System Settings kept on the order at creation (UC30, GB-38) */
+export interface PurchasePolicy {
+  shipDeadlineHours: number;
+  autoCompleteDays: number;
+}
+
+const policySchema = new Schema(
+  {
+    shipDeadlineHours: { type: Number, required: true },
+    autoCompleteDays: { type: Number, required: true },
   },
   { _id: false },
 );
@@ -104,6 +121,7 @@ const purchaseOrderSchema = new Schema(
     deliveryInfo: { type: deliveryInfoSchema },
     shippingInfo: { type: shippingInfoSchema },
     pricing: { type: pricingSchema },
+    policy: { type: policySchema },
     status: {
       type: String,
       required: true,
@@ -144,6 +162,7 @@ export interface IPurchaseOrder {
   deliveryInfo?: PurchaseDeliveryInfo;
   shippingInfo?: PurchaseShippingInfo;
   pricing?: PurchasePricing;
+  policy?: PurchasePolicy | undefined;
   status: ResaleOrderStatus;
   paidAt?: Date;
   shippedAt?: Date;

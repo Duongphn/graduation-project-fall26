@@ -27,7 +27,10 @@ export const TOPUP_LINK_MINUTES = 15;
  */
 export const TOPUP_EXPIRY_GRACE_MINUTES = 15;
 
-/** One withdrawal request (UC18), same limits as the lead's WITHDRAWAL_LIMITS. */
+/**
+ * Default limits of one withdrawal request (UC18), same as the lead's WITHDRAWAL_LIMITS. The Admin
+ * changes them in System Settings (UC30, withdrawal.minAmount / withdrawal.maxAmount).
+ */
 export const WITHDRAWAL_LIMITS = { MIN_AMOUNT: 50_000, MAX_AMOUNT: 20_000_000 } as const;
 
 /** Withdrawal statuses whose amount is still held in escrow (not paid out, not refunded). */

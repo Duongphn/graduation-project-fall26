@@ -6,7 +6,12 @@ import {
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
 import { disputeRulings } from '../constants/dispute-ruling.js';
-import { type RentalPricing, type RentalRulingSummary } from '../types/rental-order.types.js';
+import {
+  RENTAL_POLICY_FIELDS,
+  type RentalOrderPolicy,
+  type RentalPricing,
+  type RentalRulingSummary,
+} from '../types/rental-order.types.js';
 
 export interface RentalPhoto {
   url: string;
@@ -24,6 +29,8 @@ export interface IRentalOrder {
     endDate: Date;
   };
   pricing: RentalPricing;
+  /** Copy of the System Settings time limits taken at creation (GB-38); missing on older orders */
+  policy?: Partial<RentalOrderPolicy>;
   status: RentalOrderStatus;
   timer?: {
     kind: RentalTimerKind;
@@ -83,6 +90,11 @@ const pricingSchema = new Schema(
   { _id: false },
 );
 
+const policySchema = new Schema(
+  Object.fromEntries(RENTAL_POLICY_FIELDS.map((field) => [field, { type: Number }])),
+  { _id: false },
+);
+
 const rentalOrderSchema = new Schema<IRentalOrder>(
   {
     code: { type: String, required: true },
@@ -94,6 +106,7 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       endDate: { type: Date, required: true },
     },
     pricing: { type: pricingSchema, required: true },
+    policy: { type: policySchema },
     status: {
       type: String,
       required: true,

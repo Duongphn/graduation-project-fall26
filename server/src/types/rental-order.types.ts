@@ -35,6 +35,22 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   disputeReplyHours: 72,
 };
 
+/**
+ * Time limits and the late fee multiplier copied from System Settings onto a rental order when it
+ * is created (R03 I.2.6.2, GB-38): later steps of the order use this copy, not the latest value.
+ */
+export const RENTAL_POLICY_FIELDS = [
+  'ownerResponseHours',
+  'paymentHours',
+  'receiptAutoConfirmHours',
+  'settlementHours',
+  'returnReminderHours',
+  'disputeReplyHours',
+  'lateFeeMultiplier',
+] as const satisfies readonly (keyof RentalSettings)[];
+
+export type RentalOrderPolicy = Pick<RentalSettings, (typeof RENTAL_POLICY_FIELDS)[number]>;
+
 /** Phán quyết khiếu nại lưu trên đơn thuê (UC19). */
 export interface RentalRulingSummary {
   ruling: DisputeRuling;

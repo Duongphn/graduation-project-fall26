@@ -11,6 +11,11 @@ import { withTransaction } from '../repositories/transaction.js';
 import { AppError } from '../utils/app-error.js';
 import { notify } from '../utils/notify.js';
 import {
+  DEFAULT_PURCHASE_SETTINGS,
+  type PurchaseSettings,
+} from '../constants/system-settings.js';
+import { SystemSettingService } from './system-setting.service.js';
+import {
   type ConfirmShippingInput,
   type CreateBuyNowInput,
   type QuotePurchasePricingInput,
@@ -26,6 +31,7 @@ export interface PurchasePricingQuote {
   itemPrice: number;
   shippingFee: number;
   platformFee: number;
+  platformFeeRate: number;
   totalPayable: number;
   sellerNet: number;
 }
@@ -62,9 +68,13 @@ export interface PurchaseOrderDto {
     itemPrice: number;
     shippingFee: number;
     platformFee: number;
+    /** Commission rate kept on the order (GB-38); missing on orders created before UC30 */
+    platformFeeRate?: number | undefined;
     totalPayable: number;
     sellerNet: number;
   };
+  /** Time limits kept on the order (GB-38); missing on orders created before UC30 */
+  policy?: { shipDeadlineHours: number; autoCompleteDays: number } | undefined;
   status: string;
   paidAt?: string | undefined;
   shippedAt?: string | undefined;
@@ -82,25 +92,51 @@ export interface PurchaseOrderDto {
   createdAt: string;
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+
+// Mặc định khi chưa có Cấu hình hệ thống (UC30); Admin đổi được, đơn mới lấy giá trị lúc tạo (GB-38).
 /** Phí giao tận nơi người mua trả; người bán tự gửi qua đơn vị vận chuyển nên nhận lại khoản này */
-export const PURCHASE_SHIPPING_FEE = 30_000;
+export const PURCHASE_SHIPPING_FEE = DEFAULT_PURCHASE_SETTINGS.shippingFee;
 /** Hoa hồng ToyFlow, tính trên giá món, trừ vào tiền người bán nhận */
-export const PURCHASE_PLATFORM_FEE_RATE = 0.05;
+export const PURCHASE_PLATFORM_FEE_RATE = DEFAULT_PURCHASE_SETTINGS.commissionRate;
 /** Người bán phải gửi hàng trong 48 giờ kể từ lúc người mua thanh toán, quá hạn đơn tự huỷ + hoàn tiền */
-export const PURCHASE_SHIP_DEADLINE_MS = 48 * 60 * 60 * 1000;
+export const PURCHASE_SHIP_DEADLINE_MS = DEFAULT_PURCHASE_SETTINGS.shipDeadlineHours * HOUR_MS;
 /** Sau 7 ngày kể từ lúc gửi, nếu người mua không xác nhận hay khiếu nại thì đơn tự hoàn tất */
-export const PURCHASE_AUTO_COMPLETE_MS = 7 * 24 * 60 * 60 * 1000;
+export const PURCHASE_AUTO_COMPLETE_MS = DEFAULT_PURCHASE_SETTINGS.autoCompleteDays * 24 * HOUR_MS;
+
+/** Hạn của đơn (bản sao lúc tạo); đơn tạo trước UC30 không có bản sao thì dùng mặc định cũ */
+const policyOf = (order: Pick<IPurchaseOrder, 'policy'>) => ({
+  shipDeadlineHours: order.policy?.shipDeadlineHours ?? DEFAULT_PURCHASE_SETTINGS.shipDeadlineHours,
+  autoCompleteDays: order.policy?.autoCompleteDays ?? DEFAULT_PURCHASE_SETTINGS.autoCompleteDays,
+});
+
+/** 0.05 → "5%", 0.075 → "7,5%" */
+const ratePercent = (rate: number) =>
+  `${(Math.round(rate * 10_000) / 100).toLocaleString('vi-VN')}%`;
+
+/** Đọc cấu hình mua bán (UC30); test truyền bản giả */
+export interface PurchaseSettingsProvider {
+  getPurchaseSettings(): Promise<PurchaseSettings>;
+}
 /** Người bán tự giao tận tay: không có mã vận đơn (cùng giá trị với ô chọn ở frontend) */
 export const HAND_DELIVERY_CARRIER = 'Giao trực tiếp';
 
-/** Tiền một đơn mua: người mua trả giá món + phí giao; người bán nhận giá món + phí giao − hoa hồng */
-export function computePurchasePricing(itemPrice: number, deliveryMethod: string) {
-  const shippingFee = deliveryMethod === 'LOCAL_PICKUP' ? 0 : PURCHASE_SHIPPING_FEE;
-  const platformFee = Math.round(itemPrice * PURCHASE_PLATFORM_FEE_RATE);
+/**
+ * Tiền một đơn mua: người mua trả giá món + phí giao; người bán nhận giá món + phí giao − hoa hồng.
+ * Hoa hồng và phí giao lấy từ Cấu hình hệ thống lúc tạo đơn và lưu lại trên đơn (GB-38).
+ */
+export function computePurchasePricing(
+  itemPrice: number,
+  deliveryMethod: string,
+  settings: Pick<PurchaseSettings, 'commissionRate' | 'shippingFee'> = DEFAULT_PURCHASE_SETTINGS,
+) {
+  const shippingFee = deliveryMethod === 'LOCAL_PICKUP' ? 0 : settings.shippingFee;
+  const platformFee = Math.round(itemPrice * settings.commissionRate);
   return {
     itemPrice,
     shippingFee,
     platformFee,
+    platformFeeRate: settings.commissionRate,
     totalPayable: itemPrice + shippingFee,
     sellerNet: itemPrice + shippingFee - platformFee,
   };
@@ -123,15 +159,18 @@ export class PurchaseOrderService {
   private readonly ledger: WalletLedgerPort;
   private readonly toyModel: Model<ToyDocument>;
   private readonly purchaseOrderModel: Model<IPurchaseOrder>;
+  private readonly settings: PurchaseSettingsProvider;
 
   public constructor(
     ledger: WalletLedgerPort,
     toyModel: Model<ToyDocument> = Toy as unknown as Model<ToyDocument>,
     purchaseOrderModel: Model<IPurchaseOrder> = PurchaseOrder,
+    settings: PurchaseSettingsProvider = new SystemSettingService(),
   ) {
     this.ledger = ledger;
     this.toyModel = toyModel;
     this.purchaseOrderModel = purchaseOrderModel;
+    this.settings = settings;
   }
 
   /**
@@ -151,7 +190,10 @@ export class PurchaseOrderService {
       throw new AppError(409, 'TOY_OUT_OF_STOCK', 'Món đồ chơi đã được bán hoặc không còn sẵn.');
     }
 
-    const seller = await User.findById(toy.ownerId).select('fullName phone').lean();
+    const [seller, settings] = await Promise.all([
+      User.findById(toy.ownerId).select('fullName phone').lean(),
+      this.settings.getPurchaseSettings(),
+    ]);
 
     return {
       toyId: toy._id.toString(),
@@ -160,7 +202,7 @@ export class PurchaseOrderService {
       sellerId: toy.ownerId.toString(),
       sellerName: seller?.fullName,
       deliveryMethod: input.deliveryMethod,
-      ...computePurchasePricing(toy.priceOrRate, input.deliveryMethod),
+      ...computePurchasePricing(toy.priceOrRate, input.deliveryMethod, settings),
     };
   }
 
@@ -169,6 +211,12 @@ export class PurchaseOrderService {
    */
   public async buyNow(actor: RequestActor, input: CreateBuyNowInput): Promise<PurchaseOrderDto> {
     const now = new Date();
+    // GB-38: hoa hồng, phí giao và các hạn của đơn lấy theo cấu hình lúc tạo đơn và lưu trên đơn
+    const settings = await this.settings.getPurchaseSettings();
+    const policy = {
+      shipDeadlineHours: settings.shipDeadlineHours,
+      autoCompleteDays: settings.autoCompleteDays,
+    };
 
     const result = await withTransaction(async (session: ClientSession) => {
       // 1. Atomic Lock món đồ chơi: chuyển status sang hidden và giảm quantity
@@ -203,7 +251,7 @@ export class PurchaseOrderService {
       }
 
       // 2. Tính toán giá & phí giao
-      const pricing = computePurchasePricing(lockedToy.priceOrRate, input.deliveryMethod);
+      const pricing = computePurchasePricing(lockedToy.priceOrRate, input.deliveryMethod, settings);
       const { totalPayable } = pricing;
 
       // 3. Kiểm tra số dư ví người mua & Lấy ví Escrow
@@ -235,7 +283,7 @@ export class PurchaseOrderService {
       };
 
       // 5. Tạo đơn PurchaseOrder với trạng thái PAID
-      const dueAt = new Date(now.getTime() + PURCHASE_SHIP_DEADLINE_MS);
+      const dueAt = new Date(now.getTime() + policy.shipDeadlineHours * HOUR_MS);
       const createdOrders = await this.purchaseOrderModel.create(
         [
           {
@@ -256,6 +304,7 @@ export class PurchaseOrderService {
               notes: input.notes,
             },
             pricing,
+            policy,
             status: 'PAID',
             paidAt: now,
             timer: { dueAt },
@@ -418,7 +467,7 @@ export class PurchaseOrderService {
       throw new AppError(
         409,
         'SHIP_DEADLINE_PASSED',
-        'Đã quá hạn 48 giờ gửi hàng. Đơn sẽ tự huỷ và hoàn tiền cho người mua.',
+        `Đã quá hạn ${policyOf(order).shipDeadlineHours} giờ gửi hàng. Đơn sẽ tự huỷ và hoàn tiền cho người mua.`,
       );
     }
 
@@ -440,8 +489,10 @@ export class PurchaseOrderService {
       );
     }
 
-    // 7 ngày tự động hoàn tất nếu người mua không bấm xác nhận và không khiếu nại
-    const autoConfirmDueAt = new Date(now.getTime() + PURCHASE_AUTO_COMPLETE_MS);
+    // Hết hạn của đơn (mặc định 7 ngày) mà người mua không xác nhận, không khiếu nại thì tự hoàn tất
+    const autoConfirmDueAt = new Date(
+      now.getTime() + policyOf(order).autoCompleteDays * 24 * HOUR_MS,
+    );
 
     // Chỉ ghi khi đơn vẫn PAID: job hết hạn có thể vừa huỷ đơn sau lần đọc ở trên
     const shipped = await this.purchaseOrderModel.findOneAndUpdate(
@@ -591,7 +642,7 @@ export class PurchaseOrderService {
           { walletId: buyerWallet.id, amount: refund },
         ],
         session,
-        `Hoàn tiền đơn mua đồ chơi #${order.code}: người bán không gửi hàng trong 48 giờ`,
+        `Hoàn tiền đơn mua đồ chơi #${order.code}: người bán không gửi hàng trong ${policyOf(order).shipDeadlineHours} giờ`,
       );
 
       order.status = 'CANCELLED';
@@ -611,18 +662,19 @@ export class PurchaseOrderService {
 
     const link = `/purchases/${cancelled._id.toString()}`;
     const refund = (cancelled.pricing?.totalPayable ?? cancelled.price).toLocaleString('vi-VN');
+    const shipHours = policyOf(cancelled).shipDeadlineHours;
     notify({
       type: 'PURCHASE_ORDER',
       to: [cancelled.buyerId.toString()],
       title: 'Đơn mua đã huỷ - Đã hoàn tiền',
-      body: `Người bán không gửi đơn ${cancelled.code} trong 48 giờ. ToyFlow đã hoàn ${refund} đ vào ví của bạn.`,
+      body: `Người bán không gửi đơn ${cancelled.code} trong ${shipHours} giờ. ToyFlow đã hoàn ${refund} đ vào ví của bạn.`,
       link,
     });
     notify({
       type: 'PURCHASE_ORDER',
       to: [cancelled.sellerId.toString()],
       title: 'Đơn bán đã bị huỷ',
-      body: `Đơn ${cancelled.code} đã tự huỷ vì quá 48 giờ chưa gửi hàng. Tiền đã hoàn cho người mua và tin được mở bán lại.`,
+      body: `Đơn ${cancelled.code} đã tự huỷ vì quá ${shipHours} giờ chưa gửi hàng. Tiền đã hoàn cho người mua và tin được mở bán lại.`,
       link,
     });
     return true;
@@ -642,18 +694,19 @@ export class PurchaseOrderService {
 
     const link = `/purchases/${completed._id.toString()}`;
     const amount = (completed.settlement?.sellerReceived ?? 0).toLocaleString('vi-VN');
+    const days = policyOf(completed).autoCompleteDays;
     notify({
       type: 'PURCHASE_ORDER',
       to: [completed.sellerId.toString()],
       title: 'Đơn hàng tự hoàn tất - Tiền đã vào ví',
-      body: `Đơn ${completed.code} đã quá 7 ngày kể từ khi gửi mà người mua không xác nhận hay khiếu nại. ${amount} đ đã được cộng vào ví của bạn.`,
+      body: `Đơn ${completed.code} đã quá ${days} ngày kể từ khi gửi mà người mua không xác nhận hay khiếu nại. ${amount} đ đã được cộng vào ví của bạn.`,
       link,
     });
     notify({
       type: 'PURCHASE_ORDER',
       to: [completed.buyerId.toString()],
       title: 'Đơn mua đã tự hoàn tất',
-      body: `Đơn ${completed.code} đã tự hoàn tất sau 7 ngày kể từ khi người bán gửi hàng.`,
+      body: `Đơn ${completed.code} đã tự hoàn tất sau ${days} ngày kể từ khi người bán gửi hàng.`,
       link,
     });
     return true;
@@ -695,7 +748,7 @@ export class PurchaseOrderService {
       { kind: 'purchase_order', id: order._id.toString() },
       ledgerEntries,
       session,
-      `Quyết toán đơn mua đồ chơi #${order.code} cho người bán (gồm phí giao, đã trừ phí sàn 5%)`,
+      `Quyết toán đơn mua đồ chơi #${order.code} cho người bán (gồm phí giao, đã trừ phí sàn ${ratePercent(order.pricing?.platformFeeRate ?? PURCHASE_PLATFORM_FEE_RATE)})`,
     );
 
     order.status = 'COMPLETED';
@@ -770,6 +823,12 @@ export class PurchaseOrderService {
         totalPayable: doc.price,
         sellerNet: doc.price,
       },
+      policy: doc.policy
+        ? {
+            shipDeadlineHours: doc.policy.shipDeadlineHours,
+            autoCompleteDays: doc.policy.autoCompleteDays,
+          }
+        : undefined,
       status: doc.status,
       paidAt: doc.paidAt?.toISOString(),
       shippedAt: doc.shippedAt?.toISOString(),
