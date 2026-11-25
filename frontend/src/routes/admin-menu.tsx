@@ -7,6 +7,7 @@ import {
   HistoryOutlined,
   IdcardOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
   TeamOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
@@ -38,4 +39,5 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'violation-reports', label: 'Báo cáo vi phạm', icon: <WarningOutlined />, path: adminPaths.violationReports, pendingCounter: 'violationReports' },
   { key: 'users', label: 'Quản lý người dùng', icon: <TeamOutlined />, path: adminPaths.users },
   { key: 'audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, path: adminPaths.auditLogs },
+  { key: 'settings', label: 'Cấu hình hệ thống', icon: <SettingOutlined />, path: adminPaths.settings },
 ]

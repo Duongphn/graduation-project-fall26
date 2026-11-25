@@ -14,6 +14,7 @@ export const auditAreaLabels: Record<string, string> = {
   report: 'Báo cáo vi phạm',
   chat: 'Tin nhắn',
   wallet: 'Ví',
+  setting: 'Cấu hình hệ thống',
 }
 
 export const auditActionLabels: Record<string, string> = {
@@ -50,6 +51,8 @@ export const auditActionLabels: Record<string, string> = {
   'report.lock': 'Xử lý báo cáo: khóa tài khoản',
   'chat.contact_masked': 'Che thông tin liên hệ trong tin nhắn',
   'wallet.credit': 'Cộng tiền vào ví',
+  'setting.update': 'Thay đổi cấu hình hệ thống',
+  'setting.reset': 'Đặt lại cấu hình mặc định',
 }
 
 export const auditActionLabel = (action: string): string =>
@@ -64,6 +67,7 @@ export const auditTargetLabels: Record<AuditTargetType, string> = {
   USER: 'Tài khoản',
   VIOLATION_REPORT: 'Báo cáo vi phạm',
   MESSAGE: 'Tin nhắn',
+  SYSTEM_SETTING: 'Cấu hình hệ thống',
 }
 
 // Keys of `details`, shown as "label: value".
@@ -83,6 +87,11 @@ export const auditDetailLabels: Record<string, string> = {
   closedWithIt: 'Báo cáo đóng kèm',
   amount: 'Số tiền',
   note: 'Ghi chú',
+  setting: 'Cấu hình',
+  key: 'Mã cấu hình',
+  oldValue: 'Giá trị cũ',
+  newValue: 'Giá trị mới',
+  invalidStored: 'Giá trị lưu sai trước đó',
 }
 
 // `from` / `to` are donation request statuses (the only transition the server logs with them).

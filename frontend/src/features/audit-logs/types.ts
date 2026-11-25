@@ -11,6 +11,7 @@ export type AuditTargetType =
   | 'USER'
   | 'VIOLATION_REPORT'
   | 'MESSAGE'
+  | 'SYSTEM_SETTING'
 
 export interface AuditLogItem {
   id: string
