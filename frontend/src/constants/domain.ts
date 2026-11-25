@@ -117,6 +117,11 @@ export type UnsafeIssue = (typeof unsafeIssues)[number]
 export const reportStatuses = ['pending', 'resolved', 'dismissed'] as const
 export type ReportStatus = (typeof reportStatuses)[number]
 
+// Withdrawal requests (UC18 + Admin process withdrawal). 'approved' is kept for old data: the
+// Admin marks a request completed (money transferred) or rejected (refunded to the wallet).
+export const withdrawalStatuses = ['pending', 'approved', 'completed', 'rejected'] as const
+export type WithdrawalStatus = (typeof withdrawalStatuses)[number]
+
 export const reportActions = ['dismiss', 'remove_listing', 'warn', 'lock'] as const
 export type ReportAction = (typeof reportActions)[number]
 

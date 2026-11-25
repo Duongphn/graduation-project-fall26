@@ -88,6 +88,7 @@ export const adminPaths = {
   users: `${ADMIN_ROOT}/users`,
   user: (id: string) => `${ADMIN_ROOT}/users/${id}`,
   auditLogs: `${ADMIN_ROOT}/audit-logs`,
+  withdrawals: `${ADMIN_ROOT}/withdrawals`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.

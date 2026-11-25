@@ -53,6 +53,8 @@ export const auditActionLabels: Record<string, string> = {
   'report.lock': 'Xử lý báo cáo: khóa tài khoản',
   'chat.contact_masked': 'Che thông tin liên hệ trong tin nhắn',
   'wallet.credit': 'Cộng tiền vào ví',
+  'withdrawal.complete': 'Duyệt lệnh rút tiền (đã chuyển khoản)',
+  'withdrawal.reject': 'Từ chối lệnh rút tiền (hoàn tiền vào ví)',
 }
 
 export const auditActionLabel = (action: string): string =>
@@ -66,6 +68,7 @@ export const auditTargetLabels: Record<AuditTargetType, string> = {
   IDENTITY_VERIFICATION: 'Yêu cầu xác minh',
   USER: 'Tài khoản',
   VIOLATION_REPORT: 'Báo cáo vi phạm',
+  WITHDRAWAL_REQUEST: 'Lệnh rút tiền',
   MESSAGE: 'Tin nhắn',
 }
 

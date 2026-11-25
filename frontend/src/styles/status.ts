@@ -7,6 +7,7 @@ import type {
   ToyStatus,
   UserStatus,
   VisibilityStatus,
+  WithdrawalStatus,
 } from '../constants/domain'
 import { palette } from './palette'
 
@@ -65,6 +66,13 @@ export const statusStyles = {
     resolved: { label: 'Đã xử lý', tone: 'success' },
     dismissed: { label: 'Đã bỏ qua', tone: 'default' },
   },
+  // Withdrawal requests: the Admin transfers the money (completed) or refunds it (rejected).
+  withdrawal: {
+    pending: { label: 'Chờ chuyển khoản', tone: 'warning' },
+    approved: { label: 'Đã duyệt', tone: 'processing' },
+    completed: { label: 'Đã chuyển khoản', tone: 'success' },
+    rejected: { label: 'Đã từ chối', tone: 'error' },
+  },
 } as const satisfies {
   toy: StatusMap<ToyStatus>
   identity: StatusMap<IdentityStatus>
@@ -73,6 +81,7 @@ export const statusStyles = {
   donation: StatusMap<DonationStatus>
   dispute: StatusMap<DisputeStatus>
   report: StatusMap<ReportStatus>
+  withdrawal: StatusMap<WithdrawalStatus>
 }
 
 export type StatusDomain = keyof typeof statusStyles
