@@ -54,7 +54,7 @@ describe('SettingEditModal (UC30 Setting Detail)', () => {
     expect(screen.getByText('Sửa cấu hình: Hạn thanh toán sau khi chủ đồ đồng ý')).toBeInTheDocument()
     expect(screen.getByText(GB38_NOTE)).toBeInTheDocument()
     expect(screen.getByText('6 giờ')).toBeInTheDocument()
-    expect(screen.getByText('1–168 giờ')).toBeInTheDocument()
+    expect(screen.getByText('0,01–168 giờ')).toBeInTheDocument()
     expect(screen.getByText(/Admin Một ·/)).toBeInTheDocument()
     expect(valueInput()).toHaveValue('6')
     // Nothing typed yet: Save is off
@@ -67,9 +67,9 @@ describe('SettingEditModal (UC30 Setting Detail)', () => {
       ['', 'Vui lòng nhập giá trị.'],
       ['   ', 'Vui lòng nhập giá trị.'],
       ['abc', 'Giá trị phải là một số.'],
-      ['1,5', 'Giá trị phải là số nguyên.'],
-      ['0', 'Giá trị phải từ 1 giờ đến 168 giờ.'],
-      ['169', 'Giá trị phải từ 1 giờ đến 168 giờ.'],
+      ['1,555', 'Chỉ nhập tối đa 2 chữ số thập phân.'],
+      ['0', 'Giá trị phải từ 0,01 giờ đến 168 giờ.'],
+      ['169', 'Giá trị phải từ 0,01 giờ đến 168 giờ.'],
       [' 6 ', 'Giá trị mới trùng với giá trị đang áp dụng.'],
     ]
     for (const [text, message] of cases) {

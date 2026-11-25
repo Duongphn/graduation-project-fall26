@@ -75,11 +75,20 @@ describe('parseSettingInput', () => {
     expect(parseSettingInput(rentalFee, '12%')).toEqual(fail('Giá trị phải là một số.'));
   });
 
-  it('wants whole numbers for hours, days, VND and points', () => {
-    expect(parseSettingInput(paymentHours, 1.5)).toEqual(fail('Giá trị phải là số nguyên.'));
-    expect(parseSettingInput(paymentHours, '1,5')).toEqual(fail('Giá trị phải là số nguyên.'));
+  it('wants whole numbers for days, VND and points', () => {
     expect(parseSettingInput(decisionDays, '7.5')).toEqual(fail('Giá trị phải là số nguyên.'));
     expect(parseSettingInput(trustScore, 49.9)).toEqual(fail('Giá trị phải là số nguyên.'));
+  });
+
+  // Staging shortens time limits to minutes (R5.0 II.1): hours take up to 2 decimals from 0.01.
+  it('takes hours with up to two decimals, from 0.01 hour', () => {
+    expect(parseSettingInput(paymentHours, 1.5)).toEqual(ok(1.5));
+    expect(parseSettingInput(paymentHours, ' 0,1 ')).toEqual(ok(0.1));
+    expect(parseSettingInput(paymentHours, '0.04')).toEqual(ok(0.04));
+    expect(parseSettingInput(paymentHours, 0.01)).toEqual(ok(0.01));
+    expect(parseSettingInput(paymentHours, '0,005')).toEqual(
+      fail('Chỉ nhập tối đa 2 chữ số thập phân.'),
+    );
   });
 
   it('allows at most two decimals for rates and the multiplier', () => {
@@ -96,9 +105,14 @@ describe('parseSettingInput', () => {
     expect(parseSettingInput(rentalFee, 50)).toEqual(ok(50));
     expect(parseSettingInput(rentalFee, 50.01)).toEqual(fail('Giá trị phải từ 0% đến 50%.'));
     expect(parseSettingInput(rentalFee, '-1')).toEqual(fail('Giá trị phải từ 0% đến 50%.'));
-    expect(parseSettingInput(paymentHours, 0)).toEqual(fail('Giá trị phải từ 1 giờ đến 168 giờ.'));
+    expect(parseSettingInput(paymentHours, 0)).toEqual(
+      fail('Giá trị phải từ 0,01 giờ đến 168 giờ.'),
+    );
+    expect(parseSettingInput(paymentHours, 168.01)).toEqual(
+      fail('Giá trị phải từ 0,01 giờ đến 168 giờ.'),
+    );
     expect(parseSettingInput(paymentHours, 169)).toEqual(
-      fail('Giá trị phải từ 1 giờ đến 168 giờ.'),
+      fail('Giá trị phải từ 0,01 giờ đến 168 giờ.'),
     );
     expect(parseSettingInput(paymentHours, 168)).toEqual(ok(168));
     expect(parseSettingInput(trustScore, 101)).toEqual(
@@ -128,9 +142,13 @@ describe('stored values', () => {
     expect(readStoredValue(paymentHours, '')).toBeUndefined();
     expect(readStoredValue(paymentHours, 'abc')).toBeUndefined();
     expect(readStoredValue(paymentHours, '0')).toBeUndefined();
-    expect(readStoredValue(paymentHours, '1.5')).toBeUndefined();
+    expect(readStoredValue(paymentHours, '1.5')).toBe(1.5);
+    // the staging shortcut of R5.0 II.1 keeps working; below 0.01 hour falls back to the default
+    expect(readStoredValue(paymentHours, '0.04')).toBe(0.04);
+    expect(readStoredValue(paymentHours, '0.004')).toBeUndefined();
     expect(readStoredValue(rentalFee, '0.6')).toBeUndefined();
     expect(readStoredValue(rentalFee, '-0.1')).toBeUndefined();
+    expect(readStoredValue(decisionDays, '7.5')).toBeUndefined();
     expect(readStoredValue(decisionDays, '7')).toBe(7);
   });
 

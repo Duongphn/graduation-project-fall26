@@ -108,7 +108,9 @@ export const SETTING_KEYS = {
 /** 0.1 → 10 (percent), without floating noise. */
 const toPercent = (fraction: number) => Math.round(fraction * 10_000) / 100;
 
-const HOURS = { unit: 'HOURS', min: 1, max: 168, decimals: 0, scale: 1 } as const;
+// Hours take up to 2 decimals from 0.01 (36 seconds), as develop accepted before UC30: the team
+// shortens time limits on staging to test the scheduled jobs (R5.0 II.1, e.g. 0.1 hour = 6 minutes).
+const HOURS = { unit: 'HOURS', min: 0.01, max: 168, decimals: 2, scale: 1 } as const;
 const PERCENT = { unit: 'PERCENT', min: 0, max: 50, decimals: 2, scale: 100 } as const;
 const DONATION_DAYS = {
   group: 'DONATION',

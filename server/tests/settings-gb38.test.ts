@@ -98,6 +98,17 @@ describe('Rental orders keep the settings they were created with (GB-38)', () =>
     });
   });
 
+  // R5.0 II.1: staging shortens the time limits to minutes to run the scheduled jobs.
+  it('takes fractional hours: 0.1 hour to answer is 6 minutes, 0.04 hour to pay is 2 min 24 s', async () => {
+    await setSettings({ 'rental.ownerResponseHours': '0.1', 'rental.paymentHours': '0.04' });
+    const res = await create('2026-11-05', '2026-11-07');
+    expect(res.status).toBe(201);
+    const order = await RentalOrder.findById(res.body.data.id).lean();
+    expect(order?.policy).toMatchObject({ ownerResponseHours: 0.1, paymentHours: 0.04 });
+    expect(order?.timer?.dueAt?.toISOString()).toBe('2026-11-01T03:06:00.000Z');
+    expect((await accept(res.body.data.id)).body.data.timer.dueAt).toBe('2026-11-01T03:02:24.000Z');
+  });
+
   it('an older order keeps its fee, deadlines and late fee; a new one takes the new values', async () => {
     const older = (await create('2026-11-05', '2026-11-07')).body.data;
     expect(older.pricing).toMatchObject({ platformFeeRate: 0.1, platformFee: 15_000 });
