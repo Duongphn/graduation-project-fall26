@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, BadgeCheck, Check, ChevronRight, Clock, Home, ShieldAlert, UserRound, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { OpenChatButton } from '../features/chat/components/open-chat-button'
 
 import { QueryErrorAlert, ReasonModal } from '../components/common'
 import { profileQuery } from '../features/profile/profile-queries'
@@ -345,6 +346,14 @@ export function RentalRequestDetailPage() {
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
               <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              {(isOwner || isRenter) && (
+                <OpenChatButton
+                  kind="RENTAL_ORDER"
+                  id={order.id}
+                  className="rental-btn rental-btn--ghost rental-detail__chat"
+                  label={isOwner ? 'Nhắn tin với người thuê' : 'Nhắn tin với chủ đồ'}
+                />
+              )}
             </aside>
 
             <div className="rental-detail__main">

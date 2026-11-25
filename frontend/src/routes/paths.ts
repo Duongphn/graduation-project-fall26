@@ -32,6 +32,10 @@ export const PATHS = {
   /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */
   walletPayosCheckout: '/wallet/topup/payos/:code',
   notifications: '/notifications',
+  /** Hộp thư chat (UC25) */
+  chat: '/chat',
+  /** Phòng chat: đúng link máy chủ gửi trong thông báo CHAT_MESSAGE (services/chat.notifications.ts) */
+  chatRoom: '/chat/:conversationId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
@@ -53,7 +57,9 @@ export const myRentalPath = (orderId: string) => PATHS.myRental.replace(':orderI
 
 export const rentalRequestPath = (orderId: string) => PATHS.rentalRequest.replace(':orderId', orderId)
 
-export const myDonationRequestPath = (requestId: string) =>
+export const chatRoomPath = (conversationId: string) => PATHS.chatRoom.replace(':conversationId', conversationId)
+
+export const myDonationRequestPath =(requestId: string) =>
   PATHS.myDonationRequest.replace(':requestId', requestId)
 
 export const myDonationPath = (requestId: string) => PATHS.myDonation.replace(':requestId', requestId)
