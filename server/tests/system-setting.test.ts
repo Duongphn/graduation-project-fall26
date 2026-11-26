@@ -50,6 +50,8 @@ describe('SystemSettingService', () => {
     await SystemSetting.create([{ key: 'purchase.sellerResponseHours', value: '6' }]);
     const t = await new SystemSettingService().getNumbers('purchase', DEFAULT_PURCHASE_TIMINGS);
     expect(t).toEqual({ sellerResponseHours: 6, buyerAutoCompleteHours: 72 });
+  });
+
   it('reads the GB-57 donation time limits, 14 days by default (UC30)', async () => {
     expect(await new SystemSettingService().getDonationSettings()).toEqual(
       DEFAULT_DONATION_SETTINGS,

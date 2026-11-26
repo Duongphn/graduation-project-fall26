@@ -63,10 +63,6 @@ export function validateRejectRentalInput(body: unknown): { reason: string } {
   return { reason: trimmed };
 }
 
-export function validateRentalListQuery(
-  query: unknown,
-  actorRole?: string,
-): RentalListQuery {
 export function validateCancelRentalInput(body: unknown): { reason: string } {
   if (typeof body !== 'object' || body === null) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ.');
@@ -85,14 +81,10 @@ export function validateCancelRentalInput(body: unknown): { reason: string } {
   return { reason: trimmed };
 }
 
-export interface RentalListQuery {
-  role: 'renter' | 'owner';
-  status?: RentalOrderStatus | undefined;
-  page: number;
-  limit: number;
-}
-
-export function validateRentalListQuery(query: unknown): RentalListQuery {
+export function validateRentalListQuery(
+  query: unknown,
+  actorRole?: string,
+): RentalListQuery {
   if (typeof query !== 'object' || query === null) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Query không hợp lệ.');
   }

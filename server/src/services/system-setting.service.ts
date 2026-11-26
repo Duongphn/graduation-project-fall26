@@ -21,23 +21,6 @@ export class SystemSettingService {
   ): Promise<T> {
     const keys = Object.keys(defaults) as (keyof T)[];
     const dbKeys = keys.map((k) => `${prefix}.${String(k)}`);
-  public async getRentalSettings(): Promise<RentalSettings> {
-    const keys: (keyof RentalSettings)[] = [
-      'ownerResponseHours',
-      'paymentHours',
-      'receiptAutoConfirmHours',
-      'settlementHours',
-      'returnReminderHours',
-      'platformFeeRate',
-      'lateFeeMultiplier',
-      'minTrustScore',
-      'trustDepositLimit',
-      'maxDays',
-      'bookingWindowDays',
-      'disputeReplyHours',
-    ];
-
-    const dbKeys = keys.map((k) => `rental.${k}`);
     const rows = await this.model.find({ key: { $in: dbKeys } }).lean();
 
     const rowMap = new Map<string, string>();
@@ -68,6 +51,8 @@ export class SystemSettingService {
       cancelFeeRate: 1,
       platformFeeRate: 1,
     });
+  }
+
   /**
    * GB-57 donation time limits (UC30): DONATION_DECISION_DAYS, DONATION_HANDOVER_DAYS and
    * DONATION_CONFIRM_DAYS. A missing value, or one that is not a whole number of days from 1,

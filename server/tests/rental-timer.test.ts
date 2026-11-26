@@ -1,7 +1,5 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { OrderStatusHistory, RentalOrder, Wallet } from '../src/models/index.js';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OrderStatusHistory, RentalOrder, SystemSetting, Wallet } from '../src/models/index.js';
 import {
   authHeader,

@@ -1,11 +1,9 @@
-import mongoose, { type HydratedDocument, Types } from 'mongoose';
+import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
 import {
   SYSTEM_ACTOR_ID,
   type RentalOrderStatus,
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
-import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
-import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 import { type LedgerEntry } from '../interfaces/wallet.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
@@ -31,7 +29,6 @@ import {
 } from './rental-order.mapper.js';
 import { computeFinancialBreakdown } from './rental-financial-breakdown.js';
 import { notificationLinks } from './notification.links.js';
-import { toRentalOrderDto } from './rental-order.mapper.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
 import {
   type RentalHistoryEntryDto,

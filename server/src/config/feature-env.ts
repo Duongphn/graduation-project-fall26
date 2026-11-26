@@ -31,6 +31,7 @@ export const featureEnv = Object.freeze({
         process.env.ORDER_TIMERS_JOB_ENABLED !== 'false' &&
         process.env.RENTAL_SCHEDULER_ENABLED !== 'false',
       intervalMinutes: positiveNumber('ORDER_TIMERS_JOB_INTERVAL_MINUTES', 1),
+    },
     // Checks PayOS top-ups still pending after their link expired: credited if paid, else failed (UC17).
     paymentExpiry: {
       enabled: env.nodeEnv !== 'test' && process.env.PAYMENT_EXPIRY_JOB_ENABLED !== 'false',
