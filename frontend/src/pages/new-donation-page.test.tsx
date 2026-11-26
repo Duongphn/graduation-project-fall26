@@ -348,4 +348,17 @@ describe('NewDonationPage', () => {
     expect(await screen.findByRole('button', { name: 'Xác nhận & tạo phiếu quyên góp' })).toBeInTheDocument()
     expect(screen.queryByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeNull()
   })
+
+  // E2E 26/11 #15: the photo hint gives the GB-10 minimum of the donation form (3), not 1.
+  it('tells the donor to add from 3 to 10 photos', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/categories') return { data: [WOOD] }
+      if (url === '/users/profile') return { data: { success: true, data: { id: 'u1', verificationStatus: 'verified' } } }
+      throw httpError(404, 'NOT_FOUND', 'Not found')
+    })
+    renderPage()
+
+    expect(await screen.findByText(/từ 3 đến 10 ảnh/)).toBeInTheDocument()
+    expect(screen.queryByText(/từ 1 đến 10 ảnh/)).toBeNull()
+  })
 })
