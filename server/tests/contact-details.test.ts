@@ -18,8 +18,21 @@ describe('GB-11 contact details', () => {
       'Gọi +84 912 345 678',
       'Gọi +84912345678',
       'Máy bàn 024 3826 1234',
+      // E2E 26/11 #10: several spaces, dots or dashes between the groups.
+      'Gọi 0912  345  678',
+      'Gọi 0912 - 345 - 678',
+      'Gọi +84 . 912 . 345 . 678',
+      'Năm 2023 - 0912 - 345 - 678',
     ]) {
       expect(hasBlockedContactDetails(text), text).toBe(true);
+    }
+  });
+
+  it('warns the Admin about a phone split by wide gaps, not about prices or dates', () => {
+    expect(findContactDetails('Liên hệ 0912 -- 345 -- 678').phone).toBe(true);
+    for (const text of ['Giá 84.000 - 120.000đ', 'Thuê 18-11-2026 - 25-11-2026', 'Giờ 08.30 - 10.30 - 12']) {
+      expect(findContactDetails(text), text).toEqual({ phone: false, bankAccount: false, link: false });
+      expect(hasBlockedContactDetails(text), text).toBe(false);
     }
   });
 
