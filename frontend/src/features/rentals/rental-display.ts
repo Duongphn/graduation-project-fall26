@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
+import type { RentalGroup, RentalOrder, RentalStatus } from './rental-orders-api'
 import type { RentalOrder, RentalRole, RentalStatus } from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
@@ -17,6 +18,15 @@ export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wa
   DISPUTING: { label: 'Đang khiếu nại', tone: 'alert' },
 }
 
+/** Nhãn bộ lọc theo nhóm trạng thái; nhóm gom nhiều trạng thái ở server (vd. Đang diễn ra = ACCEPTED…RETURNING) */
+export const RENTAL_GROUP_LABELS: Record<RentalGroup, string> = {
+  all: 'Tất cả',
+  pending: 'Chờ duyệt',
+  active: 'Đang diễn ra',
+  completed: 'Hoàn tất',
+  cancelled: 'Đã huỷ',
+  disputed: 'Tranh chấp',
+}
 /** Bộ lọc của chủ đồ: các bước cần chú ý trước, sau đó là kết cục */
 export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'PENDING',

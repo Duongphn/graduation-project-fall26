@@ -138,7 +138,7 @@ describe('UC07: Owner Review, List, Detail and History', () => {
     expect(errorOf(second).code).toBe('INVALID_RENTAL_TRANSITION');
   });
 
-  it('owner detail shows renter trust, renter detail does not', async () => {
+  it('owner and renter detail show party trust profiles', async () => {
     const ownerView = await request(app).get(`/api/v1/rentals/${orderId}`).set(ownerAuth);
     expect(ownerView.status).toBe(200);
     expect(unwrap(ownerView).renter).toMatchObject({
@@ -149,7 +149,11 @@ describe('UC07: Owner Review, List, Detail and History', () => {
 
     const renterView = await request(app).get(`/api/v1/rentals/${orderId}`).set(renterAuth);
     expect(renterView.status).toBe(200);
-    expect(unwrap(renterView).renter).toBeUndefined();
+    expect(unwrap(renterView).renter).toMatchObject({
+      fullName: 'Toy Renter',
+      trustScore: 80,
+      verified: true,
+    });
   });
 
   it('list filters by role and status', async () => {

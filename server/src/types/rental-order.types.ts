@@ -1,3 +1,8 @@
+import {
+  rentalOrderStatuses,
+  type RentalOrderStatus,
+  type RentalTimerKind,
+} from '../constants/rental-order-status.js';
 import { type DisputeRuling } from '../constants/dispute-ruling.js';
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
@@ -116,13 +121,190 @@ export interface RentalOrderDto {
   updatedAt: Date;
 }
 
-export interface RentalOrderDetailDto extends RentalOrderDto {
-  renter?: {
-    fullName: string;
-    avatar?: string | undefined;
-    trustScore?: number | undefined;
-    verified: boolean;
-  } | undefined;
+export type RentalStatusGroup =
+  | 'all'
+  | 'pending'
+  | 'active'
+  | 'completed'
+  | 'cancelled'
+  | 'disputed';
+
+export const STATUS_GROUP_MAP: Record<RentalStatusGroup, readonly RentalOrderStatus[]> = {
+  all: [...rentalOrderStatuses],
+  pending: ['PENDING'],
+  active: ['ACCEPTED', 'PAID', 'SHIPPING', 'IN_USE', 'RETURNING'],
+  completed: ['COMPLETED'],
+  cancelled: ['CANCELLED', 'REJECTED', 'EXPIRED'],
+  disputed: ['DISPUTING'],
+} as const;
+
+export interface RentalToySummaryDto {
+  id: string;
+  name: string;
+  slug: string;
+  primaryImage?: string | undefined;
+  images?: ToyImage[] | undefined;
+  dailyRate: number;
+  depositAmount: number;
+}
+
+export interface RentalCounterpartDto {
+  id: string;
+  fullName: string;
+  avatar?: string | undefined;
+  trustScore?: number | undefined;
+  verified: boolean;
+  role: 'renter' | 'owner';
+}
+
+export interface RentalPartyProfileDto {
+  id?: string | undefined;
+  fullName: string;
+  avatar?: string | undefined;
+  trustScore?: number | undefined;
+  verified: boolean;
+  role?: 'renter' | 'owner' | undefined;
+}
+
+export interface RentalTimelineActorDto {
+  id: string | null;
+  name: string;
+  role: string;
+  isSystem: boolean;
+}
+
+export interface RentalTimelineEntryDto {
+  oldStatus?: RentalOrderStatus | null | undefined;
+  newStatus: RentalOrderStatus;
+  changedBy: RentalTimelineActorDto;
+  notes?: string | undefined;
+  occurredAt: Date;
+}
+
+export type RentalSettlementStatus =
+  | 'PENDING_PAYMENT'
+  | 'HELD_IN_ESCROW'
+  | 'SETTLED'
+  | 'REFUNDED'
+  | 'DISPUTED'
+  | 'CANCELLED';
+
+export type RentalPayoutStatus =
+  | 'WAITING_PAYMENT'
+  | 'ESCROW_HELD'
+  | 'PAID_OUT'
+  | 'CANCELLED'
+  | 'DISPUTED';
+
+export interface RenterFinancialItemsDto {
+  rentalFee: number;
+  depositPaid: number;
+  lateFee: number;
+  depositRefunded: number;
+  totalActualCost: number;
+}
+
+export interface OwnerFinancialItemsDto {
+  grossRentalFee: number;
+  platformFeeRate: number;
+  platformFee: number;
+  lateCompensation: number;
+  netEarnings: number;
+}
+
+export interface AdminFinancialItemsDto {
+  rentalFee: number;
+  depositPaid: number;
+  lateFee: number;
+  depositRefunded: number;
+  totalActualCost: number;
+  grossRentalFee: number;
+  platformFeeRate: number;
+  platformFee: number;
+  lateCompensation: number;
+  netEarnings: number;
+  escrowBalance?: number | undefined;
+  platformRevenue?: number | undefined;
+  renter?: RenterFinancialItemsDto | undefined;
+  owner?: OwnerFinancialItemsDto | undefined;
+}
+
+export interface FinancialBreakdownSummaryDto {
+  status: string;
+  description: string;
+}
+
+export interface RenterFinancialBreakdownDto {
+  role: 'renter';
+  currency: string;
+  isEstimated: boolean;
+  settlementStatus: RentalSettlementStatus;
+  items: RenterFinancialItemsDto;
+  summary: FinancialBreakdownSummaryDto;
+}
+
+export interface OwnerFinancialBreakdownDto {
+  role: 'owner';
+  currency: string;
+  isEstimated: boolean;
+  payoutStatus: RentalPayoutStatus;
+  items: OwnerFinancialItemsDto;
+  summary: FinancialBreakdownSummaryDto;
+}
+
+export interface AdminFinancialBreakdownDto {
+  role: 'admin';
+  currency: string;
+  isEstimated: boolean;
+  settlementStatus?: RentalSettlementStatus | undefined;
+  payoutStatus?: RentalPayoutStatus | undefined;
+  items: AdminFinancialItemsDto;
+  renter?: RenterFinancialBreakdownDto | undefined;
+  owner?: OwnerFinancialBreakdownDto | undefined;
+  platformRevenue?: number | undefined;
+  summary: FinancialBreakdownSummaryDto;
+}
+
+export type RentalFinancialBreakdownDto =
+  | RenterFinancialBreakdownDto
+  | OwnerFinancialBreakdownDto
+  | AdminFinancialBreakdownDto;
+
+export interface RentalOrderItemPricingDto {
+  days: number;
+  dailyRate: number;
+  rentalFee: number;
+  depositAmount: number;
+  totalPayable: number;
+  platformFeeRate?: number | undefined;
+  platformFee?: number | undefined;
+}
+
+export interface RentalOrderItemDto {
+  id: string;
+  code: string;
+  role: 'renter' | 'owner' | 'admin';
+  status: RentalOrderStatus;
+  period: DateRange;
+  pricing: RentalOrderItemPricingDto;
+  toy?: RentalToySummaryDto | undefined;
+  counterpart?: RentalCounterpartDto | undefined;
+  // Admin xem đơn mình không tham gia thì không có counterpart mà có cả hai bên
+  renter?: RentalCounterpartDto | undefined;
+  owner?: RentalCounterpartDto | undefined;
+  timer?: { kind: RentalTimerKind; dueAt: Date } | undefined;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RentalOrderDetailDto extends Omit<RentalOrderDto, 'pricing'> {
+  // Người thuê không nhận platformFee/platformFeeRate
+  pricing: RentalOrderItemPricingDto;
+  renter?: RentalPartyProfileDto | undefined;
+  owner?: RentalPartyProfileDto | undefined;
+  toy?: RentalToySummaryDto | undefined;
+  timeline?: RentalTimelineEntryDto[] | undefined;
+  financialBreakdown?: RentalFinancialBreakdownDto | undefined;
 }
 
 export interface RentalHistoryEntryDto {
@@ -138,4 +320,12 @@ export interface RentalQuoteDto {
   pricing: RentalPricing;
   conflicts: DateRange[];
   suggestion?: DateRange | null | undefined;
+}
+
+export interface RentalListQuery {
+  role?: 'renter' | 'owner' | 'all' | undefined;
+  status?: RentalOrderStatus | RentalOrderStatus[] | undefined;
+  group?: RentalStatusGroup | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
 }
