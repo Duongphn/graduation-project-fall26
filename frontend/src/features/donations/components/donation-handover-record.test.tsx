@@ -17,6 +17,8 @@ const base: DonationRequestDetail = {
   trackingCode: null,
   receipt: null,
   dueAt: null,
+  confirmDueAt: null,
+  overdue: false,
   toy: null,
   donor: null,
   requester: null,

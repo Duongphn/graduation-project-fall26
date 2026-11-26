@@ -103,6 +103,8 @@ export interface RentalToySummary {
   primaryImage?: string
   dailyRate: number
   depositAmount: number
+}
+
 /** Có khi đơn bị huỷ (UC14): ai huỷ, lý do và phí huỷ người thuê bị trừ (0 khi được hoàn 100%) */
 export interface RentalCancellation {
   by: 'RENTER' | 'OWNER'
@@ -110,6 +112,8 @@ export interface RentalCancellation {
   reason: string
   fee: number
   cancelledAt: string
+}
+
 export type DisputeRuling = 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT' | 'UNDETERMINED' | 'FAIR_WEAR_AND_TEAR'
 
 export interface RentalRulingSummary {
@@ -125,14 +129,13 @@ export interface RentalRulingSummary {
   resolvedAt: string
 }
 
-/** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
-export interface RentalOrderDetail extends RentalOrder {
-  renter?: {
-    fullName: string
-    avatar?: string
-    trustScore?: number
-    verified: boolean
-  }
+/** Một mốc lịch sử đơn trong hồ sơ khiếu nại (API Admin): changedBy là id người thao tác */
+export interface RentalHistoryEntry {
+  oldStatus?: RentalStatus
+  newStatus: RentalStatus
+  changedBy: string
+  notes?: string
+  occurredAt: string
 }
 
 /** Một mốc trong lịch sử đơn; changedBy.isSystem khi hệ thống tự chuyển (hết hạn, tự xác nhận…) */
@@ -414,6 +417,7 @@ export const useRentalSettle = (orderId: string) => {
     invalidateOnConflict: true,
     onError,
   })
+}
 
 /**
  * Huỷ đơn (POST /:id/cancel, lý do 5–500 ký tự). Sau đó tải lại đơn, ví (tiền hoàn) và lịch trống của
@@ -433,12 +437,6 @@ export const useRentalCancel = (orderId: string, toyId: string | undefined, onSu
     invalidateOnConflict: true,
     onSuccess,
   })
-
-/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
-export interface WalletSummary {
-  balance: number
-  currency: string
-}
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) — dùng chung với màn hình Ví */
 export { myWalletQuery, walletKeys }
