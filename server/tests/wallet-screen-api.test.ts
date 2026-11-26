@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
-import { RentalOrder } from '../src/models/index.js';
+import { RentalOrder, Wallet, WalletTransaction } from '../src/models/index.js';
 import { withTransaction } from '../src/repositories/transaction.js';
 import { WalletLedgerRepository } from '../src/repositories/wallet-ledger.repository.js';
 import { authHeader, createUser, fund } from './helpers/rental-fixtures.js';
@@ -190,6 +190,46 @@ describe('Wallet screen API', () => {
       .get(`/api/v1/wallets/me/transactions?startDate=${today}&endDate=2000-01-01`)
       .set(authHeader(userId));
     expect(reversed.status).toBe(400);
+  });
+
+  // E2E 26/11 bug 8: the dates are days in Viet Nam (UTC+7) and the end day is included
+  it('filters by calendar day in Viet Nam, both days included', async () => {
+    const instants = [
+      '2026-11-25T16:59:59.999Z', // 25/11 23:59:59.999 in Viet Nam
+      '2026-11-25T17:00:00.000Z', // 26/11 00:00
+      '2026-11-26T09:00:00.000Z', // 26/11 16:00
+      '2026-11-26T16:59:59.999Z', // 26/11 23:59:59.999
+      '2026-11-26T17:00:00.000Z', // 27/11 00:00
+    ];
+    for (let i = 0; i < instants.length; i += 1) await fund(userId, 10_000 * (i + 1));
+    const wallet = await Wallet.findOne({ userId: new mongoose.Types.ObjectId(userId) }).lean();
+    const rows = await WalletTransaction.find({ walletId: wallet!._id }).sort({ _id: 1 }).lean();
+    expect(rows).toHaveLength(instants.length);
+    // Raw driver update: createdAt is immutable through mongoose
+    await Promise.all(
+      rows.map((row, i) =>
+        WalletTransaction.collection.updateOne(
+          { _id: row._id },
+          { $set: { createdAt: new Date(instants[i]!) } },
+        ),
+      ),
+    );
+
+    const amounts = async (query: string) => {
+      const res = await request(app)
+        .get(`/api/v1/wallets/me/transactions?${query}`)
+        .set(authHeader(userId));
+      expect(res.status).toBe(200);
+      return (res.body.data.items as Array<{ amount: number }>).map((t) => t.amount).sort((a, b) => a - b);
+    };
+
+    expect(await amounts('startDate=2026-11-26&endDate=2026-11-26')).toEqual([20_000, 30_000, 40_000]);
+    expect(await amounts('startDate=2026-11-25&endDate=2026-11-25')).toEqual([10_000]);
+    expect(await amounts('endDate=2026-11-25')).toEqual([10_000]);
+    expect(await amounts('startDate=2026-11-27')).toEqual([50_000]);
+    expect(await amounts('startDate=2026-11-25&endDate=2026-11-27')).toEqual([
+      10_000, 20_000, 30_000, 40_000, 50_000,
+    ]);
   });
 
   it('only shows the signed-in user’s own transactions', async () => {
