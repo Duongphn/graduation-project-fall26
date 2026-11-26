@@ -16,7 +16,7 @@ import { myDonationQuery, useMyDonationActions } from '../features/donations/don
 import { formatDateTime } from '../features/donations/format'
 import type { DonationRequestDetail } from '../features/donations/types'
 import { profileQuery } from '../features/profile/profile-queries'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
 
 /** Tên bên nhận: tổ chức (phiếu do Admin tạo thay tổ chức) hoặc người dùng đăng ký nhận */
@@ -40,8 +40,8 @@ export function MyDonationDetailPage() {
   const canCancel = isDonor && (request?.status === 'pending' || request?.status === 'accepted')
 
   return (
-    <SiteLayout>
-      <div className="home-container py-6 sm:py-8">
+    <AccountLayout activeItem="donations">
+      <div className="py-6 sm:py-8">
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-xs text-tf-ink-muted">
           <Link to={PATHS.home} className="inline-flex shrink-0 items-center gap-1 hover:text-tf-primary">
             <Home className="size-3.5" aria-hidden /> Trang chủ
@@ -154,6 +154,6 @@ export function MyDonationDetailPage() {
           </>
         )}
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }

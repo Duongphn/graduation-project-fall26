@@ -19,9 +19,9 @@ vi.mock('../services/http-client', async (importOriginal) => ({
 
 vi.mock('../services/current-role', () => ({ getCurrentRole: vi.fn(() => 'USER') }))
 
-// The site header and footer (theme, account, notifications) are not part of this list.
-vi.mock('../layouts/site/site-layout', () => ({
-  SiteLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
+// The account sidebar (menu, sign-out, theme) is not part of this list.
+vi.mock('../layouts/account/account-layout', () => ({
+  AccountLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
 const get = vi.mocked(httpClient.get)

@@ -12,7 +12,7 @@ import { DonationToyCard } from '../features/donations/components/donation-toy-c
 import { DonorContactCard } from '../features/donations/components/donor-contact-card'
 import { formatDateTime } from '../features/donations/format'
 import { myRequestQuery, useMyRequestActions } from '../features/donations/receiver-queries'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
 
 /** Bên nhận xem yêu cầu nhận đồ: tiến trình, liên hệ người tặng, huỷ, xác nhận đã nhận kèm ảnh */
@@ -30,8 +30,8 @@ export function MyDonationRequestDetailPage() {
   const canCancel = request?.status === 'pending' || request?.status === 'accepted'
 
   return (
-    <SiteLayout>
-      <div className="home-container py-6 sm:py-8">
+    <AccountLayout activeItem="donationRequests">
+      <div>
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-xs text-tf-ink-muted">
           <Link to={PATHS.home} className="inline-flex shrink-0 items-center gap-1 hover:text-tf-primary">
             <Home className="size-3.5" aria-hidden /> Trang chủ
@@ -124,6 +124,6 @@ export function MyDonationRequestDetailPage() {
           </>
         )}
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }

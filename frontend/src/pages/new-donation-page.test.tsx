@@ -18,9 +18,9 @@ vi.mock('../services/http-client', async (importOriginal) => ({
   httpClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }))
 
-// The site header and footer (theme, account, notifications) are not part of this form.
-vi.mock('../layouts/site/site-layout', () => ({
-  SiteLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
+// The account sidebar (menu, sign-out, theme) is not part of this form.
+vi.mock('../layouts/account/account-layout', () => ({
+  AccountLayout: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
 const get = vi.mocked(httpClient.get)

@@ -1,12 +1,12 @@
 import { Tag } from 'lucide-react'
-import { browseToysPath, PATHS } from '../../../routes/paths'
+import { browseToysPath, PATHS, RESALE_TOYS_ANCHOR } from '../../../routes/paths'
 import { SectionHeader } from '../components/section-header'
 import { ToyGrid } from '../components/toy-grid'
 import { resaleToysQuery } from '../home-queries'
 
 export function ResaleSection() {
   return (
-    <section className="home-container mt-6 sm:mt-8" aria-labelledby="home-resale-title">
+    <section id={RESALE_TOYS_ANCHOR} className="home-container mt-6 scroll-mt-24 sm:mt-8" aria-labelledby="home-resale-title">
       <SectionHeader
         id="home-resale-title"
         title="Đồ cũ bán lại"

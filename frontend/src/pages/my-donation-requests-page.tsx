@@ -13,7 +13,7 @@ import {
 import { formatDateTime } from '../features/donations/format'
 import { myRequestsQuery } from '../features/donations/receiver-queries'
 import type { DonationRequest } from '../features/donations/types'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { DONATE_TOYS_ANCHOR, myDonationRequestPath, PATHS } from '../routes/paths'
 
 const donateToysLink = `${PATHS.home}#${DONATE_TOYS_ANCHOR}`
@@ -64,8 +64,8 @@ export function MyDonationRequestsPage() {
   }, [])
 
   return (
-    <SiteLayout>
-      <div className="home-container py-6 sm:py-8">
+    <AccountLayout activeItem="donationRequests">
+      <div>
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-tf-ink-muted">
           <Link to={PATHS.home} className="inline-flex items-center gap-1 hover:text-tf-primary">
             <Home className="size-3.5" aria-hidden /> Trang chủ
@@ -143,6 +143,6 @@ export function MyDonationRequestsPage() {
           )}
         </section>
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }

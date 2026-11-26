@@ -42,14 +42,19 @@ export const PATHS = {
   purchaseOrder: '/purchases/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
-  // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
+  // Menu "Thuê đồ chơi", "Mua lại", "Quyên góp": cuộn tới mục tương ứng ngay trên trang chủ, không sang trang
+  // khác (trang /toys vẫn mở qua "Xem tất cả" của từng mục; /donations là trang của người tặng, cần đăng nhập)
+  rentToys: '/#do-choi-cho-thue',
+  resaleToys: '/#do-choi-mua-lai',
   donations: '/#do-choi-quyen-gop',
   favorites: '/favorites',
   aiAdvisor: '/ai-advisor',
   help: '/help',
 } as const
 
-/** Mục "Đồ chơi quyên góp" trên trang chủ (/#do-choi-quyen-gop) */
+/** Neo các mục trên trang chủ mà menu chính trỏ tới */
+export const RENT_TOYS_ANCHOR = 'do-choi-cho-thue'
+export const RESALE_TOYS_ANCHOR = 'do-choi-mua-lai'
 export const DONATE_TOYS_ANCHOR = 'do-choi-quyen-gop'
 
 export const toyListingEditPath = (toyId: string) => PATHS.editListing.replace(':toyId', toyId)

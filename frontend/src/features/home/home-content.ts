@@ -105,8 +105,8 @@ export interface NavItem {
 }
 
 export const SITE_NAV: NavItem[] = [
-  { label: 'Thuê đồ chơi', to: browseToysPath({ type: 'rent' }) },
-  { label: 'Mua lại', to: browseToysPath({ type: 'sell' }) },
+  { label: 'Thuê đồ chơi', to: PATHS.rentToys },
+  { label: 'Mua lại', to: PATHS.resaleToys },
   { label: 'Quyên góp', to: PATHS.donations },
 ]
 

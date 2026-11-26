@@ -20,7 +20,7 @@ export function HomePage() {
     document.title = 'ToyFlow - Thuê, mua lại và quyên góp đồ chơi'
   }, [])
 
-  // Mục "Trợ lý AI" trên header trỏ tới "/#tro-ly-ai"
+  // Menu header trỏ tới các mục trên trang chủ: thuê, mua lại, quyên góp, trợ lý AI ("/#...")
   useScrollToHash()
 
   return (

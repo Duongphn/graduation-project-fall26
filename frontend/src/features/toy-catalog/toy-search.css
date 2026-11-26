@@ -1,98 +1,212 @@
 @layer components {
   /*
-   * Trang tìm đồ chơi (/toys), nằm trong AccountLayout như trang Đăng tin.
-   * Token --pl-* khai báo ở layouts/public/public-layout.css (selector .catalog-page).
+   * Trang Tìm đồ chơi (/toys) trong khung trang chủ (SiteLayout).
+   * Token --pl-* khai báo ở layouts/public/public-layout.css (selector .catalog-page), cả dark mode.
    */
 
   html:has(.filter-drawer[open]) {
     overflow: hidden;
   }
 
-  /*
-   * Thanh công cụ dùng .listings-toolbar của "Tin đăng của tôi": tab loại tin bên trái, ô tìm bên phải (từ 1280px),
-   * xếp dọc trên màn hẹp.
-   */
-  /* .tf-btn mặc định rộng 100%: trong thẻ đầu trang chỉ cần vừa nội dung */
-  .catalog-head__post {
-    flex: none;
-    align-self: flex-start;
+  /* ---------- Đầu trang: tiêu đề + ô tìm cùng hàng ---------- */
+
+  .catalog-hero {
+    display: grid;
+    gap: 16px;
+    margin-top: 14px;
   }
 
-  @media (min-width: 768px) {
-    .catalog-head__post {
-      align-self: center;
-    }
+  .catalog-hero__title {
+    font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--pl-ink);
   }
 
-  .catalog-toolbar {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  .catalog-hero__lead {
+    margin-top: 4px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--pl-muted);
   }
 
-  .catalog-toolbar .catalog-search {
-    min-width: 0;
-  }
-
-  .status-tab.is-unavailable {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
-
-  .status-tab.is-unavailable:hover {
-    background: none;
-    color: var(--color-tf-ink-muted);
-  }
-
+  /* Ô tìm dạng viên thuốc: icon + ô nhập + nút trong một khung, như ô tìm trên hero trang chủ */
   .catalog-search {
+    position: relative;
     display: flex;
-    gap: 8px;
+    align-items: center;
+    height: 52px;
+    padding: 5px;
+    border: 1px solid var(--pl-rule-strong);
+    border-radius: 999px;
+    background: var(--pl-paper);
+    transition:
+      border-color var(--dur-fast) var(--ease-out-quint),
+      box-shadow var(--dur-fast) var(--ease-out-quint);
   }
 
-  .catalog-search__field {
-    position: relative;
-    flex: 1;
-    min-width: 0;
+  .catalog-search:focus-within {
+    border-color: var(--pl-navy);
+    box-shadow: 0 0 0 3px var(--pl-navy-soft);
   }
 
   .catalog-search__icon {
-    position: absolute;
-    left: 16px;
-    top: 50%;
+    flex: none;
     width: 18px;
     height: 18px;
+    margin-inline: 12px 8px;
     color: var(--pl-muted);
-    transform: translateY(-50%);
     pointer-events: none;
   }
 
-  /* Ô tìm dùng .tf-input, chỉ chừa chỗ cho icon kính lúp; cao bằng tab bên cạnh */
-  .catalog-search .tf-input {
-    height: 40px;
-    padding-block: 0;
-    padding-left: 40px;
+  /* 16px trở lên để Safari iOS không tự phóng to khi chạm vào ô */
+  .catalog-search__input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    font-size: 16px;
+    color: var(--pl-ink);
+    outline: none;
   }
 
-  .catalog-search__icon {
-    left: 14px;
+  .catalog-search__input::placeholder {
+    color: var(--pl-muted);
   }
 
   .catalog-search__submit {
-    height: 40px;
-    padding-inline: 18px;
+    flex: none;
+    height: 100%;
+    padding-inline: 22px;
+    border-radius: 999px;
+    background: var(--pl-navy);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--pl-on-navy);
+    transition: background-color var(--dur-fast) var(--ease-out-quint);
   }
 
-  /* ---------- Bố cục sidebar + kết quả ---------- */
+  /* ---------- Hàng lọc nhanh: loại tin + độ tuổi ---------- */
+
+  .catalog-quick {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--pl-rule);
+  }
+
+  /* Loại tin: nút chia đoạn, cuộn ngang trên màn hẹp thay vì xuống dòng */
+  .type-switch {
+    display: flex;
+    gap: 4px;
+    width: max-content;
+    max-width: 100%;
+    padding: 4px;
+    overflow-x: auto;
+    border-radius: 999px;
+    background: var(--pl-sunken);
+    scrollbar-width: none;
+  }
+
+  .type-switch__option {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    padding-inline: 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--pl-muted);
+    transition:
+      background-color var(--dur-fast) var(--ease-out-quint),
+      color var(--dur-fast) var(--ease-out-quint);
+  }
+
+  .type-switch__option[aria-current='page'] {
+    background: var(--pl-paper);
+    color: var(--pl-navy);
+    box-shadow:
+      0 1px 2px rgb(18 23 31 / 0.08),
+      0 0 0 1px var(--pl-rule);
+  }
+
+  .type-switch__option svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .age-chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .age-chips__label {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--pl-ink);
+  }
+
+  .age-chips__label svg {
+    width: 18px;
+    height: 18px;
+    color: var(--pl-accent);
+  }
+
+  /* Cuộn ngang trên màn hẹp; mép phải mờ dần báo còn chip phía sau */
+  .age-chips__list {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+
+  .age-chip,
+  .filter-pill {
+    flex: none;
+    height: 36px;
+    padding-inline: 14px;
+    border: 1px solid var(--pl-rule-strong);
+    border-radius: 999px;
+    background: var(--pl-paper);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--pl-ink);
+    font-variant-numeric: tabular-nums;
+    transition:
+      background-color var(--dur-fast) var(--ease-out-quint),
+      border-color var(--dur-fast) var(--ease-out-quint),
+      color var(--dur-fast) var(--ease-out-quint);
+  }
+
+  .age-chip[aria-pressed='true'],
+  .filter-pill[aria-pressed='true'] {
+    border-color: var(--pl-navy);
+    background: var(--pl-navy);
+    font-weight: 600;
+    color: var(--pl-on-navy);
+  }
+
+  /* ---------- Bố cục: bộ lọc bên trái, kết quả bên phải (từ 1024px) ---------- */
 
   .catalog-layout {
     display: grid;
-    gap: 24px;
+    gap: 28px;
     margin-top: 20px;
-  }
-
-  .catalog-sidebar {
-    animation: var(--animate-rise-in);
-    animation-delay: 60ms;
   }
 
   .catalog-sidebar {
@@ -101,33 +215,19 @@
 
   /* ---------- Panel bộ lọc (sidebar & drawer dùng chung) ---------- */
 
-  .filter-panel {
-    gap: 0;
-    padding: 4px 20px 20px;
-  }
-
   .filter-panel__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    min-height: 56px;
+    min-height: 40px;
   }
 
   .filter-panel__title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     font-size: 17px;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: -0.01em;
-  }
-
-  /* Icon tiêu đề tông đồng, như .tf-section-title__icon */
-  .filter-panel__title svg {
-    width: 18px;
-    height: 18px;
-    color: var(--pl-accent);
+    color: var(--pl-ink);
   }
 
   .filter-panel__clear,
@@ -150,42 +250,35 @@
     border-top: 1px solid var(--pl-rule);
   }
 
-  .filter-panel__legend,
-  .filter-panel .filter-select__label {
-    display: block;
+  .filter-panel__head + .filter-panel__section {
+    margin-top: 8px;
+  }
+
+  /* legend float để nằm trong luồng padding của fieldset như một nhãn bình thường */
+  .filter-panel__legend {
     float: left;
     width: 100%;
     margin-bottom: 10px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--pl-ink);
   }
 
-  /* <legend> float để nằm trong luồng padding của fieldset như một nhãn bình thường */
   .filter-panel__legend + * {
     clear: both;
   }
 
   .filter-panel__hint {
-    margin-top: 8px;
+    margin: -4px 0 10px;
     font-size: 13px;
     line-height: 1.5;
     color: var(--pl-muted);
   }
 
   .filter-panel__foot {
-    padding-top: 4px;
-  }
-
-  /* Sidebar cao hơn màn hình: ghim nút Áp dụng ở đáy khung nhìn để không phải cuộn xuống tận cuối */
-  .catalog-sidebar .filter-panel__foot {
     position: sticky;
     bottom: 0;
-    z-index: 1;
-    margin: 0 -20px -20px;
-    padding: 12px 20px 20px;
-    border-top: 1px solid var(--pl-rule);
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    padding-block: 12px 4px;
     background: var(--pl-paper);
   }
 
@@ -193,43 +286,46 @@
     width: 100%;
   }
 
-  /* Loại tin: nút chia đoạn */
-  .segmented {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 4px;
-    padding: 4px;
-    border-radius: var(--radius);
-    background: var(--pl-sunken);
+  .price-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .segmented__option {
-    min-height: 36px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
+  .price-presets .filter-pill {
+    height: 34px;
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+
+  /* Khoảng giá tự nhập: Từ – Đến – Áp dụng trên một hàng */
+  .price-custom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
     color: var(--pl-muted);
+  }
+
+  .price-custom .filter-input {
+    height: 40px;
+    padding-inline: 10px;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .price-custom__apply {
+    height: 40px;
+    padding-inline: 12px;
+    border: 1px solid var(--pl-navy);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pl-navy);
     transition:
       background-color var(--dur-fast) var(--ease-out-quint),
-      color var(--dur-fast) var(--ease-out-quint),
-      box-shadow var(--dur-fast) var(--ease-out-quint);
-  }
-
-  .segmented__option[aria-pressed='true'] {
-    background: var(--pl-paper);
-    color: var(--pl-navy);
-    font-weight: 600;
-    box-shadow: 0 0 0 1px var(--pl-rule);
-  }
-
-  .filter-panel .filter-select__label {
-    margin-bottom: 4px;
-    font-weight: 600;
-  }
-
-  .filter-input {
-    font-variant-numeric: tabular-nums;
+      color var(--dur-fast) var(--ease-out-quint);
   }
 
   /* Ô chọn số món mỗi trang (phân trang) */
@@ -304,142 +400,6 @@
   .filter-option input:checked + span {
     font-weight: 600;
     color: var(--pl-navy);
-  }
-
-  /* Giá: hai ô nhập + thanh trượt hai đầu */
-  .price-field__inputs {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    color: var(--pl-muted);
-  }
-
-  .price-range {
-    position: relative;
-    height: 28px;
-    margin-top: 10px;
-  }
-
-  .price-range::before,
-  .price-range::after {
-    content: '';
-    position: absolute;
-    top: 12px;
-    height: 4px;
-    border-radius: 2px;
-  }
-
-  .price-range::before {
-    left: 0;
-    right: 0;
-    background: var(--pl-rule);
-  }
-
-  .price-range::after {
-    left: var(--low);
-    right: calc(100% - var(--high));
-    background: var(--pl-navy);
-  }
-
-  .price-range input {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    width: 100%;
-    height: 28px;
-    margin: 0;
-    background: none;
-    appearance: none;
-    pointer-events: none;
-  }
-
-  .price-range input::-webkit-slider-thumb {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--pl-navy);
-    border-radius: 50%;
-    background: var(--pl-paper);
-    appearance: none;
-    cursor: grab;
-    pointer-events: auto;
-  }
-
-  .price-range input::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--pl-navy);
-    border-radius: 50%;
-    background: var(--pl-paper);
-    cursor: grab;
-    pointer-events: auto;
-  }
-
-  .price-range input:focus-visible {
-    outline: none;
-  }
-
-  .price-range input:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 4px var(--pl-navy-soft);
-  }
-
-  /* Khu vực: lấy vị trí hiện tại, rồi chọn bán kính */
-  .filter-location--active {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-  }
-
-  .filter-location--active .filter-select {
-    flex: 1;
-  }
-
-  .filter-location__locate,
-  .filter-location__clear {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    height: 44px;
-    border: 1px solid var(--pl-rule-strong);
-    border-radius: var(--radius);
-    background: var(--pl-paper);
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--pl-ink);
-    transition:
-      border-color var(--dur-fast) var(--ease-out-quint),
-      color var(--dur-fast) var(--ease-out-quint);
-  }
-
-  .filter-location__locate {
-    width: 100%;
-  }
-
-  .filter-location__locate:disabled {
-    cursor: progress;
-    opacity: 0.6;
-  }
-
-  .filter-location__clear {
-    flex: none;
-    width: 44px;
-  }
-
-  .filter-location svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .filter-location__error {
-    margin-top: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--color-tf-error);
-  }
-
-  .dark .public-layout .filter-location__error {
-    color: #f4a19a;
   }
 
   /* ---------- Đầu danh sách kết quả ---------- */
@@ -607,25 +567,35 @@
     display: flex;
   }
 
-  .toy-card {
+  /* ---------- Thẻ đồ chơi ---------- */
+
+  .catalog-card {
+    position: relative;
     flex: 1;
     min-width: 0;
   }
 
-  .toy-card__link {
+  .catalog-card__link {
     display: flex;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
     border: 1px solid var(--pl-rule);
-    border-radius: var(--radius-lg);
+    border-radius: 16px;
     background: var(--pl-paper);
     transition:
       transform var(--dur-base) var(--ease-out-quint),
-      border-color var(--dur-base) var(--ease-out-quint);
+      border-color var(--dur-base) var(--ease-out-quint),
+      box-shadow var(--dur-base) var(--ease-out-quint);
   }
 
-  .toy-card__media {
+  .catalog-card__link:focus-visible {
+    outline: none;
+    border-color: var(--pl-navy);
+    box-shadow: 0 0 0 3px var(--pl-navy-soft);
+  }
+
+  .catalog-card__media {
     position: relative;
     display: grid;
     place-items: center;
@@ -634,144 +604,227 @@
     background: var(--tint, var(--pl-sunken));
   }
 
-  .toy-card__media img {
+  .catalog-card__media img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform var(--dur-base) var(--ease-out-quint);
   }
 
-  .toy-card__placeholder {
+  .catalog-card__placeholder {
     width: 56px;
     height: 56px;
     color: color-mix(in srgb, var(--pl-navy) 40%, transparent);
   }
 
-  .toy-card__badge {
+  /* Nhãn trên ảnh: nền đặc để đọc được trên mọi ảnh, cả dark mode */
+  .catalog-card__badge,
+  .catalog-card__distance {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    padding: 4px 10px;
-    border-radius: var(--radius-sm);
-    background: var(--pl-navy-soft);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--pl-paper);
+    box-shadow: 0 1px 3px rgb(18 23 31 / 0.18);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--pl-navy);
   }
 
-  /* Cặp màu giống .tf-pill--secondary */
-  .toy-card--sell .toy-card__badge,
-  .toy-card--donate .toy-card__badge {
-    background: var(--pl-sell-soft);
+  .catalog-card__badge {
+    top: 10px;
+    left: 10px;
+  }
+
+  .catalog-card--sell .catalog-card__badge,
+  .catalog-card--donate .catalog-card__badge {
     color: var(--pl-sell);
   }
 
-  /* Nhãn nằm trên ảnh: dark mode cần nền đặc, nền trong suốt sẽ chìm trên ảnh sáng */
-  .dark .public-layout .toy-card__badge,
-  .dark .public-layout .toy-card--sell .toy-card__badge,
-  .dark .public-layout .toy-card--donate .toy-card__badge {
-    background: var(--pl-paper);
+  .catalog-card__distance {
+    bottom: 10px;
+    left: 10px;
+    font-weight: 600;
+    color: var(--pl-ink);
   }
 
-  .toy-card__body {
+  .catalog-card__distance svg {
+    width: 13px;
+    height: 13px;
+    color: var(--pl-navy);
+  }
+
+  .catalog-card__body {
     display: flex;
     flex: 1;
     flex-direction: column;
-    padding: 14px 16px 14px;
+    padding: 14px 16px 12px;
   }
 
-  .toy-card__title {
+  .catalog-card__title {
     display: -webkit-box;
     overflow: hidden;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     line-height: 1.4;
-    letter-spacing: -0.01em;
     color: var(--pl-ink);
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     transition: color var(--dur-fast) var(--ease-out-quint);
   }
 
-  .toy-card__price {
+  /* Giá là thứ đọc đầu tiên sau tên: to, đậm, số đều nhau để so được giữa các thẻ */
+  .catalog-card__price {
     display: flex;
     align-items: baseline;
-    gap: 2px;
-    margin-top: 12px;
+    gap: 3px;
+    margin-top: 10px;
     font-size: 14px;
+    font-weight: 500;
     color: var(--pl-muted);
   }
 
-  .toy-card__price strong {
-    font-size: 20px;
-    font-weight: 700;
+  .catalog-card__price strong {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     color: var(--pl-navy);
   }
 
-  .toy-card__sub {
-    min-height: 1.5em;
-    overflow: hidden;
-    font-variant-numeric: tabular-nums;
-    margin-top: 2px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--pl-muted);
-    white-space: nowrap;
-    text-overflow: ellipsis;
+  .catalog-card--sell .catalog-card__price strong,
+  .catalog-card--donate .catalog-card__price strong {
+    color: var(--pl-sell);
   }
 
-  .toy-card__facts {
+  /* Tiền cọc: ô riêng có khiên để không lẫn với giá thuê, kèm "hoàn khi trả" cho bố mẹ yên tâm */
+  .catalog-card__deposit {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 12px;
-    margin: 10px 0 12px;
+    align-items: center;
+    gap: 2px 6px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--pl-sunken);
     font-size: 13px;
+    line-height: 1.4;
     color: var(--pl-ink);
   }
 
-  .toy-card__facts li {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+  .catalog-card__deposit svg {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    color: var(--pl-navy);
   }
 
-  .toy-card__facts svg {
-    width: 14px;
-    height: 14px;
+  .catalog-card__deposit strong {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .catalog-card__deposit-note,
+  .catalog-card__deposit--none {
     color: var(--pl-muted);
   }
 
-  .toy-card__foot {
+  .catalog-card__facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+
+  .catalog-card__age {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    color: var(--pl-ink);
+  }
+
+  .catalog-card__age svg {
+    width: 15px;
+    height: 15px;
+    color: var(--pl-accent);
+  }
+
+  /* Tình trạng 4 vạch: vạch sáng theo mức, màu từ xanh (mới) sang cam đất (cũ nhiều) */
+  .condition {
+    --condition-color: var(--pl-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--pl-ink);
+  }
+
+  .condition[data-level='4'],
+  .condition[data-level='3'] {
+    --condition-color: #1f9d6b;
+  }
+
+  .condition[data-level='2'] {
+    --condition-color: #c08a1e;
+  }
+
+  .condition[data-level='1'] {
+    --condition-color: #c2603a;
+  }
+
+  .condition__bars {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  .condition__bars i {
+    width: 5px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--pl-rule);
+  }
+
+  .condition__bars i.is-on {
+    background: var(--condition-color);
+  }
+
+  .catalog-card__foot {
     display: flex;
     justify-content: space-between;
     gap: 12px;
     margin-top: auto;
     padding-top: 10px;
-    border-top: 1px solid var(--pl-rule);
+    border-top: 1px dashed var(--pl-rule);
     font-size: 12px;
     color: var(--pl-muted);
   }
 
-  .toy-card__foot span:first-child {
+  .catalog-card__foot span:first-child {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 
-  .toy-card__foot span:last-child {
+  .catalog-card__foot span:last-child {
     flex: none;
   }
 
-  .toy-card--skeleton {
+  .catalog-card--skeleton {
     overflow: hidden;
     border: 1px solid var(--pl-rule);
-    border-radius: var(--radius-lg);
+    border-radius: 16px;
     background: var(--pl-paper);
   }
 
-  .toy-card--skeleton .toy-card__media {
-    aspect-ratio: 4 / 3;
+  .catalog-card--skeleton .catalog-card__body {
+    gap: 10px;
   }
 
   /* ---------- Phân trang ---------- */
@@ -921,25 +974,39 @@
   /* ---------- Hover (chỉ thiết bị có chuột) ---------- */
 
   @media (hover: hover) {
-    .toy-card__link:hover {
-      transform: translateY(-1px);
-      border-color: var(--pl-navy);
+    .catalog-card__link:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--pl-navy) 45%, transparent);
+      box-shadow: 0 18px 36px -26px rgb(18 23 31 / 0.55);
     }
 
-    .toy-card__link:hover .toy-card__media img {
+    .catalog-card__link:hover .catalog-card__media img {
       transform: scale(1.04);
     }
 
-    .toy-card__link:hover .toy-card__title {
+    .catalog-card__link:hover .catalog-card__title {
       color: var(--pl-navy);
     }
 
-    .segmented__option:hover:not([aria-pressed='true']) {
+    .catalog-search__submit:hover {
+      background: var(--pl-navy-hover);
+    }
+
+    .type-switch__option:hover:not([aria-current='page']) {
       color: var(--pl-ink);
     }
 
-    .filter-location__locate:hover:not(:disabled),
-    .filter-location__clear:hover,
+    .age-chip:hover:not([aria-pressed='true']),
+    .filter-pill:hover:not([aria-pressed='true']) {
+      border-color: var(--pl-navy);
+      color: var(--pl-navy);
+    }
+
+    .price-custom__apply:hover {
+      background: var(--pl-navy);
+      color: var(--pl-on-navy);
+    }
+
     .catalog-filter-toggle:hover,
     .catalog-pagination__size select:hover,
     .catalog-pagination__page:not([aria-current='page'], .is-disabled, .is-gap):hover {
@@ -965,9 +1032,14 @@
 
   /* ---------- Breakpoint ---------- */
 
+  /* Chuyển trang thì cuộn tới đầu kết quả, chừa chỗ cho header dính */
+  .catalog-results {
+    scroll-margin-top: 80px;
+  }
+
   @media (min-width: 600px) {
     /* Nhiều cột: giữ chỗ hai dòng tiêu đề để giá các card cùng hàng thẳng nhau */
-    .toy-card__title {
+    .catalog-card__title {
       min-height: calc(2 * 1.4em);
     }
 
@@ -980,14 +1052,21 @@
     }
 
     .catalog-sort {
-      width: 260px;
+      width: 250px;
       flex: none;
     }
   }
 
   @media (min-width: 768px) {
-    .catalog-search__submit {
-      min-width: 140px;
+    .catalog-hero {
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+      align-items: end;
+    }
+
+    .catalog-quick {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 20px;
     }
 
     .filter-drawer {
@@ -996,39 +1075,22 @@
     }
   }
 
-  /* Chuyển trang thì cuộn tới đầu kết quả: chừa chỗ cho thanh trên cùng (chỉ có dưới 1024px) */
-  .catalog-results {
-    scroll-margin-top: 80px;
-  }
-
   @media (min-width: 1024px) {
-    .catalog-results {
-      scroll-margin-top: 16px;
-    }
-  }
-
-  /* Tab + ô tìm cùng hàng khi đủ chỗ (sidebar điều hướng đã chiếm 288px từ 1024px) */
-  @media (min-width: 1280px) {
-    .catalog-toolbar {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .catalog-toolbar .catalog-search {
-      flex: 0 1 380px;
-    }
-  }
-
-  @media (min-width: 1280px) {
     .catalog-layout {
-      grid-template-columns: minmax(0, 1fr) 300px;
+      grid-template-columns: 260px minmax(0, 1fr);
       align-items: start;
     }
 
+    /* Bộ lọc dính theo khi cuộn danh sách dài; tự cuộn nếu cao hơn màn hình */
     .catalog-sidebar {
+      position: sticky;
+      top: 84px;
       display: block;
+      max-height: calc(100dvh - 100px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-right: 4px;
+      scrollbar-width: thin;
     }
 
     .catalog-filter-toggle {
@@ -1038,69 +1100,32 @@
 
   @media (min-width: 1536px) {
     .catalog-layout {
-      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-columns: 280px minmax(0, 1fr);
     }
+  }
+
+  /* Dark mode: vạch tình trạng sáng hơn để đủ tương phản trên nền tối */
+  .dark .catalog-page .condition[data-level='4'],
+  .dark .catalog-page .condition[data-level='3'] {
+    --condition-color: #5fd3a0;
+  }
+
+  .dark .catalog-page .condition[data-level='2'] {
+    --condition-color: #e6b85c;
+  }
+
+  .dark .catalog-page .condition[data-level='1'] {
+    --condition-color: #f09a76;
+  }
+
+  .dark .catalog-page .type-switch__option[aria-current='page'] {
+    box-shadow: 0 0 0 1px var(--pl-rule-strong);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .toy-card__link,
-    .toy-card__media img {
+    .catalog-card__link,
+    .catalog-card__media img {
       transition: none;
     }
-  }
-}
-
-/*
- * Các rule dưới đây trước nằm trong features/home/home.css (trang chủ dùng chung tên class .toy-card)
- * và vẫn áp lên thẻ ở trang tìm kiếm. Trang chủ đã chuyển sang Tailwind và bỏ home.css; giữ lại
- * đúng các rule này để thẻ ở trang tìm kiếm không đổi giao diện.
- */
-@layer components {
-  .toy-card {
-    @apply relative flex flex-col gap-3 rounded-2xl border border-site-line bg-white p-2.5 transition-[border-color,box-shadow,transform] duration-300 ease-out-quint dark:border-night-700 dark:bg-night-900;
-  }
-
-  .toy-card:not(.toy-card--skeleton):hover {
-    @apply -translate-y-0.5 border-site-primary/30 shadow-[0_18px_36px_-26px_rgb(18_23_31/0.55)];
-  }
-
-  .toy-card:focus-within {
-    @apply ring-2 ring-site-primary;
-  }
-
-  .toy-card__media {
-    @apply relative aspect-[4/3] overflow-hidden rounded-xl;
-  }
-
-  .toy-card__badge {
-    @apply absolute top-2 left-2 rounded-md bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-tf-primary shadow-sm dark:bg-night-900/90 dark:text-sky-300;
-  }
-
-  .toy-card--sell .toy-card__badge {
-    @apply text-site-sale dark:text-orange-300;
-  }
-
-  .toy-card__body {
-    @apply flex flex-1 flex-col gap-1 px-1;
-  }
-
-  .toy-card__title {
-    @apply line-clamp-2 text-sm leading-5 font-medium text-site-ink dark:text-white;
-  }
-
-  .toy-card__link {
-    @apply focus:outline-none;
-  }
-
-  .toy-card__link::after {
-    @apply absolute inset-0 rounded-2xl content-[''];
-  }
-
-  .toy-card__price {
-    @apply mt-1 text-base font-bold text-site-primary dark:text-indigo-300 tabular-nums;
-  }
-
-  .toy-card--sell .toy-card__price {
-    @apply text-site-sale dark:text-orange-300;
   }
 }

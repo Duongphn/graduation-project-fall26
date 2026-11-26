@@ -33,7 +33,7 @@ import { getContactDetailsField, getListingErrorMessage } from '../features/toy-
 import { AGE_OPTIONS, MAX_IMAGES } from '../features/toy-listings/toy-listing-schema'
 import { categoriesQuery, MY_LISTINGS_ROOT_KEY } from '../features/toy-listings/toy-listing-queries'
 import { addressesQuery } from '../features/profile/profile-queries'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
 import { getApiErrorCode } from '../services/http-client'
 
@@ -193,8 +193,8 @@ export function NewDonationPage() {
 
   if (create.isSuccess) {
     return (
-      <SiteLayout>
-        <div className="home-container py-10">
+      <AccountLayout activeItem="donations">
+        <div className="py-10">
           <section className="mx-auto flex max-w-xl flex-col items-center gap-3 rounded-xl border border-tf-surface bg-white p-8 text-center">
             <CircleCheck className="size-12 text-tf-secondary" aria-hidden />
             <h1 className="text-2xl font-bold text-tf-ink">Đã gửi phiếu quyên góp</h1>
@@ -220,14 +220,14 @@ export function NewDonationPage() {
             </div>
           </section>
         </div>
-      </SiteLayout>
+      </AccountLayout>
     )
   }
 
   if (mustVerify) {
     return (
-      <SiteLayout>
-        <div className="home-container py-10">
+      <AccountLayout activeItem="donations">
+        <div className="py-10">
           <section
             role="alert"
             className="mx-auto flex max-w-xl flex-col items-center gap-3 rounded-xl border border-tf-surface bg-white p-8 text-center dark:border-night-700 dark:bg-night-900"
@@ -243,15 +243,15 @@ export function NewDonationPage() {
             </Link>
           </section>
         </div>
-      </SiteLayout>
+      </AccountLayout>
     )
   }
 
   const errorCode = create.error ? getApiErrorCode(create.error) : undefined
 
   return (
-    <SiteLayout>
-      <div className="home-container py-6 sm:py-8">
+    <AccountLayout activeItem="donations">
+      <div className="py-6 sm:py-8">
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-tf-ink-muted">
           <Link to={PATHS.home} className="inline-flex items-center gap-1 hover:text-tf-primary">
             <Home className="size-3.5" aria-hidden /> Trang chủ
@@ -333,6 +333,6 @@ export function NewDonationPage() {
           />
         </div>
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }
