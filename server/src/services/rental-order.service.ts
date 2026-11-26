@@ -4,7 +4,10 @@ import {
   type RentalOrderStatus,
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
+import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
+import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+import { type LedgerEntry } from '../interfaces/wallet.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
 import { type IToy } from '../models/toy.model.js';
 import { withTransaction } from '../repositories/transaction.js';
@@ -27,6 +30,8 @@ import {
   toRentalOrderDto,
 } from './rental-order.mapper.js';
 import { computeFinancialBreakdown } from './rental-financial-breakdown.js';
+import { notificationLinks } from './notification.links.js';
+import { toRentalOrderDto } from './rental-order.mapper.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
 import {
   type RentalHistoryEntryDto,
@@ -49,7 +54,11 @@ import {
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
 import { slugify } from '../utils/slug.js';
+import { type RentalCancelActor } from '../types/order-cancel.types.js';
+import { decideRentalCancel } from './rental-cancel-policy.js';
 import { RentalOrderCore } from './rental-order-core.js';
+import { isTrustBlocked } from './trust-review.rules.js';
+import { recordTrustBlock } from './trust-review.service.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
 
@@ -64,12 +73,14 @@ interface RentEligibility {
 /** Hành động do Renter/Owner gọi qua API (UC06–UC11). */
 export class RentalOrderService extends RentalOrderCore {
   /** Như notifyParty: lỗi thông báo không được làm hỏng hành động đã commit. */
-  private async notifyAdmins(title: string, body: string): Promise<void> {
+  private async notifyAdmins(title: string, body: string, link?: string): Promise<void> {
     try {
       const admins = await this.userModel.find({ role: 'ADMIN' }).select('_id').lean();
       await Promise.all(
         admins.map((admin) =>
-          this.notifier.notify({ userId: admin._id.toString(), title, body }).catch(() => {}),
+          this.notifier
+            .notify({ userId: admin._id.toString(), title, body, ...(link ? { link } : {}) })
+            .catch(() => {}),
         ),
       );
     } catch {
@@ -151,9 +162,21 @@ export class RentalOrderService extends RentalOrderCore {
       throw new AppError(403, 'CANNOT_RENT_OWN_LISTING', 'Không thể thuê đồ chơi của chính mình.');
     }
 
-    const score = user.trust?.score;
-    if (score !== undefined && score !== null && score < settings.minTrustScore) {
-      throw new AppError(403, 'RENTER_RESTRICTED', 'Điểm tin cậy không đủ điều kiện thuê đồ chơi.');
+    // GB-29: chỉ chặn khi điểm dưới ngưỡng VÀ tiền cọc trên mức Admin đặt (MSG28), trừ khi Admin
+    // đã gỡ chặn; lượt bị chặn được ghi lại cho Admin xem xét (UC29, FE-09)
+    if (isTrustBlocked(user.trust, toy.depositPrice ?? 0, settings)) {
+      await recordTrustBlock({
+        userId: actor.userId,
+        trust: user.trust,
+        toy,
+        settings,
+        now: this.clock.now(),
+      });
+      throw new AppError(
+        403,
+        'RENTER_RESTRICTED',
+        'Điểm tin cậy của bạn quá thấp để thuê đồ chơi này.',
+      );
     }
 
     const startDate = parseDateOnly(input.startDate);
@@ -209,7 +232,7 @@ export class RentalOrderService extends RentalOrderCore {
           session,
         );
         const days = inclusiveDays({ startDate, endDate });
-        const suggestion = suggestFreeRange(allOccupied, days, windowStart, windowEnd);
+        const suggestion = suggestFreeRange(allOccupied, days, windowStart, windowEnd, startDate);
 
         throw new AppError(
           409,
@@ -340,6 +363,89 @@ export class RentalOrderService extends RentalOrderCore {
     );
 
     return toRentalOrderDto(updated);
+  }
+
+  /** UC14: Renter/Owner hủy đơn theo chính sách trạng thái; đơn PAID được hoàn tiền từ escrow. */
+  public async cancel(
+    actor: RequestActor,
+    orderId: string,
+    reason: string,
+  ): Promise<RentalOrderDto> {
+    const order = await this.loadForParty(actor, orderId, 'any');
+    const by: RentalCancelActor = order.renterId.toString() === actor.userId ? 'RENTER' : 'OWNER';
+    const now = this.clock.now();
+    const decision = decideRentalCancel(order, by, now, await this.settings.getRentalSettings());
+    if (!decision.allowed) {
+      throw new AppError(409, decision.code, decision.message);
+    }
+
+    const isPaid = order.status === 'PAID';
+    const refundEntries = isPaid ? await this.cancelRefundEntries(order, decision) : [];
+
+    const updated = await this.transition({
+      orderId,
+      from: order.status,
+      to: 'CANCELLED',
+      changedBy: actor.userId,
+      note: `cancel:${by}: ${reason}`,
+      set: {
+        cancellation: {
+          by,
+          userId: new Types.ObjectId(actor.userId),
+          reason,
+          fee: decision.fee,
+          cancelledAt: now,
+        },
+      },
+      ...(isPaid
+        ? {
+            inTransaction: async (_doc: RentalOrderDoc, session: ClientSession) => {
+              await this.ledger.post(
+                `rental:${orderId}:cancel`,
+                { kind: 'rental_order', id: orderId },
+                refundEntries,
+                session,
+                'Hoàn tiền hủy đơn thuê',
+              );
+            },
+          }
+        : {}),
+    });
+
+    const actorLabel = by === 'RENTER' ? 'Người thuê' : 'Chủ đồ chơi';
+    const moneyNotice = isPaid
+      ? `. Hoàn ${decision.refund.toLocaleString('vi-VN')}đ, phí hủy ${decision.fee.toLocaleString('vi-VN')}đ.`
+      : '.';
+    const title = 'Đơn thuê đã bị hủy';
+    const body = `${actorLabel} đã hủy đơn thuê: ${reason}${moneyNotice}`;
+
+    await Promise.all([
+      this.notifyParty(updated, 'renter', title, body),
+      this.notifyParty(updated, 'owner', title, body),
+    ]);
+
+    return toRentalOrderDto(updated);
+  }
+
+  /**
+   * Bút toán hủy đơn PAID: escrow −(R+D); renter +refund; owner +fee (bỏ dòng 0 đồng).
+   * Tạo ví trước khi mở transaction, giống pay.
+   */
+  private async cancelRefundEntries(
+    order: RentalOrderDoc,
+    split: { fee: number; refund: number },
+  ): Promise<LedgerEntry[]> {
+    const [escrowWallet, renterWallet, ownerWallet] = await Promise.all([
+      this.ledger.getOrCreateSystemWallet('escrow'),
+      this.ledger.getOrCreateUserWallet(order.renterId.toString()),
+      split.fee > 0 ? this.ledger.getOrCreateUserWallet(order.ownerId.toString()) : undefined,
+    ]);
+
+    return [
+      { walletId: escrowWallet.id, amount: -order.pricing.totalPayable },
+      { walletId: renterWallet.id, amount: split.refund },
+      ...(ownerWallet ? [{ walletId: ownerWallet.id, amount: split.fee }] : []),
+    ].filter((entry) => entry.amount !== 0);
   }
 
   public async get(actor: RequestActor, orderId: string): Promise<RentalOrderDetailDto> {
@@ -848,6 +954,7 @@ export class RentalOrderService extends RentalOrderCore {
 
       const updated = await this.withUploadedPhotos(files, async (photos) => {
         const now = this.clock.now();
+        const s = await this.settings.getRentalSettings();
         const disputeId = new Types.ObjectId();
 
         return this.transition({
@@ -871,6 +978,8 @@ export class RentalOrderService extends RentalOrderCore {
                   description,
                   status: 'open',
                   openedAt: now,
+                  // Người thuê có 72 giờ phản hồi, sau đó Admin quyết định (GB-24, UC19)
+                  timer: { dueAt: new Date(now.getTime() + s.disputeReplyHours * 3_600_000) },
                 },
               ],
               { session },
@@ -897,6 +1006,9 @@ export class RentalOrderService extends RentalOrderCore {
       await this.notifyAdmins(
         'Khiếu nại hư hỏng đồ chơi mới',
         `Đơn thuê ${updated.code} có báo cáo hư hỏng đồ chơi từ chủ đồ chơi.`,
+        updated.settlement?.disputeId
+          ? notificationLinks.adminDispute(updated.settlement.disputeId.toString())
+          : undefined,
       );
 
       return toRentalOrderDto(updated);

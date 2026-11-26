@@ -12,6 +12,8 @@ export interface CreateToyListingInput {
   depositPrice?: number;
   ageRange: ToyAgeRange;
   quantity?: number;
+  /** The Owner ticked every safety commitment of the form (UC05); false when not sent. */
+  safetyDeclaration: boolean;
 }
 
 export interface UpdateToyListingInput {
@@ -23,6 +25,8 @@ export interface UpdateToyListingInput {
   priceOrRate?: number;
   depositPrice?: number;
   ageRange?: ToyAgeRange;
+  /** Sent again with every edit of a rent or sale listing (UC05); false when not sent. */
+  safetyDeclaration: boolean;
 }
 
 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
@@ -91,6 +95,29 @@ export function assertNoContactDetails(listing: {
       });
     }
   }
+}
+
+export const SAFETY_DECLARATION_MESSAGE =
+  'Vui lòng xác nhận cam kết an toàn trước khi đăng tin.';
+
+/**
+ * Refuses a rent or sale listing whose Owner did not declare the toy safe (UC05):
+ * 400 SAFETY_DECLARATION_REQUIRED with `details.field`. Asked on create and on every edit, since an
+ * edit sends the listing back to review. Donation posts have their own safety check.
+ */
+export function assertSafetyDeclared(
+  listingType: 'rent' | 'sell' | 'donate',
+  declared: boolean,
+): void {
+  if (listingType === 'donate' || declared) return;
+  throw new AppError(400, 'SAFETY_DECLARATION_REQUIRED', SAFETY_DECLARATION_MESSAGE, {
+    field: 'safetyDeclaration',
+  });
+}
+
+/** Only `true` (JSON) or `"true"` (multipart) declares the toy safe; anything else does not. */
+function parseSafetyDeclaration(raw: unknown): boolean {
+  return raw === true || raw === 'true';
 }
 
 /**
@@ -313,6 +340,7 @@ export function validateCreateToyListingInput(raw: unknown): CreateToyListingInp
     ...(parsedDeposit !== undefined ? { depositPrice: parsedDeposit } : {}),
     ageRange,
     quantity: 1,
+    safetyDeclaration: parseSafetyDeclaration(data.safetyDeclaration),
   };
 }
 
@@ -340,7 +368,9 @@ export function validateUpdateToyListingInput(raw: unknown): UpdateToyListingInp
     throw new AppError(400, 'VALIDATION_ERROR', 'Field "quantity" cannot be updated.');
   }
 
-  const result: UpdateToyListingInput = {};
+  const result: UpdateToyListingInput = {
+    safetyDeclaration: parseSafetyDeclaration(data.safetyDeclaration),
+  };
 
   if (data.title !== undefined) {
     result.title = parseNonEmptyString(data.title, 'title');

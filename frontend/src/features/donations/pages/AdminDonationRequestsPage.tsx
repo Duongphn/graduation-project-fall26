@@ -1,4 +1,4 @@
-import { Button, Input, Select, Typography } from 'antd'
+import { Button, Checkbox, Input, Select, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -16,6 +16,9 @@ import type { DonationReceiverType, DonationStatus } from '../../../constants/do
 import { donationReceiverTypeLabels, toOptions } from '../../../constants/labels'
 import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb, adminPaths } from '../../../routes/paths'
+import { matchesWithoutTones } from '../../../utils/text'
+import { ProvinceFilter } from '../../organizations/components/organization-filters'
+import { useOrganizations } from '../../organizations/hooks'
 import { CreateOrganizationRequestModal } from '../components/CreateOrganizationRequestModal'
 import { donationSortFields } from '../constants'
 import type { DonationSortField } from '../constants'
@@ -34,12 +37,16 @@ export function AdminDonationRequestsPage() {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const list = useListParams({ schema: donationFiltersSchema, sortFields: donationSortFields })
-  const { status, receiverType, q } = list.filters
+  const { status, receiverType, organizationId, province, overdue, q } = list.filters
   const query = useDonationRequests(list.params)
   const counts = useDonationCounts({
     ...(receiverType ? { receiverType } : {}),
+    ...(organizationId ? { organizationId } : {}),
+    ...(province ? { province } : {}),
+    ...(overdue ? { overdue } : {}),
     ...(q ? { q } : {}),
   })
+  const organizations = useOrganizations({ page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' })
 
   const columns: TableColumnsType<DonationRequest> = [
     {
@@ -73,7 +80,12 @@ export function AdminDonationRequestsPage() {
     {
       title: 'Trạng thái',
       dataIndex: 'status',
-      render: (value: DonationStatus) => <StatusTag domain="donation" status={value} />,
+      render: (value: DonationStatus, row) => (
+        <span className="flex flex-wrap gap-1">
+          <StatusTag domain="donation" status={value} />
+          {row.overdue && <Tag color="red">Quá hạn xác nhận</Tag>}
+        </span>
+      ),
     },
     {
       title: 'Gửi lúc',
@@ -131,6 +143,35 @@ export function AdminDonationRequestsPage() {
           options={toOptions(donationReceiverTypeLabels)}
           onChange={(value) => list.setFilter('receiverType', value)}
         />
+        <Select<string>
+          allowClear
+          // Tìm tên tổ chức không cần dấu ("lang tre" thấy "Làng trẻ Sài Gòn")
+          showSearch={{ filterOption: (input, option) => matchesWithoutTones(input, option?.label) }}
+          className="w-56"
+          placeholder="Tổ chức"
+          aria-label="Lọc theo tổ chức"
+          value={organizationId}
+          loading={organizations.isLoading}
+          options={(organizations.data?.items ?? []).map((item) => ({
+            value: item.id,
+            label: item.name,
+          }))}
+          onChange={(value) => list.setFilter('organizationId', value)}
+        />
+        {/* UC35 bước 1: tỉnh của điểm nhận; máy chủ bỏ qua dấu, hoa thường và tiền tố TP./Tỉnh */}
+        <div className="w-56">
+          <ProvinceFilter
+            key={`province-${province ?? ''}`}
+            value={province}
+            onChange={(next) => list.setFilter('province', next)}
+          />
+        </div>
+        <Checkbox
+          checked={overdue === 'true'}
+          onChange={(event) => list.setFilter('overdue', event.target.checked ? 'true' : undefined)}
+        >
+          Quá hạn xác nhận
+        </Checkbox>
       </FilterBar>
       <DataTable<DonationRequest>
         columns={columns}

@@ -39,6 +39,52 @@ const httpError = (status: number, code: string, message: string) =>
     data: { success: false, error: { code, message } },
   })
 
+const receivingPoint = {
+  province: 'Hà Nội',
+  ward: 'Phường Hoàn Kiếm',
+  street: '12 Hàng Bài',
+  openingHours: '8:00–17:00',
+  acceptsDropOff: true,
+  acceptsParcel: false,
+}
+const HOA_SEN = {
+  id: '66a000000000000000000001',
+  name: 'Mái ấm Hoa Sen',
+  address: '12 Hàng Bài, Hà Nội',
+  supportCriteria: 'Đồ chơi gỗ cho bé 3–6 tuổi',
+  receivingPoint,
+  ageGroups: [{ minAge: 3, maxAge: 6 }],
+  categoryIds: [WOOD.id],
+  areaProvince: 'Hà Nội',
+  isRemoteArea: false,
+  isAccepting: true,
+}
+const MU_CANG_CHAI = {
+  ...HOA_SEN,
+  id: '66a000000000000000000002',
+  name: 'Trường vùng cao Mù Cang Chải',
+  address: 'Xã Mù Cang Chải, Lào Cai',
+  receivingPoint: { ...receivingPoint, province: 'Lào Cai', acceptsDropOff: false, acceptsParcel: true },
+  areaProvince: 'Lào Cai',
+  isRemoteArea: true,
+}
+
+/** GET /organizations/suggestions answers `items`; the Donor's default address is in Hà Nội. */
+const mockSuggestions = (items: unknown[]) =>
+  get.mockImplementation(async (url) => {
+    if (url === '/categories') return { data: [WOOD] }
+    if (url === '/organizations/suggestions') return { data: { success: true, data: items } }
+    if (url === '/users/addresses') {
+      return { data: { success: true, data: [{ id: 'a1', province: 'Hà Nội', isDefault: true }] } }
+    }
+    throw httpError(404, 'NOT_FOUND', 'Not found')
+  })
+
+// Every antd Radio.Group in jsdom gets the same name, so `checked` is unreliable across groups:
+// read antd's checked class instead.
+const chosen = (radio: HTMLElement) =>
+  radio.closest('.ant-radio-wrapper')?.classList.contains('ant-radio-wrapper-checked') ?? false
+
 const renderPage = () => {
   const queryClient = createTestQueryClient()
   // What newDonationLoader puts in the cache before the page renders.
@@ -99,6 +145,8 @@ describe('NewDonationPage', () => {
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
     expect((post.mock.calls[0]?.[1] as FormData).get('categoryId')).toBe(CARS.id)
+    // "Để ToyFlow ghép": the post stays open, no organization is sent (FE-02).
+    expect((post.mock.calls[0]?.[1] as FormData).get('organizationId')).toBeNull()
     // The panel explains the refusal, and the category field asks for another category.
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Danh mục đã chọn không còn hoạt động. Vui lòng chọn danh mục khác.',
@@ -183,4 +231,121 @@ describe('NewDonationPage', () => {
       await within(descriptionField()).findByText('Không được ghi số điện thoại, email hoặc đường link trong mô tả.'),
     ).toBeInTheDocument()
   }, 30_000)
+
+  // UC33 steps 4-5: the chosen organization and handover method are sent as fields of the post (the
+  // server creates the request to the organization once the Admin approves it), not as text added
+  // to the description.
+  it('sends the chosen organization and handover method with the post, not in the description', async () => {
+    mockSuggestions([HOA_SEN])
+    post.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          id: '64c000000000000000000001',
+          title: 'Bộ xe điều khiển địa hình',
+          donationTarget: { organizationId: HOA_SEN.id, handoverMethod: 'drop_off' },
+        },
+      },
+    })
+    const { user } = renderPage()
+    const text = 'Xe chạy tốt, đủ điều khiển và bộ sạc, đã lau sạch, vỏ không nứt vỡ hay trầy xước.'
+
+    await user.click(screen.getByPlaceholderText(/^VD: Bộ đồ chơi lắp ráp/))
+    await user.paste('Bộ xe điều khiển địa hình')
+    await pickCategory(user, WOOD.name)
+    await user.click(screen.getByRole('radio', { name: '3 - 6 tuổi (Mẫu giáo)' }))
+    await user.click(screen.getByRole('radio', { name: /^Như mới/ }))
+    await user.click(screen.getByPlaceholderText(/^Đồ chơi gồm những gì/))
+    await user.paste(text)
+    await user.upload(screen.getByLabelText(/Kéo thả ảnh vào đây/), [
+      new File(['1'], '1.jpg', { type: 'image/jpeg' }),
+      new File(['2'], '2.jpg', { type: 'image/jpeg' }),
+      new File(['3'], '3.jpg', { type: 'image/jpeg' }),
+    ])
+    for (const box of screen.getAllByRole('checkbox')) await user.click(box)
+    // R03 III.5.2.1 (8): the note to the organization appears once an organization is chosen.
+    expect(screen.queryByLabelText('Ghi chú cho tổ chức')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('radio', { name: /Mái ấm Hoa Sen/ }))
+    await user.click(screen.getByRole('radio', { name: /Tự mang đến tận nơi/ }))
+    const note = screen.getByLabelText('Ghi chú cho tổ chức')
+    expect(note).toHaveAttribute('maxlength', '300')
+    await user.click(note)
+    await user.paste('  Thiếu 1 bánh xe sau  ')
+    await submit(user)
+
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
+    const form = post.mock.calls[0]?.[1] as FormData
+    expect(form.get('organizationId')).toBe(HOA_SEN.id)
+    expect(form.get('handoverMethod')).toBe('drop_off')
+    expect(form.get('note')).toBe('Thiếu 1 bánh xe sau')
+    expect(form.get('description')).toBe(text)
+    expect(await screen.findByText(/yêu cầu quyên góp tới Mái ấm Hoa Sen được tạo/)).toBeInTheDocument()
+  }, 30_000)
+
+  // GB-54: the list is the suggestions for the toy's category and age (Donor's province first),
+  // with their needs; GB-51: only the methods of the chosen receiving point can be picked.
+  it('lists the GB-54 suggestions for the toy and limits the handover method to the chosen point', async () => {
+    mockSuggestions([MU_CANG_CHAI, HOA_SEN])
+    const { user } = renderPage()
+
+    // Before a category and an age range are chosen, nothing is suggested yet.
+    expect(screen.getByText(/Chọn danh mục và độ tuổi ở bước 01/)).toBeInTheDocument()
+    await pickCategory(user, WOOD.name)
+    await user.click(screen.getByRole('radio', { name: '3 - 6 tuổi (Mẫu giáo)' }))
+
+    const parcelOnly = await screen.findByRole('radio', { name: /Trường vùng cao Mù Cang Chải/ })
+    expect(get).toHaveBeenCalledWith('/organizations/suggestions', {
+      params: { categoryId: WOOD.id, minAge: 3, maxAge: 6, province: 'Hà Nội' },
+    })
+    // The full organization list is not used any more.
+    expect(get).not.toHaveBeenCalledWith('/organizations', expect.anything())
+    expect(screen.getByText('Vùng khó khăn')).toBeInTheDocument()
+    expect(screen.getAllByText('Đồ chơi gỗ').length).toBeGreaterThan(0)
+
+    // A parcel-only point: "Tự mang đến" is disabled and the method is the carrier.
+    await user.click(screen.getByRole('radio', { name: /Gửi qua đơn vị vận chuyển/ }))
+    await user.click(parcelOnly)
+    expect(screen.getByRole('radio', { name: /Tự mang đến tận nơi/ })).toBeDisabled()
+    expect(chosen(screen.getByRole('radio', { name: /Gửi qua đơn vị vận chuyển/ }))).toBe(true)
+
+    // A drop-off-only point: the chosen carrier switches to drop-off.
+    await user.click(screen.getByRole('radio', { name: /Mái ấm Hoa Sen/ }))
+    expect(screen.getByRole('radio', { name: /Gửi qua đơn vị vận chuyển/ })).toBeDisabled()
+    expect(chosen(screen.getByRole('radio', { name: /Tự mang đến tận nơi/ }))).toBe(true)
+  }, 30_000)
+
+  it('shows MSG50 and keeps the post open when no organization accepts the toy', async () => {
+    mockSuggestions([])
+    const { user } = renderPage()
+    await pickCategory(user, WOOD.name)
+    await user.click(screen.getByRole('radio', { name: '3 - 6 tuổi (Mẫu giáo)' }))
+    expect(await screen.findByText('Hiện chưa có tổ chức nào phù hợp với lựa chọn của bạn.')).toBeInTheDocument()
+    expect(chosen(screen.getByRole('radio', { name: /Để ToyFlow ghép/ }))).toBe(true)
+  }, 30_000)
+
+  // GB-06: R03 chặn ngay khi mở Donation Request Form với người chưa xác minh (như form đăng tin)
+  it('blocks the form on open for an unverified user (MSG17) and links to identity verification', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/categories') return { data: [WOOD] }
+      if (url === '/users/profile') return { data: { success: true, data: { id: 'u1', verificationStatus: 'unverified' } } }
+      throw httpError(404, 'NOT_FOUND', 'Not found')
+    })
+    renderPage()
+
+    expect(await screen.findByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Xác minh danh tính' })).toHaveAttribute('href', PATHS.identityVerification)
+    expect(screen.queryByRole('button', { name: 'Xác nhận & tạo phiếu quyên góp' })).toBeNull()
+  })
+
+  it('shows the form to a verified user', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/categories') return { data: [WOOD] }
+      if (url === '/users/profile') return { data: { success: true, data: { id: 'u1', verificationStatus: 'verified' } } }
+      throw httpError(404, 'NOT_FOUND', 'Not found')
+    })
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Xác nhận & tạo phiếu quyên góp' })).toBeInTheDocument()
+    expect(screen.queryByText('Vui lòng xác minh danh tính trước khi tiếp tục.')).toBeNull()
+  })
 })

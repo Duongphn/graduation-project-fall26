@@ -7,7 +7,8 @@ import {
   MAX_IMAGES,
   TITLE_MAX_LENGTH,
 } from '../toy-listings/toy-listing-schema'
-import { handoverMethodLabels, handoverMethods, type HandoverMethod } from './constants'
+import type { PublicOrganization } from '../organizations/types'
+import { handoverMethods, type HandoverMethod } from './constants'
 
 // Donor creates a donation post (POST /donation-posts, listingType "donate"): the toy, its photos, a
 // safety check that blocks unsafe toys, the preferred receiver and the handover method.
@@ -16,8 +17,7 @@ import { handoverMethodLabels, handoverMethods, type HandoverMethod } from './co
 export const MIN_DONATION_PHOTOS = 3
 /** Mô tả theo luật của Toy Form (R03 III.5.2.1 (1) → III.3.1.1 (9): 50–1000 ký tự) */
 export const DONATION_DESCRIPTION_MIN = DESCRIPTION_MIN_LENGTH
-/** Thấp hơn 1000: cách bàn giao và tổ chức mong muốn được ghi thêm vào cuối mô tả */
-export const DONATION_DESCRIPTION_MAX = 800
+export const DONATION_DESCRIPTION_MAX = DESCRIPTION_MAX_LENGTH
 
 /** Người tặng phải cam kết đủ 4 điều trước khi gửi phiếu */
 export const SAFETY_COMMITMENTS = [
@@ -77,6 +77,21 @@ export const findBannedTerms = (...texts: string[]): string[] => {
 /** Giá trị đặc biệt: để ToyFlow chọn tổ chức phù hợp */
 export const AUTO_MATCH = 'AUTO'
 
+/** R03 III.5.2.1 (8): ghi chú cho tổ chức, không bắt buộc */
+export const ORGANIZATION_NOTE_MAX = 300
+
+/**
+ * GB-51: cách bàn giao mà điểm nhận của tổ chức chấp nhận (SELF = mang đến, CARRIER = bưu kiện).
+ * Chưa chọn tổ chức (tin để mở) thì cả hai.
+ */
+export const allowedHandoverMethods = (
+  organization: Pick<PublicOrganization, 'receivingPoint'> | undefined,
+): HandoverMethod[] => {
+  const point = organization?.receivingPoint
+  if (!organization || !point) return [...handoverMethods]
+  return handoverMethods.filter((method) => (method === 'SELF' ? point.acceptsDropOff : point.acceptsParcel))
+}
+
 export const donationPostSchema = z
   .object({
     title: z
@@ -104,6 +119,12 @@ export const donationPostSchema = z
     // id tổ chức, hoặc AUTO_MATCH
     receiver: z.string(),
     handoverMethod: z.enum(handoverMethods),
+    // Chỉ gửi khi đã chọn tổ chức (khai thiếu chi tiết, vết xước…)
+    note: z
+      .string()
+      .trim()
+      .max(ORGANIZATION_NOTE_MAX, `Ghi chú cho tổ chức tối đa ${ORGANIZATION_NOTE_MAX} ký tự`)
+      .optional(),
   })
   .refine((values) => Object.values(values.safety).every(Boolean), {
     message: 'Cần xác nhận đủ 4 tiêu chí an toàn trước khi gửi phiếu.',
@@ -124,29 +145,7 @@ export const EMPTY_DONATION_POST: Partial<DonationPostValues> = {
   safety: { noSharpParts: false, batteriesRemoved: false, noSmallParts: false, cleaned: false },
   receiver: AUTO_MATCH,
   handoverMethod: 'CARRIER',
+  note: '',
 }
 
 export const isPhotoCountValid = (count: number) => count >= MIN_DONATION_PHOTOS && count <= MAX_IMAGES
-
-/**
- * Backend chưa có trường cho tổ chức mong muốn và cách bàn giao: ghi ở cuối mô tả để Admin
- * đọc khi ghép tổ chức (POST /admin/donation-requests).
- */
-export const composeDonationDescription = (
-  description: string,
-  handoverMethod: HandoverMethod,
-  receiverName: string | null,
-) =>
-  [
-    description.trim(),
-    '',
-    `Cách bàn giao: ${handoverMethodLabels[handoverMethod]}`,
-    `Đơn vị tiếp nhận mong muốn: ${receiverName ?? 'Để ToyFlow ghép tổ chức phù hợp'}`,
-  ].join('\n')
-
-/**
- * Số ký tự còn cho phần mô tả của người tặng: backend nhận mô tả (đã ghi thêm cách bàn giao và tổ
- * chức) tối đa 1000 ký tự. Thường trên 800; chỉ thấp hơn khi tên tổ chức rất dài.
- */
-export const donationDescriptionRoom = (handoverMethod: HandoverMethod, receiverName: string | null) =>
-  DESCRIPTION_MAX_LENGTH - composeDonationDescription('', handoverMethod, receiverName).length

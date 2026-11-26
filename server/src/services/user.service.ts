@@ -3,10 +3,27 @@ import { AppError } from '../utils/app-error.js';
 import { User, type IUser } from '../models/user.model.js';
 import type {
   UserAvatarStorage,
+  UserGender,
   UserProfileDto,
 } from '../interfaces/user.ports.js';
 import type { UploadedImageFile } from '../interfaces/identity-verification.ports.js';
 import { FULL_NAME_PATTERN } from '../validations/auth.validation.js';
+
+const GENDERS: readonly UserGender[] = ['female', 'male', 'other'];
+const BIO_MAX_LENGTH = 200;
+/** Trust Score mặc định khi chưa có đơn nào được chấm (R04 3.2 trust_score, GB-29) */
+const DEFAULT_TRUST_SCORE = 100;
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const EARLIEST_BIRTH_DATE = Date.UTC(1900, 0, 1);
+
+/** 'YYYY-MM-DD' → ngày (UTC) nếu là ngày có thật, từ 01/01/1900 đến hôm nay */
+function parseDateOfBirth(value: string): Date | null {
+  if (!DATE_ONLY_PATTERN.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+  if (date.getTime() < EARLIEST_BIRTH_DATE || date.getTime() > Date.now()) return null;
+  return date;
+}
 
 export class UsersService {
   public constructor(
@@ -20,19 +37,17 @@ export class UsersService {
       fullName: user.fullName,
       email: user.email,
       phone: user.phone,
+      dateOfBirth: user.dateOfBirth ? user.dateOfBirth.toISOString().slice(0, 10) : null,
+      gender: user.gender ?? null,
+      bio: user.bio ?? null,
+      trustScore: user.trust?.score ?? DEFAULT_TRUST_SCORE,
+      // Ngày tạo tài khoản; thiếu createdAt thì lấy thời điểm trong _id
+      memberSince: (user.createdAt ? new Date(user.createdAt) : user._id.getTimestamp()).toISOString(),
       verificationStatus: user.verificationStatus ?? 'unverified',
       role: user.role,
     };
     if (user.avatar) {
       dto.avatarUrl = user.avatar;
-    }
-    if (user.address) {
-      dto.address = {
-        province: user.address.province,
-        ...(user.address.district ? { district: user.address.district } : {}),
-        ward: user.address.ward,
-        street: user.address.street,
-      };
     }
     return dto;
   }
@@ -59,7 +74,8 @@ export class UsersService {
       throw new AppError(400, 'INVALID_INPUT', 'Payload must be an object.');
     }
 
-    const allowedKeys = new Set(['fullName', 'address']);
+    // Địa chỉ giao nhận nay ở sổ địa chỉ (/users/addresses), không sửa qua hồ sơ
+    const allowedKeys = new Set(['fullName', 'dateOfBirth', 'gender', 'bio']);
     const incomingKeys = Object.keys(patch);
 
     for (const key of incomingKeys) {
@@ -82,39 +98,43 @@ export class UsersService {
         throw new AppError(
           400,
           'INVALID_INPUT',
-          'fullName must have 2 to 50 letters and spaces (R03 III.6.1.1 (5)).',
+          'Họ và tên chỉ gồm chữ cái và khoảng trắng, từ 2 đến 50 ký tự.',
         );
       }
       user.fullName = patch.fullName.trim();
     }
 
-    if (patch.address !== undefined) {
-      const addr = patch.address as Record<string, unknown> | null;
-      if (
-        !addr ||
-        typeof addr !== 'object' ||
-        typeof addr.province !== 'string' ||
-        addr.province.trim().length === 0 ||
-        (addr.district !== undefined && typeof addr.district !== 'string') ||
-        typeof addr.ward !== 'string' ||
-        addr.ward.trim().length === 0 ||
-        typeof addr.street !== 'string' ||
-        addr.street.trim().length === 0
-      ) {
-        throw new AppError(
-          400,
-          'INVALID_INPUT',
-          'Address must include valid non-empty province, ward, and street.',
-        );
+    if (patch.dateOfBirth !== undefined) {
+      if (patch.dateOfBirth === null || patch.dateOfBirth === '') {
+        user.dateOfBirth = undefined;
+      } else {
+        const date = typeof patch.dateOfBirth === 'string' ? parseDateOfBirth(patch.dateOfBirth) : null;
+        if (!date) {
+          throw new AppError(400, 'INVALID_INPUT', 'Ngày sinh không hợp lệ.');
+        }
+        user.dateOfBirth = date;
       }
-      // R03 III.6.1.1 (10): province, ward and street; a district is kept only if one is sent.
-      const district = typeof addr.district === 'string' ? addr.district.trim() : '';
-      user.address = {
-        province: addr.province.trim(),
-        ...(district ? { district } : {}),
-        ward: addr.ward.trim(),
-        street: addr.street.trim(),
-      };
+    }
+
+    if (patch.gender !== undefined) {
+      if (patch.gender === null || patch.gender === '') {
+        user.gender = undefined;
+      } else if (typeof patch.gender === 'string' && (GENDERS as readonly string[]).includes(patch.gender)) {
+        user.gender = patch.gender as UserGender;
+      } else {
+        throw new AppError(400, 'INVALID_INPUT', 'Giới tính chỉ là Nữ, Nam hoặc Khác.');
+      }
+    }
+
+    if (patch.bio !== undefined) {
+      if (patch.bio !== null && typeof patch.bio !== 'string') {
+        throw new AppError(400, 'INVALID_INPUT', 'Giới thiệu phải là văn bản.');
+      }
+      const bio = (patch.bio ?? '').trim();
+      if (bio.length > BIO_MAX_LENGTH) {
+        throw new AppError(400, 'INVALID_INPUT', `Giới thiệu tối đa ${BIO_MAX_LENGTH} ký tự.`);
+      }
+      user.bio = bio || undefined;
     }
 
     await user.save();

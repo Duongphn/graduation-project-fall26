@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Form, Input } from 'antd'
-import { Gift, LogIn } from 'lucide-react'
+import { Gift, LogIn, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -39,6 +39,9 @@ export function RequestDonationCard({ toyId, ownerId }: RequestDonationCardProps
 
   // Chủ tin không tự xin nhận đồ của mình
   if (isSignedIn && profile.data?.id === ownerId) return null
+  // GB-06, MSG17: chỉ người đã xác minh danh tính mới xin nhận được (backend chặn bằng USER_NOT_VERIFIED).
+  // Chưa tải được hồ sơ thì vẫn hiện form: backend vẫn chặn.
+  const mustVerify = isSignedIn && profile.data !== undefined && profile.data.verificationStatus !== 'verified'
 
   const submit = handleSubmit(({ message }) => {
     if (!isSignedIn) {
@@ -59,7 +62,14 @@ export function RequestDonationCard({ toyId, ownerId }: RequestDonationCardProps
         chỉ hiện sau khi được đồng ý.
       </p>
 
-      {isSignedIn ? (
+      {mustVerify ? (
+        <>
+          <Alert type="info" showIcon title="Vui lòng xác minh danh tính trước khi tiếp tục." />
+          <Link to={PATHS.identityVerification} className="tf-btn tf-btn--primary">
+            <ShieldCheck aria-hidden /> Xác minh danh tính
+          </Link>
+        </>
+      ) : isSignedIn ? (
         <Form layout="vertical" component="div" disabled={create.isPending}>
           <FormField control={control} name="message" label="Lời nhắn cho người tặng">
             {(field) => (
@@ -77,7 +87,7 @@ export function RequestDonationCard({ toyId, ownerId }: RequestDonationCardProps
 
       {failure && <Alert type="warning" showIcon title={failure} />}
 
-      {isSignedIn ? (
+      {mustVerify ? null : isSignedIn ? (
         <button
           type="button"
           className="tf-btn tf-btn--primary"

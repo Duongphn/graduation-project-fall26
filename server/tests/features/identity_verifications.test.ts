@@ -11,9 +11,10 @@ import {
 import { identityDetailSchema } from '../../src/validations/identity-review.validation.js';
 import { IdentityVerification } from '../../src/models/identity-verification.model.js';
 import type { IdentityImageStorage } from '../../src/interfaces/identity-verification.ports.js';
-import { DefaultIdentityVerificationEvents } from '../../src/integrations/events/identity-verification-events.js';
+import { IdentityReviewNotifications } from '../../src/integrations/events/identity-review-notifications.js';
 import { Notification } from '../../src/models/notification.model.js';
 import { setIdentityReviewService } from '../../src/services/identity-review.service.js';
+import { subscribeNotifications } from '../../src/services/notification.subscriptions.js';
 import { IdentityVerificationService } from '../../src/services/identity-verification.service.js';
 import { User } from '../../src/models/user.model.js';
 import { domainEvents } from '../../src/utils/domain-events.js';
@@ -49,7 +50,7 @@ beforeAll(() => {
       undefined,
       undefined,
       fakeStorage,
-      new DefaultIdentityVerificationEvents(),
+      new IdentityReviewNotifications(),
     ),
   );
 });
@@ -108,7 +109,7 @@ beforeEach(async () => {
   await Promise.all([
     User.deleteMany({}),
     IdentityVerification.deleteMany({}),
-    AuditLog.deleteMany({}),
+    AuditLog.collection.deleteMany({}),
     Notification.deleteMany({}),
   ]);
 });
@@ -236,7 +237,10 @@ describe('detail', () => {
   });
 
   it('answers 404 and 400 for unknown and invalid ids', async () => {
-    expect((await get(`/${newId()}`)).status).toBe(404);
+    const unknown = await get(`/${newId()}`);
+    expect(unknown.status).toBe(404);
+    // Admin review 20/11 #5: the page showed the English "Verification submission not found.".
+    expect(unknown.body.error.message).toBe('Không tìm thấy yêu cầu xác minh danh tính.');
     expect((await get('/not-an-id')).status).toBe(400);
   });
 });
@@ -247,6 +251,7 @@ describe('decisions', () => {
     domainEvents.subscribe('IDENTITY_REVIEWED', (event) => {
       events.push(event);
     });
+    const off = subscribeNotifications({ mailer: { send: () => Promise.resolve({ delivered: false }) } });
     const user = await createUser();
     const verification = await createVerification(user._id);
 
@@ -258,9 +263,14 @@ describe('decisions', () => {
     expect(String(stored?.reviewedBy)).toBe(ADMIN_ID);
     expect((await User.findById(user._id).lean())?.idCardNumber).toBe(verification.idCardNumber);
     expect(await AuditLog.countDocuments({ action: 'identity.verify' })).toBe(1);
-    // Develop's DefaultIdentityVerificationEvents writes the in-app notification.
-    expect(await Notification.countDocuments({ userId: user._id })).toBe(1);
     await vi.waitFor(() => expect(events).toHaveLength(1));
+    // Only one in-app notification: IDENTITY_REVIEWED, not also develop's IDENTITY_VERIFICATION.
+    await vi.waitFor(async () =>
+      expect(await Notification.find({ userId: user._id }, { type: 1, _id: 0 }).lean()).toEqual([
+        { type: 'IDENTITY_REVIEWED' },
+      ]),
+    );
+    off();
     expect(events[0]).toMatchObject({
       verificationId: String(verification._id),
       userId: String(user._id),
@@ -284,7 +294,9 @@ describe('decisions', () => {
   });
 
   it('answers 404 for an unknown request and 409 for a decided one', async () => {
-    expect((await post(`/${newId()}/approve`)).status).toBe(404);
+    const unknown = await post(`/${newId()}/approve`);
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error.message).toBe('Không tìm thấy yêu cầu xác minh danh tính.');
     const user = await createUser();
     const verification = await createVerification(user._id);
     await post(`/${verification._id}/approve`);

@@ -1,9 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import mongoose, { type Model } from 'mongoose';
-import { type WalletLedgerPort } from '../interfaces/wallet.ports.js';
+import { type WalletTransactionListType } from '../constants/wallet-transaction.js';
+import {
+  type WalletHoldings,
+  type WalletHoldingsPort,
+  type WalletLedgerPort,
+} from '../interfaces/wallet.ports.js';
+import { type IWalletTransaction } from '../models/index.js';
+import { WalletHoldingsRepository } from '../repositories/wallet-holdings.repository.js';
 import { type IUser, User } from '../models/user.model.js';
+import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
 import { withTransaction } from '../repositories/transaction.js';
 import { type RequestActor } from '../types/request-actor.js';
+import { type AdminContext } from '../utils/admin-context.js';
 import { AppError } from '../utils/app-error.js';
 
 export interface WalletTransactionItemDto {
@@ -16,12 +25,54 @@ export interface WalletTransactionItemDto {
 }
 
 export interface WalletSummaryDto {
+  /** Same as availableBalance (kept for older clients). */
   balance: number;
+  /** Spendable now. */
+  availableBalance: number;
+  /** Not spendable yet but still the user's: sum of `holdings`. */
+  holdingBalance: number;
+  holdings: WalletHoldings;
   currency: string;
   transactions: WalletTransactionItemDto[];
   total: number;
   page: number;
   limit: number;
+}
+
+/** Query of GET /wallets/me/transactions, same names as the lead's API. */
+export interface TransactionListQuery {
+  page: number;
+  limit: number;
+  /** all (default) | credit | debit */
+  type?: WalletTransactionListType | undefined;
+  /** reference.kind, e.g. rental_order, payment; `all` = no filter */
+  kind?: string | undefined;
+  startDate?: Date | undefined;
+  endDate?: Date | undefined;
+}
+
+/** One line of the wallet history, same fields as the lead's WalletTransactionDto. */
+export interface WalletStatementItemDto {
+  id: string;
+  walletId: string;
+  entryKey: string;
+  postingKey: string;
+  amount: number;
+  type: 'credit' | 'debit';
+  reference?: { kind?: string | undefined; id?: string | undefined } | undefined;
+  description?: string | undefined;
+  createdAt: string;
+}
+
+/** Response data of GET /wallets/me/transactions, same as the lead's PaginatedTransactionsDto. */
+export interface PaginatedTransactionsDto {
+  items: WalletStatementItemDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 }
 
 export interface AdminCreditDto {
@@ -34,24 +85,20 @@ export interface AdminCreditDto {
 export class WalletService {
   private readonly ledger: WalletLedgerPort;
   private readonly userModel: Model<IUser>;
+  private readonly holdings: WalletHoldingsPort;
 
-  public constructor(ledger: WalletLedgerPort, userModel: Model<IUser> = User) {
+  public constructor(
+    ledger: WalletLedgerPort,
+    userModel: Model<IUser> = User,
+    holdings: WalletHoldingsPort = new WalletHoldingsRepository(),
+  ) {
     this.ledger = ledger;
     this.userModel = userModel;
+    this.holdings = holdings;
   }
 
-  public async getMyWallet(
-    actor: RequestActor,
-    query: { page: number; limit: number },
-  ): Promise<WalletSummaryDto> {
-    const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
-    const { items, total } = await this.ledger.listTransactions(
-      wallet.id,
-      query.page,
-      query.limit,
-    );
-
-    const transactions: WalletTransactionItemDto[] = items.map((t) => ({
+  private toTransactionDto(t: IWalletTransaction): WalletTransactionItemDto {
+    return {
       id: t._id.toString(),
       amount: t.amount,
       type: t.type,
@@ -60,20 +107,82 @@ export class WalletService {
         ? { kind: t.reference.kind, id: t.reference.id.toString() }
         : undefined,
       createdAt: t.createdAt,
-    }));
+    };
+  }
+
+  public async getMyWallet(
+    actor: RequestActor,
+    query: { page: number; limit: number },
+  ): Promise<WalletSummaryDto> {
+    const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
+    const [{ items, total }, holdings] = await Promise.all([
+      this.ledger.listTransactions(wallet.id, query.page, query.limit),
+      this.holdings.getHoldings(actor.userId),
+    ]);
 
     return {
       balance: wallet.balance,
+      availableBalance: wallet.balance,
+      holdingBalance: holdings.rentals + (holdings.purchases ?? 0) + holdings.withdrawals,
+      holdings,
       currency: wallet.currency,
-      transactions,
+      transactions: items.map((t) => this.toTransactionDto(t)),
       total,
       page: query.page,
       limit: query.limit,
     };
   }
 
+  private toStatementDto(t: IWalletTransaction): WalletStatementItemDto {
+    return {
+      id: t._id.toString(),
+      walletId: t.walletId.toString(),
+      entryKey: t.entryKey,
+      postingKey: t.postingKey,
+      amount: t.amount,
+      type: t.type,
+      ...(t.reference
+        ? { reference: { kind: t.reference.kind, id: t.reference.id?.toString() } }
+        : {}),
+      ...(t.description ? { description: t.description } : {}),
+      createdAt: t.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * History of the signed-in user's wallet, newest first (View Wallet Transactions).
+   * Filters and response follow the lead's GET /wallets/me/transactions.
+   */
+  public async listMyTransactions(
+    actor: RequestActor,
+    query: TransactionListQuery,
+  ): Promise<PaginatedTransactionsDto> {
+    const wallet = await this.ledger.getOrCreateUserWallet(actor.userId);
+    const { items, total } = await this.ledger.listTransactions(wallet.id, query.page, query.limit, {
+      kind: query.kind && query.kind !== 'all' ? query.kind : undefined,
+      direction: query.type && query.type !== 'all' ? query.type : undefined,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
+    const totalPages = Math.ceil(total / query.limit) || 1;
+
+    return {
+      items: items.map((t) => this.toStatementDto(t)),
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages,
+      hasNextPage: query.page < totalPages,
+      hasPrevPage: query.page > 1,
+    };
+  }
+
+  /**
+   * Admin adds money to a user's wallet. The credit and its audit row (who credited, the user,
+   * the amount and the note; R03 IV.2.3 audit trail) are written in one transaction.
+   */
   public async adminCredit(
-    _actor: RequestActor,
+    context: AdminContext,
     userId: string,
     input: { amount: number; note?: string | undefined },
   ): Promise<AdminCreditDto> {
@@ -95,8 +204,8 @@ export class WalletService {
     const postingKey = `credit:${randomUUID()}`;
     const refId = new mongoose.Types.ObjectId().toString();
 
-    await withTransaction((session) =>
-      this.ledger.post(
+    await withTransaction(async (session) => {
+      await this.ledger.post(
         postingKey,
         { kind: 'admin_credit', id: refId },
         [
@@ -105,8 +214,17 @@ export class WalletService {
         ],
         session,
         input.note,
-      ),
-    );
+      );
+      await writeAuditLog(
+        adminAuditEntry(
+          context,
+          'wallet.credit',
+          { kind: 'USER', id: userId },
+          { amount: input.amount, ...(input.note ? { note: input.note } : {}) },
+        ),
+        session,
+      );
+    });
 
     // Đọc lại sau commit: số dư đọc trước transaction có thể đã cũ nếu có giao dịch chạy song song
     const after = await this.ledger.getOrCreateUserWallet(userId);

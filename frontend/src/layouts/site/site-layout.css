@@ -51,9 +51,9 @@
     @apply h-6 w-auto sm:h-7 dark:brightness-[1.6] dark:saturate-[1.1];
   }
 
-  /* Điện thoại rất hẹp (< 380px): header chỉ giữ hình gấu để các nút bên phải không đè lên chữ */
+  /* Điện thoại (< 440px): header chỉ giữ hình gấu để các nút bên phải (kính lúp, Đăng nhập…) không đè lên chữ */
   .site-header .site-brand__wordmark {
-    @apply max-[379px]:hidden;
+    @apply max-[439px]:hidden;
   }
 
   .site-brand--lg .site-brand__mark {
@@ -237,6 +237,10 @@
     @apply mt-1.5 size-2 shrink-0 rounded-full bg-tf-primary dark:bg-sky-300;
   }
 
+  .notification-menu__all {
+    @apply mt-2 block rounded-xl px-3 py-2 text-center text-sm font-semibold text-tf-primary hover:bg-site-page focus-ring dark:text-sky-300 dark:hover:bg-night-800;
+  }
+
   .notification-menu__body {
     @apply line-clamp-2 leading-5;
   }
@@ -321,5 +325,9 @@
 
   .site-footer__bottom {
     @apply flex flex-col gap-2 border-t border-site-line py-6 text-xs text-site-muted sm:flex-row sm:justify-between dark:border-night-700 dark:text-slate-400;
+  }
+
+  .site-footer__legal {
+    @apply flex flex-wrap gap-x-4 gap-y-1;
   }
 }

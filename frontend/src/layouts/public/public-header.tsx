@@ -2,6 +2,7 @@ import { Bell, MessageCircle, Plus, Search, type LucideIcon } from 'lucide-react
 import type { FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeToggle } from '../../components/ui/theme-toggle'
+import { useChatUnreadCount } from '../../features/chat/chat-queries'
 import { formatVnd } from '../../features/toy-listings/format-vnd'
 import { PATHS } from '../../routes/paths'
 import { getAccessToken, getStoredUser } from '../../services/token-storage'
@@ -29,8 +30,8 @@ interface InboxItem {
 }
 
 const INBOX_ITEMS: InboxItem[] = [
-  // Chờ API hội thoại (server/src/features/conversations, messages)
-  { key: 'messages', label: 'Tin nhắn', icon: MessageCircle },
+  // Chat (UC25): số chưa đọc gắn vào lúc dựng header (useChatUnreadCount)
+  { key: 'messages', label: 'Tin nhắn', icon: MessageCircle, to: PATHS.chat },
   // Chờ API thông báo (server/src/features/notifications)
   { key: 'notifications', label: 'Thông báo', icon: Bell },
 ]
@@ -128,6 +129,7 @@ function AccountChip() {
 export function PublicHeader() {
   const location = useLocation()
   const isSignedIn = Boolean(getAccessToken())
+  const chatUnread = useChatUnreadCount()
   const onCatalog = location.pathname === PATHS.toys
   const listingType = new URLSearchParams(location.search).get('type')
 
@@ -160,7 +162,10 @@ export function PublicHeader() {
 
         <div className="pl-header__actions">
           <ThemeToggle />
-          {isSignedIn && INBOX_ITEMS.map((item) => <InboxButton key={item.key} item={item} />)}
+          {isSignedIn &&
+            INBOX_ITEMS.map((item) => (
+              <InboxButton key={item.key} item={item.key === 'messages' ? { ...item, count: chatUnread } : item} />
+            ))}
           <Link to={PATHS.newListing} className="pl-btn pl-btn--primary pl-btn--sm pl-header__post">
             <Plus aria-hidden="true" />
             Đăng đồ

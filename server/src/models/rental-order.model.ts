@@ -5,7 +5,13 @@ import {
   rentalTimerKinds,
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
+import {
+  type RentalCancelActor,
+  rentalCancelActors,
+} from '../types/order-cancel.types.js';
 import { type RentalPricing } from '../types/rental-order.types.js';
+import { disputeRulings } from '../constants/dispute-ruling.js';
+import { type RentalPricing, type RentalRulingSummary } from '../types/rental-order.types.js';
 
 export interface RentalPhoto {
   url: string;
@@ -29,6 +35,13 @@ export interface IRentalOrder {
     dueAt: Date;
   };
   rejectionReason?: string;
+  cancellation?: {
+    by: RentalCancelActor;
+    userId: Types.ObjectId;
+    reason: string;
+    fee: number;
+    cancelledAt: Date;
+  };
   handover?: {
     ownerPhotos: RentalPhoto[];
     shippedAt?: Date;
@@ -51,6 +64,8 @@ export interface IRentalOrder {
     settledAt: Date;
     autoSettled?: boolean;
     disputeId?: Types.ObjectId;
+    /** Kết quả Admin giải quyết khiếu nại (UC19), để hai bên xem trên trang đơn */
+    resolution?: RentalRulingSummary;
   };
   lastReminderAt?: Date;
   createdAt: Date;
@@ -102,6 +117,13 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       dueAt: { type: Date },
     },
     rejectionReason: { type: String },
+    cancellation: {
+      by: { type: String, enum: rentalCancelActors },
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      reason: { type: String },
+      fee: { type: Number },
+      cancelledAt: { type: Date },
+    },
     handover: {
       ownerPhotos: { type: [photoSchema], default: [] },
       shippedAt: { type: Date },
@@ -124,6 +146,21 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       settledAt: { type: Date },
       autoSettled: { type: Boolean, default: false },
       disputeId: { type: Schema.Types.ObjectId, ref: 'Dispute' },
+      resolution: {
+        type: new Schema(
+          {
+            ruling: { type: String, enum: disputeRulings, required: true },
+            compensationAmount: { type: Number, required: true },
+            rentRefundAmount: { type: Number, required: true },
+            ownerAmount: { type: Number, required: true },
+            renterAmount: { type: Number, required: true },
+            platformFee: { type: Number, required: true },
+            adminDecision: { type: String, required: true },
+            resolvedAt: { type: Date, required: true },
+          },
+          { _id: false },
+        ),
+      },
     },
     lastReminderAt: { type: Date },
   },

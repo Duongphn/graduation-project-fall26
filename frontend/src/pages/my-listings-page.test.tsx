@@ -1,10 +1,12 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
+import { AxiosError, AxiosHeaders } from 'axios'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Category, ToyListing } from '../features/toy-listings/toy-listing-api'
 import { categoriesQuery, listingCountsQuery, myListingsQuery } from '../features/toy-listings/toy-listing-queries'
+import { ThemeProvider } from '../contexts/theme-provider'
 import { PATHS } from '../routes/paths'
 import { httpClient } from '../services/http-client'
 import { createTestQueryClient, renderWithProviders } from '../test/render'
@@ -17,6 +19,7 @@ vi.mock('../services/http-client', async (importOriginal) => ({
 }))
 
 const get = vi.mocked(httpClient.get)
+const post = vi.mocked(httpClient.post)
 
 const WOOD: Category = { id: '64b000000000000000000001', name: 'Đồ chơi gỗ', slug: 'do-choi-go', parentId: null }
 
@@ -64,12 +67,19 @@ const renderPage = async () => {
   const router = createMemoryRouter([{ path: PATHS.myListings, element: <MyListingsPage /> }], {
     initialEntries: [PATHS.myListings],
   })
-  renderWithProviders(<RouterProvider router={router} />, queryClient)
+  renderWithProviders(
+    // AccountLayout có nút đổi giao diện (cần ThemeProvider như ở main.tsx)
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>,
+    queryClient,
+  )
   return { user: userEvent.setup() }
 }
 
 beforeEach(() => {
   get.mockReset()
+  post.mockReset()
 })
 
 describe('MyListingsPage', () => {
@@ -117,5 +127,80 @@ describe('MyListingsPage', () => {
       'Lý do từ chối: Ảnh bị mờ, chụp lại giúp Sửa tin rồi lưu để gửi duyệt lại.',
     )
     expect(screen.getAllByRole('link', { name: 'Sửa' })).toHaveLength(2)
+    // A rejected listing is edited and sent again; only the one its Owner hid is shown again (GB-08).
+    expect(screen.getAllByRole('button', { name: 'Hiện lại' })).toHaveLength(1)
+  })
+
+  it('offers "Ẩn tin" only on a published listing, not on one waiting for review (R03 III.3.2.1)', async () => {
+    const pending: ToyListing = { ...inHidden, status: 'pending' }
+    answer([inWood, pending])
+    await renderPage()
+
+    await screen.findByRole('link', { name: 'Tàu hoả gỗ' })
+    const rows = screen.getAllByRole('article')
+    expect(within(rows[0]!).getByRole('button', { name: 'Ẩn tin' })).toBeInTheDocument()
+    expect(within(rows[1]!).queryByRole('button', { name: 'Ẩn tin' })).not.toBeInTheDocument()
+    expect(within(rows[1]!).queryByRole('button', { name: 'Hiện lại' })).not.toBeInTheDocument()
+    expect(within(rows[1]!).getByRole('link', { name: 'Sửa' })).toBeInTheDocument()
+    expect(within(rows[1]!).getByRole('button', { name: 'Xoá' })).toBeInTheDocument()
+  })
+
+  it('shows a hidden listing again with "Hiện lại" and reloads the list', async () => {
+    const hidden: ToyListing = { ...inWood, status: 'hidden' }
+    answer([hidden])
+    post.mockImplementation(async () => {
+      // The server shows it again: the reloaded list has it published.
+      answer([{ ...hidden, status: 'active' }])
+      return { data: { ...hidden, status: 'active' } }
+    })
+    const { user } = await renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Hiện lại' }))
+
+    expect(post).toHaveBeenCalledWith(`/toys/${hidden.id}/show`)
+    expect(await screen.findByRole('button', { name: 'Ẩn tin' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hiện lại' })).not.toBeInTheDocument()
+  })
+
+  it('says why the server refused to show the listing again', async () => {
+    const hidden: ToyListing = { ...inWood, status: 'hidden' }
+    answer([hidden])
+    post.mockRejectedValue(
+      new AxiosError('rejected', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 409,
+        statusText: '',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: { success: false, error: { code: 'LISTING_REJECTED', message: 'rejected' } },
+      }),
+    )
+    const { user } = await renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Hiện lại' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tin bị từ chối cần được sửa rồi gửi duyệt lại.')
+  })
+
+  // UC33 5.1, BF-04 3a: the Donor sees why the donation post was rejected, edits it and sends it again.
+  it('shows the reason of a rejected donation post and lets the Donor edit it', async () => {
+    const donation = (id: string, title: string, extra: Partial<ToyListing>) =>
+      ({ ...inWood, id, title, listingType: 'donate', priceOrRate: 0, depositPrice: undefined, ...extra }) as ToyListing
+    const rejected = donation('64c000000000000000000011', 'Gấu bông', {
+      status: 'hidden',
+      moderation: { reviewedAt: '2026-11-01T08:00:00.000Z', rejectReason: 'Ảnh chưa thấy rõ toàn bộ gấu bông' },
+    })
+    const active = donation('64c000000000000000000012', 'Xe ben', { status: 'active' })
+    answer([rejected, active])
+    const { user } = await renderPage()
+
+    expect(await screen.findByText('Bị từ chối')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Xem lý do' }))
+    expect(screen.getByText(/Ảnh chưa thấy rõ/)).toHaveTextContent(
+      'Lý do từ chối: Ảnh chưa thấy rõ toàn bộ gấu bông Sửa tin rồi lưu để gửi duyệt lại.',
+    )
+    // Only the rejected post is edited here; an active donation post follows its requests instead.
+    const edit = screen.getAllByRole('link', { name: 'Sửa' })
+    expect(edit).toHaveLength(1)
+    expect(edit[0]).toHaveAttribute('href', `/listings/${rejected.id}/edit`)
   })
 })

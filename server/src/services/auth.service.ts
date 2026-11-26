@@ -6,8 +6,10 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import type { AuthMailer } from '../interfaces/auth.ports.js';
 import { AppError } from '../utils/app-error.js';
+import { phoneLookupForms } from '../utils/phone.js';
 import { OtpRequest } from '../models/otp-request.model.js';
 import { RefreshToken } from '../models/refresh-token.model.js';
+import { assertNotAdminLocked } from './account-lock.service.js';
 import { User } from '../models/user.model.js';
 import type {
   GoogleAuthResult,
@@ -41,7 +43,7 @@ interface UserDocument {
   role: string;
   avatar?: string;
   status: string;
-  lock?: { until?: Date };
+  lock?: { until?: Date; reason?: string };
 }
 
 /** Khoảng chờ tối thiểu giữa hai lần gửi mã đăng ký cho cùng một email */
@@ -92,6 +94,8 @@ const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_PURGE_MS = 65 * 60 * 1000;
 const OTP_HOURLY_LIMIT = 5;
 const OTP_MAX_WRONG_ATTEMPTS = 5;
+/** Thông tin đăng ký đang chờ xác minh còn dùng để gửi lại mã trong 1 giờ kể từ lần gửi mã cuối */
+const REGISTRATION_PENDING_MS = 60 * 60 * 1000;
 
 interface TempTokenPayload {
   email: string;
@@ -117,9 +121,12 @@ export class AuthService {
   public constructor(private readonly mailer: AuthMailer) {}
 
   /**
-   * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập
+   * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập; ghi lại lần đăng nhập
+   * gần nhất để Admin xem (R03 III.7.2.1 (5))
    */
   private async issueSession(user: UserDocument): Promise<AuthSessionResponse> {
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+
     const accessToken = jwt.sign(
       {
         userId: String(user._id),
@@ -200,9 +207,8 @@ export class AuthService {
 
   /** Chặn đăng nhập nếu tài khoản bị khóa vĩnh viễn hoặc tạm thời */
   private assertUserActive(user: UserDocument): void {
-    if (user.status !== 'ACTIVE') {
-      throw new AppError(403, 'USER_INACTIVE', 'Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.');
-    }
+    // Khóa bởi Admin (UC29): báo lý do khóa (MSG12); khóa có thời hạn đã hết thì cho qua
+    assertNotAdminLocked(user);
 
     if (user.lock?.until && new Date(user.lock.until) > new Date()) {
       throw new AppError(
@@ -548,8 +554,8 @@ export class AuthService {
   }
 
   /**
-   * Bước 2 đăng ký: xác minh OTP rồi mới tạo tài khoản. Không tự đăng nhập —
-   * người dùng quay về trang đăng nhập sau khi đăng ký thành công
+   * Bước 2 đăng ký: xác minh OTP rồi mới tạo tài khoản, sau đó đăng nhập luôn
+   * (R03 UC01 bước 5: tạo tài khoản Active/Unverified và đăng nhập người dùng)
    */
   public async verifyRegistrationOtp(dto: VerifyRegistrationOtpDTO): Promise<RegisterResponse> {
     const normalizedEmail = dto.email.toLowerCase().trim();
@@ -585,29 +591,28 @@ export class AuthService {
       status: 'ACTIVE',
     });
 
-    return {
-      user: {
-        id: String(user._id),
-        email: user.email,
-        fullName: user.fullName,
-        phone: user.phone,
-        role: user.role,
-      },
-    };
+    return this.issueSession(user);
   }
 
   /**
-   * Gửi lại mã đăng ký, dùng lại thông tin đăng ký đang chờ xác minh gần nhất
+   * Gửi lại mã đăng ký, dùng lại thông tin đăng ký đang chờ xác minh gần nhất.
+   * Mã gần nhất có thể đã bị huỷ (5 lần sai, R03 III.1.1.1 (14)) hoặc đã hết hạn — thông tin đăng ký
+   * vẫn còn dùng được trong REGISTRATION_PENDING_MS kể từ lần gửi mã cuối, nên vẫn gửi được mã mới
    */
   public async resendRegistrationOtp(email: string): Promise<RegistrationChallenge> {
     const normalizedEmail = email.toLowerCase().trim();
 
-    const latest = await OtpRequest.findOne({ identifier: normalizedEmail, purpose: 'register', is_used: false }).sort({
-      createdAt: -1,
-    });
+    const latest = await OtpRequest.findOne({
+      identifier: normalizedEmail,
+      purpose: 'register',
+      createdAt: { $gt: new Date(Date.now() - REGISTRATION_PENDING_MS) },
+    }).sort({ createdAt: -1 });
     if (!latest?.payload) {
       throw new AppError(400, 'REGISTRATION_EXPIRED', 'Phiên đăng ký đã hết hạn. Vui lòng điền lại thông tin đăng ký.');
     }
+    const pending = latest.payload as PendingRegistration;
+    // Mã gần nhất đã dùng để tạo tài khoản, hoặc email/SĐT vừa bị người khác đăng ký
+    await this.assertRegistrationAvailable(normalizedEmail, pending.phone);
 
     const waitSeconds = Math.ceil(
       (new Date(latest.createdAt).getTime() + REGISTER_OTP_RESEND_SECONDS * 1000 - Date.now()) / 1000
@@ -621,7 +626,7 @@ export class AuthService {
       { identifier: normalizedEmail, purpose: 'register', is_used: false },
       { $set: { is_used: true } },
     );
-    await this.sendRegistrationOtp(normalizedEmail, latest.payload as PendingRegistration);
+    await this.sendRegistrationOtp(normalizedEmail, pending);
 
     return {
       email: normalizedEmail,
@@ -635,7 +640,9 @@ export class AuthService {
     if (await User.exists({ email })) {
       throw new AppError(409, 'EMAIL_EXISTS', 'Email này đã được sử dụng. Vui lòng chọn email khác.');
     }
-    if (await User.exists({ phone })) {
+    // The same number in another form (0912... / +84912...) is the same phone
+    const phoneForms = phoneLookupForms(phone);
+    if (await User.exists({ phone: { $in: phoneForms.length > 0 ? phoneForms : [phone] } })) {
       throw new AppError(409, 'PHONE_EXISTS', 'Số điện thoại này đã được sử dụng.');
     }
   }
@@ -668,20 +675,32 @@ export class AuthService {
    */
   public async login(dto: LoginDTO): Promise<LoginResponse> {
     const identifier = dto.identifier.trim();
-    const query = identifier.includes('@') ? { email: identifier.toLowerCase() } : { phone: identifier };
+    // A phone number may be typed as "0912 345 678" or "+84912345678" and stored as 0912... or +84...
+    const phoneForms = identifier.includes('@') ? [] : phoneLookupForms(identifier);
+    const query = identifier.includes('@')
+      ? { email: identifier.toLowerCase() }
+      : { phone: { $in: phoneForms.length > 0 ? phoneForms : [identifier] } };
+    const lockKey = phoneForms[0] ?? identifier;
 
     const user = await User.findOne(query);
 
-    // GB-03/GB-05: a timed lock (5 failed sign-ins, or an Admin lock) blocks password sign-in
-    // until lock.until; when it has passed the account is unlocked again (JOB-01 behaviour).
-    if ((user?.lock?.until && new Date(user.lock.until) > new Date()) || (!user && isUnknownLocked(identifier))) {
+    // An Admin lock (UC29) is status LOCKED with an optional lock.until; it is answered with MSG12 and
+    // its reason after the password check (assertUserActive), not with the failed-sign-in message.
+    const adminLocked = user?.status === 'LOCKED';
+
+    // GB-03/GB-05: a timed lock after 5 failed sign-ins blocks password sign-in until lock.until;
+    // when it has passed the account is unlocked again (JOB-01 behaviour).
+    if (
+      (!adminLocked && user?.lock?.until && new Date(user.lock.until) > new Date()) ||
+      (!user && isUnknownLocked(lockKey))
+    ) {
       throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
     }
 
     const isPasswordValid = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
     if (!user || !isPasswordValid) {
       // GB-04: one message for an unknown account and for a wrong password, with the attempts left.
-      const failures = user ? await this.recordFailedLogin(user) : recordUnknownFailure(identifier);
+      const failures = user ? await this.recordFailedLogin(user) : recordUnknownFailure(lockKey);
       if (failures >= MAX_FAILED_LOGINS) {
         throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
       }
@@ -698,7 +717,13 @@ export class AuthService {
     this.assertUserActive(user);
 
     if (user.failedLogins?.count || user.lock?.until) {
-      await User.updateOne({ _id: user._id }, { $set: { 'failedLogins.count': 0 }, $unset: { 'lock.until': 1 } });
+      // An Admin lock that has run out keeps its fields: the account-unlock job ends it (UC29).
+      await User.updateOne(
+        { _id: user._id },
+        adminLocked
+          ? { $set: { 'failedLogins.count': 0 } }
+          : { $set: { 'failedLogins.count': 0 }, $unset: { 'lock.until': 1 } },
+      );
     }
 
     return this.issueSession(user);
@@ -713,8 +738,9 @@ export class AuthService {
     );
     const count = updated?.failedLogins?.count ?? 1;
     if (count >= MAX_FAILED_LOGINS) {
+      // Never shorten or replace an Admin lock (status LOCKED) with the 15-minute lock.
       await User.updateOne(
-        { _id: user._id },
+        { _id: user._id, status: { $ne: 'LOCKED' } },
         { $set: { 'lock.until': new Date(Date.now() + LOCK_MINUTES * 60_000), 'failedLogins.count': 0 } },
       );
     }

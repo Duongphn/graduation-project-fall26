@@ -76,7 +76,7 @@ export function IdentityVerificationListPage() {
       ? [
           {
             title: 'Lý do từ chối',
-            dataIndex: 'rejectReason',
+            dataIndex: 'rejectionReason',
             width: 280,
             ellipsis: true,
             render: (value: string | null) => value ?? '—',

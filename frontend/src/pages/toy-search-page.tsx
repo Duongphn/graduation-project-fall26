@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ChevronRight, Home, Plus, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AdvisorFloatingChat } from '../features/ai-chat/components/advisor-floating-chat'
 import { ActiveFilterChips } from '../features/toy-catalog/components/active-filter-chips'
 import { CatalogPagination } from '../features/toy-catalog/components/catalog-pagination'
 import { EmptySuggestions } from '../features/toy-catalog/components/empty-suggestions'
@@ -249,6 +250,8 @@ export function ToySearchPage() {
           />
         </FilterDrawer>
       </div>
+
+      <AdvisorFloatingChat />
     </AccountLayout>
   )
 }

@@ -1,8 +1,11 @@
 import { type Clock } from '../interfaces/rental-order.ports.js';
+import { type DueTimerRunResult, type DueTimerSource } from '../interfaces/order-timer.ports.js';
 import { type RentalOrderRepository } from '../repositories/rental-order.repository.js';
 import { type RentalSystemService } from './rental-system.service.js';
 
-export class RentalTimerService {
+export class RentalTimerService implements DueTimerSource {
+  public readonly name = 'rental';
+
   public constructor(
     private readonly rentals: RentalSystemService,
     private readonly repository: RentalOrderRepository,
@@ -10,8 +13,9 @@ export class RentalTimerService {
     private readonly logger: Pick<Console, 'error'> = console,
   ) {}
 
-  public async runDue(): Promise<{ processed: number; failed: number }> {
-    const now = this.clock.now();
+  public async runDue(
+    now: Date = this.clock.now(),
+  ): Promise<DueTimerRunResult> {
     const dues = await this.repository.findDue(now, 100);
     let processed = 0;
     let failed = 0;
@@ -47,29 +51,4 @@ export class RentalTimerService {
 
     return { processed, failed };
   }
-}
-
-export function startRentalScheduler(
-  timer: RentalTimerService,
-  intervalMs = 60_000,
-): () => void {
-  let isRunning = false;
-
-  const intervalId = setInterval(async () => {
-    if (isRunning) {
-      return;
-    }
-    isRunning = true;
-    try {
-      await timer.runDue();
-    } catch {
-      // Swallows timer tick error
-    } finally {
-      isRunning = false;
-    }
-  }, intervalMs);
-
-  return () => {
-    clearInterval(intervalId);
-  };
 }

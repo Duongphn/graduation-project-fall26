@@ -5,25 +5,38 @@ import { ImageGallery } from '../../../components/common'
 import { formatVnd } from '../../toy-listings/format-vnd'
 import { useListingPhotos } from '../../toy-listings/hooks/use-listing-photos'
 import type { ToyImage } from '../../toy-listings/toy-listing-api'
-import { RETURN_NOTE_MAX, useRentalReturn, type RentalOrderDetail } from '../rental-orders-api'
+import {
+  RETURN_NOTE_MAX,
+  useRentalReturn,
+  type RentalOrderDetail,
+  type RentalRulingSummary,
+} from '../rental-orders-api'
 import { describeReturnDue, estimateLateFee, formatDateTime, formatFullDate } from '../rental-display'
 import { RentalPhotoPicker } from './rental-photo-picker'
 
 const NO_PHOTOS: ToyImage[] = []
 
-/** Tiền cọc → phí trả trễ trừ vào cọc → phần cọc hoàn lại; dùng cho cả bản tạm tính lẫn bản server đã chốt */
+/**
+ * Tiền cọc → phí trả trễ trừ vào cọc → phần cọc hoàn lại; dùng cho cả bản tạm tính lẫn bản server đã chốt.
+ * Đang khiếu nại: chưa hứa hoàn tiền, chỉ ghi phần cọc còn lại chờ phán quyết. Có phán quyết: thêm bồi thường
+ * (trừ từ cọc) và hoàn tiền thuê, số cuối là số người thuê thật sự nhận.
+ */
 function DepositBreakdown({
   deposit,
   lateDays,
   lateFee,
   dailyRate,
   refundLabel,
+  disputed = false,
+  ruling,
 }: {
   deposit: number
   lateDays: number
   lateFee: number
   dailyRate: number
   refundLabel: string
+  disputed?: boolean
+  ruling?: RentalRulingSummary
 }) {
   return (
     <dl className="rental-money rental-return__deposit">
@@ -42,9 +55,21 @@ function DepositBreakdown({
         </dt>
         <dd>{lateFee > 0 ? `−${formatVnd(lateFee)}` : formatVnd(0)}</dd>
       </div>
+      {ruling && ruling.compensationAmount > 0 && (
+        <div className="rental-return__fee">
+          <dt>Bồi thường cho chủ đồ (phán quyết)</dt>
+          <dd>−{formatVnd(ruling.compensationAmount)}</dd>
+        </div>
+      )}
+      {ruling && ruling.rentRefundAmount > 0 && (
+        <div>
+          <dt>Hoàn tiền thuê (phán quyết)</dt>
+          <dd>+{formatVnd(ruling.rentRefundAmount)}</dd>
+        </div>
+      )}
       <div className="rental-money__total">
-        <dt>{refundLabel}</dt>
-        <dd>{formatVnd(deposit - lateFee)}</dd>
+        <dt>{disputed && !ruling ? 'Cọc còn lại, chờ phán quyết' : refundLabel}</dt>
+        <dd>{formatVnd(ruling ? ruling.renterAmount : deposit - lateFee)}</dd>
       </div>
     </dl>
   )
@@ -169,6 +194,8 @@ export function RentalReturnPanel({ order, now }: { order: RentalOrderDetail; no
 export function RentalReturnRecord({ order, isOwner }: { order: RentalOrderDetail; isOwner: boolean }) {
   const info = order.returnInfo
   if (!info) return null
+  const disputed = order.settlement?.result === 'DAMAGED'
+  const ruling = order.settlement?.resolution
 
   return (
     <section className="rental-block" aria-labelledby="return-title">
@@ -197,12 +224,21 @@ export function RentalReturnRecord({ order, isOwner }: { order: RentalOrderDetai
           lateDays={info.lateDays}
           lateFee={info.lateFee}
           dailyRate={order.pricing.dailyRate}
-          refundLabel={isOwner ? 'Hoàn lại người thuê' : 'Hoàn lại cho bạn'}
+          refundLabel={isOwner ? (ruling ? 'Người thuê nhận' : 'Hoàn lại người thuê') : 'Hoàn lại cho bạn'}
+          disputed={disputed}
+          ruling={ruling}
         />
       </div>
       <p className="rental-block__note">
-        Cọc được hoàn khi đồ chơi còn tốt; nếu có hư hỏng, chủ đồ mở khiếu nại để ToyFlow xem xét.
-        {isOwner && info.lateFee > 0 && ` Phí trả trễ ${formatVnd(info.lateFee)} được cộng cho bạn khi quyết toán.`}
+        {ruling
+          ? 'Số tiền theo phán quyết của quản trị viên, xem chi tiết ở mục Quyết toán.'
+          : disputed
+            ? 'Chủ đồ báo hư hỏng: tiền thuê và tiền cọc được ToyFlow giữ, quản trị viên quyết định phần hoàn lại.'
+            : 'Cọc được hoàn khi đồ chơi còn tốt; nếu có hư hỏng, chủ đồ mở khiếu nại để ToyFlow xem xét.'}
+        {!disputed &&
+          isOwner &&
+          info.lateFee > 0 &&
+          ` Phí trả trễ ${formatVnd(info.lateFee)} được cộng cho bạn khi quyết toán.`}
       </p>
     </section>
   )

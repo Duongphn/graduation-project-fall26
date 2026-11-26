@@ -39,4 +39,56 @@ describe('OrganizationProfile', () => {
     expect(screen.getByText('Nhận đồ mang đến')).toBeInTheDocument()
     expect(screen.queryByText('Người phụ trách & liên hệ')).not.toBeInTheDocument()
   })
+
+  // GB-53, R03 III.5.2.3 (6): what the organization accepts, and the "Remote area" badge.
+  it('shows the accepted age groups and categories, the area served and the remote-area badge', () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <OrganizationProfile
+          organization={{
+            ...organization,
+            ageGroups: [
+              { minAge: 3, maxAge: 6 },
+              { minAge: 6, maxAge: 12 },
+            ],
+            categoryIds: ['c1', 'c2', 'hidden'],
+            areaProvince: 'Lào Cai',
+            isRemoteArea: true,
+          }}
+          categoryNames={
+            new Map([
+              ['c1', 'Gấu bông'],
+              ['c2', 'Đồ chơi gỗ'],
+            ])
+          }
+        />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('3–6 tuổi')).toBeInTheDocument()
+    expect(screen.getByText('6–12 tuổi')).toBeInTheDocument()
+    expect(screen.getByText('Gấu bông')).toBeInTheDocument()
+    expect(screen.getByText('Đồ chơi gỗ')).toBeInTheDocument()
+    expect(screen.getByText('Lào Cai')).toBeInTheDocument()
+    expect(screen.getByText('Vùng khó khăn')).toBeInTheDocument()
+  })
+
+  // GB-55: a paused organization takes no new donation, so its profile has no donate button.
+  it('hides "Quyên góp cho tổ chức này" with a note while the organization is paused', () => {
+    const { rerender } = renderWithProviders(
+      <MemoryRouter>
+        <OrganizationProfile organization={organization} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: /Quyên góp cho tổ chức này/ })).toHaveAttribute(
+      'href',
+      '/donations/new?organizationId=o1',
+    )
+    rerender(
+      <MemoryRouter>
+        <OrganizationProfile organization={{ ...organization, isAccepting: false }} />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('link', { name: /Quyên góp cho tổ chức này/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Tổ chức đang tạm ngừng nhận đồ chơi.')
+  })
 })

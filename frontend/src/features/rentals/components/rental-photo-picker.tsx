@@ -2,6 +2,7 @@ import { Camera, ImagePlus, X } from 'lucide-react'
 import { useId, useState, type DragEvent } from 'react'
 import type { ListingPhoto } from '../../toy-listings/hooks/use-listing-photos'
 import { ACCEPTED_IMAGE_TYPES, MAX_IMAGES } from '../../toy-listings/toy-listing-schema'
+import { hasImageSignature } from '../../../utils/image-signature'
 
 interface RentalPhotoPickerProps {
   label: string
@@ -14,9 +15,13 @@ interface RentalPhotoPickerProps {
   onRemove: (key: string) => void
 }
 
+/** Báo file mang đuôi ảnh nhưng nội dung không phải ảnh (vd. đổi tên .txt thành .png) */
+const fakeImageMessage = (name: string) => `"${name}" bị hỏng hoặc không phải ảnh JPG, PNG, WebP thật.`
+
 /**
  * Chọn ảnh tình trạng đồ chơi trên máy để gửi kèm bước giao/nhận/trả (multipart `photos`, 1–10 ảnh).
  * Chưa có ảnh: một vùng thả ảnh lớn; đã có: lưới ảnh nhỏ + ô thêm.
+ * File có đuôi ảnh nhưng nội dung không khớp chữ ký JPG/PNG/WebP bị loại ngay, như server kiểm tra.
  */
 export function RentalPhotoPicker({
   label,
@@ -30,7 +35,21 @@ export function RentalPhotoPicker({
   const inputId = useId()
   const hintId = `${inputId}-hint`
   const [isDragging, setIsDragging] = useState(false)
+  const [fakeFiles, setFakeFiles] = useState<string[]>([])
   const canAdd = !disabled && photos.length < MAX_IMAGES
+
+  const addFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files)
+    const genuine = await Promise.all(list.map(hasImageSignature))
+    setFakeFiles(list.filter((_, index) => !genuine[index]).map((file) => fakeImageMessage(file.name)))
+    onAddFiles(list.filter((_, index) => genuine[index]))
+  }
+
+  const remove = (key: string) => {
+    setFakeFiles([])
+    onRemove(key)
+  }
+  const errors = [...fakeFiles, ...rejections]
 
   const dragProps = {
     onDragOver: (event: DragEvent<HTMLElement>) => {
@@ -41,7 +60,7 @@ export function RentalPhotoPicker({
     onDrop: (event: DragEvent<HTMLElement>) => {
       event.preventDefault()
       setIsDragging(false)
-      if (canAdd) onAddFiles(event.dataTransfer.files)
+      if (canAdd) void addFiles(event.dataTransfer.files)
     },
   }
 
@@ -63,7 +82,7 @@ export function RentalPhotoPicker({
         aria-describedby={photos.length === 0 ? hintId : undefined}
         className="sr-only"
         onChange={(event) => {
-          if (event.target.files) onAddFiles(event.target.files)
+          if (event.target.files) void addFiles(event.target.files)
           event.target.value = '' // cho phép chọn lại đúng file vừa xoá
         }}
       />
@@ -88,7 +107,7 @@ export function RentalPhotoPicker({
               <button
                 type="button"
                 className="rental-photos__remove"
-                onClick={() => onRemove(photo.key)}
+                onClick={() => remove(photo.key)}
                 disabled={disabled}
                 aria-label={`Bỏ ảnh ${index + 1}`}
               >
@@ -107,10 +126,10 @@ export function RentalPhotoPicker({
         </ul>
       )}
 
-      {(missing || rejections.length > 0) && (
+      {(missing || errors.length > 0) && (
         <ul className="rental-photos__errors" role="alert">
           {missing && <li>Cần ít nhất 1 ảnh tình trạng đồ chơi.</li>}
-          {rejections.map((message) => (
+          {errors.map((message) => (
             <li key={message}>{message}</li>
           ))}
         </ul>

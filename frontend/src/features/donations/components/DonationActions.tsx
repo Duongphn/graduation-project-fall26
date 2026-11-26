@@ -26,6 +26,13 @@ export function DonationActions({ request }: { request: DonationRequestDetail })
   const canCancel = isPending || request.status === 'accepted' || isShipping
   const adminDecides = isPending && request.decider === 'ADMIN'
   const organizationHidden = request.organization?.status === 'hidden'
+  // GB-51: an organization saved before receiving points existed takes no toy until it has one.
+  const noReceivingPoint = request.organization !== null && request.organization.receivingPoint === null
+  const acceptBlocked = organizationHidden
+    ? 'Tổ chức đang ẩn: không thể chấp nhận.'
+    : noReceivingPoint
+      ? 'Tổ chức chưa có điểm nhận: hãy nhập điểm nhận cho tổ chức hoặc từ chối yêu cầu.'
+      : undefined
   const forOrganization = request.receiverType === 'ORGANIZATION'
   const sentAt = request.handovers.find((handover) => handover.step === 'DONOR_SENT')?.at
 
@@ -38,11 +45,11 @@ export function DonationActions({ request }: { request: DonationRequestDetail })
             description="Đồ chơi được ẩn khỏi danh sách và các yêu cầu khác cho đồ chơi này bị từ chối."
             okText="Chấp nhận"
             cancelText="Huỷ"
-            disabled={organizationHidden}
+            disabled={acceptBlocked !== undefined}
             onConfirm={() => actions.accept.mutateAsync()}
           >
-            <Tooltip title={organizationHidden ? 'Tổ chức đang ẩn: không thể chấp nhận.' : undefined}>
-              <Button type="primary" disabled={organizationHidden} loading={actions.accept.isPending}>
+            <Tooltip title={acceptBlocked}>
+              <Button type="primary" disabled={acceptBlocked !== undefined} loading={actions.accept.isPending}>
                 Chấp nhận
               </Button>
             </Tooltip>
@@ -70,7 +77,12 @@ export function DonationActions({ request }: { request: DonationRequestDetail })
       />
       <ReasonModal
         open={modal === 'cancel'}
-        title={isShipping ? 'Huỷ yêu cầu đang bàn giao' : 'Huỷ yêu cầu nhận tặng'}
+        // GB-60: a cancelled handover keeps the toy hidden; before it, the toy is listed again.
+        title={
+          isShipping
+            ? 'Huỷ yêu cầu đang bàn giao (đồ chơi vẫn ẩn tới khi người tặng sửa hoặc xoá tin)'
+            : 'Huỷ yêu cầu nhận tặng'
+        }
         okText="Huỷ yêu cầu"
         presets={cancelReasonPresets}
         loading={actions.cancel.isPending}

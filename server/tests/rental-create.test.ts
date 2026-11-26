@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { OrderStatusHistory, RentalOrder } from '../src/models/index.js';
+import { OrderStatusHistory, RentalOrder, SystemSetting } from '../src/models/index.js';
 import {
   authHeader,
   buildRentalApp,
@@ -110,14 +110,50 @@ describe('UC06: Quote and Create Rental Order', () => {
     expect(resUnverified.status).toBe(403);
     expect(errorOf(resUnverified).code).toBe('USER_NOT_VERIFIED');
 
-    const lowTrustUser = await createUser({ trust: { score: 29 } });
-    const resLowTrust = await create(authHeader(lowTrustUser._id.toString()), body35());
-    expect(resLowTrust.status).toBe(403);
-    expect(errorOf(resLowTrust).code).toBe('RENTER_RESTRICTED');
+  });
 
-    const borderTrustUser = await createUser({ trust: { score: 30 } });
-    const resBorder = await create(authHeader(borderTrustUser._id.toString()), body35());
-    expect(resBorder.status).toBe(201);
+  // GB-29, UC07 4.1, MSG28: ngưỡng 50 và chỉ với đồ có tiền cọc trên mức Admin đặt (mặc định 500.000)
+  it('blocks a low trust score only for toys whose deposit is above the limit', async () => {
+    const highDepositToy = await createRentToy(ownerId, { depositPrice: 600_000 });
+    const limitDepositToy = await createRentToy(ownerId, { depositPrice: 500_000 });
+    const dates = { startDate: day(4), endDate: day(6) };
+    const lowTrust = authHeader((await createUser({ trust: { score: 49 } }))._id.toString());
+
+    const blocked = await create(lowTrust, { toyId: highDepositToy._id.toString(), ...dates });
+    expect(blocked.status).toBe(403);
+    expect(errorOf(blocked)).toMatchObject({
+      code: 'RENTER_RESTRICTED',
+      message: 'Điểm tin cậy của bạn quá thấp để thuê đồ chơi này.',
+    });
+    const quote = await request(app)
+      .post('/api/v1/rentals/quote')
+      .set(lowTrust)
+      .send({ toyId: highDepositToy._id.toString(), ...dates });
+    expect(errorOf(quote).code).toBe('RENTER_RESTRICTED');
+
+    // Cọc 200.000 (đồ mặc định) và cọc đúng bằng mức giới hạn: vẫn thuê được dù điểm 49
+    expect((await create(lowTrust, body35())).status).toBe(201);
+    expect((await create(lowTrust, { toyId: limitDepositToy._id.toString(), ...dates })).status).toBe(201);
+    // Điểm 20 vẫn thuê được đồ cọc thấp; điểm đúng 50 thuê được đồ cọc cao
+    const veryLow = authHeader((await createUser({ trust: { score: 20 } }))._id.toString());
+    expect(
+      (await create(veryLow, { toyId: (await createRentToy(ownerId, { depositPrice: 100_000 }))._id.toString(), ...dates })).status,
+    ).toBe(201);
+    const border = authHeader((await createUser({ trust: { score: 50 } }))._id.toString());
+    expect(
+      (await create(border, { toyId: (await createRentToy(ownerId, { depositPrice: 600_000 }))._id.toString(), ...dates })).status,
+    ).toBe(201);
+  });
+
+  it('reads the trust threshold and the deposit limit from the system settings', async () => {
+    await SystemSetting.create([
+      { key: 'rental.minTrustScore', value: '70' },
+      { key: 'rental.trustDepositLimit', value: '100000' },
+    ]);
+    const renter60 = authHeader((await createUser({ trust: { score: 60 } }))._id.toString());
+    const res = await create(renter60, body35());
+    expect(res.status).toBe(403);
+    expect(errorOf(res).code).toBe('RENTER_RESTRICTED');
   });
 
   it('rejects inactive, sell and missing toys with 404 TOY_NOT_FOUND', async () => {
@@ -137,15 +173,16 @@ describe('UC06: Quote and Create Rental Order', () => {
     expect(errorOf(resHidden).code).toBe('TOY_NOT_FOUND');
   });
 
-  it('rejects overlapping dates with conflicts and a suggestion', async () => {
+  it('rejects overlapping dates with conflicts and a suggestion near the chosen dates', async () => {
     await create(renterAuth, body35());
     const res = await create(otherRenterAuth, { toyId, startDate: day(5), endDate: day(7) });
     expect(res.status).toBe(409);
+    // Right after the booking (day 7–9) is closer to day 5 than day 1–3 or today
     expect(errorOf(res)).toMatchObject({
       code: 'RENTAL_DATES_UNAVAILABLE',
       details: {
         conflicts: [{ startDate: day(4), endDate: day(6) }],
-        suggestion: { startDate: day(0), endDate: day(2) },
+        suggestion: { startDate: day(7), endDate: day(9) },
       },
     });
   });

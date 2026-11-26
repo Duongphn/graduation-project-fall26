@@ -17,6 +17,7 @@ import {
   assertListingFieldRules,
   assertListingPhotoCount,
   assertNoContactDetails,
+  assertSafetyDeclared,
   type CreateToyListingInput,
   type UpdateToyListingInput,
   validateCreateToyListingInput,
@@ -54,6 +55,15 @@ const isDonationPost = (toy: Pick<IToy, 'listingType'>): boolean =>
  */
 const isBackToReview = (toy: Pick<IToy, 'status' | 'moderation'>): boolean =>
   toy.status !== 'hidden' || Boolean(toy.moderation?.rejectReason);
+
+/**
+ * Whether the Owner edited the listing after the Admin's last review: every edit that waits for a
+ * review, and an edit while the Owner hid the listing, stamps `moderation.submittedAt` (GB-08).
+ */
+const editedSinceReview = (toy: Pick<IToy, 'moderation'>): boolean => {
+  const { submittedAt, reviewedAt } = toy.moderation ?? {};
+  return !reviewedAt || (submittedAt !== undefined && submittedAt > reviewedAt);
+};
 
 /**
  * Whether the Admin has approved the listing (GB-09): it is active, or its last review approved it
@@ -112,6 +122,7 @@ export class ToyListingService {
       status: derivedStatus,
       ...(doc.location ? { location: doc.location } : {}),
       ...(doc.moderation ? { moderation: toOwnerModerationView(doc.moderation) } : {}),
+      ...(doc.safetyDeclaredAt ? { safetyDeclaredAt: doc.safetyDeclaredAt } : {}),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -136,6 +147,7 @@ export class ToyListingService {
     const validatedInput = validateCreateToyListingInput(input);
     assertListingFieldRules(validatedInput);
     assertNoContactDetails(validatedInput);
+    assertSafetyDeclared(validatedInput.listingType, validatedInput.safetyDeclaration);
 
     const categoryExists = await this.ports.categoryExists(validatedInput.categoryId);
     if (!categoryExists) {
@@ -188,6 +200,7 @@ export class ToyListingService {
             ageRange: validatedInput.ageRange,
             images: uploadedAssets,
             quantity: 1,
+            safetyDeclaredAt: new Date(),
           }).save({ session }),
       );
       if (!touched) {
@@ -328,6 +341,12 @@ export class ToyListingService {
     }
 
     const effectiveListingType = validatedInput.listingType ?? listing.listingType;
+    // UC05: every edit of a rent or sale listing goes back to review, so the Owner declares the
+    // toy safe again; checked before any upload.
+    assertSafetyDeclared(
+      isDonationPost(listing) ? 'donate' : effectiveListingType,
+      validatedInput.safetyDeclaration,
+    );
     if (effectiveListingType === 'sell') {
       if (validatedInput.depositPrice !== undefined) {
         throw new AppError(
@@ -406,6 +425,15 @@ export class ToyListingService {
       throw uploadError;
     }
 
+    // A donation post the Admin rejected is sent again by an edit (UC33 5.1, BF-04 3a). GB-60: a
+    // donation post hidden because the Admin cancelled its Shipping request stays hidden until
+    // the Donor edits (or deletes) it; the edit also sends it back to review.
+    const donationBackToReview =
+      isDonationPost(listing) &&
+      listing.status === 'hidden' &&
+      (Boolean(listing.moderation?.rejectReason) ||
+        (await this.ports.hasCancelledShipment?.(toyId, listing.moderation?.reviewedAt)) === true);
+
     const submittedAt = new Date();
     const applyEdit = (toy: HydratedDocument<IToy>): void => {
       if (validatedInput.title !== undefined) toy.title = validatedInput.title;
@@ -427,11 +455,12 @@ export class ToyListingService {
       }
 
       toy.images = [...remainingImages, ...newUploadedAssets];
+      if (!isDonationPost(toy)) toy.safetyDeclaredAt = submittedAt;
 
       // GB-08: an edited listing waits for the Admin again, also a rejected one sent again
       // (BF-02 1a, BF-03 1a). A listing its Owner hid stays hidden, and donation posts keep the
-      // status the donation flow gave them.
-      if (!isDonationPost(toy) && isBackToReview(toy)) {
+      // status the donation flow gave them, except the two cases above.
+      if (isDonationPost(toy) ? donationBackToReview : isBackToReview(toy)) {
         toy.moderation ??= {};
         if (toy.moderation.rejectReason) {
           // A rejected listing sent again is a new submission: the rejection no longer applies.
@@ -445,6 +474,11 @@ export class ToyListingService {
           toy.moderation.submittedAt = submittedAt;
         }
         toy.status = 'pending';
+      } else if (!isDonationPost(toy) && toy.status === 'hidden') {
+        // GB-08: edited while its Owner hid it. It stays hidden, and showing it again sends it
+        // back to Pending Review, as the Admin has not seen this version.
+        toy.moderation ??= {};
+        toy.moderation.submittedAt = submittedAt;
       }
     };
 
@@ -532,6 +566,15 @@ export class ToyListingService {
       throw new AppError(403, 'FORBIDDEN', 'You do not own this listing');
     }
 
+    // R03 III.3.2.1: a listing waiting for review offers only Edit and Delete.
+    if (listing.status === 'pending') {
+      throw new AppError(
+        409,
+        'LISTING_PENDING_REVIEW',
+        'A listing waiting for review cannot be hidden. Edit or delete it instead.',
+      );
+    }
+
     const hasUnfinished = await this.ports.hasUnfinishedOrder(toyId);
     if (hasUnfinished) {
       throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot hide listing with unfinished orders');
@@ -549,6 +592,75 @@ export class ToyListingService {
     const derivedStatus: ListingFilterStatus = soldSet.has(toyId) ? 'sold' : saved.status;
     const categoryNames = await this.ports.getCategoryNames([saved.categoryId.toString()]);
     return this.mapToDto(saved, derivedStatus, categoryNames);
+  }
+
+  /**
+   * Shows a listing its Owner hid again (GB-08, R03 III.3.2.1): it is active at once when the Admin
+   * approved it and it was not edited since, otherwise it goes back to Pending Review. A rejected
+   * listing must be edited and sent again instead.
+   */
+  public async show(actor: RequestActor, toyId: string): Promise<ToyListingDto> {
+    this.assertActor(actor);
+
+    if (!toyId || !mongoose.Types.ObjectId.isValid(toyId)) {
+      throw new AppError(404, 'NOT_FOUND', 'Listing not found');
+    }
+
+    const listing = await this.toyModel.findById(toyId);
+    if (!listing) {
+      throw new AppError(404, 'NOT_FOUND', 'Listing not found');
+    }
+
+    if (listing.ownerId.toString() !== actor.userId) {
+      throw new AppError(403, 'FORBIDDEN', 'You do not own this listing');
+    }
+
+    const soldBefore = await this.ports.getSoldToyIds([toyId]);
+    if (listing.status !== 'hidden' || soldBefore.has(toyId)) {
+      throw new AppError(409, 'LISTING_NOT_HIDDEN', 'Only a hidden listing can be shown again.');
+    }
+
+    if (listing.moderation?.rejectReason) {
+      throw new AppError(
+        409,
+        'LISTING_REJECTED',
+        'A rejected listing must be edited and sent for review again.',
+      );
+    }
+
+    // A donation post being handed over (GB-60) or already given away stays off the lists.
+    const hasUnfinished = await this.ports.hasUnfinishedOrder(toyId);
+    if (hasUnfinished) {
+      throw new AppError(409, 'ORDER_IN_PROGRESS', 'Cannot show listing with unfinished orders');
+    }
+    if (isDonationPost(listing) && (await this.ports.isDonated?.(toyId))) {
+      throw new AppError(409, 'TOY_DONATED', 'A donated toy cannot be shown again.');
+    }
+    // GB-60: after the Admin cancelled its Shipping request, a donation post stays hidden until the
+    // Donor edits it (the edit sends it back to review), so it cannot simply be shown again.
+    if (
+      isDonationPost(listing) &&
+      (await this.ports.hasCancelledShipment?.(toyId, listing.moderation?.reviewedAt)) === true
+    ) {
+      throw new AppError(
+        409,
+        'LISTING_NEEDS_EDIT',
+        'Tin quyên góp này cần được sửa và gửi duyệt lại trước khi hiện lại.',
+      );
+    }
+
+    if (editedSinceReview(listing)) {
+      listing.moderation ??= {};
+      // Back in the Admin queue from now on (oldest first).
+      listing.moderation.submittedAt = new Date();
+      listing.status = 'pending';
+    } else {
+      listing.status = 'active';
+    }
+    const saved = await listing.save();
+
+    const categoryNames = await this.ports.getCategoryNames([saved.categoryId.toString()]);
+    return this.mapToDto(saved, saved.status, categoryNames);
   }
 
   public async delete(actor: RequestActor, toyId: string): Promise<void> {

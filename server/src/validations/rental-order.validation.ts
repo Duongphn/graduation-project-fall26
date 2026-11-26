@@ -67,6 +67,32 @@ export function validateRentalListQuery(
   query: unknown,
   actorRole?: string,
 ): RentalListQuery {
+export function validateCancelRentalInput(body: unknown): { reason: string } {
+  if (typeof body !== 'object' || body === null) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ.');
+  }
+
+  const { reason } = body as Record<string, unknown>;
+  if (typeof reason !== 'string') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Lý do hủy phải là chuỗi ký tự.');
+  }
+
+  const trimmed = reason.trim();
+  if (trimmed.length < 5 || trimmed.length > 500) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Lý do hủy phải từ 5 đến 500 ký tự.');
+  }
+
+  return { reason: trimmed };
+}
+
+export interface RentalListQuery {
+  role: 'renter' | 'owner';
+  status?: RentalOrderStatus | undefined;
+  page: number;
+  limit: number;
+}
+
+export function validateRentalListQuery(query: unknown): RentalListQuery {
   if (typeof query !== 'object' || query === null) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Query không hợp lệ.');
   }

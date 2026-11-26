@@ -14,8 +14,8 @@ The `toys_search` index combines full-text search, exact filtering, range filter
 
 | Field | Type | Purpose |
 | --- | --- | --- |
-| `title` | `string` (lucene.standard) | Full-text keyword matching on toy name. |
-| `description` | `string` (lucene.standard) | Full-text keyword matching on listing description. |
+| `title` | `string` (`vi_folding`) | Full-text keyword matching on toy name. |
+| `description` | `string` (`vi_folding`) | Full-text keyword matching on listing description. |
 | `status` | `token` | Exact filtering for active listings (`active`). |
 | `listingType` | `token` | Exact filtering by listing type (`rent` or `sell`). |
 | `categoryId` | `objectId` | Exact filtering by category ID. |
@@ -23,6 +23,12 @@ The `toys_search` index combines full-text search, exact filtering, range filter
 | `ageRange.maxAge` | `number` | Numeric range queries for suitable age overlap. |
 | `priceOrRate` | `number` | Numeric range queries for rent rate or sell price. |
 | `location` | `geo` (Point) | Geospatial filtering (`geoWithin`) and distance sorting (`near`). |
+
+## Vietnamese Accents (`vi_folding`)
+
+R03 2.1.1 (1): the keyword search ignores Vietnamese accents, so "nguoi nhen" finds "Robot Người Nhện" and "dua" finds "Xe Đua". The custom analyzer `vi_folding` (standard tokenizer, then the `lowercase` and `icuFolding` token filters) is the index and search analyzer of `title` and `description`: both the stored text and the keyword lose their accents and the stroke of "đ" before they are compared. A keyword typed with accents still matches.
+
+An existing `toys_search` index keeps its old analyzers until it is changed: after this file changes, edit the index on Atlas (JSON Editor, paste the file) or drop and create it again, then wait for it to be **Active** again. Until then, searches without accents return nothing.
 
 ## Deployment Instructions
 

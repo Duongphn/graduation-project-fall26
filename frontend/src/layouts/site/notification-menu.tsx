@@ -1,22 +1,29 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bell, BellOff, CheckCheck, RotateCw } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { RelativeTime } from '../../components/common'
 import { notificationTargetPath } from '../../features/notifications/notification-target'
 import type { AppNotification } from '../../features/notifications/notifications-api'
 import {
   latestNotificationsQuery,
-  unreadCountQuery,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
+  useUnreadCount,
 } from '../../features/notifications/notifications-queries'
+import { PATHS } from '../../routes/paths'
 import { HeaderPopover } from './header-popover'
 
 /** Số trên chuông: quá 99 hiện "99+" */
 const badgeText = (count: number) => (count > 99 ? '99+' : String(count))
 
-function NotificationList({ unread, close }: { unread: number; close: () => void }) {
+interface NotificationListProps {
+  unread: number
+  close: () => void
+  allPath: string
+}
+
+function NotificationList({ unread, close, allPath }: NotificationListProps) {
   const navigate = useNavigate()
   const list = useQuery(latestNotificationsQuery)
   const markRead = useMarkNotificationRead()
@@ -95,14 +102,20 @@ function NotificationList({ unread, close }: { unread: number; close: () => void
           ))}
         </ul>
       )}
+
+      <Link to={allPath} className="notification-menu__all" onClick={close}>
+        Xem tất cả thông báo
+      </Link>
     </>
   )
 }
 
-/** Chuông thông báo (chỉ hiện khi đã đăng nhập): số chưa đọc, 10 thông báo mới nhất, đánh dấu đã đọc */
-export function NotificationMenu() {
-  const unread = useQuery(unreadCountQuery)
-  const count = unread.data?.count ?? 0
+/**
+ * Chuông thông báo (chỉ hiện khi đã đăng nhập): số chưa đọc cập nhật realtime, 10 thông báo mới
+ * nhất, bấm để mở đối tượng, đánh dấu đã đọc. `allPath`: trang danh sách đầy đủ (người dùng hoặc Admin).
+ */
+export function NotificationMenu({ allPath = PATHS.notifications }: { allPath?: string }) {
+  const count = useUnreadCount()
 
   return (
     <HeaderPopover
@@ -120,7 +133,7 @@ export function NotificationMenu() {
       }
       panelClassName="notification-menu"
     >
-      {(close) => <NotificationList unread={count} close={close} />}
+      {(close) => <NotificationList unread={count} close={close} allPath={allPath} />}
     </HeaderPopover>
   )
 }

@@ -28,6 +28,16 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
     status: doc.status,
     timer: doc.timer?.kind && doc.timer.dueAt ? { kind: doc.timer.kind, dueAt: doc.timer.dueAt } : undefined,
     rejectionReason: doc.rejectionReason ?? undefined,
+    cancellation:
+      doc.cancellation && doc.cancellation.cancelledAt
+        ? {
+            by: doc.cancellation.by,
+            userId: doc.cancellation.userId.toString(),
+            reason: doc.cancellation.reason,
+            fee: doc.cancellation.fee,
+            cancelledAt: doc.cancellation.cancelledAt,
+          }
+        : undefined,
     handover:
       doc.handover &&
       (doc.handover.shippedAt ||
@@ -62,6 +72,7 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
             settledAt: doc.settlement.settledAt,
             autoSettled: doc.settlement.autoSettled ?? undefined,
             disputeId: doc.settlement.disputeId?.toString() ?? undefined,
+            resolution: doc.settlement.resolution ?? undefined,
           }
         : undefined,
     createdAt: doc.createdAt,

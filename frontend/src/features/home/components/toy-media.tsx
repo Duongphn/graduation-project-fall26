@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { getCategoryVisual } from '../home-content'
 import type { HomeCategory } from '../home-api'
+import { TONE_CLASSES } from '../home-styles'
 
 interface ToyMediaProps {
   imageUrl?: string
@@ -21,26 +22,35 @@ export function ToyMedia({ imageUrl, alt, category, priority = false, className 
   const showImage = imageUrl !== undefined && failedUrl !== imageUrl
 
   return (
-    <div className={`toy-media tone--${tone} ${className}`}>
+    <div className={`relative size-full overflow-hidden ${TONE_CLASSES[tone]} ${className}`}>
       {showImage ? (
         <img
           src={imageUrl}
           alt={alt}
-          className="toy-media__image"
+          className="size-full object-cover"
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"
           onError={() => setFailedUrl(imageUrl)}
         />
       ) : (
-        <div className="toy-media__placeholder" aria-hidden>
+        <div className="flex size-full flex-col items-center justify-center gap-2 p-3 text-center" aria-hidden>
           {categoryImage ? (
-            <img src={categoryImage} alt="" className="toy-media__placeholder-image" loading="lazy" decoding="async" />
+            // Rộng/cao 100% + object-cover: giữ đúng cách ảnh đang hiển thị (trước đây do rule
+            // `.toy-card__media img` của trang tìm kiếm áp lên). Muốn ảnh nhỏ, không bị cắt:
+            // đổi thành `size-3/5 object-contain`.
+            <img
+              src={categoryImage}
+              alt=""
+              className="h-full max-h-28 w-full object-cover drop-shadow-[0_6px_10px_rgb(18_23_31/0.15)]"
+              loading="lazy"
+              decoding="async"
+            />
           ) : (
-            <span className="toy-media__placeholder-icon">
+            <span className="grid size-12 place-items-center rounded-xl border-2 border-current/30 bg-white/70 dark:bg-white/5 [&_svg]:size-6">
               <Icon />
             </span>
           )}
-          {category && <span className="toy-media__placeholder-label">{category.name}</span>}
+          {category && <span className="line-clamp-1 text-xs font-medium">{category.name}</span>}
         </div>
       )}
     </div>

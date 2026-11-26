@@ -1,0 +1,51 @@
+# Deploys the frontend to Vercel (https://toyflow-vn.vercel.app) whenever develop gets frontend changes.
+# The Vercel project is not linked to this repository (the Vercel GitHub App is not installed on it),
+# so Vercel does not build by itself; this job runs the same deploy as `vercel deploy --prod` by hand.
+# Needs the repository secret VERCEL_TOKEN (a token of the Vercel account that owns the project).
+name: Deploy frontend (Vercel)
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-vercel
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Vercel production
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # Project toyflow-staging in the Vercel team ToyFlow (slug toyflow-vn; ids are not secret).
+      VERCEL_ORG_ID: team_rlt3Ao7w7htSLT1e58iMvwMH
+      VERCEL_PROJECT_ID: prj_KwPwCWVxL1wF3RxXa1LKO2bYVXEj
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Stop when the token is missing
+        if: env.VERCEL_TOKEN == ''
+        working-directory: .
+        run: |
+          echo "::error::Repository secret VERCEL_TOKEN is not set, so nothing was deployed."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Vercel builds on its side with frontend/vercel.json and the project's environment
+      # variables (VITE_API_BASE_URL), as with a deploy by hand.
+      - name: Deploy
+        run: npx --yes vercel@66.2.0 deploy --prod --yes --token "$VERCEL_TOKEN"

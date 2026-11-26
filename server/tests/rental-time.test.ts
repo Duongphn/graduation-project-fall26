@@ -68,4 +68,23 @@ describe('rental-time', () => {
     expect(suggestFreeRange(occupied, 1, d('2026-11-04'), d('2027-04-29'))).toEqual({ startDate: d('2026-11-04'), endDate: d('2026-11-04') });
     expect(suggestFreeRange(occupied, 3, d('2026-11-05'), d('2026-11-09'))).toBeNull();
   });
+
+  // Review 20/11, rental bug 8: chose 28–29/11 (taken) on 20/11 and was offered 20–21/11.
+  it('suggests the free range closest to the dates the renter chose', () => {
+    const window = [d('2026-11-20'), d('2027-05-18')] as const;
+    const taken = [{ startDate: d('2026-11-28'), endDate: d('2026-11-29') }];
+    // 26–27 and 30/11–01/12 are both two days away: the later one wins
+    expect(suggestFreeRange(taken, 2, ...window, d('2026-11-28'))).toEqual({ startDate: d('2026-11-30'), endDate: d('2026-12-01') });
+    // Chose 27–28: ending right before the booking (26–27) is closer than after it (30/11–01/12)
+    expect(suggestFreeRange(taken, 2, ...window, d('2026-11-27'))).toEqual({ startDate: d('2026-11-26'), endDate: d('2026-11-27') });
+    // Several bookings: skips the busy stretch to the nearest gap long enough
+    const busy = [
+      { startDate: d('2026-12-01'), endDate: d('2026-12-05') },
+      { startDate: d('2026-12-08'), endDate: d('2026-12-12') },
+    ];
+    expect(suggestFreeRange(busy, 3, ...window, d('2026-12-04'))).toEqual({ startDate: d('2026-11-28'), endDate: d('2026-11-30') });
+    expect(suggestFreeRange(busy, 2, ...window, d('2026-12-04'))).toEqual({ startDate: d('2026-12-06'), endDate: d('2026-12-07') });
+    // Never before the window (today)
+    expect(suggestFreeRange([{ startDate: d('2026-11-20'), endDate: d('2026-11-22') }], 2, ...window, d('2026-11-20'))).toEqual({ startDate: d('2026-11-23'), endDate: d('2026-11-24') });
+  });
 });

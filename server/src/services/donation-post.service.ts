@@ -7,6 +7,10 @@ import { Toy } from '../models/toy.model.js';
 import { saveWithActiveCategory } from '../repositories/toy-listing.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
+import { objectIdSchema } from '../validations/common.validation.js';
+import { handoverMethodSchema } from '../validations/donation-request.validation.js';
+import { DONOR_REQUEST_NOTE_MAX } from '../constants/donation-request-transitions.js';
+import { assertOrganizationTakesToys } from './donation-request.service.js';
 import {
   assertListingTextRules,
   assertNoContactDetails,
@@ -23,6 +27,9 @@ import {
 // phone number, email address or http/www link (GB-11). Like POST /toys, the toy is saved in the
 // transaction that touches its category, so an Admin hide or delete during the upload cannot
 // leave the post on that category ("Category rules" in docs/api/toys.md).
+// UC33 step 4: the post can name an organization, a handover method and a note to it, checked
+// like POST /donation-requests/to-organization; the request to it is created as Pending once the
+// Admin approves the post (step 5, donation.subscriptions.ts).
 
 const isVerifiedUser = async (userId: string) =>
   (await IdentityVerification.exists({ userId, status: { $regex: /^verified$/i } })) !== null;
@@ -37,6 +44,41 @@ const MAX_DONATION_IMAGES = 10;
 
 const categoryNotAvailable = () =>
   new AppError(400, 'CATEGORY_NOT_FOUND', 'Category does not exist or is inactive');
+
+const invalid = (field: string, message: string) =>
+  new AppError(400, 'VALIDATION_ERROR', message, { field });
+
+/** A multipart text field: a trimmed string, empty means not sent. */
+const textField = (body: Record<string, unknown>, name: string): string | undefined => {
+  const value = body[name];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+};
+
+/**
+ * UC33 step 4 (R03 III.5.2.1 (5)–(8)): the organization chosen on the form, the handover method
+ * its receiving point allows (required with an organization, MSG52) and an optional note of up
+ * to 300 characters. Without an organization the post stays open for requests (FE-02, "Keep
+ * open for requests"), and a note has nobody to go to.
+ */
+const parseDonationTarget = (body: Record<string, unknown>) => {
+  const organizationId = textField(body, 'organizationId');
+  const note = textField(body, 'note');
+  if (!organizationId) {
+    if (note) throw invalid('organizationId', 'Vui lòng chọn tổ chức nhận trước khi ghi chú.');
+    return undefined;
+  }
+  if (!objectIdSchema.safeParse(organizationId).success) {
+    throw invalid('organizationId', 'Mã tổ chức không hợp lệ.');
+  }
+  const handoverMethod = handoverMethodSchema.safeParse(textField(body, 'handoverMethod'));
+  if (!handoverMethod.success) {
+    throw invalid('handoverMethod', 'Vui lòng chọn mang đến hoặc gửi qua vận chuyển.');
+  }
+  if (note && note.length > DONOR_REQUEST_NOTE_MAX) {
+    throw invalid('note', `Ghi chú cho tổ chức tối đa ${DONOR_REQUEST_NOTE_MAX} ký tự.`);
+  }
+  return { organizationId, handoverMethod: handoverMethod.data, ...(note ? { note } : {}) };
+};
 
 export const createDonationPost = async (
   imageStorage: ToyImageStorage,
@@ -67,6 +109,8 @@ export const createDonationPost = async (
     );
   }
   for (const file of files) validateToyImage(file.buffer, file.mimetype);
+  const target = parseDonationTarget(body);
+  if (target) await assertOrganizationTakesToys(target.organizationId, target.handoverMethod);
 
   const uploaded: Array<{ url: string; publicId: string }> = [];
   const cleanUp = async () => {
@@ -92,6 +136,14 @@ export const createDonationPost = async (
         ageRange: input.ageRange,
         images: uploaded,
         quantity: 1,
+        ...(target
+          ? {
+              donationTarget: {
+                ...target,
+                organizationId: new mongoose.Types.ObjectId(target.organizationId),
+              },
+            }
+          : {}),
       }).save({ session }),
     );
     if (!touched) throw categoryNotAvailable();
@@ -111,6 +163,8 @@ export const createDonationPost = async (
       images: uploaded,
       quantity: 1,
       status: 'pending' as const,
+      // UC33 step 5: the request to this organization is created when the Admin approves the post.
+      donationTarget: target ?? null,
       createdAt: toy.createdAt,
       updatedAt: toy.updatedAt,
     };
