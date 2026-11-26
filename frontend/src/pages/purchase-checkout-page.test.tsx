@@ -28,7 +28,7 @@ const ADDRESSES = [
   { id: 'a1', recipientName: 'Vương Giang Trường', phone: '0901234567', province: 'Hà Nội', ward: 'Phường Cầu Giấy', street: '1 Trần Thái Tông', isDefault: true },
 ]
 
-const renderPage = (balance = 1_000_000, addresses = ADDRESSES) => {
+const renderPage = (balance = 1_000_000, addresses = ADDRESSES, verificationStatus = 'verified') => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   // Hồ sơ, sổ địa chỉ và ví đã có trong cache (trang chỉ đọc)
   client.setQueryData(['profile'], {
@@ -36,7 +36,7 @@ const renderPage = (balance = 1_000_000, addresses = ADDRESSES) => {
     fullName: 'Vương Giang Trường',
     email: 'a@b.c',
     phone: '0909999999',
-    verificationStatus: 'verified',
+    verificationStatus,
     role: 'USER',
   })
   client.setQueryData(['profile', 'addresses'], addresses)
@@ -168,6 +168,34 @@ describe('PurchaseCheckoutPage', () => {
     renderPage()
 
     expect(await screen.findByText('Đây là tin của bạn nên không thể tự mua.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Thanh toán 380\.000/ })).toBeDisabled()
+  })
+
+  it.each(['unverified', 'pending', 'rejected'])('blocks a %s account and links to identity verification (GB-06)', async (status) => {
+    vi.spyOn(purchaseApi, 'quote').mockResolvedValue(quote())
+    const buyNow = vi.spyOn(purchaseApi, 'buyNow')
+    renderPage(1_000_000, ADDRESSES, status)
+
+    expect(await screen.findByText('Tài khoản chưa được xác thực danh tính nên chưa thể mua.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Xác thực danh tính' })).toHaveAttribute('href', '/profile/verification')
+    const pay = await screen.findByRole('button', { name: /Thanh toán 380\.000/ })
+    expect(pay).toBeDisabled()
+    await userEvent.click(pay)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(buyNow).not.toHaveBeenCalled()
+  })
+
+  it('shows the verification link when the server refuses with USER_NOT_VERIFIED', async () => {
+    vi.spyOn(purchaseApi, 'quote').mockResolvedValue(quote())
+    vi.spyOn(purchaseApi, 'buyNow').mockRejectedValue(
+      new ApiError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.'),
+    )
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: /Thanh toán 380\.000/ }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Thanh toán' }))
+
+    expect(await screen.findByRole('link', { name: 'Xác thực danh tính' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Thanh toán 380\.000/ })).toBeDisabled()
   })
 

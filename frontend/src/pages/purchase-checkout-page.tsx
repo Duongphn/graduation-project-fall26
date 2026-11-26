@@ -134,7 +134,11 @@ export function PurchaseCheckoutPage() {
   const quoteCode = quote.error instanceof ApiError ? quote.error.code : undefined
   const buyCode = buy.error instanceof ApiError ? buy.error.code : undefined
   const unavailable = UNAVAILABLE_CODES.has(quoteCode ?? '') || UNAVAILABLE_CODES.has(buyCode ?? '')
-  const canPay = data !== undefined && balance !== undefined && shortfall === 0 && !isOwnToy && !unavailable
+  // GB-06: chỉ tài khoản đã xác thực danh tính mới được mua (server cũng chặn USER_NOT_VERIFIED)
+  const unverified =
+    (saved !== undefined && saved.verificationStatus !== 'verified') || buyCode === 'USER_NOT_VERIFIED'
+  const canPay =
+    data !== undefined && balance !== undefined && shortfall === 0 && !isOwnToy && !unavailable && !unverified
 
   const review = () => {
     const found = validateCheckout(values)
@@ -370,12 +374,20 @@ export function PurchaseCheckoutPage() {
                 Đây là tin của bạn nên không thể tự mua.
               </p>
             )}
+            {unverified && (
+              <div role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p>Tài khoản chưa được xác thực danh tính nên chưa thể mua.</p>
+                <Link to={PATHS.identityVerification} className="mt-1 inline-block font-semibold underline">
+                  Xác thực danh tính
+                </Link>
+              </div>
+            )}
             {quote.isError && !unavailable && (
               <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
                 {getErrorMessage(quote.error, 'Chưa tính được giá. Vui lòng thử lại.')}
               </p>
             )}
-            {buy.isError && !unavailable && (
+            {buy.isError && !unavailable && !unverified && (
               <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
                 {getErrorMessage(buy.error, 'Không thanh toán được. Vui lòng thử lại.')}
               </p>

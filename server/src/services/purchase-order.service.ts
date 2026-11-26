@@ -210,6 +210,12 @@ export class PurchaseOrderService {
    * Mua ngay: Khóa tin chống bán trùng + Thanh toán ví vào Escrow + Chuyển đơn sang PAID
    */
   public async buyNow(actor: RequestActor, input: CreateBuyNowInput): Promise<PurchaseOrderDto> {
+    // GB-06: only identity-verified accounts may pay (same check as renting)
+    const buyer = await User.findById(actor.userId).select('verificationStatus').lean();
+    if (!buyer || buyer.verificationStatus !== 'verified') {
+      throw new AppError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.');
+    }
+
     const now = new Date();
     // GB-38: hoa hồng, phí giao và các hạn của đơn lấy theo cấu hình lúc tạo đơn và lưu trên đơn
     const settings = await this.settings.getPurchaseSettings();
@@ -235,11 +241,7 @@ export class PurchaseOrderService {
       );
 
       if (!lockedToy) {
-        throw new AppError(
-          409,
-          'TOY_ALREADY_SOLD',
-          'Món đồ chơi này đã có người đặt mua trước hoặc không còn khả dụng.',
-        );
+        throw await this.notBuyableError(input.toyId, session);
       }
 
       if (lockedToy.ownerId.toString() === actor.userId) {
@@ -358,6 +360,29 @@ export class PurchaseOrderService {
     });
 
     return this.toDto(order);
+  }
+
+  /**
+   * Why the lock in buyNow failed: the same errors as the quote for a missing toy or a toy that is
+   * not for sale; a sell toy that is hidden or out of stock was bought first.
+   */
+  private async notBuyableError(toyId: string, session: ClientSession): Promise<AppError> {
+    const toy = await this.toyModel
+      .findById(toyId)
+      .select('listingType status')
+      .session(session)
+      .lean();
+    if (!toy || toy.status === 'pending') {
+      return new AppError(404, 'TOY_NOT_FOUND', 'Món đồ chơi không tồn tại hoặc đã bị ẩn.');
+    }
+    if (toy.listingType !== 'sell') {
+      return new AppError(400, 'INVALID_LISTING_TYPE', 'Món đồ chơi này không phải là bài đăng bán lại.');
+    }
+    return new AppError(
+      409,
+      'TOY_ALREADY_SOLD',
+      'Món đồ chơi này đã có người đặt mua trước hoặc không còn khả dụng.',
+    );
   }
 
   /**

@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import { normalizeVietnamPhone } from '../utils/phone.js';
+
+/** "+84 933 000 003" -> "0933000003", the form the address book stores; other text unchanged. */
+const toDomesticPhone = (value: string): string => {
+  const normalized = normalizeVietnamPhone(value);
+  return normalized ? `0${normalized.slice(3)}` : value;
+};
 
 export const quotePurchasePricingSchema = z.object({
   toyId: z
@@ -33,7 +40,7 @@ export const createBuyNowSchema = z
           path: ['recipientName'],
         });
       }
-      if (!data.recipientPhone || !/^(?:\+84|0)\d{9,10}$/.test(data.recipientPhone.replace(/[\s.-]/g, ''))) {
+      if (!data.recipientPhone || !normalizeVietnamPhone(data.recipientPhone)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Số điện thoại người nhận không hợp lệ.',
@@ -62,7 +69,12 @@ export const createBuyNowSchema = z
         });
       }
     }
-  });
+  })
+  .transform((data) =>
+    data.recipientPhone === undefined
+      ? data
+      : { ...data, recipientPhone: toDomesticPhone(data.recipientPhone) },
+  );
 
 export type QuotePurchasePricingInput = z.infer<typeof quotePurchasePricingSchema>;
 export type CreateBuyNowInput = z.infer<typeof createBuyNowSchema>;
