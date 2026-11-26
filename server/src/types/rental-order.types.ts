@@ -1,6 +1,7 @@
 import { type DisputeRuling } from '../constants/dispute-ruling.js';
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+import { type RentalCancelActor } from './order-cancel.types.js';
 
 export interface RentalSettings {
   ownerResponseHours: number;
@@ -9,6 +10,7 @@ export interface RentalSettings {
   settlementHours: number;
   returnReminderHours: number;
   platformFeeRate: number;
+  cancelFeeRate: number;
   lateFeeMultiplier: number;
   /** GB-29: điểm tin cậy tối thiểu để thuê đồ có tiền cọc cao */
   minTrustScore: number;
@@ -27,6 +29,7 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   settlementHours: 48, // GB-22: the Owner inspects within 48 hours
   returnReminderHours: 24,
   platformFeeRate: 0.1,
+  cancelFeeRate: 0.2,
   lateFeeMultiplier: 1.0,
   minTrustScore: 50,
   trustDepositLimit: 500_000,
@@ -78,6 +81,13 @@ export interface RentalOrderDto {
   status: RentalOrderStatus;
   timer?: { kind: RentalTimerKind; dueAt: Date } | undefined;
   rejectionReason?: string | undefined;
+  cancellation?: {
+    by: RentalCancelActor;
+    userId: string;
+    reason: string;
+    fee: number;
+    cancelledAt: Date;
+  } | undefined;
   handover?: {
     ownerPhotos: ToyImage[];
     shippedAt?: Date | undefined;

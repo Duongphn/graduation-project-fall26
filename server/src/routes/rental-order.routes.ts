@@ -16,6 +16,7 @@ export function createRentalOrderRouter(service: RentalOrderService): Router {
   router.get('/:id', authenticate, requireActor, controller.get);
   router.post('/:id/accept', authenticate, requireActor, controller.accept);
   router.post('/:id/reject', authenticate, requireActor, controller.reject);
+  router.post('/:id/cancel', authenticate, requireActor, controller.cancel);
   router.post('/:id/pay', authenticate, requireActor, controller.pay);
   router.post('/:id/ship', authenticate, requireActor, rentalPhotoUpload, controller.ship);
   router.post('/:id/receive', authenticate, requireActor, rentalPhotoUpload, controller.receive);

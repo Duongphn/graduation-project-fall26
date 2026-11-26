@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { optionalReasonFormSchema, reasonFormSchema } from '../../schemas/common'
@@ -14,6 +14,7 @@ interface ReasonModalProps {
   title: string
   // Text of the confirm button, e.g. "Từ chối".
   okText?: string
+  cancelText?: string
   label?: string
   placeholder?: string
   danger?: boolean
@@ -25,6 +26,8 @@ interface ReasonModalProps {
   optional?: boolean
   onCancel: () => void
   onSubmit: (reason: string) => void | Promise<void>
+  // Optional context shown above the reason field, e.g. what the action will cost.
+  children?: ReactNode
 }
 
 // The one modal that asks for a required reason (5–500 characters), used by every reject or
@@ -33,6 +36,7 @@ export function ReasonModal({
   open,
   title,
   okText = 'Xác nhận',
+  cancelText,
   label = 'Lý do',
   placeholder,
   danger = true,
@@ -42,6 +46,7 @@ export function ReasonModal({
   optional = false,
   onCancel,
   onSubmit,
+  children,
 }: ReasonModalProps) {
   const { control, handleSubmit, reset } = useForm<ReasonFormValues>({
     resolver: zodResolver(optional ? optionalReasonFormSchema : reasonFormSchema),
@@ -57,11 +62,14 @@ export function ReasonModal({
       open={open}
       title={title}
       okText={okText}
+      cancelText={cancelText}
       danger={danger}
       loading={loading}
       onCancel={onCancel}
       onSubmit={handleSubmit(({ reason }) => onSubmit(reason))}
     >
+      {children}
+      <FormField control={control} name="reason" label={label} required>
       <FormField control={control} name="reason" label={label} required={!optional}>
         {(field) => (
           <ReasonInput

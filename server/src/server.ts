@@ -7,10 +7,11 @@ import {
   disconnectDatabase,
 } from './config/database.js';
 import { createContainer } from './container.js';
-import { startRentalScheduler } from './services/rental-timer.service.js';
 import { registerEventHandlers } from './event-handlers.js';
 import { startAccountUnlockJob } from './jobs/account-unlock.job.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
+import { startOrderTimersJob } from './jobs/order-timers.job.js';
+import { createSocketServer } from './sockets/socket.js';
 import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
 import { startPurchaseOrderTimerJob } from './jobs/purchase-order-timer.job.js';
 import { setOpenConnectionCloser } from './services/account-lock.service.js';
@@ -26,6 +27,8 @@ const startServer = async (): Promise<void> => {
   const accountUnlockJob = startAccountUnlockJob();
 
   const container = createContainer();
+  const orderTimersJob = startOrderTimersJob([container.rentalTimerService]);
+
   const paymentExpiryJob = startPaymentExpiryJob(container.payosTopupService);
   const purchaseOrderTimerJob = startPurchaseOrderTimerJob(container.purchaseOrderService);
   const httpServer = createServer(createApp(undefined, container));
@@ -34,21 +37,13 @@ const startServer = async (): Promise<void> => {
   setOpenConnectionCloser((userId) => disconnectUser(socketServer, userId));
   registerChatSocket(socketServer, container.chatService, container.chatRealtime);
 
-  let stopScheduler: (() => void) | undefined;
-  if (env.rentalSchedulerEnabled) {
-    stopScheduler = startRentalScheduler(container.rentalTimerService);
-    console.info('Rental scheduler started.');
-  }
-
   httpServer.listen(env.port, () => {
     console.info(`ToyFlow backend is listening on port ${env.port}.`);
   });
 
   const shutdown = async (signal: string): Promise<void> => {
     console.info(`${signal} received. Shutting down ToyFlow backend.`);
-    if (stopScheduler) {
-      stopScheduler();
-    }
+    orderTimersJob?.stop();
     donationExpiryJob?.stop();
     paymentExpiryJob?.stop();
     purchaseOrderTimerJob?.stop();

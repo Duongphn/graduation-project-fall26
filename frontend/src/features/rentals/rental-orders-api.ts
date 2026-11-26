@@ -9,7 +9,7 @@ import { myWalletQuery, walletKeys } from '../wallet/wallet-queries'
 
 /**
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11), POST /:id/cancel (UC14) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -78,10 +78,18 @@ export interface RentalOrder {
     /** Có khi quản trị viên đã giải quyết khiếu nại (UC19): số tiền mỗi bên nhận và lý do */
     resolution?: RentalRulingSummary
   }
+  cancellation?: RentalCancellation
 }
 
 export type SettlementResult = 'GOOD' | 'DAMAGED'
 
+/** Có khi đơn bị huỷ (UC14): ai huỷ, lý do và phí huỷ người thuê bị trừ (0 khi được hoàn 100%) */
+export interface RentalCancellation {
+  by: 'RENTER' | 'OWNER'
+  userId: string
+  reason: string
+  fee: number
+  cancelledAt: string
 export type DisputeRuling = 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT' | 'UNDETERMINED' | 'FAIR_WEAR_AND_TEAR'
 
 export interface RentalRulingSummary {
@@ -304,6 +312,30 @@ export const useRentalSettle = (orderId: string) => {
     invalidateOnConflict: true,
     onError,
   })
+
+/**
+ * Huỷ đơn (POST /:id/cancel, lý do 5–500 ký tự). Sau đó tải lại đơn, ví (tiền hoàn) và lịch trống của
+ * món đồ, vì đơn huỷ nhả các ngày đã giữ.
+ */
+export const useRentalCancel = (orderId: string, toyId: string | undefined, onSuccess?: () => void) =>
+  useApiMutation({
+    mutationFn: (reason: string) => apiPost<RentalOrder>(`/rentals/${orderId}/cancel`, { reason }),
+    successMessage: (order) => {
+      const fee = order.cancellation?.fee ?? 0
+      const refund = order.pricing.totalPayable - fee
+      return order.status === 'CANCELLED' && fee > 0
+        ? `Đã huỷ đơn. Hoàn ${refund.toLocaleString('vi-VN')} ₫ về ví người thuê, phí huỷ ${fee.toLocaleString('vi-VN')} ₫.`
+        : 'Đã huỷ đơn. Lịch của món đồ đã được mở lại.'
+    },
+    invalidate: [rentalKeys.all, walletKeys.me, ...(toyId ? [['toy-availability', toyId]] : [])],
+    invalidateOnConflict: true,
+    onSuccess,
+  })
+
+/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
+export interface WalletSummary {
+  balance: number
+  currency: string
 }
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) — dùng chung với màn hình Ví */
