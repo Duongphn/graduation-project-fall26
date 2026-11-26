@@ -5,6 +5,12 @@ import { withTransaction } from '../repositories/transaction.js';
 /** gatewayResponseCode of a payment the user cancelled (PayOS link status) */
 const CANCELLED_CODE = 'CANCELLED';
 
+/**
+ * An expired link: PayOS reports 'EXPIRED', the expiry job stores 'expired' when PayOS still
+ * shows the link as pending after the window.
+ */
+const isExpiredCode = (code: string | undefined) => code?.toUpperCase() === 'EXPIRED';
+
 export type TopupReturnStatus =
   | 'success'
   | 'failed'
@@ -41,7 +47,7 @@ export function toReturnResult(payment: PaymentRecord): TopupReturnResult {
     success: false,
     status: 'failed',
     message:
-      payment.gatewayResponseCode === 'expired' ? 'Giao dịch nạp tiền đã hết hạn.' : 'Giao dịch nạp tiền thất bại.',
+      isExpiredCode(payment.gatewayResponseCode) ? 'Giao dịch nạp tiền đã hết hạn.' : 'Giao dịch nạp tiền thất bại.',
   };
 }
 

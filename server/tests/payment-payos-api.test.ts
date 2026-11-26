@@ -198,7 +198,10 @@ describe('PayOS top-up API', () => {
 
     const expired = await startTopup();
     payos.states.set(Number(expired.paymentCode), { status: 'EXPIRED', amount: 200_000, amountPaid: 0 });
-    expect((await confirm(expired.paymentCode)).body.data.status).toBe('failed');
+    const expiredRes = await confirm(expired.paymentCode);
+    expect(expiredRes.body.data.status).toBe('failed');
+    // E2E 26/11 bug 5: PayOS stores 'EXPIRED' (upper case); the page must still say it expired
+    expect(expiredRes.body.data.message).toBe('Giao dịch nạp tiền đã hết hạn.');
     expect(await balanceOf()).toBe(0);
   });
 
