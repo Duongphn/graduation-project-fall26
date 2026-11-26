@@ -8,8 +8,11 @@ import { validateRequest } from '../middlewares/validate.js';
 import { type WalletService } from '../services/wallet.service.js';
 import { type WithdrawalService } from '../services/withdrawal.service.js';
 import {
+  adminProcessWithdrawalSchema,
+  adminWithdrawalListQuerySchema,
   walletTransactionListQuerySchema,
   withdrawalBodySchema,
+  withdrawalIdParamsSchema,
   withdrawalListQuerySchema,
 } from '../validations/wallet.validation.js';
 
@@ -40,6 +43,22 @@ export function createWalletRouter(service: WalletService, withdrawalService: Wi
     requireActor,
     validateRequest({ query: withdrawalListQuerySchema }),
     withdrawals.listMine,
+  );
+  // Admin process withdrawal (same paths as the lead's API)
+  router.get(
+    '/wallets/admin/withdrawals',
+    authenticate,
+    requireAdmin,
+    validateRequest({ query: adminWithdrawalListQuerySchema }),
+    withdrawals.adminList,
+  );
+  router.get('/wallets/admin/withdrawals/counts', authenticate, requireAdmin, withdrawals.adminCounts);
+  router.patch(
+    '/wallets/admin/withdrawals/:id/process',
+    authenticate,
+    requireAdmin,
+    validateRequest({ params: withdrawalIdParamsSchema, body: adminProcessWithdrawalSchema }),
+    withdrawals.adminProcess,
   );
   router.post(
     '/admin/wallets/:userId/credit',

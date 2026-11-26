@@ -9,6 +9,7 @@ import { AppError } from '../utils/app-error.js';
 import { phoneLookupForms } from '../utils/phone.js';
 import { OtpRequest } from '../models/otp-request.model.js';
 import { RefreshToken } from '../models/refresh-token.model.js';
+import { assertNotAdminLocked } from './account-lock.service.js';
 import { User } from '../models/user.model.js';
 import type {
   GoogleAuthResult,
@@ -42,7 +43,7 @@ interface UserDocument {
   role: string;
   avatar?: string;
   status: string;
-  lock?: { until?: Date };
+  lock?: { until?: Date; reason?: string };
 }
 
 /** Khoảng chờ tối thiểu giữa hai lần gửi mã đăng ký cho cùng một email */
@@ -120,9 +121,12 @@ export class AuthService {
   public constructor(private readonly mailer: AuthMailer) {}
 
   /**
-   * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập
+   * Cấp Access Token + Refresh Token cho user và trả về phiên đăng nhập; ghi lại lần đăng nhập
+   * gần nhất để Admin xem (R03 III.7.2.1 (5))
    */
   private async issueSession(user: UserDocument): Promise<AuthSessionResponse> {
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+
     const accessToken = jwt.sign(
       {
         userId: String(user._id),
@@ -203,9 +207,8 @@ export class AuthService {
 
   /** Chặn đăng nhập nếu tài khoản bị khóa vĩnh viễn hoặc tạm thời */
   private assertUserActive(user: UserDocument): void {
-    if (user.status !== 'ACTIVE') {
-      throw new AppError(403, 'USER_INACTIVE', 'Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.');
-    }
+    // Khóa bởi Admin (UC29): báo lý do khóa (MSG12); khóa có thời hạn đã hết thì cho qua
+    assertNotAdminLocked(user);
 
     if (user.lock?.until && new Date(user.lock.until) > new Date()) {
       throw new AppError(
@@ -681,9 +684,16 @@ export class AuthService {
 
     const user = await User.findOne(query);
 
-    // GB-03/GB-05: a timed lock (5 failed sign-ins, or an Admin lock) blocks password sign-in
-    // until lock.until; when it has passed the account is unlocked again (JOB-01 behaviour).
-    if ((user?.lock?.until && new Date(user.lock.until) > new Date()) || (!user && isUnknownLocked(lockKey))) {
+    // An Admin lock (UC29) is status LOCKED with an optional lock.until; it is answered with MSG12 and
+    // its reason after the password check (assertUserActive), not with the failed-sign-in message.
+    const adminLocked = user?.status === 'LOCKED';
+
+    // GB-03/GB-05: a timed lock after 5 failed sign-ins blocks password sign-in until lock.until;
+    // when it has passed the account is unlocked again (JOB-01 behaviour).
+    if (
+      (!adminLocked && user?.lock?.until && new Date(user.lock.until) > new Date()) ||
+      (!user && isUnknownLocked(lockKey))
+    ) {
       throw new AppError(403, 'USER_LOCKED', LOCKED_MESSAGE);
     }
 
@@ -707,7 +717,13 @@ export class AuthService {
     this.assertUserActive(user);
 
     if (user.failedLogins?.count || user.lock?.until) {
-      await User.updateOne({ _id: user._id }, { $set: { 'failedLogins.count': 0 }, $unset: { 'lock.until': 1 } });
+      // An Admin lock that has run out keeps its fields: the account-unlock job ends it (UC29).
+      await User.updateOne(
+        { _id: user._id },
+        adminLocked
+          ? { $set: { 'failedLogins.count': 0 } }
+          : { $set: { 'failedLogins.count': 0 }, $unset: { 'lock.until': 1 } },
+      );
     }
 
     return this.issueSession(user);
@@ -722,8 +738,9 @@ export class AuthService {
     );
     const count = updated?.failedLogins?.count ?? 1;
     if (count >= MAX_FAILED_LOGINS) {
+      // Never shorten or replace an Admin lock (status LOCKED) with the 15-minute lock.
       await User.updateOne(
-        { _id: user._id },
+        { _id: user._id, status: { $ne: 'LOCKED' } },
         { $set: { 'lock.until': new Date(Date.now() + LOCK_MINUTES * 60_000), 'failedLogins.count': 0 } },
       );
     }

@@ -1,22 +1,28 @@
 // What a ledger posting is about (wallet_transactions.reference.kind) and the history filters.
 
-/** `payment` is a VNPay top-up, as in the lead's payment service. */
-export const ledgerReferenceKinds = ['rental_order', 'admin_credit', 'payment', 'withdrawal'] as const;
+/** `payment` is a wallet top-up (PayOS); `purchase_order` is buy-now resale. */
+export const ledgerReferenceKinds = [
+  'rental_order',
+  'purchase_order',
+  'admin_credit',
+  'payment',
+  'withdrawal',
+] as const;
 export type LedgerReferenceKind = (typeof ledgerReferenceKinds)[number];
 
 /** `type` filter of GET /wallets/me/transactions: money in, money out or both. */
 export const walletTransactionListTypes = ['all', 'credit', 'debit'] as const;
 export type WalletTransactionListType = (typeof walletTransactionListTypes)[number];
 
-/** One VNPay top-up (UC17), same limits as the lead's validateTopupInput. */
+/** One top-up (UC17), same limits as the lead's validateTopupInput. */
 export const TOPUP_LIMITS = { MIN_AMOUNT: 10_000, MAX_AMOUNT: 100_000_000 } as const;
 
-/** Minutes the VNPay payment link stays valid (vnp_ExpireDate) */
+/** Minutes the PayOS payment link stays valid (expiredAt) */
 export const TOPUP_LINK_MINUTES = 15;
 
 /**
- * Extra minutes before the expiry job marks a still-pending top-up as failed. VNPay can send the
- * IPN of a payment made just before the link expired a little later; failing it too early would
+ * Extra minutes before the expiry job checks a still-pending top-up. A transfer made just before
+ * the link expired can reach PayOS (and its webhook) a little later; failing it too early would
  * refuse money the user really paid.
  */
 export const TOPUP_EXPIRY_GRACE_MINUTES = 15;
@@ -38,3 +44,6 @@ export const ESCROW_HELD_RENTAL_STATUSES = [
   'RETURNING',
   'DISPUTING',
 ] as const;
+
+/** Purchase statuses whose totalPayable sits in escrow: paid by the buyer, not settled yet. */
+export const ESCROW_HELD_PURCHASE_STATUSES = ['PAID', 'SHIPPING', 'DISPUTING'] as const;

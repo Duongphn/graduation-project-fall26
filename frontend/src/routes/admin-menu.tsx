@@ -1,18 +1,22 @@
 import {
   AppstoreOutlined,
   AuditOutlined,
+  BankOutlined,
   DashboardOutlined,
   GiftOutlined,
   HeartOutlined,
+  HistoryOutlined,
   IdcardOutlined,
   SafetyCertificateOutlined,
+  TeamOutlined,
+  WarningOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
 import { adminPaths } from './paths'
 
 // Menu entries that show how many items wait for an Admin (useAdminPendingCounts).
-export type AdminPendingCounter = 'toys' | 'identityVerifications'
+export type AdminPendingCounter = 'toys' | 'identityVerifications' | 'violationReports' | 'users' | 'withdrawals'
 
 export interface AdminMenuItem {
   key: string
@@ -32,4 +36,8 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'organizations', label: 'Tổ chức từ thiện', icon: <HeartOutlined />, path: adminPaths.organizations },
   { key: 'disputes', label: 'Giải quyết khiếu nại', icon: <SafetyCertificateOutlined />, path: adminPaths.disputes },
   { key: 'donation-requests', label: 'Yêu cầu nhận tặng', icon: <GiftOutlined />, path: adminPaths.donationRequests },
+  { key: 'violation-reports', label: 'Báo cáo vi phạm', icon: <WarningOutlined />, path: adminPaths.violationReports, pendingCounter: 'violationReports' },
+  { key: 'withdrawals', label: 'Duyệt rút tiền', icon: <BankOutlined />, path: adminPaths.withdrawals, pendingCounter: 'withdrawals' },
+  { key: 'users', label: 'Quản lý người dùng', icon: <TeamOutlined />, path: adminPaths.users, pendingCounter: 'users' },
+  { key: 'audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, path: adminPaths.auditLogs },
 ]

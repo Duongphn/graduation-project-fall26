@@ -15,9 +15,10 @@ const normalize = (text: string) =>
 
 /**
  * Ô tỉnh/thành: gợi ý 34 tỉnh, vẫn nhận tỉnh gõ tay (điểm nhận do Admin nhập tự do). Áp dụng khi
- * chọn gợi ý, bấm Enter hoặc rời ô; backend nhận 2–100 ký tự.
+ * chọn gợi ý, bấm Enter hoặc rời ô; backend nhận 2–100 ký tự. Dùng cả ở danh sách yêu cầu quyên
+ * góp của Admin (UC35 bước 1).
  */
-function ProvinceFilter({ value, onChange }: { value?: string; onChange: (province?: string) => void }) {
+export function ProvinceFilter({ value, onChange }: { value?: string; onChange: (province?: string) => void }) {
   const [text, setText] = useState(value ?? '')
   const commit = (next: string) => {
     const province = next.trim()

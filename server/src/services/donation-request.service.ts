@@ -4,13 +4,11 @@ import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.reposi
 import { AppError } from '../utils/app-error.js';
 import { conflict, forbidden, notFound, unprocessable } from '../utils/http-errors.js';
 import { domainEvents } from '../utils/domain-events.js';
+import { notify } from '../utils/notify.js';
+import { notificationLinks } from './notification.links.js';
 import { toMongoPaging } from '../utils/response.js';
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
-import {
-  HANDOVER_EXPIRY_DAYS,
-  PENDING_EXPIRY_DAYS,
-  type HandoverMethod,
-} from '../constants/donation-request-transitions.js';
+import { type HandoverMethod } from '../constants/donation-request-transitions.js';
 import {
   type DonationView,
   encodePhoto,
@@ -41,6 +39,7 @@ import {
 } from '../validations/donation-request.validation.js';
 import {
   adminContextOf,
+  donationSettings,
   organizationNotAccepting,
   organizationNotAvailable,
   organizationWithoutPoint,
@@ -59,12 +58,20 @@ export const viewOf = (actor: DonationActor): DonationView =>
   actor.isAdmin ? { admin: true } : { admin: false, viewerId: actor.userId };
 
 export const toDtos = async (records: DonationRecord[], view: DonationView) => {
-  const relations = await repository.loadRelations(records, view.admin);
-  return records.map((record) => toDonationRequestDto(record, relations, view));
+  const [relations, { confirmDays }] = await Promise.all([
+    repository.loadRelations(records, view.admin),
+    donationSettings(),
+  ]);
+  return records.map((record) => toDonationRequestDto(record, relations, view, confirmDays));
 };
 
-export const toDetail = async (record: DonationRecord, view: DonationView) =>
-  toDonationRequestDetailDto(record, await repository.loadRelations([record], view.admin), view);
+export const toDetail = async (record: DonationRecord, view: DonationView) => {
+  const [relations, { confirmDays }] = await Promise.all([
+    repository.loadRelations([record], view.admin),
+    donationSettings(),
+  ]);
+  return toDonationRequestDetailDto(record, relations, view, confirmDays);
+};
 
 export const listPage = async (
   filter: RequestFilter,
@@ -80,18 +87,20 @@ export const listPage = async (
 
 // ---- Create (receiver, an Admin for an organization, or the Donor to an organization) ---------
 
-/** GB-51/GB-58: the methods a receiving point accepts. No point (older organization): both. */
-const allowedMethodsOf = (point: OrganizationPoint | undefined): HandoverMethod[] =>
-  point
-    ? [
-        ...(point.acceptsDropOff ? (['drop_off'] as const) : []),
-        ...(point.acceptsParcel ? (['carrier'] as const) : []),
-      ]
-    : ['drop_off', 'carrier'];
+/** GB-51/GB-58: the methods a receiving point accepts. */
+const allowedMethodsOf = (point: OrganizationPoint): HandoverMethod[] => [
+  ...(point.acceptsDropOff ? (['drop_off'] as const) : []),
+  ...(point.acceptsParcel ? (['carrier'] as const) : []),
+];
 
 type OrganizationPoint = { acceptsDropOff: boolean; acceptsParcel: boolean };
 
+/**
+ * GB-51/GB-58: the method must be one the receiving point accepts. An organization saved before
+ * receiving points existed has none until the Admin enters it, so it takes no toy (409).
+ */
 const assertMethodAllowed = (method: HandoverMethod, point: OrganizationPoint | undefined) => {
+  if (!point) throw organizationWithoutPoint();
   const allowed = allowedMethodsOf(point);
   if (!allowed.includes(method)) {
     throw unprocessable(
@@ -123,6 +132,8 @@ const insertPendingRequest = async (
   if (!actor.isAdmin && !(await repository.isVerifiedUser(actor.userId))) {
     throw new AppError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.');
   }
+  // GB-57: the Pending deadline (DONATION_DECISION_DAYS, UC30).
+  const { decisionDays } = await donationSettings();
   const created = await repository
     .withTransaction(async (session) => {
       // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a
@@ -185,7 +196,7 @@ const insertPendingRequest = async (
           ...(input.organizationId ? { organizationId: input.organizationId } : {}),
           // develop's itemDetails (required): the requester's message, else the toy title.
           itemDetails: input.message || toy.title,
-          dueAt: daysFromNow(PENDING_EXPIRY_DAYS),
+          dueAt: daysFromNow(decisionDays),
           ...(input.handoverMethod ? { handoverMethod: input.handoverMethod } : {}),
         },
         session,
@@ -255,22 +266,55 @@ export const assertOrganizationTakesToys = async (
 /**
  * UC33 step 5: the Admin approved a new donation post sent to an organization, so its request is
  * created as Pending, as if the Donor had sent the Active post to it (the Donor is its creator;
- * the Admin decides it, GB-56). When the organization no longer takes toys, no request is
- * created and the post stays open (step 6.1). Returns the request, or undefined.
+ * the Admin decides it, GB-56), and the Donor is told (GB-61). When the organization no longer
+ * takes toys, no request is created, the post stays open and the Donor is told to choose
+ * another organization (step 6.1, MSG51). Returns the request, or undefined.
  */
 export const createRequestForApprovedPost = async (toyId: string) => {
   const toy = await repository.takeDonationTarget(toyId);
   if (!toy) return undefined;
-  const { organizationId, handoverMethod } = toy.donationTarget;
+  const { organizationId, handoverMethod, note } = toy.donationTarget;
+  const donorId = String(toy.ownerId);
   try {
-    return await insertPendingRequest(
+    const created = await insertPendingRequest(
       { userId: String(toy.ownerId), isAdmin: false },
-      { toyId, organizationId: String(organizationId), handoverMethod },
+      {
+        toyId,
+        organizationId: String(organizationId),
+        handoverMethod,
+        // R03 III.5.2.1 (8): the note goes to the organization with the request.
+        ...(note ? { message: note } : {}),
+      },
       'DONOR',
     );
+    const receiver = created.organization?.name ?? 'tổ chức đã chọn';
+    notify({
+      type: 'DONATION_STATUS_CHANGED',
+      to: donorId,
+      title: `Phiếu quyên góp "${toy.title}" đã được gửi tới ${receiver}`,
+      body:
+        `Tin quyên góp của bạn đã được duyệt. Phiếu quyên góp ${created.code} đã được gửi tới ` +
+        `${receiver}; ToyFlow sẽ chấp nhận hoặc từ chối thay tổ chức.`,
+      link: notificationLinks.myDonation(created.id),
+    });
+    return created;
   } catch (error) {
     if (error instanceof AppError && error.statusCode < 500) {
       console.info(`Donation request not created for the approved post ${toyId}: ${error.code}`);
+      const organization = await repository.findOrganization(organizationId).catch(() => null);
+      const why =
+        error.code === 'HANDOVER_METHOD_NOT_ALLOWED'
+          ? 'điểm nhận của tổ chức không còn nhận cách bàn giao bạn đã chọn'
+          : 'tổ chức hiện không nhận đồ chơi';
+      notify({
+        type: 'DONATION_STATUS_CHANGED',
+        to: donorId,
+        title: `Chưa gửi được "${toy.title}" tới ${organization?.name ?? 'tổ chức đã chọn'}`,
+        body:
+          `Tin quyên góp của bạn đã được duyệt, nhưng ${why} nên chưa có yêu cầu quyên góp. ` +
+          'Tin vẫn mở: vui lòng chọn tổ chức khác, hoặc chờ người nhận và ToyFlow ghép tổ chức phù hợp.',
+        link: notificationLinks.toyDetail(toyId),
+      });
       return undefined;
     }
     throw error;
@@ -349,19 +393,21 @@ const assertDecider = (actor: DonationActor) => (record: DonationRecord) => {
   }
 };
 
-export const accept = async (actor: DonationActor, id: string) =>
-  detailOf(
+export const accept = async (actor: DonationActor, id: string) => {
+  const { handoverDays } = await donationSettings();
+  return detailOf(
     await transition({
       id,
       to: 'accepted',
       actor,
       allowed: canDecide,
       check: assertDecider(actor),
-      // The donor now has HANDOVER_EXPIRY_DAYS to hand the toy over.
-      set: { ...decided(actor), 'timer.dueAt': daysFromNow(HANDOVER_EXPIRY_DAYS) },
+      // GB-57: the donor now has DONATION_HANDOVER_DAYS to hand the toy over.
+      set: { ...decided(actor), 'timer.dueAt': daysFromNow(handoverDays) },
     }),
     actor,
   );
+};
 
 export const reject = async (actor: DonationActor, id: string, reason: string) =>
   detailOf(
@@ -432,7 +478,10 @@ const handover = (
   at: new Date(),
 });
 
-/** GB-58: an organization's receiving point limits the method; a User receiver takes both. */
+/**
+ * GB-58: an organization's receiving point limits the method (none: 409
+ * ORGANIZATION_NO_RECEIVING_POINT, GB-51); a User receiver takes both.
+ */
 const assertMethodForRequest =
   (method: HandoverMethod) => async (record: DonationRecord, session: ClientSession) => {
     const organizationId = record.receiver?.organizationId;

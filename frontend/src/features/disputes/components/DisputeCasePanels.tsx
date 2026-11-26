@@ -1,7 +1,7 @@
 import { Alert, Card, Descriptions, Tag, Timeline, Typography } from 'antd'
 
 import { ImageGallery } from '../../../components/common'
-import { formatDateTime, formatMoney } from '../../../utils/format'
+import { formatDate, formatDateTime, formatMoney } from '../../../utils/format'
 import { RENTAL_STATUS_META, useNow } from '../../rentals/rental-display'
 import type { ToyImage } from '../../toy-listings/toy-listing-api'
 import { DISPUTE_REASON_LABELS } from '../ruling'
@@ -43,7 +43,7 @@ export function DisputeCaseCard({ dispute }: { dispute: DisputeDetail }) {
       <Descriptions column={1} size="small">
         <Descriptions.Item label="Đồ chơi">{dispute.toy?.title ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="Đơn thuê">
-          {dispute.order.code} · {dispute.rentalOrder.period.startDate} → {dispute.rentalOrder.period.endDate}
+          {dispute.order.code} · {formatDate(dispute.rentalOrder.period.startDate)} → {formatDate(dispute.rentalOrder.period.endDate)}
         </Descriptions.Item>
         <Descriptions.Item label="Chủ đồ">
           <Party party={dispute.owner} role="owner" />

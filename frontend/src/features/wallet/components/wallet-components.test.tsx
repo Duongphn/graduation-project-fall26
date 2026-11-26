@@ -73,7 +73,7 @@ describe('WalletTransactionList', () => {
     expect(within(debit).getAllByText('Thuê đồ chơi').length).toBeGreaterThan(0)
     expect(within(debit).getByLabelText(/^Trừ/).textContent).toMatch(/^−/)
 
-    // VNPay top-ups are recorded with reference.kind "payment"
+    // Top-ups (PayOS) are recorded with reference.kind "payment"
     expect(within(topup).getAllByText('Nạp tiền').length).toBeGreaterThan(0)
   })
 })

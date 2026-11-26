@@ -6,6 +6,8 @@ import { Server, type Socket } from 'socket.io';
 
 import { env } from '../config/env.js';
 import type { NotificationPusher } from '../interfaces/notification.ports.js';
+import { accountLockedError, findRunningLock } from '../services/account-lock.service.js';
+import type { AppError } from '../utils/app-error.js';
 
 export interface SocketUser {
   userId: string;
@@ -31,14 +33,41 @@ export const verifySocketToken = (token: unknown, secret = env.jwtAccessSecret):
   return { userId, role };
 };
 
+/**
+ * UC29: the error of a user under a running Admin lock (MSG12 with the reason, the same rule and
+ * message as `authenticate`), or null. Skipped without a database connection.
+ */
+export const findSocketLockError = async (userId: string): Promise<AppError | null> => {
+  if (mongoose.connection.readyState !== 1) return null;
+  const lock = await findRunningLock(userId);
+  return lock ? accountLockedError(lock, 401) : null;
+};
+
+/** connect_error on the client: the code as the message, the REST error body as `data`. */
+const toHandshakeError = ({ code, message, details }: AppError): Error =>
+  Object.assign(new Error(code), { data: { code, message, details } });
+
 const authenticateSocket = (socket: Socket, next: (error?: Error) => void) => {
+  let user: SocketUser;
   try {
-    socket.data.user = verifySocketToken(socket.handshake.auth?.token);
-    next();
+    user = verifySocketToken(socket.handshake.auth?.token);
   } catch {
     // The client reconnects with a fresh token after it refreshes the session.
     next(new Error('UNAUTHORIZED'));
+    return;
   }
+  // A locked account cannot open a connection with a token issued before the lock either.
+  findSocketLockError(user.userId).then(
+    (locked) => {
+      if (locked) return next(toHandshakeError(locked));
+      socket.data.user = user;
+      next();
+    },
+    (error: unknown) => {
+      console.error('[socket] Account check failed:', error);
+      next(new Error('INTERNAL_SERVER_ERROR'));
+    },
+  );
 };
 
 export const createSocketServer = (server: HttpServer, corsOrigin: string): Server => {
@@ -53,6 +82,11 @@ export const createSocketServer = (server: HttpServer, corsOrigin: string): Serv
     void socket.join(userRoom(user.userId));
   });
   return io;
+};
+
+/** Closes every open connection of one user (UC29: the lock ends the current session). */
+export const disconnectUser = (io: Server, userId: string): void => {
+  io.in(userRoom(userId)).disconnectSockets(true);
 };
 
 /** Notifications (and later other modules) push to a user through the user's room. */

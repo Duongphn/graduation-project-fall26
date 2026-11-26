@@ -4,6 +4,8 @@ import { featureEnv } from '../config/feature-env.js';
 import { createDocsRouter } from '../config/openapi.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { createAiRouter } from './ai.routes.js';
+import { adminAccountsRouter } from './account-admin.routes.js';
+import { adminAuditLogsRouter } from './audit-log.routes.js';
 import { adminCategoriesRouter } from './category-admin.routes.js';
 import { createDonationPostsRouter } from './donation-post.routes.js';
 import {
@@ -17,6 +19,10 @@ import { notificationsRouter } from './notification.routes.js';
 import { adminOrganizationsRouter, organizationsRouter } from './organization.routes.js';
 import { adminToyModerationRouter } from './toy-moderation.routes.js';
 import { uploadsRouter } from './upload.routes.js';
+import {
+  adminViolationReportsRouter,
+  violationReportsRouter,
+} from './violation-report.routes.js';
 import { createAuthRouter } from './auth.routes.js';
 import { createChatRouter } from './chat.routes.js';
 import { categoriesRouter } from './category.routes.js';
@@ -28,6 +34,7 @@ import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
 import { createUsersRouter } from './user.routes.js';
 import { createPaymentRouter } from './payment.routes.js';
+import { createPurchaseOrderRouter } from './purchase-order.routes.js';
 import { createWalletRouter } from './wallet.routes.js';
 
 export function createApiRouter(container: Container): Router {
@@ -51,9 +58,10 @@ export function createApiRouter(container: Container): Router {
   );
 
   router.use(createWalletRouter(container.walletService, container.withdrawalService));
-  // UC17 VNPay top-up: /payments/topup/vnpay, /vnpay-return, /vnpay-ipn, /:code/status
-  router.use('/payments', createPaymentRouter(container.paymentService, container.payosTopupService));
+  // UC17 PayOS top-up: /payments/topup/payos, /payos/:code, /payos/:code/cancel, /payos-return, /payos-webhook
+  router.use('/payments', createPaymentRouter(container.payosTopupService));
   router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
+  router.use('/purchase-orders', createPurchaseOrderRouter(container.purchaseOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).
   router.use('/admin/categories', authenticate, adminCategoriesRouter);
@@ -66,6 +74,10 @@ export function createApiRouter(container: Container): Router {
     authenticate,
     createAdminDisputeRouter(container.rentalDisputeService),
   );
+  router.use('/admin/audit-logs', authenticate, adminAuditLogsRouter);
+  router.use('/admin/violation-reports', authenticate, adminViolationReportsRouter);
+  router.use('/admin/users', authenticate, adminAccountsRouter);
+  router.use('/violation-reports', authenticate, violationReportsRouter);
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);

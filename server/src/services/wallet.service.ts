@@ -9,8 +9,10 @@ import {
 import { type IWalletTransaction } from '../models/index.js';
 import { WalletHoldingsRepository } from '../repositories/wallet-holdings.repository.js';
 import { type IUser, User } from '../models/user.model.js';
+import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
 import { withTransaction } from '../repositories/transaction.js';
 import { type RequestActor } from '../types/request-actor.js';
+import { type AdminContext } from '../utils/admin-context.js';
 import { AppError } from '../utils/app-error.js';
 
 export interface WalletTransactionItemDto {
@@ -121,7 +123,7 @@ export class WalletService {
     return {
       balance: wallet.balance,
       availableBalance: wallet.balance,
-      holdingBalance: holdings.rentals + holdings.withdrawals,
+      holdingBalance: holdings.rentals + (holdings.purchases ?? 0) + holdings.withdrawals,
       holdings,
       currency: wallet.currency,
       transactions: items.map((t) => this.toTransactionDto(t)),
@@ -175,8 +177,12 @@ export class WalletService {
     };
   }
 
+  /**
+   * Admin adds money to a user's wallet. The credit and its audit row (who credited, the user,
+   * the amount and the note; R03 IV.2.3 audit trail) are written in one transaction.
+   */
   public async adminCredit(
-    _actor: RequestActor,
+    context: AdminContext,
     userId: string,
     input: { amount: number; note?: string | undefined },
   ): Promise<AdminCreditDto> {
@@ -198,8 +204,8 @@ export class WalletService {
     const postingKey = `credit:${randomUUID()}`;
     const refId = new mongoose.Types.ObjectId().toString();
 
-    await withTransaction((session) =>
-      this.ledger.post(
+    await withTransaction(async (session) => {
+      await this.ledger.post(
         postingKey,
         { kind: 'admin_credit', id: refId },
         [
@@ -208,8 +214,17 @@ export class WalletService {
         ],
         session,
         input.note,
-      ),
-    );
+      );
+      await writeAuditLog(
+        adminAuditEntry(
+          context,
+          'wallet.credit',
+          { kind: 'USER', id: userId },
+          { amount: input.amount, ...(input.note ? { note: input.note } : {}) },
+        ),
+        session,
+      );
+    });
 
     // Đọc lại sau commit: số dư đọc trước transaction có thể đã cũ nếu có giao dịch chạy song song
     const after = await this.ledger.getOrCreateUserWallet(userId);

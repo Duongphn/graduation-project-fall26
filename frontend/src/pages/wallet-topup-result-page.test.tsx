@@ -9,9 +9,10 @@ import { rememberTopupReturn } from '../features/wallet/topup-session'
 import { walletApi, type TopupResult } from '../features/wallet/wallet-api'
 import { WalletTopupResultPage } from './wallet-topup-result-page'
 
-const VNPAY_QUERY = '?vnp_Amount=20000000&vnp_ResponseCode=00&vnp_TxnRef=TOPUP1&vnp_SecureHash=abc'
+const ORDER_CODE = '1763600000123'
+const PAID_URL = `/wallet/topup/payos-result?code=00&id=abc&cancel=false&status=PAID&orderCode=${ORDER_CODE}`
 
-const renderAt = (url: string, gateway: 'vnpay' | 'payos' = 'vnpay') => {
+const renderAt = (url: string) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   render(
@@ -19,7 +20,7 @@ const renderAt = (url: string, gateway: 'vnpay' | 'payos' = 'vnpay') => {
     <ThemeProvider>
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[url]}>
-          <WalletTopupResultPage gateway={gateway} />
+          <WalletTopupResultPage />
         </MemoryRouter>
       </QueryClientProvider>
     </ThemeProvider>,
@@ -27,11 +28,11 @@ const renderAt = (url: string, gateway: 'vnpay' | 'payos' = 'vnpay') => {
   return { invalidate }
 }
 
-// Same shape as the lead's GET /payments/vnpay-return
+// Same shape as GET /payments/payos-return
 const result = (overrides: Partial<TopupResult>): TopupResult => ({
   success: true,
   status: 'success',
-  paymentCode: 'TOPUP1',
+  paymentCode: ORDER_CODE,
   amount: 200_000,
   message: 'Nạp tiền vào ví thành công.',
   ...overrides,
@@ -43,8 +44,8 @@ describe('WalletTopupResultPage', () => {
     sessionStorage.clear()
   })
 
-  it('sends the raw VNPay query, shows the credited amount and the new balance', async () => {
-    const confirm = vi.spyOn(walletApi, 'confirmVnpayReturn').mockResolvedValue(result({}))
+  it('asks the server about the PayOS order, shows the credited amount and the new balance', async () => {
+    const confirm = vi.spyOn(walletApi, 'confirmPayosReturn').mockResolvedValue(result({}))
     vi.spyOn(walletApi, 'me').mockResolvedValue({
       balance: 450_000,
       availableBalance: 450_000,
@@ -52,10 +53,10 @@ describe('WalletTopupResultPage', () => {
       currency: 'VND',
     })
     rememberTopupReturn('/rentals/mine/1')
-    const { invalidate } = renderAt(`/wallet/topup/result${VNPAY_QUERY}`)
+    const { invalidate } = renderAt(PAID_URL)
 
     expect(await screen.findByRole('heading', { name: /Đã nạp 200\.000/ })).toBeInTheDocument()
-    expect(confirm).toHaveBeenCalledWith(VNPAY_QUERY)
+    expect(confirm).toHaveBeenCalledWith(ORDER_CODE)
     expect(await screen.findByText(/Số dư khả dụng hiện tại: 450\.000/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Quay lại thanh toán đơn thuê' })).toHaveAttribute(
       'href',
@@ -65,11 +66,11 @@ describe('WalletTopupResultPage', () => {
   })
 
   it('tells the user they cancelled, without a way back to pay', async () => {
-    vi.spyOn(walletApi, 'confirmVnpayReturn').mockResolvedValue(
+    vi.spyOn(walletApi, 'confirmPayosReturn').mockResolvedValue(
       result({ success: false, status: 'cancelled', message: 'Giao dịch nạp tiền đã bị hủy bởi người dùng.' }),
     )
     rememberTopupReturn('/rentals/mine/1')
-    renderAt(`/wallet/topup/result${VNPAY_QUERY}`)
+    renderAt(`/wallet/topup/payos-result?cancel=true&status=CANCELLED&orderCode=${ORDER_CODE}`)
 
     expect(await screen.findByRole('heading', { name: 'Bạn đã huỷ giao dịch nạp tiền' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Quay lại thanh toán đơn thuê' })).not.toBeInTheDocument()
@@ -77,53 +78,44 @@ describe('WalletTopupResultPage', () => {
   })
 
   it('shows a failed payment', async () => {
-    vi.spyOn(walletApi, 'confirmVnpayReturn').mockResolvedValue(
-      result({ success: false, status: 'failed', message: 'Giao dịch nạp tiền thất bại.' }),
+    vi.spyOn(walletApi, 'confirmPayosReturn').mockResolvedValue(
+      result({ success: false, status: 'failed', message: 'Giao dịch nạp tiền đã hết hạn.' }),
     )
-    renderAt(`/wallet/topup/result${VNPAY_QUERY}`)
+    renderAt(PAID_URL)
 
     expect(await screen.findByRole('heading', { name: 'Nạp tiền không thành công' })).toBeInTheDocument()
   })
 
-  it('shows the server message when the signature is invalid', async () => {
-    vi.spyOn(walletApi, 'confirmVnpayReturn').mockResolvedValue({
+  it('shows the server message when the payment is not found', async () => {
+    vi.spyOn(walletApi, 'confirmPayosReturn').mockResolvedValue({
       success: false,
-      status: 'invalid_checksum',
-      message: 'Chữ ký xác thực không hợp lệ (Checksum failed).',
+      status: 'not_found',
+      message: 'Không tìm thấy giao dịch nạp tiền.',
     })
-    renderAt(`/wallet/topup/result${VNPAY_QUERY}`)
+    renderAt(PAID_URL)
 
     expect(await screen.findByRole('heading', { name: 'Không xác nhận được giao dịch' })).toBeInTheDocument()
-    expect(screen.getByText('Chữ ký xác thực không hợp lệ (Checksum failed).')).toBeInTheDocument()
+    expect(screen.getByText('Không tìm thấy giao dịch nạp tiền.')).toBeInTheDocument()
   })
 
-  it('asks the server about a PayOS order and offers a re-check while the transfer is pending', async () => {
+  it('offers a re-check while the transfer is pending', async () => {
     const confirm = vi
       .spyOn(walletApi, 'confirmPayosReturn')
       .mockResolvedValueOnce(result({ success: false, status: 'pending', message: 'Đang chờ xác nhận thanh toán.' }))
       .mockResolvedValueOnce(result({}))
     vi.spyOn(walletApi, 'me').mockResolvedValue({ balance: 200_000, availableBalance: 200_000, holdingBalance: 0, currency: 'VND' })
-    renderAt('/wallet/topup/payos-result?code=00&id=abc&cancel=false&status=PAID&orderCode=1763600000123', 'payos')
+    renderAt(PAID_URL)
 
     expect(await screen.findByRole('heading', { name: 'Đang chờ xác nhận chuyển khoản' })).toBeInTheDocument()
-    expect(confirm).toHaveBeenCalledWith('1763600000123')
+    expect(confirm).toHaveBeenCalledWith(ORDER_CODE)
 
     await userEvent.click(screen.getByRole('button', { name: 'Kiểm tra lại' }))
     expect(await screen.findByRole('heading', { name: /Đã nạp 200\.000/ })).toBeInTheDocument()
   })
 
-  it('shows a cancelled PayOS payment', async () => {
-    vi.spyOn(walletApi, 'confirmPayosReturn').mockResolvedValue(
-      result({ success: false, status: 'cancelled', message: 'Giao dịch nạp tiền đã bị hủy bởi người dùng.' }),
-    )
-    renderAt('/wallet/topup/payos-result?cancel=true&status=CANCELLED&orderCode=1763600000123', 'payos')
-
-    expect(await screen.findByRole('heading', { name: 'Bạn đã huỷ giao dịch nạp tiền' })).toBeInTheDocument()
-  })
-
-  it('does not call the server without VNPay parameters', () => {
-    const confirm = vi.spyOn(walletApi, 'confirmVnpayReturn')
-    renderAt('/wallet/topup/result')
+  it('does not call the server without an order code', () => {
+    const confirm = vi.spyOn(walletApi, 'confirmPayosReturn')
+    renderAt('/wallet/topup/payos-result')
 
     expect(screen.getByRole('heading', { name: 'Không tìm thấy giao dịch' })).toBeInTheDocument()
     expect(confirm).not.toHaveBeenCalled()

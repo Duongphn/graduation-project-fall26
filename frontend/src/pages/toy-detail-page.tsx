@@ -16,7 +16,9 @@ import { AccountLayout } from '../layouts/account/account-layout'
 import { profileQuery } from '../features/profile/profile-queries'
 import { useIsSignedIn } from '../hooks/use-is-signed-in'
 import { PATHS } from '../routes/paths'
+import { PATHS, toyBuyPath } from '../routes/paths'
 import { getApiErrorCode, getApiErrorMessage } from '../services/http-client'
+import { getStoredUser } from '../services/token-storage'
 
 const UPCOMING = 'Sắp ra mắt'
 
@@ -147,7 +149,9 @@ export function OwnerCard({ toy }: { toy: ToyDetail }) {
   )
 }
 
+/** UC12: mua ngay bằng ví (trang /toys/:id/buy chọn cách nhận, xem phí giao rồi thanh toán vào ký quỹ) */
 function BuyCard({ toy }: { toy: ToyDetail }) {
+  const isOwnToy = getStoredUser()?.id === toy.owner.id
   return (
     <section className="tf-card booking-card" aria-label="Mua lại">
       <p className="booking-card__price">
@@ -157,12 +161,21 @@ function BuyCard({ toy }: { toy: ToyDetail }) {
         <span>Tình trạng</span>
         <strong>{toy.condition}</strong>
       </p>
-      <button type="button" className="tf-btn tf-btn--primary" disabled aria-describedby="buy-note">
-        <ShoppingBag aria-hidden />
-        Mua món này
-      </button>
+      {isOwnToy ? (
+        <button type="button" className="tf-btn tf-btn--primary" disabled aria-describedby="buy-note">
+          <ShoppingBag aria-hidden />
+          Mua món này
+        </button>
+      ) : (
+        <Link to={toyBuyPath(toy.id)} className="tf-btn tf-btn--primary" aria-describedby="buy-note">
+          <ShoppingBag aria-hidden />
+          Mua món này
+        </Link>
+      )}
       <p id="buy-note" className="booking-card__note">
-        Đặt mua trực tuyến sắp ra mắt. Giá ở trên là giá chủ đồ chơi đăng.
+        {isOwnToy
+          ? 'Đây là tin của bạn.'
+          : 'Thanh toán bằng ví ToyFlow, tiền được giữ ký quỹ tới khi bạn xác nhận đã nhận hàng.'}
       </p>
     </section>
   )

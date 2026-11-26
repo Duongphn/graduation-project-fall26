@@ -4,7 +4,7 @@
 import express from 'express';
 import { Types } from 'mongoose';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { Category } from '../../src/models/category.model.js';
 import { DonationRequest } from '../../src/models/donation-request.model.js';
@@ -16,6 +16,7 @@ import { createDonationPostsRouter } from '../../src/routes/donation-post.routes
 import { adminDonationRequestsRouter } from '../../src/routes/donation-request.routes.js';
 import { adminToyModerationRouter } from '../../src/routes/toy-moderation.routes.js';
 import { subscribeDonations } from '../../src/services/donation.subscriptions.js';
+import { domainEvents, type NotifyEvent } from '../../src/utils/domain-events.js';
 import { errorHandler } from '../../src/middlewares/error-handler.js';
 import { testAuth } from '../support/test-auth.js';
 import { newId, pause, useTestDatabase } from '../support/test-database.js';
@@ -142,6 +143,17 @@ beforeAll(async () => {
 
 afterAll(() => unsubscribe());
 
+// The Donor's notices (notify(); the notifications feature saves, pushes and emails them).
+let notices: NotifyEvent[] = [];
+let stopListening: () => void = () => undefined;
+beforeEach(() => {
+  notices = [];
+  stopListening = domainEvents.subscribe('NOTIFY', (event) => {
+    notices.push(event);
+  });
+});
+afterEach(() => stopListening());
+
 beforeEach(async () => {
   await Promise.all([
     Toy.deleteMany({}),
@@ -173,6 +185,16 @@ describe('UC33: a new donation post sent to an organization', () => {
     expect(String(created?.requestedBy)).toBe(donor);
     expect(String(created?.receiver?.organizationId)).toBe(orgId);
     expect((await Toy.findById(id).lean())?.donationTarget).toBeUndefined();
+    // UC33 step 5, GB-61: the Donor is told the request went to the organization.
+    expect(notices).toEqual([
+      expect.objectContaining({
+        notificationType: 'DONATION_STATUS_CHANGED',
+        to: donor,
+        link: `/donations/${String(created?._id)}`,
+      }),
+    ]);
+    expect(notices[0]!.title).toContain('đã được gửi tới Mái ấm');
+    expect(notices[0]!.body).toContain(created!.code);
 
     const accepted = await request(app)
       .post(`/admin/donation-requests/${String(created?._id)}/accept`)
@@ -180,6 +202,49 @@ describe('UC33: a new donation post sent to an organization', () => {
       .send({});
     expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
     expect((await Toy.findById(id).lean())?.status).toBe('hidden');
+  });
+
+  it('carries the note to the organization (R03 III.5.2.1 (8)) into the request', async () => {
+    const note = `  ${'Thiếu một bánh xe, '.repeat(20).slice(0, 299)}.  `;
+    expect(note.trim()).toHaveLength(300);
+    const res = await sendPost({ organizationId: orgId, handoverMethod: 'drop_off', note });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.donationTarget).toEqual({
+      organizationId: orgId,
+      handoverMethod: 'drop_off',
+      note: note.trim(),
+    });
+    await approve(res.body.data.id);
+    const created = await requestOf(res.body.data.id);
+    expect(created?.itemDetails).toBe(note.trim());
+    const detail = await request(app)
+      .get(`/admin/donation-requests/${String(created?._id)}`)
+      .set(asAdmin);
+    expect(detail.body.data.message).toBe(note.trim());
+  });
+
+  it('checks the note: at most 300 characters, only with an organization, blank = none', async () => {
+    const tooLong = await sendPost({
+      organizationId: orgId,
+      handoverMethod: 'carrier',
+      note: 'a'.repeat(301),
+    });
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body.error.details).toEqual({ field: 'note' });
+    const alone = await sendPost({ note: 'Còn đủ 20 chi tiết' });
+    expect(alone.status).toBe(400);
+    expect(alone.body.error.details).toEqual({ field: 'organizationId' });
+    expect(await Toy.countDocuments({})).toBe(0);
+
+    const blank = await sendPost({ organizationId: orgId, handoverMethod: 'carrier', note: '   ' });
+    expect(blank.status).toBe(201);
+    expect(blank.body.data.donationTarget).toEqual({
+      organizationId: orgId,
+      handoverMethod: 'carrier',
+    });
+    await approve(blank.body.data.id);
+    // No note: the request keeps develop's default message (the toy title).
+    expect((await requestOf(blank.body.data.id))?.itemDetails).toBe('Bộ tàu hỏa gỗ');
   });
 
   it('keeps a post without an organization open for requests (FE-02)', async () => {
@@ -235,5 +300,42 @@ describe('UC33: a new donation post sent to an organization', () => {
     const toy = await Toy.findById(id).lean();
     expect(toy?.status).toBe('active');
     expect(toy?.donationTarget).toBeUndefined();
+    // MSG51: the Donor is told to choose another organization, with a link to the post.
+    expect(notices).toEqual([
+      expect.objectContaining({
+        notificationType: 'DONATION_STATUS_CHANGED',
+        to: donor,
+        link: `/toys/${id}`,
+      }),
+    ]);
+    expect(notices[0]!.body).toContain('tổ chức hiện không nhận đồ chơi');
+    expect(notices[0]!.body).toContain('chọn tổ chức khác');
+  });
+
+  it('tells the Donor when the organization was hidden or changed its methods before the approval', async () => {
+    const hiddenPost = await sendPost({ organizationId: orgId, handoverMethod: 'drop_off' });
+    const otherOrg = await createOrganization();
+    const methodPost = await sendPost({ organizationId: otherOrg, handoverMethod: 'drop_off' });
+    await Organization.updateOne({ _id: orgId }, { $set: { status: 'hidden' } });
+    await Organization.updateOne(
+      { _id: otherOrg },
+      { $set: { 'receivingPoint.acceptsDropOff': false } },
+    );
+    await approve(hiddenPost.body.data.id);
+    await approve(methodPost.body.data.id);
+    await pause(150);
+    expect(await DonationRequest.countDocuments({})).toBe(0);
+    const bodyFor = (toyId: string) => notices.find((n) => n.link === `/toys/${toyId}`)?.body;
+    expect(bodyFor(hiddenPost.body.data.id)).toContain('tổ chức hiện không nhận đồ chơi');
+    expect(bodyFor(methodPost.body.data.id)).toContain(
+      'điểm nhận của tổ chức không còn nhận cách bàn giao bạn đã chọn',
+    );
+  });
+
+  it('tells nobody when a post without an organization is approved', async () => {
+    const res = await sendPost();
+    await approve(res.body.data.id);
+    await pause(100);
+    expect(notices).toEqual([]);
   });
 });

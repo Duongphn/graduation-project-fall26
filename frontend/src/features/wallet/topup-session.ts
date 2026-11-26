@@ -1,8 +1,8 @@
 import { formatVnd } from '../toy-listings/format-vnd'
 import { TOPUP_MAX_AMOUNT, TOPUP_MIN_AMOUNT } from './wallet-api'
 
-// Đi sang VNPay rồi quay về /wallet/topup/result: nhớ trang cần quay lại (vd. đơn thuê đang chờ
-// thanh toán) trong sessionStorage của tab này.
+// Nạp qua trang mã VietQR rồi sang /wallet/topup/payos-result: nhớ trang cần quay lại (vd. đơn thuê
+// đang chờ thanh toán) trong sessionStorage của tab này.
 
 const RETURN_TO_KEY = 'toyflow.topup.returnTo'
 
@@ -43,11 +43,6 @@ export function topupAmountError(amount: number | undefined): string | undefined
   if (amount < TOPUP_MIN_AMOUNT) return `Số tiền nạp tối thiểu là ${formatVnd(TOPUP_MIN_AMOUNT)}.`
   if (amount > TOPUP_MAX_AMOUNT) return `Số tiền nạp tối đa mỗi lần là ${formatVnd(TOPUP_MAX_AMOUNT)}.`
   return undefined
-}
-
-/** Rời ToyFlow sang trang thanh toán VNPay (tách riêng để test thay được) */
-export const goToPaymentGateway = (url: string) => {
-  window.location.assign(url)
 }
 
 /** Số tiền gợi ý khi thiếu `shortfall`: làm tròn lên nghìn, không dưới mức nạp tối thiểu */

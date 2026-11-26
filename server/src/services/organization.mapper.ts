@@ -58,6 +58,8 @@ export const toAdminOrganization = (record: OrganizationRecord, counts: RequestC
           }
         : null,
     status: record.status as OrganizationStatus,
+    verificationNote: record.verificationNote ?? null,
+    verifiedAt: record.verifiedAt?.toISOString() ?? null,
     openRequestCount: counts.openRequestCount,
     requestCount: counts.requestCount,
     createdAt: record.createdAt.toISOString(),

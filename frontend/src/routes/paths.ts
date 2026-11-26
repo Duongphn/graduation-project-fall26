@@ -25,8 +25,6 @@ export const PATHS = {
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
   wallet: '/wallet',
-  /** VNPay chuyển về đây sau khi thanh toán (VNPAY_RETURN_URL ở server) */
-  walletTopupResult: '/wallet/topup/result',
   /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */
   walletTopupPayosResult: '/wallet/topup/payos-result',
   /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */
@@ -36,6 +34,12 @@ export const PATHS = {
   chat: '/chat',
   /** Phòng chat: đúng link máy chủ gửi trong thông báo CHAT_MESSAGE (services/chat.notifications.ts) */
   chatRoom: '/chat/:conversationId',
+  /** UC12: trang Mua ngay của một tin bán lại */
+  toyBuy: '/toys/:toyId/buy',
+  /** UC12–13: đơn mua (người mua) và đơn bán (người bán); thông báo của server trỏ tới /purchases/:id */
+  purchases: '/purchases',
+  sales: '/purchases/sales',
+  purchaseOrder: '/purchases/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
   // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
@@ -85,6 +89,12 @@ export const adminPaths = {
   disputes: `${ADMIN_ROOT}/disputes`,
   dispute: (id: string) => `${ADMIN_ROOT}/disputes/${id}`,
   notifications: `${ADMIN_ROOT}/notifications`,
+  violationReports: `${ADMIN_ROOT}/violation-reports`,
+  violationReport: (id: string) => `${ADMIN_ROOT}/violation-reports/${id}`,
+  users: `${ADMIN_ROOT}/users`,
+  user: (id: string) => `${ADMIN_ROOT}/users/${id}`,
+  auditLogs: `${ADMIN_ROOT}/audit-logs`,
+  withdrawals: `${ADMIN_ROOT}/withdrawals`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.
@@ -95,6 +105,10 @@ export const adminChildPath = (path: string, suffix = '') =>
 export const adminHomeCrumb = { title: 'Quản trị', to: ADMIN_ROOT }
 
 export const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId', toyId)
+
+export const toyBuyPath = (toyId: string) => PATHS.toyBuy.replace(':toyId', toyId)
+
+export const purchaseOrderPath = (orderId: string) => PATHS.purchaseOrder.replace(':orderId', orderId)
 
 export interface BrowseToysFilters {
   type?: 'rent' | 'sell'

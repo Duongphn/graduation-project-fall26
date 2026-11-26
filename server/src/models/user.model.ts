@@ -1,5 +1,7 @@
 import mongoose, { type Model, Schema } from 'mongoose';
 
+import { trustDecisionActions, type TrustDecisionAction } from '../constants/trust-review.js';
+
 const addressSchema = new Schema(
   {
     province: { type: String, required: true },
@@ -36,18 +38,55 @@ const userSchema = new Schema(
     idCardNumber: { type: String },
     trust: {
       score: { type: Number, min: 0, max: 100 },
+      // Open Admin review of a Renter refused by GB-29 (UC29, FE-09): one per user, updated by
+      // every later refused attempt and removed when the Admin decides.
       review: {
+        // First refused attempt of this review (the queue order).
         requestedAt: { type: Date },
+        lastBlockedAt: { type: Date },
+        attemptCount: { type: Number },
+        // The latest toy the Renter tried to book, with the values the check used then.
+        toyId: { type: Schema.Types.ObjectId, ref: 'Toy' },
+        depositPrice: { type: Number },
+        score: { type: Number },
+        threshold: { type: Number },
+        depositLimit: { type: Number },
+      },
+      // Block lifted by an Admin: high-deposit bookings are allowed while the score stays at or
+      // above `score` (the score when the Admin lifted it).
+      lift: {
+        liftedAt: { type: Date },
+        liftedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        reason: { type: String },
+        score: { type: Number },
+      },
+      // Last Admin decision on a review. After "keep", a refused attempt opens a new review
+      // only once the score has changed.
+      decision: {
+        action: { type: String, enum: trustDecisionActions },
+        reason: { type: String },
+        decidedAt: { type: Date },
+        decidedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        score: { type: Number },
       },
     },
     lock: {
       until: { type: Date },
+      // Set when an Admin locks the account (UC29): shown at sign-in (MSG12); the listings the
+      // lock hid are shown again at unlock.
+      reason: { type: String },
+      lockedAt: { type: Date },
+      lockedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      hiddenToyIds: { type: [Schema.Types.ObjectId], default: undefined },
     },
     // Consecutive failed password sign-ins (GB-03); reset by a successful sign-in or a lock.
     failedLogins: {
       count: { type: Number, default: 0 },
       lastAt: { type: Date },
     },
+    // Last successful sign-in, shown to the Admin (R03 III.7.2.1 (5)). Kept on the user, as the
+    // sessions are deleted at sign-out and when the account is locked.
+    lastLoginAt: { type: Date },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
@@ -116,15 +155,40 @@ export interface IUser {
     score?: number;
     review?: {
       requestedAt?: Date;
+      lastBlockedAt?: Date;
+      attemptCount?: number;
+      toyId?: mongoose.Types.ObjectId;
+      depositPrice?: number;
+      score?: number;
+      threshold?: number;
+      depositLimit?: number;
+    };
+    lift?: {
+      liftedAt?: Date;
+      liftedBy?: mongoose.Types.ObjectId;
+      reason?: string;
+      score?: number;
+    };
+    decision?: {
+      action?: TrustDecisionAction;
+      reason?: string;
+      decidedAt?: Date;
+      decidedBy?: mongoose.Types.ObjectId;
+      score?: number;
     };
   };
   lock?: {
     until?: Date;
+    reason?: string;
+    lockedAt?: Date;
+    lockedBy?: mongoose.Types.ObjectId;
+    hiddenToyIds?: mongoose.Types.ObjectId[];
   };
   failedLogins?: {
     count?: number;
     lastAt?: Date;
   };
+  lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

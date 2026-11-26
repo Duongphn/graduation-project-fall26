@@ -107,10 +107,12 @@ register({
   summary: 'Donor: send my donation post to an organization (UC33, GB-56)',
   description:
     "The toy must be the caller's own donation post in status active; the organization must be " +
-    'active and accepting toys (GB-55). Optional note (max 300) and handoverMethod (must be one ' +
-    'the receiving point accepts). The request is pending and the Admin accepts or rejects it ' +
-    '(decider ADMIN). Errors: 403 not the owner, 404 TOY_NOT_FOUND / ORGANIZATION_NOT_FOUND, ' +
-    '409 TOY_NOT_AVAILABLE / ORGANIZATION_NOT_ACCEPTING / ORGANIZATION_NOT_AVAILABLE (MSG51) / ' +
+    'active, accepting toys (GB-55) and have a receiving point (GB-51). Optional note (message, ' +
+    'max 300); handoverMethod is required (MSG52) and must be one the receiving point accepts. ' +
+    'The request is pending and the Admin accepts or rejects it (decider ADMIN). Errors: 400 ' +
+    'missing handoverMethod, 403 not the owner or USER_NOT_VERIFIED, 404 TOY_NOT_FOUND / ' +
+    'ORGANIZATION_NOT_FOUND, 409 TOY_NOT_AVAILABLE / ORGANIZATION_NOT_ACCEPTING / ' +
+    'ORGANIZATION_NOT_AVAILABLE (MSG51) / ORGANIZATION_NO_RECEIVING_POINT / ' +
     'DONATION_REQUEST_EXISTS, 422 HANDOVER_METHOD_NOT_ALLOWED.',
   body: donorOrganizationRequestBodySchema,
   response: donationRequestDetailSchema,

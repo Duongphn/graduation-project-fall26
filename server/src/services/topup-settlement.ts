@@ -2,18 +2,17 @@ import type { WalletLedgerPort } from '../interfaces/wallet.ports.js';
 import type { PaymentRecord, PaymentRepository } from '../repositories/payment.repository.js';
 import { withTransaction } from '../repositories/transaction.js';
 
-/** gatewayResponseCode of a payment the user cancelled: VNPay '24', PayOS 'CANCELLED' */
-const CANCELLED_CODES = new Set(['24', 'CANCELLED']);
+/** gatewayResponseCode of a payment the user cancelled (PayOS link status) */
+const CANCELLED_CODE = 'CANCELLED';
 
 export type TopupReturnStatus =
   | 'success'
   | 'failed'
   | 'cancelled'
   | 'pending'
-  | 'invalid_checksum'
   | 'not_found';
 
-/** Result page answer (same fields as the lead's GET /payments/vnpay-return) */
+/** Result page answer of GET /payments/payos-return and POST /payments/payos/:code/cancel */
 export interface TopupReturnResult {
   success: boolean;
   status: TopupReturnStatus;
@@ -23,9 +22,9 @@ export interface TopupReturnResult {
 }
 
 export const isCancelledPayment = (payment: PaymentRecord) =>
-  payment.status === 'failed' && CANCELLED_CODES.has(payment.gatewayResponseCode ?? '');
+  payment.status === 'failed' && payment.gatewayResponseCode === CANCELLED_CODE;
 
-/** What the result page shows for a payment (any gateway) */
+/** What the result page shows for a payment */
 export function toReturnResult(payment: PaymentRecord): TopupReturnResult {
   const base = { paymentCode: payment.code, amount: payment.amount };
   if (payment.status === 'success') {
@@ -47,10 +46,10 @@ export function toReturnResult(payment: PaymentRecord): TopupReturnResult {
 }
 
 /**
- * Settles a pending top-up, whatever the gateway. The repository moves it out of 'pending' with a
+ * Settles a pending PayOS top-up. The repository moves it out of 'pending' with a
  * conditional update, so only one caller wins; on success the same MongoDB transaction posts
  * external −amount / user +amount (reference.kind 'payment'). The wallet is credited once even
- * when the webhook/IPN and the return page arrive together.
+ * when the webhook and the return page arrive together.
  */
 export class TopupSettlement {
   public constructor(
@@ -81,7 +80,6 @@ export class TopupSettlement {
       );
       if (!claimed) return null;
 
-      const gatewayName = payment.gateway === 'payos' ? 'PayOS' : 'VNPay';
       await this.ledger.post(
         `topup:${payment.code}`,
         { kind: 'payment', id: payment._id.toString() },
@@ -90,7 +88,7 @@ export class TopupSettlement {
           { walletId: userWallet.id, amount: payment.amount },
         ],
         session,
-        `Nạp tiền ví qua ${gatewayName} (${payment.code})`,
+        `Nạp tiền ví qua PayOS (${payment.code})`,
       );
       return claimed;
     });

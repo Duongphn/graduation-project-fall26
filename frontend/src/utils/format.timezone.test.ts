@@ -34,4 +34,23 @@ describe('Vietnam time on a device in New York (TC-USA-009)', () => {
     expect(formatDate('2026-11-20T23:30:00.000Z')).toBe('21/11/2026')
     expect(formatFullDate('2026-11-20T23:30:00.000Z')).toBe('21/11/2026')
   })
+
+  // DEF-ST-55: the wallet history and withdrawals show Vietnam time, not the device time.
+  it('shows wallet times in UTC+7', async () => {
+    const { formatTransactionTime } = await import('../features/wallet/wallet-display')
+    // 13:42 UTC = 20:42 in Vietnam = 08:42 in New York
+    expect(formatTransactionTime('2026-11-22T13:42:00.000Z')).toBe('20:42 22/11/2026')
+  })
+
+  // DEF-ST-55: a plain calendar day (a rental period) is that day in Vietnam, east or west of it.
+  it('keeps a plain calendar day', async () => {
+    const { formatDate } = await import('./format')
+    expect(formatDate('2026-11-23')).toBe('23/11/2026')
+    process.env.TZ = 'Asia/Tokyo'
+    try {
+      expect(formatDate('2026-11-23')).toBe('23/11/2026')
+    } finally {
+      process.env.TZ = 'America/New_York'
+    }
+  })
 })

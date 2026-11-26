@@ -139,10 +139,12 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
   const userId = verification ? String(verification.userId) : '';
 
   await writeAuditLog(
-    adminAuditEntry(context, decision === 'verified' ? 'identity.verify' : 'identity.reject', {
-      kind: 'IDENTITY_VERIFICATION',
-      id,
-    }),
+    adminAuditEntry(
+      context,
+      decision === 'verified' ? 'identity.verify' : 'identity.reject',
+      { kind: 'IDENTITY_VERIFICATION', id },
+      reason ? { reason } : undefined,
+    ),
   );
 
   // The notification subscriber turns this into the in-app notification and the email.

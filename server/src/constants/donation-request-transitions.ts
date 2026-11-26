@@ -23,9 +23,28 @@ export const donationTransitions: TransitionMap<StoredDonationStatus> = {
   expired: [],
 };
 
-/** Days before a request in this status expires (the expiry job sets it to expired). */
-export const PENDING_EXPIRY_DAYS = 14;
-export const HANDOVER_EXPIRY_DAYS = 14;
+/**
+ * GB-57 time limits, in days. System Settings (UC30) under these keys override the defaults:
+ * a Pending request expires after decisionDays, an Accepted one after handoverDays, and a
+ * Shipping one is flagged as overdue for the Admin after confirmDays (never confirmed).
+ */
+export interface DonationSettings {
+  decisionDays: number;
+  handoverDays: number;
+  confirmDays: number;
+}
+
+export const DONATION_SETTING_KEYS: Record<keyof DonationSettings, string> = {
+  decisionDays: 'DONATION_DECISION_DAYS',
+  handoverDays: 'DONATION_HANDOVER_DAYS',
+  confirmDays: 'DONATION_CONFIRM_DAYS',
+};
+
+export const DEFAULT_DONATION_SETTINGS: DonationSettings = {
+  decisionDays: 14,
+  handoverDays: 14,
+  confirmDays: 14,
+};
 
 export const DELIVERY_METHOD = 'shipping';
 

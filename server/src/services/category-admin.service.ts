@@ -43,10 +43,13 @@ const audit = (
   session: ClientSession,
 ) =>
   writeAuditLog(
-    adminAuditEntry(context, action, {
-      kind: 'CATEGORY',
-      ...(target ? { id: String(target._id) } : {}),
-    }),
+    adminAuditEntry(
+      context,
+      action,
+      { kind: 'CATEGORY', ...(target ? { id: String(target._id) } : {}) },
+      // The name keeps the entry readable after a delete (C1).
+      target ? { name: target.name } : undefined,
+    ),
     session,
   );
 

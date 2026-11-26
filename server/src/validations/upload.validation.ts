@@ -11,6 +11,7 @@ export const uploadPurposes = {
   HANDOVER_PHOTO: { folder: 'toyflow/handovers', type: 'authenticated' },
   DISPUTE_EVIDENCE: { folder: 'toyflow/disputes', type: 'authenticated' },
   CHAT_IMAGE: { folder: 'toyflow/chat', type: 'authenticated' },
+  REPORT_EVIDENCE: { folder: 'toyflow/reports', type: 'authenticated' },
 } as const;
 
 export type UploadPurpose = keyof typeof uploadPurposes;
