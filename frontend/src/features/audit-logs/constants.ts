@@ -15,6 +15,7 @@ export const auditAreaLabels: Record<string, string> = {
   chat: 'Tin nhắn',
   wallet: 'Ví',
   setting: 'Cấu hình hệ thống',
+  withdrawal: 'Rút tiền',
 }
 
 export const auditActionLabels: Record<string, string> = {
@@ -102,6 +103,10 @@ export const auditDetailLabels: Record<string, string> = {
   threshold: 'Ngưỡng',
   attempts: 'Lượt bị chặn',
   liftRevoked: 'Áp dụng lại sau khi gỡ chặn',
+  // withdrawal.complete / withdrawal.reject (server withdrawal.service.ts)
+  code: 'Mã lệnh rút',
+  userId: 'Mã người dùng',
+  notes: 'Ghi chú',
 }
 
 // `from` / `to` are donation request statuses (the only transition the server logs with them).
