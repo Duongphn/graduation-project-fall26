@@ -1,4 +1,4 @@
-import { WITHDRAWAL_LIMITS, walletTransactionListTypes } from '../constants/wallet-transaction.js';
+import { walletTransactionListTypes } from '../constants/wallet-transaction.js';
 import { AppError } from '../utils/app-error.js';
 import { MAX_PAGE_LIMIT } from './common.validation.js';
 import { z } from './zod.js';
@@ -103,16 +103,16 @@ export const walletTransactionListQuerySchema = z
   });
 export type WalletTransactionListQuery = z.infer<typeof walletTransactionListQuerySchema>;
 
-const vnd = (value: number) => value.toLocaleString('vi-VN');
-
-/** POST /wallets/withdrawals (same body and rules as the lead's withdrawalRequestSchema) */
+/**
+ * POST /wallets/withdrawals (same body and rules as the lead's withdrawalRequestSchema). The
+ * minimum and maximum amount are System Settings (UC30), checked by WithdrawalService.
+ */
 export const withdrawalBodySchema = z
   .object({
     amount: z
       .number({ error: 'Số tiền rút phải là số nguyên.' })
       .int('Số tiền rút phải là số nguyên.')
-      .min(WITHDRAWAL_LIMITS.MIN_AMOUNT, `Số tiền rút tối thiểu là ${vnd(WITHDRAWAL_LIMITS.MIN_AMOUNT)} VNĐ.`)
-      .max(WITHDRAWAL_LIMITS.MAX_AMOUNT, `Số tiền rút tối đa cho một lần là ${vnd(WITHDRAWAL_LIMITS.MAX_AMOUNT)} VNĐ.`),
+      .positive('Số tiền rút phải lớn hơn 0.'),
     bankInfo: z
       .object({
         bankName: z.string().trim().min(2, 'Tên ngân hàng phải có ít nhất 2 ký tự.').max(100, 'Tên ngân hàng quá dài.'),

@@ -154,5 +154,24 @@ describe('PurchaseOrderDetailPage', () => {
 
     expect(await screen.findByText('Đã nhận vào ví')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Xem ví' })).toHaveAttribute('href', '/wallet')
+    // Order created before UC30 (no rate kept): the rate comes from the amounts
+    expect(screen.getByText('Hoa hồng ToyFlow (5%)')).toBeInTheDocument()
+  })
+
+  // UC30, GB-38: the order shows the commission and the time limits it was created with
+  it('shows the commission rate and time limits kept on the order', async () => {
+    renderAs(
+      'seller-1',
+      order({
+        status: 'CANCELLED',
+        cancelledAt: '2026-11-22T03:05:00.000Z',
+        timer: undefined,
+        pricing: { itemPrice: 350_000, shippingFee: 20_000, platformFee: 35_000, platformFeeRate: 0.1, totalPayable: 370_000, sellerNet: 335_000 },
+        policy: { shipDeadlineHours: 24, autoCompleteDays: 3 },
+      }),
+    )
+
+    expect(await screen.findByText('Hoa hồng ToyFlow (10%)')).toBeInTheDocument()
+    expect(screen.getByText(/quá 24 giờ chưa gửi hàng/)).toBeInTheDocument()
   })
 })

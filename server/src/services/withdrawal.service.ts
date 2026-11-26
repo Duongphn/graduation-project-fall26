@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { Types } from 'mongoose';
+import type { WithdrawalLimits } from '../constants/system-settings.js';
 import type { WalletLedgerPort } from '../interfaces/wallet.ports.js';
 import { User } from '../models/index.js';
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
@@ -12,6 +13,7 @@ import { isDuplicateKeyError } from '../utils/mongo-errors.js';
 import { notify } from '../utils/notify.js';
 import type { AdminProcessWithdrawalBody, AdminWithdrawalListQuery } from '../validations/wallet.validation.js';
 import { assertWalletNotFrozen } from './account-lock.service.js';
+import { SystemSettingService } from './system-setting.service.js';
 
 export interface WithdrawalInput {
   amount: number;
@@ -60,6 +62,19 @@ const pendingExists = () =>
     'PENDING_WITHDRAWAL_EXISTS',
     'Bạn đang có một yêu cầu rút tiền đang chờ xử lý. Vui lòng đợi hoàn tất trước khi tạo yêu cầu mới.',
   );
+
+/** Reads the withdrawal limits of System Settings (UC30); tests pass a fake. */
+export interface WithdrawalLimitsProvider {
+  getWithdrawalLimits(): Promise<WithdrawalLimits>;
+}
+
+const vnd = (value: number) => value.toLocaleString('vi-VN');
+
+/** Same shape as a request validation error on the amount field. */
+const invalidAmount = (message: string) =>
+  new AppError(400, 'VALIDATION_ERROR', 'Dữ liệu yêu cầu không hợp lệ.', [
+    { field: 'amount', message },
+  ]);
 
 /** "0123456789" → "****6789" (the full number stays in the withdrawal request only) */
 const maskAccount = (accountNumber: string) => `****${accountNumber.slice(-4)}`;
@@ -111,11 +126,20 @@ export class WithdrawalService {
     private readonly withdrawals: WithdrawalRepository,
     private readonly ledger: WalletLedgerPort,
     private readonly now: () => Date = () => new Date(),
+    private readonly limits: WithdrawalLimitsProvider = new SystemSettingService(),
   ) {}
 
   public async requestWithdrawal(actor: RequestActor, input: WithdrawalInput): Promise<WithdrawalRequestDto> {
     // A locked account's wallet is frozen: no money leaves it (account-lock.service)
     await assertWalletNotFrozen(actor.userId);
+
+    // Limits in force when the request is created (UC30, GB-38); a pending request keeps its amount
+    const { minAmount, maxAmount } = await this.limits.getWithdrawalLimits();
+    if (input.amount < minAmount) throw invalidAmount(`Số tiền rút tối thiểu là ${vnd(minAmount)} VNĐ.`);
+    if (input.amount > maxAmount) {
+      throw invalidAmount(`Số tiền rút tối đa cho một lần là ${vnd(maxAmount)} VNĐ.`);
+    }
+
     if (await this.withdrawals.hasPending(actor.userId)) throw pendingExists();
 
     // Wallets are created before the transaction: a duplicate-key upsert inside it would abort it

@@ -27,6 +27,19 @@ describe('withdrawal form', () => {
     expect(validateWithdrawalForm({ ...valid, amount: 600_000 }, 500_000).amount).toMatch(/Số dư khả dụng chỉ còn/)
   })
 
+  it('uses the limits the Admin set in System Settings (UC30), one step past each end', () => {
+    const limits = { minAmount: 100_000, maxAmount: 1_000_000 }
+    expect(validateWithdrawalForm({ ...valid, amount: 99_999 }, 5_000_000, limits).amount).toBe(
+      'Số tiền rút tối thiểu là 100.000 ₫.',
+    )
+    expect(validateWithdrawalForm({ ...valid, amount: 100_000 }, 5_000_000, limits)).toEqual({})
+    expect(validateWithdrawalForm({ ...valid, amount: 1_000_000 }, 5_000_000, limits)).toEqual({})
+    expect(validateWithdrawalForm({ ...valid, amount: 1_000_001 }, 5_000_000, limits).amount).toBe(
+      'Số tiền rút tối đa mỗi lần là 1.000.000 ₫.',
+    )
+    expect(maxWithdrawableAmount(5_000_000, limits)).toBe(1_000_000)
+  })
+
   it('checks the bank, the account number and the holder name', () => {
     const errors = validateWithdrawalForm(
       { ...valid, bankName: '', accountNumber: '12ab', accountHolderName: ' ' },

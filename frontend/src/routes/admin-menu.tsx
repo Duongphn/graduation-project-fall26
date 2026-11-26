@@ -8,6 +8,7 @@ import {
   HistoryOutlined,
   IdcardOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
   TeamOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
@@ -40,4 +41,5 @@ export const adminMenuItems: AdminMenuItem[] = [
   { key: 'withdrawals', label: 'Duyệt rút tiền', icon: <BankOutlined />, path: adminPaths.withdrawals, pendingCounter: 'withdrawals' },
   { key: 'users', label: 'Quản lý người dùng', icon: <TeamOutlined />, path: adminPaths.users, pendingCounter: 'users' },
   { key: 'audit-logs', label: 'Nhật ký hệ thống', icon: <HistoryOutlined />, path: adminPaths.auditLogs },
+  { key: 'settings', label: 'Cấu hình hệ thống', icon: <SettingOutlined />, path: adminPaths.settings },
 ]

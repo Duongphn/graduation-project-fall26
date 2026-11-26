@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { formatVnd } from '../toy-listings/format-vnd'
-import { WITHDRAWAL_MAX_AMOUNT, WITHDRAWAL_MIN_AMOUNT, type WithdrawalStatus } from './wallet-api'
+import { DEFAULT_WITHDRAWAL_LIMITS, type WithdrawalLimits, type WithdrawalStatus } from './wallet-api'
 
 /** Ngân hàng phổ biến cho ô chọn (server lưu tên dạng chuỗi) */
 export const BANK_OPTIONS = [
@@ -56,14 +56,20 @@ export interface WithdrawalFormValues {
   accountHolderName: string
 }
 
-/** Kiểm tra trước khi gửi, khớp luật của backend; thêm điều kiện không vượt số dư khả dụng */
-export const withdrawalFormSchema = (availableBalance: number) =>
+/**
+ * Kiểm tra trước khi gửi, khớp luật của backend; thêm điều kiện không vượt số dư khả dụng. Hạn mức
+ * là giá trị Admin đang đặt (UC30), mặc định 50.000–20.000.000.
+ */
+export const withdrawalFormSchema = (
+  availableBalance: number,
+  limits: WithdrawalLimits = DEFAULT_WITHDRAWAL_LIMITS,
+) =>
   z.object({
     amount: z
       .number({ error: 'Vui lòng nhập số tiền cần rút.' })
       .int('Số tiền rút phải là số nguyên.')
-      .min(WITHDRAWAL_MIN_AMOUNT, `Số tiền rút tối thiểu là ${formatVnd(WITHDRAWAL_MIN_AMOUNT)}.`)
-      .max(WITHDRAWAL_MAX_AMOUNT, `Số tiền rút tối đa mỗi lần là ${formatVnd(WITHDRAWAL_MAX_AMOUNT)}.`)
+      .min(limits.minAmount, `Số tiền rút tối thiểu là ${formatVnd(limits.minAmount)}.`)
+      .max(limits.maxAmount, `Số tiền rút tối đa mỗi lần là ${formatVnd(limits.maxAmount)}.`)
       .max(availableBalance, `Số dư khả dụng chỉ còn ${formatVnd(availableBalance)}.`),
     bankName: z.string().trim().min(2, 'Vui lòng chọn ngân hàng.'),
     accountNumber: z
@@ -80,8 +86,12 @@ export const withdrawalFormSchema = (availableBalance: number) =>
 export type WithdrawalFieldErrors = Partial<Record<keyof WithdrawalFormValues, string>>
 
 /** Lỗi đầu tiên của từng ô; rỗng nếu hợp lệ */
-export function validateWithdrawalForm(values: WithdrawalFormValues, availableBalance: number): WithdrawalFieldErrors {
-  const result = withdrawalFormSchema(availableBalance).safeParse(values)
+export function validateWithdrawalForm(
+  values: WithdrawalFormValues,
+  availableBalance: number,
+  limits: WithdrawalLimits = DEFAULT_WITHDRAWAL_LIMITS,
+): WithdrawalFieldErrors {
+  const result = withdrawalFormSchema(availableBalance, limits).safeParse(values)
   if (result.success) return {}
   const errors: WithdrawalFieldErrors = {}
   for (const issue of result.error.issues) {
@@ -92,4 +102,7 @@ export function validateWithdrawalForm(values: WithdrawalFormValues, availableBa
 }
 
 /** Số tiền nút "Rút tối đa" điền vào: toàn bộ số dư khả dụng, không quá hạn mức một lần */
-export const maxWithdrawableAmount = (availableBalance: number) => Math.min(availableBalance, WITHDRAWAL_MAX_AMOUNT)
+export const maxWithdrawableAmount = (
+  availableBalance: number,
+  limits: WithdrawalLimits = DEFAULT_WITHDRAWAL_LIMITS,
+) => Math.min(availableBalance, limits.maxAmount)

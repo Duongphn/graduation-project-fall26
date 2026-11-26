@@ -4,6 +4,10 @@ import { SystemSetting } from '../src/models/system-setting.model.js';
 import { SystemSettingService } from '../src/services/system-setting.service.js';
 import { DEFAULT_RENTAL_SETTINGS } from '../src/types/rental-order.types.js';
 import { DEFAULT_DONATION_SETTINGS } from '../src/constants/donation-request-transitions.js';
+import {
+  DEFAULT_PURCHASE_SETTINGS,
+  DEFAULT_WITHDRAWAL_LIMITS,
+} from '../src/constants/system-settings.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
 
 describe('SystemSettingService', () => {
@@ -75,5 +79,53 @@ describe('SystemSettingService', () => {
     expect(await new SystemSettingService().getDonationSettings()).toEqual(
       DEFAULT_DONATION_SETTINGS,
     );
+  });
+
+  it('checks the UC30 catalogue settings against their range and keeps the default otherwise', async () => {
+    await SystemSetting.create([
+      { key: 'rental.platformFeeRate', value: '0.6' },
+      { key: 'rental.ownerResponseHours', value: '0' },
+      { key: 'rental.minTrustScore', value: '60' },
+      { key: 'rental.returnReminderHours', value: '6' },
+    ]);
+    const s = await new SystemSettingService().getRentalSettings();
+    expect(s.platformFeeRate).toBe(DEFAULT_RENTAL_SETTINGS.platformFeeRate);
+    expect(s.ownerResponseHours).toBe(DEFAULT_RENTAL_SETTINGS.ownerResponseHours);
+    expect(s.minTrustScore).toBe(60);
+    // Not in the catalogue: read as before (any number from 0)
+    expect(s.returnReminderHours).toBe(6);
+  });
+
+  it('reads the purchase settings: commission as a fraction, fee and time limits', async () => {
+    expect(await new SystemSettingService().getPurchaseSettings()).toEqual(
+      DEFAULT_PURCHASE_SETTINGS,
+    );
+    await SystemSetting.create([
+      { key: 'purchase.commissionRate', value: '0.08' },
+      { key: 'purchase.shippingFee', value: '25000' },
+      { key: 'purchase.shipDeadlineHours', value: '24' },
+      { key: 'purchase.autoCompleteDays', value: '31' },
+    ]);
+    expect(await new SystemSettingService().getPurchaseSettings()).toEqual({
+      commissionRate: 0.08,
+      shippingFee: 25_000,
+      shipDeadlineHours: 24,
+      autoCompleteDays: DEFAULT_PURCHASE_SETTINGS.autoCompleteDays,
+    });
+  });
+
+  it('reads the withdrawal limits and falls back to both defaults when min > max', async () => {
+    const service = new SystemSettingService();
+    expect(await service.getWithdrawalLimits()).toEqual(DEFAULT_WITHDRAWAL_LIMITS);
+    await SystemSetting.create([
+      { key: 'withdrawal.minAmount', value: '100000' },
+      { key: 'withdrawal.maxAmount', value: '5000000' },
+    ]);
+    expect(await service.getWithdrawalLimits()).toEqual({ minAmount: 100_000, maxAmount: 5_000_000 });
+    expect(await service.getPublicSettings()).toEqual({
+      withdrawal: { minAmount: 100_000, maxAmount: 5_000_000 },
+    });
+    await SystemSetting.updateOne({ key: 'withdrawal.minAmount' }, { value: '6000000' });
+    expect(await service.getWithdrawalLimits()).toEqual(DEFAULT_WITHDRAWAL_LIMITS);
   });
 });

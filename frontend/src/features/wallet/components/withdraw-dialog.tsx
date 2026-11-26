@@ -3,8 +3,9 @@ import { ArrowLeft, Landmark } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import { ApiError } from '../../../services/api-error'
+import { usePublicSettings } from '../../system-settings/hooks'
 import { formatVnd, vndInputFormatter, vndInputParser } from '../../toy-listings/format-vnd'
-import { WITHDRAWAL_MAX_AMOUNT, WITHDRAWAL_MIN_AMOUNT, walletApi, type WithdrawalRequest } from '../wallet-api'
+import { DEFAULT_WITHDRAWAL_LIMITS, walletApi, type WithdrawalRequest } from '../wallet-api'
 import { walletKeys } from '../wallet-queries'
 import {
   BANK_OPTIONS,
@@ -73,6 +74,8 @@ export function WithdrawDialog({ availableBalance, onClose, onCreated }: Withdra
     accountHolderName: '',
   })
   const [errors, setErrors] = useState<WithdrawalFieldErrors>({})
+  // Hạn mức Admin đang đặt (UC30); chưa tải được thì dùng mặc định, server vẫn kiểm tra lại
+  const limits = usePublicSettings().data?.withdrawal ?? DEFAULT_WITHDRAWAL_LIMITS
 
   const withdraw = useMutation({
     mutationFn: (input: WithdrawalFormValues) =>
@@ -109,7 +112,7 @@ export function WithdrawDialog({ availableBalance, onClose, onCreated }: Withdra
 
   const goToConfirm = (event: FormEvent) => {
     event.preventDefault()
-    const found = validateWithdrawalForm(values, availableBalance)
+    const found = validateWithdrawalForm(values, availableBalance, limits)
     setErrors(found)
     if (Object.keys(found).length === 0) {
       withdraw.reset()
@@ -122,7 +125,7 @@ export function WithdrawDialog({ availableBalance, onClose, onCreated }: Withdra
       ? withdraw.error.message
       : 'Không tạo được lệnh rút tiền. Vui lòng thử lại.'
     : undefined
-  const tooLow = availableBalance < WITHDRAWAL_MIN_AMOUNT
+  const tooLow = availableBalance < limits.minAmount
 
   return (
     <WalletDialog
@@ -139,7 +142,7 @@ export function WithdrawDialog({ availableBalance, onClose, onCreated }: Withdra
         <form onSubmit={goToConfirm} noValidate className="mt-4 flex flex-col gap-4">
           {tooLow && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Số dư khả dụng chưa đủ mức rút tối thiểu {formatVnd(WITHDRAWAL_MIN_AMOUNT)}.
+              Số dư khả dụng chưa đủ mức rút tối thiểu {formatVnd(limits.minAmount)}.
             </p>
           )}
 
@@ -147,7 +150,7 @@ export function WithdrawDialog({ availableBalance, onClose, onCreated }: Withdra
             id={ids.amount}
             label="Số tiền rút"
             error={errors.amount}
-            hint={`Từ ${formatVnd(WITHDRAWAL_MIN_AMOUNT)} đến ${formatVnd(WITHDRAWAL_MAX_AMOUNT)} mỗi lần.`}
+            hint={`Từ ${formatVnd(limits.minAmount)} đến ${formatVnd(limits.maxAmount)} mỗi lần.`}
           >
             <div className="flex gap-2">
               <input
@@ -167,7 +170,7 @@ export function WithdrawDialog({ availableBalance, onClose, onCreated }: Withdra
               />
               <button
                 type="button"
-                onClick={() => set('amount', maxWithdrawableAmount(availableBalance))}
+                onClick={() => set('amount', maxWithdrawableAmount(availableBalance, limits))}
                 disabled={tooLow}
                 className="mt-1 h-11 shrink-0 rounded-lg border border-tf-surface px-3 text-sm font-semibold text-tf-primary hover:border-tf-primary disabled:opacity-50"
               >

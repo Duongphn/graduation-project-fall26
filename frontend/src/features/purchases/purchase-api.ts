@@ -22,8 +22,10 @@ export interface PurchaseQuote {
   itemPrice: number
   /** 30.000 khi giao tận nơi, 0 khi tự đến lấy */
   shippingFee: number
-  /** Hoa hồng 5% trừ vào tiền người bán nhận, người mua không trả thêm */
+  /** Hoa hồng (mặc định 5%, Admin đặt ở UC30) trừ vào tiền người bán nhận, người mua không trả thêm */
   platformFee: number
+  /** Tỉ lệ hoa hồng dạng phân số (0.05 = 5%); đơn tạo trước UC30 không có */
+  platformFeeRate?: number
   /** Người mua trả = giá món + phí giao */
   totalPayable: number
   sellerNet: number
@@ -60,7 +62,9 @@ export interface PurchaseOrder {
     shippedAt?: string
     note?: string
   }
-  pricing: Pick<PurchaseQuote, 'itemPrice' | 'shippingFee' | 'platformFee' | 'totalPayable' | 'sellerNet'>
+  pricing: Pick<PurchaseQuote, 'itemPrice' | 'shippingFee' | 'platformFee' | 'platformFeeRate' | 'totalPayable' | 'sellerNet'>
+  /** Các hạn của đơn, lấy từ Cấu hình hệ thống lúc tạo đơn (GB-38); đơn cũ không có thì là 48 giờ / 7 ngày */
+  policy?: { shipDeadlineHours: number; autoCompleteDays: number }
   status: PurchaseStatus
   paidAt?: string
   shippedAt?: string

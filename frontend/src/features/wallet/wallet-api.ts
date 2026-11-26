@@ -119,9 +119,22 @@ export interface TopupResult {
   message: string
 }
 
-/** Hạn mức một lệnh rút (khớp WITHDRAWAL_LIMITS ở backend) */
+/**
+ * Hạn mức mặc định của một lệnh rút (khớp WITHDRAWAL_LIMITS ở backend). Admin đổi được trong Cấu
+ * hình hệ thống (UC30); hộp rút tiền đọc giá trị đang áp dụng từ GET /settings/public.
+ */
 export const WITHDRAWAL_MIN_AMOUNT = 50_000
 export const WITHDRAWAL_MAX_AMOUNT = 20_000_000
+
+export interface WithdrawalLimits {
+  minAmount: number
+  maxAmount: number
+}
+
+export const DEFAULT_WITHDRAWAL_LIMITS: WithdrawalLimits = {
+  minAmount: WITHDRAWAL_MIN_AMOUNT,
+  maxAmount: WITHDRAWAL_MAX_AMOUNT,
+}
 
 export interface BankInfo {
   bankName: string

@@ -14,6 +14,7 @@ export const auditAreaLabels: Record<string, string> = {
   report: 'Báo cáo vi phạm',
   chat: 'Tin nhắn',
   wallet: 'Ví',
+  setting: 'Cấu hình hệ thống',
 }
 
 export const auditActionLabels: Record<string, string> = {
@@ -53,6 +54,8 @@ export const auditActionLabels: Record<string, string> = {
   'report.lock': 'Xử lý báo cáo: khóa tài khoản',
   'chat.contact_masked': 'Che thông tin liên hệ trong tin nhắn',
   'wallet.credit': 'Cộng tiền vào ví',
+  'setting.update': 'Thay đổi cấu hình hệ thống',
+  'setting.reset': 'Đặt lại cấu hình mặc định',
   'withdrawal.complete': 'Duyệt lệnh rút tiền (đã chuyển khoản)',
   'withdrawal.reject': 'Từ chối lệnh rút tiền (hoàn tiền vào ví)',
 }
@@ -70,6 +73,7 @@ export const auditTargetLabels: Record<AuditTargetType, string> = {
   VIOLATION_REPORT: 'Báo cáo vi phạm',
   WITHDRAWAL_REQUEST: 'Lệnh rút tiền',
   MESSAGE: 'Tin nhắn',
+  SYSTEM_SETTING: 'Cấu hình hệ thống',
 }
 
 // Keys of `details`, shown as "label: value".
@@ -89,6 +93,11 @@ export const auditDetailLabels: Record<string, string> = {
   closedWithIt: 'Báo cáo đóng kèm',
   amount: 'Số tiền',
   note: 'Ghi chú',
+  setting: 'Cấu hình',
+  key: 'Mã cấu hình',
+  oldValue: 'Giá trị cũ',
+  newValue: 'Giá trị mới',
+  invalidStored: 'Giá trị lưu sai trước đó',
   score: 'Điểm tin cậy',
   threshold: 'Ngưỡng',
   attempts: 'Lượt bị chặn',
