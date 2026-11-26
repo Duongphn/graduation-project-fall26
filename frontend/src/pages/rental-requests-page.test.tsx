@@ -1,5 +1,4 @@
 import { screen, within } from '@testing-library/react'
-import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
@@ -59,17 +58,6 @@ const renderPage = (entry: string) => {
   )
   renderWithProviders(<RouterProvider router={router} />)
   return { router, user: userEvent.setup() }
-// The header and footer are not under test here.
-vi.mock('../layouts/site/site-layout', () => ({ SiteLayout: ({ children }: { children: ReactNode }) => <>{children}</> }))
-
-const get = vi.mocked(httpClient.get)
-
-const renderList = (role: 'owner' | 'renter') => {
-  const router = createMemoryRouter([{ path: '/rentals', element: <RentalOrdersListPage role={role} /> }], {
-    initialEntries: ['/rentals'],
-  })
-  renderWithProviders(<RouterProvider router={router} />)
-  return userEvent.setup()
 }
 
 beforeEach(() => {
@@ -147,20 +135,24 @@ describe('RentalOrdersListPage', () => {
     expect(rentalCalls()[0]).toMatchObject({ role: 'all' })
     const roles = screen.getByRole('navigation', { name: 'Vai trò' })
     expect(within(roles).getByRole('link', { name: 'Tất cả' })).toHaveAttribute('aria-current', 'page')
-  get.mockResolvedValue({ data: { success: true, data: { items: [], total: 0, page: 1, limit: 10 } } })
+  })
 })
 
-// Review 20/11, rental bug 5: no tab for disputed and cancelled orders (UC16 filters by status).
-describe('rental order lists: status tabs', () => {
-  it.each(['owner', 'renter'] as const)('the %s list has "Đang khiếu nại", "Đã huỷ" and "Quá hạn" tabs', async (role) => {
-    const user = renderList(role)
-    for (const label of ['Đang khiếu nại', 'Đã huỷ', 'Quá hạn']) {
-      expect(screen.getByRole('tab', { name: label })).toBeInTheDocument()
-    }
-    await user.click(screen.getByRole('tab', { name: 'Đang khiếu nại' }))
-    expect(await screen.findByText('Không có đơn nào ở trạng thái “Đang khiếu nại”.')).toBeInTheDocument()
-    expect(get).toHaveBeenLastCalledWith('/rentals', {
-      params: expect.objectContaining({ role, status: 'DISPUTING' }),
-    })
+// Review 20/11, rental bug 5: disputed and cancelled orders need their own filter. The server groups
+// DISPUTING as "disputed" and CANCELLED, REJECTED and EXPIRED (quá hạn) as "cancelled" (UC16).
+describe('rental order lists: disputed and cancelled groups', () => {
+  it.each([
+    ['renter', PATHS.myRentals],
+    ['owner', PATHS.rentalRequests],
+  ] as const)('the %s list has "Tranh chấp" and "Đã huỷ" tabs', async (role, path) => {
+    answer([])
+    const { user } = renderPage(path)
+    await screen.findByText('Chưa có đơn thuê nào.')
+    expect(screen.getByRole('tab', { name: 'Đã huỷ' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Tranh chấp' }))
+
+    expect(await screen.findByText('Không có đơn nào trong nhóm “Tranh chấp”.')).toBeInTheDocument()
+    expect(rentalCalls().at(-1)).toMatchObject({ role, group: 'disputed' })
   })
 })

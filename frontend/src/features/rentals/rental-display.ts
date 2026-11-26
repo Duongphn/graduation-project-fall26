@@ -1,7 +1,6 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import type { RentalGroup, RentalOrder, RentalStatus } from './rental-orders-api'
-import type { RentalOrder, RentalRole, RentalStatus } from './rental-orders-api'
+import type { RentalGroup, RentalOrder, RentalRole, RentalStatus } from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
 export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {

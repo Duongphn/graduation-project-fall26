@@ -9,7 +9,6 @@ import { profileQuery } from '../features/profile/profile-queries'
 import { RentalFinancialBreakdown } from '../features/rentals/components/rental-financial-breakdown'
 import { RentalPeriod, RentalStatusBadge, RentalThumb } from '../features/rentals/components/rental-parts'
 import { RentalTimeline } from '../features/rentals/components/rental-timeline'
-import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
 import { RentalCancelAction } from '../features/rentals/components/rental-cancel-action'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
@@ -366,13 +365,15 @@ export function RentalRequestDetailPage() {
               {isOwner && <RenterCard renter={order.renter} />}
               <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
               {(isOwner || isRenter) && (
-                <RentalCancelAction order={order} role={isOwner ? 'owner' : 'renter'} now={now} />
-                <OpenChatButton
-                  kind="RENTAL_ORDER"
-                  id={order.id}
-                  className="rental-btn rental-btn--ghost rental-detail__chat"
-                  label={isOwner ? 'Nhắn tin với người thuê' : 'Nhắn tin với chủ đồ'}
-                />
+                <>
+                  <RentalCancelAction order={order} role={isOwner ? 'owner' : 'renter'} now={now} />
+                  <OpenChatButton
+                    kind="RENTAL_ORDER"
+                    id={order.id}
+                    className="rental-btn rental-btn--ghost rental-detail__chat"
+                    label={isOwner ? 'Nhắn tin với người thuê' : 'Nhắn tin với chủ đồ'}
+                  />
+                </>
               )}
             </aside>
 

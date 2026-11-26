@@ -8,8 +8,6 @@ import type { ToyImage } from '../toy-listings/toy-listing-api'
 import { myWalletQuery, walletKeys } from '../wallet/wallet-queries'
 
 /**
- * GET /rentals, GET /rentals/:id, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
  * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11), POST /:id/cancel (UC14) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
@@ -103,6 +101,8 @@ export interface RentalToySummary {
   primaryImage?: string
   dailyRate: number
   depositAmount: number
+}
+
 /** Có khi đơn bị huỷ (UC14): ai huỷ, lý do và phí huỷ người thuê bị trừ (0 khi được hoàn 100%) */
 export interface RentalCancellation {
   by: 'RENTER' | 'OWNER'
@@ -110,6 +110,8 @@ export interface RentalCancellation {
   reason: string
   fee: number
   cancelledAt: string
+}
+
 export type DisputeRuling = 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT' | 'UNDETERMINED' | 'FAIR_WEAR_AND_TEAR'
 
 export interface RentalRulingSummary {
@@ -125,21 +127,20 @@ export interface RentalRulingSummary {
   resolvedAt: string
 }
 
-/** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
-export interface RentalOrderDetail extends RentalOrder {
-  renter?: {
-    fullName: string
-    avatar?: string
-    trustScore?: number
-    verified: boolean
-  }
-}
-
 /** Một mốc trong lịch sử đơn; changedBy.isSystem khi hệ thống tự chuyển (hết hạn, tự xác nhận…) */
 export interface RentalTimelineEntry {
   oldStatus?: RentalStatus | null
   newStatus: RentalStatus
   changedBy: { id: string | null; name: string; role: string; isSystem: boolean }
+  notes?: string
+  occurredAt: string
+}
+
+/** Một mốc lịch sử đơn trong hồ sơ khiếu nại của Admin (UC19): changedBy là id người thao tác */
+export interface RentalHistoryEntry {
+  oldStatus?: RentalStatus
+  newStatus: RentalStatus
+  changedBy: string
   notes?: string
   occurredAt: string
 }
@@ -414,6 +415,7 @@ export const useRentalSettle = (orderId: string) => {
     invalidateOnConflict: true,
     onError,
   })
+}
 
 /**
  * Huỷ đơn (POST /:id/cancel, lý do 5–500 ký tự). Sau đó tải lại đơn, ví (tiền hoàn) và lịch trống của
@@ -433,12 +435,6 @@ export const useRentalCancel = (orderId: string, toyId: string | undefined, onSu
     invalidateOnConflict: true,
     onSuccess,
   })
-
-/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
-export interface WalletSummary {
-  balance: number
-  currency: string
-}
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) — dùng chung với màn hình Ví */
 export { myWalletQuery, walletKeys }
