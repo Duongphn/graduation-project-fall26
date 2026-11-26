@@ -8,8 +8,10 @@ import type { ToyImage } from '../toy-listings/toy-listing-api'
 import { myWalletQuery, walletKeys } from '../wallet/wallet-queries'
 
 /**
- * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
+ * GET /rentals, GET /rentals/:id, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
  * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
+ * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11), POST /:id/cancel (UC14) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -78,10 +80,36 @@ export interface RentalOrder {
     /** Có khi quản trị viên đã giải quyết khiếu nại (UC19): số tiền mỗi bên nhận và lý do */
     resolution?: RentalRulingSummary
   }
+  cancellation?: RentalCancellation
 }
 
 export type SettlementResult = 'GOOD' | 'DAMAGED'
 
+/** Hồ sơ một bên của đơn (người thuê hoặc chủ đồ) */
+export interface RentalParty {
+  id?: string
+  fullName: string
+  avatar?: string
+  trustScore?: number
+  verified: boolean
+  role?: 'renter' | 'owner'
+}
+
+/** Tóm tắt đồ chơi server gắn kèm đơn (tin đã ẩn/xoá thì không có) */
+export interface RentalToySummary {
+  id: string
+  name: string
+  slug: string
+  primaryImage?: string
+  dailyRate: number
+  depositAmount: number
+/** Có khi đơn bị huỷ (UC14): ai huỷ, lý do và phí huỷ người thuê bị trừ (0 khi được hoàn 100%) */
+export interface RentalCancellation {
+  by: 'RENTER' | 'OWNER'
+  userId: string
+  reason: string
+  fee: number
+  cancelledAt: string
 export type DisputeRuling = 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT' | 'UNDETERMINED' | 'FAIR_WEAR_AND_TEAR'
 
 export interface RentalRulingSummary {
@@ -107,23 +135,114 @@ export interface RentalOrderDetail extends RentalOrder {
   }
 }
 
-export interface RentalHistoryEntry {
-  oldStatus?: RentalStatus
+/** Một mốc trong lịch sử đơn; changedBy.isSystem khi hệ thống tự chuyển (hết hạn, tự xác nhận…) */
+export interface RentalTimelineEntry {
+  oldStatus?: RentalStatus | null
   newStatus: RentalStatus
-  changedBy: string
+  changedBy: { id: string | null; name: string; role: string; isSystem: boolean }
   notes?: string
   occurredAt: string
 }
 
+export interface RenterFinancialItems {
+  rentalFee: number
+  depositPaid: number
+  lateFee: number
+  depositRefunded: number
+  totalActualCost: number
+}
+
+export interface OwnerFinancialItems {
+  grossRentalFee: number
+  platformFeeRate: number
+  platformFee: number
+  lateCompensation: number
+  netEarnings: number
+}
+
+interface FinancialSummary {
+  status: string
+  description: string
+}
+
+export interface RenterFinancialBreakdown {
+  role: 'renter'
+  currency: string
+  /** true khi đơn chưa kết thúc: số tiền có thể còn đổi (phí trễ, quyết toán) */
+  isEstimated: boolean
+  settlementStatus: string
+  items: RenterFinancialItems
+  summary: FinancialSummary
+}
+
+export interface OwnerFinancialBreakdown {
+  role: 'owner'
+  currency: string
+  isEstimated: boolean
+  payoutStatus: string
+  items: OwnerFinancialItems
+  summary: FinancialSummary
+}
+
+export interface AdminFinancialBreakdown {
+  role: 'admin'
+  currency: string
+  isEstimated: boolean
+  items: RenterFinancialItems &
+    OwnerFinancialItems & { escrowBalance?: number; platformRevenue?: number }
+  renter?: RenterFinancialBreakdown
+  owner?: OwnerFinancialBreakdown
+  platformRevenue?: number
+  summary: FinancialSummary
+}
+
+export type RentalFinancialBreakdown = RenterFinancialBreakdown | OwnerFinancialBreakdown | AdminFinancialBreakdown
+
+/**
+ * Chi tiết đơn (GET /rentals/:id): kèm hồ sơ hai bên, đồ chơi, lịch sử có tên người thao tác và bảng
+ * chia tiền theo vai người xem. Người thuê không nhận phí nền tảng trong pricing.
+ */
+export interface RentalOrderDetail extends RentalOrder {
+  renter?: RentalParty
+  owner?: RentalParty
+  toy?: RentalToySummary
+  timeline?: RentalTimelineEntry[]
+  financialBreakdown?: RentalFinancialBreakdown
+}
+
+/** Vai người xem trên danh sách; `all` chỉ dành cho quản trị viên */
 export type RentalRole = 'owner' | 'renter'
+export type RentalListRole = RentalRole | 'all'
+
+/** Nhóm trạng thái server hiểu (STATUS_GROUP_MAP) */
+export const RENTAL_GROUPS = ['all', 'pending', 'active', 'completed', 'cancelled', 'disputed'] as const
+export type RentalGroup = (typeof RENTAL_GROUPS)[number]
+
+/** Một dòng của GET /rentals: không có toyId mà có sẵn tóm tắt đồ chơi và bên còn lại */
+export interface RentalOrderItem {
+  id: string
+  code: string
+  role: 'renter' | 'owner' | 'admin'
+  status: RentalStatus
+  period: { startDate: string; endDate: string }
+  pricing: Pick<RentalPricing, 'days' | 'dailyRate' | 'rentalFee' | 'depositAmount' | 'totalPayable'> &
+    Partial<Pick<RentalPricing, 'platformFee' | 'platformFeeRate'>>
+  toy?: RentalToySummary
+  counterpart?: RentalParty
+  /** Chỉ có khi quản trị viên xem đơn mình không tham gia */
+  renter?: RentalParty
+  owner?: RentalParty
+  timer?: { kind: RentalTimerKind; dueAt: string }
+  createdAt: string
+}
 
 export interface RentalListFilters {
-  status?: RentalStatus
+  group: RentalGroup
   page: number
 }
 
 interface RentalListPage {
-  items: RentalOrder[]
+  items: RentalOrderItem[]
   total: number
   page: number
   limit: number
@@ -133,18 +252,17 @@ export const RENTAL_REQUESTS_PAGE_SIZE = 10
 
 export const rentalKeys = {
   all: ['rentals'] as const,
-  list: (role: RentalRole, filters: RentalListFilters) => ['rentals', role, filters] as const,
+  list: (role: RentalListRole, filters: RentalListFilters) => ['rentals', role, filters] as const,
   detail: (orderId: string) => ['rentals', 'detail', orderId] as const,
-  history: (orderId: string) => ['rentals', 'history', orderId] as const,
 }
 
-export const rentalListQuery = (role: RentalRole, filters: RentalListFilters) =>
+export const rentalListQuery = (role: RentalListRole, filters: RentalListFilters) =>
   queryOptions({
     queryKey: rentalKeys.list(role, filters),
     queryFn: () =>
       apiGet<RentalListPage>('/rentals', {
         role,
-        status: filters.status,
+        group: filters.group === 'all' ? undefined : filters.group,
         page: filters.page,
         limit: RENTAL_REQUESTS_PAGE_SIZE,
       }),
@@ -157,14 +275,6 @@ export const rentalDetailQuery = (orderId: string) =>
   queryOptions({
     queryKey: rentalKeys.detail(orderId),
     queryFn: () => apiGet<RentalOrderDetail>(`/rentals/${orderId}`),
-    staleTime: 15_000,
-    retry: false,
-  })
-
-export const rentalHistoryQuery = (orderId: string) =>
-  queryOptions({
-    queryKey: rentalKeys.history(orderId),
-    queryFn: () => apiGet<RentalHistoryEntry[]>(`/rentals/${orderId}/history`),
     staleTime: 15_000,
     retry: false,
   })
@@ -304,6 +414,30 @@ export const useRentalSettle = (orderId: string) => {
     invalidateOnConflict: true,
     onError,
   })
+
+/**
+ * Huỷ đơn (POST /:id/cancel, lý do 5–500 ký tự). Sau đó tải lại đơn, ví (tiền hoàn) và lịch trống của
+ * món đồ, vì đơn huỷ nhả các ngày đã giữ.
+ */
+export const useRentalCancel = (orderId: string, toyId: string | undefined, onSuccess?: () => void) =>
+  useApiMutation({
+    mutationFn: (reason: string) => apiPost<RentalOrder>(`/rentals/${orderId}/cancel`, { reason }),
+    successMessage: (order) => {
+      const fee = order.cancellation?.fee ?? 0
+      const refund = order.pricing.totalPayable - fee
+      return order.status === 'CANCELLED' && fee > 0
+        ? `Đã huỷ đơn. Hoàn ${refund.toLocaleString('vi-VN')} ₫ về ví người thuê, phí huỷ ${fee.toLocaleString('vi-VN')} ₫.`
+        : 'Đã huỷ đơn. Lịch của món đồ đã được mở lại.'
+    },
+    invalidate: [rentalKeys.all, walletKeys.me, ...(toyId ? [['toy-availability', toyId]] : [])],
+    invalidateOnConflict: true,
+    onSuccess,
+  })
+
+/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
+export interface WalletSummary {
+  balance: number
+  currency: string
 }
 
 /** Số dư ví của người đang đăng nhập (GET /wallets/me) — dùng chung với màn hình Ví */

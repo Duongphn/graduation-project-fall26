@@ -16,6 +16,9 @@ import {
 } from '../constants/system-settings.js';
 import { readStoredValue, toEffectiveValue } from './system-setting.rules.js';
 
+/** Rental rates outside the UC30 catalogue, kept as a fraction from 0 to 1 */
+const RENTAL_RATE_MAX: Partial<Record<keyof RentalSettings, number>> = { cancelFeeRate: 1 };
+
 /** Settings that a public page may show (GET /settings/public): no Admin-only threshold. */
 export interface PublicSettings {
   withdrawal: WithdrawalLimits;
@@ -52,6 +55,30 @@ export class SystemSettingService {
     return shown === undefined ? fallback : toEffectiveValue(definition, shown);
   }
 
+  /**
+   * Numbers saved under `<prefix>.<field>`, each from 0 (and at most `max[field]` when given);
+   * a missing or invalid value keeps its default.
+   */
+  public async getNumbers<T extends Record<keyof T, number>>(
+    prefix: string,
+    defaults: T,
+    max?: Partial<Record<keyof T, number>>,
+  ): Promise<T> {
+    const keys = Object.keys(defaults) as (keyof T)[];
+    const stored = await this.storedValues(keys.map((k) => `${prefix}.${String(k)}`));
+    const result = { ...defaults };
+    for (const key of keys) {
+      const storedVal = stored.get(`${prefix}.${String(key)}`);
+      if (storedVal === undefined) continue;
+      const parsed = Number(storedVal);
+      const maxVal = max?.[key];
+      if (Number.isFinite(parsed) && parsed >= 0 && (maxVal === undefined || parsed <= maxVal)) {
+        result[key] = parsed as T[keyof T];
+      }
+    }
+    return result;
+  }
+
   public async getRentalSettings(): Promise<RentalSettings> {
     const keys = Object.keys(DEFAULT_RENTAL_SETTINGS) as (keyof RentalSettings)[];
     const stored = await this.storedValues(keys.map((k) => `rental.${k}`));
@@ -65,11 +92,13 @@ export class SystemSettingService {
         result[key] = SystemSettingService.effective(dbKey, stored, result[key]);
         continue;
       }
-      // Others (maxDays, bookingWindowDays, returnReminderHours): any number from 0, as before
+      // Others (maxDays, bookingWindowDays, returnReminderHours, cancelFeeRate): any number from 0,
+      // a rate at most 1
       const storedVal = stored.get(dbKey);
       if (storedVal !== undefined) {
         const parsed = Number(storedVal);
-        if (Number.isFinite(parsed) && parsed >= 0) {
+        const max = RENTAL_RATE_MAX[key];
+        if (Number.isFinite(parsed) && parsed >= 0 && (max === undefined || parsed <= max)) {
           result[key] = parsed;
         }
       }

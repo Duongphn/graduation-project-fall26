@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, type LoaderFunctionArgs } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, type LoaderFunctionArgs } from 'react-router-dom'
 import { PageLoadingFallback } from '../components/ui/page-loading-fallback'
 import { parseCatalogSearch } from '../features/toy-catalog/catalog-search-params'
 import { toyDetailQuery, toySearchQuery } from '../features/toy-catalog/toy-catalog-queries'
@@ -34,6 +34,7 @@ import { getAccessToken } from '../services/token-storage'
 import { PATHS } from './paths'
 import { GuestOnly } from './guest-only'
 import { RequireAuth } from './require-auth'
+import { lazyPage } from './lazy-page'
 import {
   completedDonationsQuery,
   myDonationQuery,
@@ -462,6 +463,18 @@ export const router = createBrowserRouter([
         <RentalRequestDetailPage />
       </RequireAuth>
     ),
+  },
+  // Chat (UC25): hộp thư và phòng chat dùng chung một trang, tải riêng một chunk
+  {
+    element: (
+      <RequireAuth>
+        <Outlet />
+      </RequireAuth>
+    ),
+    children: [PATHS.chat, PATHS.chatRoom].map((path) => ({
+      path,
+      ...lazyPage(() => import('../pages/chat-page'), 'ChatPage'),
+    })),
   },
   {
     path: PATHS.notifications,

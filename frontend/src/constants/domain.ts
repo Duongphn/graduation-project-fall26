@@ -83,6 +83,7 @@ export const uploadPurposes = [
   'IDENTITY_DOCUMENT',
   'HANDOVER_PHOTO',
   'DISPUTE_EVIDENCE',
+  'CHAT_IMAGE',
   'REPORT_EVIDENCE',
 ] as const
 export type UploadPurpose = (typeof uploadPurposes)[number]

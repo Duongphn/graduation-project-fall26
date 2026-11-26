@@ -1,6 +1,13 @@
 import mongoose, { type HydratedDocument, Types } from 'mongoose';
+import {
+  SYSTEM_ACTOR_ID,
+  type RentalOrderStatus,
+  type RentalTimerKind,
+} from '../constants/rental-order-status.js';
+import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
 import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+import { type LedgerEntry } from '../interfaces/wallet.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
 import { type IToy } from '../models/toy.model.js';
 import { withTransaction } from '../repositories/transaction.js';
@@ -17,6 +24,12 @@ import {
   suggestFreeRange,
   vnToday,
 } from './rental-time.js';
+import {
+  toRentalOrderDetailDto,
+  toRentalOrderItemDto,
+  toRentalOrderDto,
+} from './rental-order.mapper.js';
+import { computeFinancialBreakdown } from './rental-financial-breakdown.js';
 import { notificationLinks } from './notification.links.js';
 import { toRentalOrderDto } from './rental-order.mapper.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
@@ -25,8 +38,13 @@ import {
   type RentalHistoryEntryDto,
   type RentalOrderDetailDto,
   type RentalOrderDto,
+  type RentalOrderItemDto,
+  type RentalPartyProfileDto,
   type RentalQuoteDto,
   type RentalSettings,
+  type RentalTimelineActorDto,
+  type RentalTimelineEntryDto,
+  type RentalToySummaryDto,
 } from '../types/rental-order.types.js';
 import { type RequestActor } from '../types/request-actor.js';
 import {
@@ -36,6 +54,9 @@ import {
 } from '../validations/rental-order.validation.js';
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
+import { slugify } from '../utils/slug.js';
+import { type RentalCancelActor } from '../types/order-cancel.types.js';
+import { decideRentalCancel } from './rental-cancel-policy.js';
 import { RentalOrderCore } from './rental-order-core.js';
 import { isTrustBlocked } from './trust-review.rules.js';
 import { recordTrustBlock } from './trust-review.service.js';
@@ -84,6 +105,14 @@ export class RentalOrderService extends RentalOrderCore {
 
     const isRenter = order.renterId.toString() === actor.userId;
     const isOwner = order.ownerId.toString() === actor.userId;
+    const isAdmin = actor.actorType === 'ADMIN';
+
+    if (role === 'any') {
+      if (!isRenter && !isOwner && !isAdmin) {
+        throw new AppError(404, 'RENTAL_NOT_FOUND', 'Không tìm thấy đơn thuê.');
+      }
+      return order;
+    }
 
     if (!isRenter && !isOwner) {
       throw new AppError(404, 'RENTAL_NOT_FOUND', 'Không tìm thấy đơn thuê.');
@@ -339,42 +368,254 @@ export class RentalOrderService extends RentalOrderCore {
     return toRentalOrderDto(updated);
   }
 
+  /** UC14: Renter/Owner hủy đơn theo chính sách trạng thái; đơn PAID được hoàn tiền từ escrow. */
+  public async cancel(
+    actor: RequestActor,
+    orderId: string,
+    reason: string,
+  ): Promise<RentalOrderDto> {
+    const order = await this.loadForParty(actor, orderId, 'any');
+    const by: RentalCancelActor = order.renterId.toString() === actor.userId ? 'RENTER' : 'OWNER';
+    const now = this.clock.now();
+    const decision = decideRentalCancel(order, by, now, await this.settings.getRentalSettings());
+    if (!decision.allowed) {
+      throw new AppError(409, decision.code, decision.message);
+    }
+
+    const isPaid = order.status === 'PAID';
+    const refundEntries = isPaid ? await this.cancelRefundEntries(order, decision) : [];
+
+    const updated = await this.transition({
+      orderId,
+      from: order.status,
+      to: 'CANCELLED',
+      changedBy: actor.userId,
+      note: `cancel:${by}: ${reason}`,
+      set: {
+        cancellation: {
+          by,
+          userId: new Types.ObjectId(actor.userId),
+          reason,
+          fee: decision.fee,
+          cancelledAt: now,
+        },
+      },
+      ...(isPaid
+        ? {
+            inTransaction: async (_doc: RentalOrderDoc, session: ClientSession) => {
+              await this.ledger.post(
+                `rental:${orderId}:cancel`,
+                { kind: 'rental_order', id: orderId },
+                refundEntries,
+                session,
+                'Hoàn tiền hủy đơn thuê',
+              );
+            },
+          }
+        : {}),
+    });
+
+    const actorLabel = by === 'RENTER' ? 'Người thuê' : 'Chủ đồ chơi';
+    const moneyNotice = isPaid
+      ? `. Hoàn ${decision.refund.toLocaleString('vi-VN')}đ, phí hủy ${decision.fee.toLocaleString('vi-VN')}đ.`
+      : '.';
+    const title = 'Đơn thuê đã bị hủy';
+    const body = `${actorLabel} đã hủy đơn thuê: ${reason}${moneyNotice}`;
+
+    await Promise.all([
+      this.notifyParty(updated, 'renter', title, body),
+      this.notifyParty(updated, 'owner', title, body),
+    ]);
+
+    return toRentalOrderDto(updated);
+  }
+
+  /**
+   * Bút toán hủy đơn PAID: escrow −(R+D); renter +refund; owner +fee (bỏ dòng 0 đồng).
+   * Tạo ví trước khi mở transaction, giống pay.
+   */
+  private async cancelRefundEntries(
+    order: RentalOrderDoc,
+    split: { fee: number; refund: number },
+  ): Promise<LedgerEntry[]> {
+    const [escrowWallet, renterWallet, ownerWallet] = await Promise.all([
+      this.ledger.getOrCreateSystemWallet('escrow'),
+      this.ledger.getOrCreateUserWallet(order.renterId.toString()),
+      split.fee > 0 ? this.ledger.getOrCreateUserWallet(order.ownerId.toString()) : undefined,
+    ]);
+
+    return [
+      { walletId: escrowWallet.id, amount: -order.pricing.totalPayable },
+      { walletId: renterWallet.id, amount: split.refund },
+      ...(ownerWallet ? [{ walletId: ownerWallet.id, amount: split.fee }] : []),
+    ].filter((entry) => entry.amount !== 0);
+  }
+
   public async get(actor: RequestActor, orderId: string): Promise<RentalOrderDetailDto> {
     const order = await this.loadForParty(actor, orderId, 'any');
-    const dto = toRentalOrderDto(order) as RentalOrderDetailDto;
 
-    if (actor.userId === order.ownerId.toString()) {
-      const renter = await this.userModel.findById(order.renterId);
-      if (renter) {
-        dto.renter = {
-          fullName: renter.fullName,
-          avatar: renter.avatar ?? undefined,
-          trustScore: renter.trust?.score ?? undefined,
-          verified: renter.verificationStatus === 'verified',
-        };
+    const isAdmin = actor.actorType === 'ADMIN';
+    const isRenter = order.renterId.toString() === actor.userId;
+
+    let effectiveRole: 'renter' | 'owner' | 'admin';
+    if (isAdmin) {
+      effectiveRole = 'admin';
+    } else if (isRenter) {
+      effectiveRole = 'renter';
+    } else {
+      effectiveRole = 'owner';
+    }
+
+    const [toyDoc, renterUser, ownerUser, historyRows] = await Promise.all([
+      this.toyModel.findById(order.toyId).lean(),
+      this.userModel.findById(order.renterId).lean(),
+      this.userModel.findById(order.ownerId).lean(),
+      this.orderStatusHistoryModel
+        .find({ orderType: 'RENTAL', orderId: order._id })
+        .sort({ occurredAt: 1, _id: 1 })
+        .lean(),
+    ]);
+
+    let toyDto: RentalToySummaryDto | undefined;
+    if (toyDoc) {
+      const images = (toyDoc.images ?? []) as ToyImage[];
+      toyDto = {
+        id: toyDoc._id.toString(),
+        name: toyDoc.title,
+        slug: (toyDoc as any).slug || slugify(toyDoc.title, { fallback: 'toy' }),
+        primaryImage: images[0]?.url,
+        images,
+        dailyRate: toyDoc.priceOrRate,
+        depositAmount: toyDoc.depositPrice ?? 0,
+      };
+    }
+
+    let renterDto: RentalPartyProfileDto | undefined;
+    if (renterUser) {
+      renterDto = {
+        id: renterUser._id.toString(),
+        fullName: renterUser.fullName,
+        avatar: renterUser.avatar ?? undefined,
+        trustScore: renterUser.trust?.score ?? undefined,
+        verified: renterUser.verificationStatus === 'verified',
+        role: 'renter',
+      };
+    }
+
+    let ownerDto: RentalPartyProfileDto | undefined;
+    if (ownerUser) {
+      ownerDto = {
+        id: ownerUser._id.toString(),
+        fullName: ownerUser.fullName,
+        avatar: ownerUser.avatar ?? undefined,
+        trustScore: ownerUser.trust?.score ?? undefined,
+        verified: ownerUser.verificationStatus === 'verified',
+        role: 'owner',
+      };
+    }
+
+    const otherUserIds = new Set<string>();
+    for (const row of historyRows) {
+      const changedByStr = row.changedBy.toString();
+      if (
+        changedByStr !== SYSTEM_ACTOR_ID &&
+        changedByStr !== order.renterId.toString() &&
+        changedByStr !== order.ownerId.toString()
+      ) {
+        otherUserIds.add(changedByStr);
       }
     }
 
-    return dto;
+    const otherUserMap = new Map<string, { _id: Types.ObjectId; fullName: string; role?: string }>();
+    if (otherUserIds.size > 0) {
+      const users = await this.userModel
+        .find({ _id: { $in: Array.from(otherUserIds).map((id) => new Types.ObjectId(id)) } })
+        .select('fullName role')
+        .lean();
+      for (const u of users) {
+        otherUserMap.set(u._id.toString(), u as any);
+      }
+    }
+
+    const timeline: RentalTimelineEntryDto[] = historyRows.map((r) => {
+      const changedByStr = r.changedBy.toString();
+      let actorDto: RentalTimelineActorDto;
+
+      if (changedByStr === SYSTEM_ACTOR_ID) {
+        actorDto = {
+          id: null,
+          name: 'Hệ thống',
+          role: 'system',
+          isSystem: true,
+        };
+      } else if (changedByStr === order.renterId.toString()) {
+        actorDto = {
+          id: renterUser?._id.toString() ?? changedByStr,
+          name: renterUser?.fullName ?? 'Người thuê',
+          role: 'renter',
+          isSystem: false,
+        };
+      } else if (changedByStr === order.ownerId.toString()) {
+        actorDto = {
+          id: ownerUser?._id.toString() ?? changedByStr,
+          name: ownerUser?.fullName ?? 'Chủ đồ chơi',
+          role: 'owner',
+          isSystem: false,
+        };
+      } else {
+        const u = otherUserMap.get(changedByStr);
+        const uRole =
+          u?.role?.toLowerCase() === 'admin' ? 'admin' : (u?.role?.toLowerCase() || 'user');
+        actorDto = {
+          id: u?._id.toString() ?? changedByStr,
+          name: u?.fullName ?? 'Quản trị viên',
+          role: uRole,
+          isSystem: false,
+        };
+      }
+
+      return {
+        oldStatus: (r.oldStatus as RentalOrderStatus) ?? null,
+        newStatus: r.newStatus as RentalOrderStatus,
+        changedBy: actorDto,
+        notes: r.notes ?? undefined,
+        occurredAt: r.occurredAt,
+      };
+    });
+
+    const financialBreakdown = computeFinancialBreakdown(order, effectiveRole);
+
+    return toRentalOrderDetailDto(order, {
+      toy: toyDto,
+      renter: renterDto,
+      owner: ownerDto,
+      timeline,
+      financialBreakdown,
+      viewerRole: effectiveRole,
+    });
   }
 
   public async list(
     actor: RequestActor,
     query: RentalListQuery,
-  ): Promise<{ items: RentalOrderDto[]; total: number; page: number; limit: number }> {
+  ): Promise<{ items: RentalOrderItemDto[]; total: number; page: number; limit: number }> {
+    const role = query.role ?? 'renter';
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
     const { items, total } = await this.repository.listForParty(
       actor.userId,
-      query.role,
+      role,
       query.status,
-      query.page,
-      query.limit,
+      page,
+      limit,
     );
 
     return {
-      items: items.map((doc) => toRentalOrderDto(doc)),
+      items: items.map((doc) => toRentalOrderItemDto(doc, role)),
       total,
-      page: query.page,
-      limit: query.limit,
+      page,
+      limit,
     };
   }
 
@@ -425,7 +666,7 @@ export class RentalOrderService extends RentalOrderCore {
     const order = await this.loadForParty(actor, orderId, 'any');
     const rows = await this.orderStatusHistoryModel
       .find({ orderType: 'RENTAL', orderId: order._id })
-      .sort({ occurredAt: 1 })
+      .sort({ occurredAt: 1, _id: 1 })
       .exec();
 
     return rows.map((r) => ({

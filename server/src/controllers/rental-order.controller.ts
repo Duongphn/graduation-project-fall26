@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { type RentalOrderService } from '../services/rental-order.service.js';
 import {
+  validateCancelRentalInput,
   validateRejectRentalInput,
   validateRentalListQuery,
   validateRentalPeriodInput,
@@ -82,6 +83,21 @@ export class RentalOrderController {
     }
   };
 
+  public cancel = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const orderId = req.params.id as string;
+      const { reason } = validateCancelRentalInput(req.body);
+      const data = await this.service.cancel(req.auth!, orderId, reason);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   public get = async (
     req: Request,
     res: Response,
@@ -102,7 +118,7 @@ export class RentalOrderController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const query = validateRentalListQuery(req.query);
+      const query = validateRentalListQuery(req.query, req.auth?.actorType);
       const data = await this.service.list(req.auth!, query);
       res.status(200).json({ success: true, data });
     } catch (err) {

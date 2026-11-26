@@ -3,7 +3,7 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { donationStatuses, type DonationStatus } from '../../constants/domain'
 import { useApiMutation } from '../../hooks/useApiMutation'
 import { donorDonationsApi } from './donor-api'
-import type { HandoverInput } from './types'
+import type { DonationRequestDetail, DonorOrganizationRequestInput, HandoverInput } from './types'
 
 export const MY_DONATIONS_PAGE_SIZE = 10
 
@@ -118,6 +118,23 @@ export const myDonationQuery = (id: string) =>
 
 // Sau mỗi thao tác tải lại cả danh sách và chi tiết; 409 (bên kia vừa đổi trạng thái) cũng tải lại
 const invalidate = [myDonationKeys.all]
+
+/**
+ * UC33 (GB-56): gửi tin tặng đang hiển thị tới một tổ chức. Phiếu ở trạng thái chờ, Admin chấp nhận
+ * hoặc từ chối thay tổ chức. Lỗi do màn hình tự hiện (onError trả true thì không hiện thông báo chung).
+ */
+export const useSendToOrganization = (options: {
+  onSent: (request: DonationRequestDetail) => void
+  onError: (error: unknown) => boolean | void
+}) =>
+  useApiMutation({
+    mutationFn: (input: DonorOrganizationRequestInput) => donorDonationsApi.sendToOrganization(input),
+    successMessage: (request) =>
+      `Đã gửi tới ${request.organization?.name ?? 'tổ chức'}. ToyFlow sẽ chấp nhận hoặc từ chối thay tổ chức.`,
+    invalidate,
+    onSuccess: options.onSent,
+    onError: options.onError,
+  })
 
 export const useMyDonationActions = (id: string) => ({
   accept: useApiMutation({
