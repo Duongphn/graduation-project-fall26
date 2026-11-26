@@ -219,8 +219,8 @@ describe('ToyListingEditorPage', () => {
       dateOfBirth: null,
       gender: null,
       bio: null,
-      trustScore: 0,
-      memberSince: '2026-01-01T00:00:00.000Z',
+      trustScore: 100,
+      memberSince: '2026-10-01T00:00:00.000Z',
       verificationStatus: 'pending',
       role: 'USER',
     })

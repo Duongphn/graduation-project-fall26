@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '../../../services/api-error'
+import { systemSettingsApi } from '../../system-settings/api'
 import { walletApi, type WithdrawalRequest } from '../wallet-api'
 import { WithdrawDialog } from './withdraw-dialog'
 import { WithdrawalList } from './withdrawal-list'
@@ -39,7 +40,29 @@ const fillForm = async (amount: string) => {
 }
 
 describe('WithdrawDialog', () => {
+  // Limits of System Settings (UC30): the defaults unless a test sets others
+  const publicSettings = (minAmount = 50_000, maxAmount = 20_000_000) =>
+    vi.spyOn(systemSettingsApi, 'publicSettings').mockResolvedValue({ withdrawal: { minAmount, maxAmount } })
+
+  beforeEach(() => {
+    publicSettings()
+  })
   afterEach(() => vi.restoreAllMocks())
+
+  it('uses the withdrawal limits the Admin set (UC30)', async () => {
+    publicSettings(100_000, 1_000_000)
+    const createWithdrawal = vi.spyOn(walletApi, 'createWithdrawal')
+    renderDialog(5_000_000)
+
+    expect(await screen.findByText('Từ 100.000 ₫ đến 1.000.000 ₫ mỗi lần.')).toBeInTheDocument()
+    await fillForm('99999')
+    await userEvent.click(screen.getByRole('button', { name: 'Tiếp tục' }))
+    expect(screen.getByText('Số tiền rút tối thiểu là 100.000 ₫.')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rút tối đa' }))
+    expect(screen.getByLabelText('Số tiền rút')).toHaveValue('1.000.000')
+    expect(createWithdrawal).not.toHaveBeenCalled()
+  })
 
   it('confirms the details, creates a pending withdrawal and refreshes the wallet', async () => {
     const createWithdrawal = vi.spyOn(walletApi, 'createWithdrawal').mockResolvedValue(created)

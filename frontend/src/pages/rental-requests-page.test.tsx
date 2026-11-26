@@ -138,3 +138,22 @@ describe('RentalOrdersListPage', () => {
   })
 })
 
+// Review 20/11, rental bug 5: disputed and cancelled orders need their own filter. The server groups
+// DISPUTING as "disputed" and CANCELLED, REJECTED and EXPIRED (quá hạn) as "cancelled" (UC16).
+describe('rental order lists: disputed and cancelled groups', () => {
+  it.each([
+    ['renter', PATHS.myRentals],
+    ['owner', PATHS.rentalRequests],
+  ] as const)('the %s list has "Tranh chấp" and "Đã huỷ" tabs', async (role, path) => {
+    answer([])
+    const { user } = renderPage(path)
+    await screen.findByText('Chưa có đơn thuê nào.')
+    expect(screen.getByRole('tab', { name: 'Đã huỷ' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Tranh chấp' }))
+
+    expect(await screen.findByText('Không có đơn nào trong nhóm “Tranh chấp”.')).toBeInTheDocument()
+    expect(rentalCalls().at(-1)).toMatchObject({ role, group: 'disputed' })
+  })
+})
+

@@ -6,7 +6,29 @@ import {
   DONATION_SETTING_KEYS,
   type DonationSettings,
 } from '../constants/donation-request-transitions.js';
+import {
+  DEFAULT_PURCHASE_SETTINGS,
+  DEFAULT_WITHDRAWAL_LIMITS,
+  findSettingDefinition,
+  type PurchaseSettings,
+  SETTING_KEYS,
+  type WithdrawalLimits,
+} from '../constants/system-settings.js';
+import { readStoredValue, toEffectiveValue } from './system-setting.rules.js';
 
+/** Rental rates outside the UC30 catalogue, kept as a fraction from 0 to 1 */
+const RENTAL_RATE_MAX: Partial<Record<keyof RentalSettings, number>> = { cancelFeeRate: 1 };
+
+/** Settings that a public page may show (GET /settings/public): no Admin-only threshold. */
+export interface PublicSettings {
+  withdrawal: WithdrawalLimits;
+}
+
+/**
+ * Reads the System Settings (UC30) that the code uses. Each read takes the latest saved values;
+ * callers read them when a transaction is created and keep a copy on it (GB-38). A missing or
+ * invalid stored value keeps its default.
+ */
 export class SystemSettingService {
   private readonly model: Model<ISystemSetting>;
 
@@ -14,6 +36,29 @@ export class SystemSettingService {
     this.model = model;
   }
 
+  private async storedValues(keys: string[]): Promise<Map<string, string>> {
+    const rows = await this.model
+      .find({ key: { $in: keys } })
+      .select('key value')
+      .lean();
+    return new Map(rows.map((row) => [row.key, row.value]));
+  }
+
+  /**
+   * The effective value of a catalogue setting (a rate as a fraction), or the fallback when the
+   * stored value is missing or not valid for the setting.
+   */
+  private static effective(key: string, stored: Map<string, string>, fallback: number): number {
+    const definition = findSettingDefinition(key);
+    if (!definition) return fallback;
+    const shown = readStoredValue(definition, stored.get(key));
+    return shown === undefined ? fallback : toEffectiveValue(definition, shown);
+  }
+
+  /**
+   * Numbers saved under `<prefix>.<field>`, each from 0 (and at most `max[field]` when given);
+   * a missing or invalid value keeps its default.
+   */
   public async getNumbers<T extends Record<keyof T, number>>(
     prefix: string,
     defaults: T,
@@ -26,19 +71,41 @@ export class SystemSettingService {
     const rowMap = new Map<string, string>();
     for (const row of rows) {
       rowMap.set(row.key, row.value);
-    }
-
+    const stored = await this.storedValues(keys.map((k) => `${prefix}.${String(k)}`));
     const result = { ...defaults };
+    for (const key of keys) {
+      const storedVal = stored.get(`${prefix}.${String(key)}`);
+      if (storedVal === undefined) continue;
+      const parsed = Number(storedVal);
+      const maxVal = max?.[key];
+      if (Number.isFinite(parsed) && parsed >= 0 && (maxVal === undefined || parsed <= maxVal)) {
+        result[key] = parsed as T[keyof T];
+      }
+    }
+    return result;
+  }
+
+  public async getRentalSettings(): Promise<RentalSettings> {
+    const keys = Object.keys(DEFAULT_RENTAL_SETTINGS) as (keyof RentalSettings)[];
+    const stored = await this.storedValues(keys.map((k) => `rental.${k}`));
+
+    const result: RentalSettings = { ...DEFAULT_RENTAL_SETTINGS };
 
     for (const key of keys) {
-      const storedVal = rowMap.get(`${prefix}.${String(key)}`);
+      const dbKey = `rental.${key}`;
+      if (findSettingDefinition(dbKey)) {
+        // Settings of the UC30 catalogue: checked against their range and kind
+        result[key] = SystemSettingService.effective(dbKey, stored, result[key]);
+        continue;
+      }
+      // Others (maxDays, bookingWindowDays, returnReminderHours, cancelFeeRate): any number from 0,
+      // a rate at most 1
+      const storedVal = stored.get(dbKey);
       if (storedVal !== undefined) {
         const parsed = Number(storedVal);
-        if (Number.isFinite(parsed) && parsed >= 0) {
-          const maxVal = max?.[key];
-          if (maxVal === undefined || parsed <= maxVal) {
-            result[key] = parsed as T[keyof T];
-          }
+        const max = RENTAL_RATE_MAX[key];
+        if (Number.isFinite(parsed) && parsed >= 0 && (max === undefined || parsed <= max)) {
+          result[key] = parsed;
         }
       }
     }
@@ -55,22 +122,64 @@ export class SystemSettingService {
 
   /**
    * GB-57 donation time limits (UC30): DONATION_DECISION_DAYS, DONATION_HANDOVER_DAYS and
-   * DONATION_CONFIRM_DAYS. A missing value, or one that is not a whole number of days from 1,
-   * keeps its default (14).
+   * DONATION_CONFIRM_DAYS. A missing value, or one that is not a whole number of days from 1 to
+   * 90, keeps its default (14).
    */
   public async getDonationSettings(): Promise<DonationSettings> {
     const entries = Object.entries(DONATION_SETTING_KEYS) as Array<
       [keyof DonationSettings, string]
     >;
-    const rows = await this.model.find({ key: { $in: entries.map(([, key]) => key) } }).lean();
-    const stored = new Map(rows.map((row) => [row.key, row.value]));
+    const stored = await this.storedValues(entries.map(([, key]) => key));
 
     const result: DonationSettings = { ...DEFAULT_DONATION_SETTINGS };
     for (const [field, key] of entries) {
-      const text = stored.get(key)?.trim();
-      const parsed = text ? Number(text) : Number.NaN;
-      if (Number.isInteger(parsed) && parsed >= 1) result[field] = parsed;
+      result[field] = SystemSettingService.effective(key, stored, result[field]);
     }
     return result;
+  }
+
+  /** Commission, delivery fee and time limits of a new purchase order (GB-38). */
+  public async getPurchaseSettings(): Promise<PurchaseSettings> {
+    const fields: Array<[keyof PurchaseSettings, string]> = [
+      ['commissionRate', SETTING_KEYS.purchaseCommissionRate],
+      ['shippingFee', SETTING_KEYS.purchaseShippingFee],
+      ['shipDeadlineHours', SETTING_KEYS.purchaseShipDeadlineHours],
+      ['autoCompleteDays', SETTING_KEYS.purchaseAutoCompleteDays],
+    ];
+    const stored = await this.storedValues(fields.map(([, key]) => key));
+
+    const result: PurchaseSettings = { ...DEFAULT_PURCHASE_SETTINGS };
+    for (const [field, key] of fields) {
+      result[field] = SystemSettingService.effective(key, stored, result[field]);
+    }
+    return result;
+  }
+
+  /**
+   * Amount limits of one withdrawal request (UC21). If the stored minimum is above the stored
+   * maximum (not possible through the Admin screen), both defaults are used.
+   */
+  public async getWithdrawalLimits(): Promise<WithdrawalLimits> {
+    const stored = await this.storedValues([
+      SETTING_KEYS.withdrawalMinAmount,
+      SETTING_KEYS.withdrawalMaxAmount,
+    ]);
+    const limits: WithdrawalLimits = {
+      minAmount: SystemSettingService.effective(
+        SETTING_KEYS.withdrawalMinAmount,
+        stored,
+        DEFAULT_WITHDRAWAL_LIMITS.minAmount,
+      ),
+      maxAmount: SystemSettingService.effective(
+        SETTING_KEYS.withdrawalMaxAmount,
+        stored,
+        DEFAULT_WITHDRAWAL_LIMITS.maxAmount,
+      ),
+    };
+    return limits.minAmount <= limits.maxAmount ? limits : { ...DEFAULT_WITHDRAWAL_LIMITS };
+  }
+
+  public async getPublicSettings(): Promise<PublicSettings> {
+    return { withdrawal: await this.getWithdrawalLimits() };
   }
 }

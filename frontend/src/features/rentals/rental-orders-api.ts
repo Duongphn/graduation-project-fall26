@@ -8,8 +8,6 @@ import type { ToyImage } from '../toy-listings/toy-listing-api'
 import { myWalletQuery, walletKeys } from '../wallet/wallet-queries'
 
 /**
- * GET /rentals, GET /rentals/:id, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
  * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11), POST /:id/cancel (UC14) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
@@ -143,6 +141,15 @@ export interface RentalTimelineEntry {
   oldStatus?: RentalStatus | null
   newStatus: RentalStatus
   changedBy: { id: string | null; name: string; role: string; isSystem: boolean }
+  notes?: string
+  occurredAt: string
+}
+
+/** Một mốc lịch sử đơn trong hồ sơ khiếu nại của Admin (UC19): changedBy là id người thao tác */
+export interface RentalHistoryEntry {
+  oldStatus?: RentalStatus
+  newStatus: RentalStatus
+  changedBy: string
   notes?: string
   occurredAt: string
 }

@@ -99,6 +99,7 @@ export const adminPaths = {
   users: `${ADMIN_ROOT}/users`,
   user: (id: string) => `${ADMIN_ROOT}/users/${id}`,
   auditLogs: `${ADMIN_ROOT}/audit-logs`,
+  settings: `${ADMIN_ROOT}/settings`,
   withdrawals: `${ADMIN_ROOT}/withdrawals`,
 } as const
 

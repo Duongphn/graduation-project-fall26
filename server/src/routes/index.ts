@@ -17,6 +17,7 @@ import './health.openapi.js';
 import { adminIdentityReviewRouter } from './identity-review.routes.js';
 import { notificationsRouter } from './notification.routes.js';
 import { adminOrganizationsRouter, organizationsRouter } from './organization.routes.js';
+import { adminSettingsRouter, publicSettingsRouter } from './system-setting.routes.js';
 import { adminToyModerationRouter } from './toy-moderation.routes.js';
 import { uploadsRouter } from './upload.routes.js';
 import {
@@ -77,6 +78,8 @@ export function createApiRouter(container: Container): Router {
   router.use('/admin/audit-logs', authenticate, adminAuditLogsRouter);
   router.use('/admin/violation-reports', authenticate, adminViolationReportsRouter);
   router.use('/admin/users', authenticate, adminAccountsRouter);
+  router.use('/admin/settings', authenticate, adminSettingsRouter);
+  router.use('/settings', publicSettingsRouter);
   router.use('/violation-reports', authenticate, violationReportsRouter);
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);

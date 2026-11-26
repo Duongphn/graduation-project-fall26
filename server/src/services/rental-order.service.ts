@@ -1,3 +1,4 @@
+import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
 import {
   SYSTEM_ACTOR_ID,
   type RentalOrderStatus,
@@ -30,6 +31,7 @@ import {
 import { computeFinancialBreakdown } from './rental-financial-breakdown.js';
 import { notificationLinks } from './notification.links.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
+import { rentalPolicyOf, withOrderPolicy } from './rental-policy.js';
 import {
   type RentalHistoryEntryDto,
   type RentalOrderDetailDto,
@@ -263,6 +265,8 @@ export class RentalOrderService extends RentalOrderCore {
             toyId: toy._id,
             period: { startDate, endDate },
             pricing,
+            // GB-38: later steps use the time limits in force when the request was created
+            policy: rentalPolicyOf(settings),
             status: 'PENDING',
             timer: { kind: 'OWNER_RESPONSE', dueAt },
           },
@@ -306,7 +310,7 @@ export class RentalOrderService extends RentalOrderCore {
     const now = this.clock.now();
     this.assertBeforeDeadline(order, 'OWNER_RESPONSE', now);
 
-    const settings = await this.settings.getRentalSettings();
+    const settings = withOrderPolicy(await this.settings.getRentalSettings(), order.policy);
     const dueAt = paymentDue(now, order.period.startDate, settings);
 
     const updated = await this.transition({
@@ -757,7 +761,7 @@ export class RentalOrderService extends RentalOrderCore {
 
     const updated = await this.withUploadedPhotos(files, async (photos) => {
       const now = this.clock.now();
-      const s = await this.settings.getRentalSettings();
+      const s = withOrderPolicy(await this.settings.getRentalSettings(), existing.policy);
 
       return this.transition({
         orderId,
@@ -795,7 +799,7 @@ export class RentalOrderService extends RentalOrderCore {
 
     const updated = await this.withUploadedPhotos(files, async (photos) => {
       const now = this.clock.now();
-      const s = await this.settings.getRentalSettings();
+      const s = withOrderPolicy(await this.settings.getRentalSettings(), existing.policy);
 
       return this.transition({
         orderId,
@@ -836,7 +840,7 @@ export class RentalOrderService extends RentalOrderCore {
 
     const updated = await this.withUploadedPhotos(files, async (photos) => {
       const now = this.clock.now();
-      const s = await this.settings.getRentalSettings();
+      const s = withOrderPolicy(await this.settings.getRentalSettings(), existing.policy);
       const { lateDays, lateFee } = computeLateFee(
         {
           endDate: existing.period.endDate,
@@ -951,7 +955,7 @@ export class RentalOrderService extends RentalOrderCore {
 
       const updated = await this.withUploadedPhotos(files, async (photos) => {
         const now = this.clock.now();
-        const s = await this.settings.getRentalSettings();
+        const s = withOrderPolicy(await this.settings.getRentalSettings(), existing.policy);
         const disputeId = new Types.ObjectId();
 
         return this.transition({
