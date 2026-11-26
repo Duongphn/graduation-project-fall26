@@ -1,4 +1,4 @@
-import { Skeleton, Typography } from 'antd'
+import { Skeleton, Tag, Typography } from 'antd'
 import { useParams } from 'react-router-dom'
 
 import { PageHeader, QueryErrorAlert, StatusTag } from '../../../components/common'
@@ -18,6 +18,8 @@ export function AdminDonationRequestDetailPage() {
   if (!query.data) return <Skeleton active />
 
   const request = query.data
+  // The deadline of the current step: decision or handover (dueAt), or the receipt (GB-57).
+  const deadline = request.dueAt ?? request.confirmDueAt
   return (
     <>
       <PageHeader
@@ -25,9 +27,15 @@ export function AdminDonationRequestDetailPage() {
         description={
           <span className="flex flex-wrap items-center gap-2">
             <StatusTag domain="donation" status={request.status} />
+            {request.overdue && <Tag color="red">Quá hạn xác nhận</Tag>}
             <Typography.Text type="secondary">
               Gửi lúc {formatDateTime(request.createdAt)}
             </Typography.Text>
+            {deadline && (
+              <Typography.Text type={request.overdue ? 'danger' : 'secondary'}>
+                · Hạn {formatDateTime(deadline)}
+              </Typography.Text>
+            )}
           </span>
         }
         breadcrumb={[

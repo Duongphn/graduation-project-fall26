@@ -1,15 +1,16 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useIsMutating, useQuery } from '@tanstack/react-query'
 
 import { useApiMutation } from '../../hooks/useApiMutation'
 import type { WithMessage } from '../../types/api'
 import { categoriesApi } from './api'
 import type { CategoryListParams } from './types'
 
+// Root key ['categories'] is shared with toy-listings' categoriesQuery (GET /categories), so every
+// category change here also refreshes the post form's category list.
 export const categoryKeys = {
   all: ['categories'] as const,
   adminList: (params: CategoryListParams) => [...categoryKeys.all, 'admin-list', params] as const,
   adminOptions: () => [...categoryKeys.all, 'admin-options'] as const,
-  publicList: () => [...categoryKeys.all, 'public'] as const,
 }
 
 export const useAdminCategories = (params: CategoryListParams) =>
@@ -17,14 +18,6 @@ export const useAdminCategories = (params: CategoryListParams) =>
     queryKey: categoryKeys.adminList(params),
     queryFn: () => categoriesApi.listAdmin(params),
     placeholderData: keepPreviousData,
-  })
-
-// For post forms and search filters in other features.
-export const usePublicCategories = () =>
-  useQuery({
-    queryKey: categoryKeys.publicList(),
-    queryFn: categoriesApi.listPublic,
-    staleTime: 300_000,
   })
 
 // Options of Admin category filters (hidden ones included). Under categoryKeys.all, so creating,
@@ -46,9 +39,16 @@ const useCategoryMutation = <TVariables, TData>(
   useApiMutation<WithMessage<TData>, TVariables>({
     mutationFn,
     successMessage: (result) => result.message ?? fallbackMessage,
+    mutationKey: categoryKeys.all,
     invalidate: [categoryKeys.all],
+    // A 404/409/422 (another Admin changed the list) also refetches, next to the backend message.
+    refetchOnStale: true,
     ...(onError ? { onError } : {}),
   })
+
+// True while any category change (create, edit, hide, show, delete, reorder) is running.
+export const useCategoryMutationPending = () =>
+  useIsMutating({ mutationKey: categoryKeys.all }) > 0
 
 export const useCreateCategory = (onError?: (error: unknown) => boolean) =>
   useCategoryMutation(categoriesApi.create, 'Đã thêm danh mục.', onError)

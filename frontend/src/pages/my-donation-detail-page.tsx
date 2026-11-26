@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronRight, Home, Truck } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Clock, Home, Truck } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { QueryErrorAlert, StatusTag } from '../components/common'
 import { CancelDonationCard } from '../features/donations/components/cancel-donation-card'
 import { DonationDecisionCard } from '../features/donations/components/donation-decision-card'
+import { DonationDeadline, DonationHandoverRecord } from '../features/donations/components/donation-handover-record'
 import { DonationProgress } from '../features/donations/components/donation-progress'
 import { DonationReceiverCard } from '../features/donations/components/donation-receiver-card'
 import { DonationTimeline } from '../features/donations/components/DonationTimeline'
@@ -91,13 +92,23 @@ export function MyDonationDetailPage() {
               </div>
             </header>
 
-            <section aria-label="Tiến trình quyên góp" className="mt-6">
+            <section aria-label="Tiến trình quyên góp" className="mt-6 flex flex-col gap-3">
               <DonationProgress request={request} />
+              <DonationDeadline request={request} />
             </section>
 
             <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <div className="flex min-w-0 flex-col gap-6">
-                {isDonor && request.status === 'pending' && (
+                {/* GB-56: người tặng gửi tới tổ chức (UC33) thì Admin quyết định thay tổ chức */}
+                {isDonor && request.status === 'pending' && request.decider === 'ADMIN' && (
+                  <p className="flex items-start gap-3 rounded-xl border border-tf-surface bg-white p-4 text-sm leading-6 text-tf-ink">
+                    <Clock className="mt-0.5 size-5 shrink-0 text-tf-primary" aria-hidden />
+                    Yêu cầu quyên góp đã gửi tới {receiverNameOf(request)}. ToyFlow sẽ xác nhận thay tổ chức; bạn nhận
+                    thông báo khi yêu cầu được chấp nhận hoặc từ chối.
+                  </p>
+                )}
+
+                {isDonor && request.status === 'pending' && request.decider === 'DONOR' && (
                   <DonationDecisionCard
                     requesterName={receiverNameOf(request)}
                     message={request.message}
@@ -131,6 +142,7 @@ export function MyDonationDetailPage() {
                   />
                 )}
 
+                <DonationHandoverRecord request={request} />
                 <DonationToyCard toy={request.toy} />
                 <DonationTimeline request={request} />
               </div>

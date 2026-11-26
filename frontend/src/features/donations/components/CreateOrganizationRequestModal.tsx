@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Input, Select } from 'antd'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 
 import { FormField, FormModal } from '../../../components/common'
@@ -65,6 +65,10 @@ export function CreateOrganizationRequestModal({ open, onClose }: CreateOrganiza
     defaultValues: { toyId: '', organizationId: '', message: '' },
   })
 
+  // UC35 1.1, GB-53/GB-54: only the organizations that take the chosen toy's category.
+  const toyId = useWatch({ control, name: 'toyId' })
+  const toyCategoryId = toys.data?.items.find((toy) => toy.id === toyId)?.category?.id
+
   const close = () => {
     reset()
     setToySearch('')
@@ -120,10 +124,23 @@ export function CreateOrganizationRequestModal({ open, onClose }: CreateOrganiza
             loading={organizations.isFetching}
             placeholder="Tìm theo tên tổ chức"
             notFoundContent={organizations.isFetching ? 'Đang tìm…' : 'Không có tổ chức đang hoạt động phù hợp'}
-            options={(organizations.data?.items ?? []).map((organization) => ({
-              value: organization.id,
-              label: organization.name,
-            }))}
+            // GB-51/GB-55: an organization without a receiving point, or not accepting toys,
+            // takes no new request.
+            // GB-53: with a toy chosen, one that does not take its category is disabled too.
+            options={(organizations.data?.items ?? []).map((organization) => {
+              const takesCategory = !toyCategoryId || organization.categoryIds.includes(toyCategoryId)
+              return {
+                value: organization.id,
+                label: !organization.receivingPoint
+                  ? `${organization.name} (chưa có điểm nhận)`
+                  : !organization.isAccepting
+                    ? `${organization.name} (tạm ngừng nhận)`
+                    : takesCategory
+                      ? organization.name
+                      : `${organization.name} (không nhận danh mục này)`,
+                disabled: !organization.isAccepting || !organization.receivingPoint || !takesCategory,
+              }
+            })}
           />
         )}
       </FormField>

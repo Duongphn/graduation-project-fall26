@@ -4,6 +4,7 @@ import { Check, ChevronRight, CircleCheck, Home, Phone, ShieldCheck, ShieldX } f
 import { useEffect, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link, useLocation } from 'react-router-dom'
+import { subscribeNotificationSocket } from '../features/notifications/notification-socket'
 import { IdentityImageSlot } from '../features/profile/components/identity-image-slot'
 import { pickTitle } from '../features/profile/identity-image-title'
 import { VerificationGuide } from '../features/profile/components/verification-guide'
@@ -101,6 +102,21 @@ export function IdentityVerificationPage() {
   useEffect(() => {
     document.title = 'Xác minh danh tính - ToyFlow'
   }, [])
+
+  // Admin duyệt/từ chối → thông báo IDENTITY_REVIEWED qua Socket.IO: tải lại trạng thái, không cần F5
+  useEffect(() => {
+    const reload = () => {
+      void queryClient.invalidateQueries({ queryKey: profileQuery.queryKey })
+      void queryClient.invalidateQueries({ queryKey: latestVerificationQuery.queryKey })
+    }
+    return subscribeNotificationSocket({
+      onNew: ({ notification }) => {
+        if (notification.type === 'IDENTITY_REVIEWED') reload()
+      },
+      onUnreadCount: () => {},
+      onReconnect: reload,
+    })
+  }, [queryClient])
 
   const phoneDone = verificationSchema.shape.phone.safeParse(phone ?? '').success
   const idCardDone = verificationSchema.shape.idCardNumber.safeParse(idCardNumber ?? '').success && Boolean(files.frontImage && files.backImage)
@@ -229,7 +245,7 @@ export function IdentityVerificationPage() {
                   <VerifyStep
                     done={idCardDone}
                     title="Ảnh căn cước công dân (2 mặt)"
-                    description="CCCD gắn chip hoặc CMND còn hạn. JPG, PNG hoặc WebP, tối đa 5 MB mỗi ảnh."
+                    description="CCCD gắn chip hoặc CMND còn hạn. JPG, PNG hoặc WebP, tối đa 8 MB mỗi ảnh."
                   >
                     <div className="tf-field verify-form__narrow">
                       <label htmlFor="verify-id-card" className="tf-label">
@@ -326,7 +342,7 @@ export function IdentityVerificationPage() {
                       {doneCount === 4 && <CircleCheck aria-hidden />}
                       Đã xong {doneCount}/4 mục
                     </span>
-                    <button type="submit" className="tf-btn tf-btn--primary tf-btn--inline" disabled={isSaving}>
+                    <button type="submit" className="tf-btn tf-btn--primary tf-btn--inline" disabled={isSaving || doneCount < 4}>
                       <ShieldCheck aria-hidden />
                       {isSaving ? 'Đang gửi hồ sơ...' : 'Gửi hồ sơ xác minh'}
                     </button>

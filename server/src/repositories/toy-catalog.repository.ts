@@ -35,9 +35,20 @@ function buildQuery(filter: ToyCatalogFilter): FilterQuery<IToy> {
 
   if (filter.listingType) query.listingType = filter.listingType;
   if (filter.categoryId) query.categoryId = new mongoose.Types.ObjectId(filter.categoryId);
-  // Khoảng tuổi của đồ chơi giao với khoảng tuổi cần tìm
-  if (filter.maxAge !== undefined) query['ageRange.minAge'] = { $lte: filter.maxAge };
-  if (filter.minAge !== undefined) query['ageRange.maxAge'] = { $gte: filter.minAge };
+  // Khoảng tuổi của đồ chơi giao với khoảng tuổi cần tìm. Both ranges are half-open
+  // [minAge, maxAge) (R03 S3 age groups: a 1-3 toy is not in the 3-6 group); a toy or a query
+  // for one age only (minAge === maxAge) counts as [minAge, minAge + 1), as in ageRangesOverlap.
+  if (filter.maxAge !== undefined) {
+    const upper =
+      filter.minAge !== undefined ? Math.max(filter.maxAge, filter.minAge + 1) : filter.maxAge;
+    query['ageRange.minAge'] = { $lt: upper };
+  }
+  if (filter.minAge !== undefined) {
+    query.$or = [
+      { 'ageRange.maxAge': { $gt: filter.minAge } },
+      { 'ageRange.minAge': { $gte: filter.minAge } },
+    ];
+  }
   if (filter.excludeIds.length > 0) query._id = { $nin: toObjectIds(filter.excludeIds) };
 
   return query;

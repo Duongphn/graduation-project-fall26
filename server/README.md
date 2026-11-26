@@ -25,7 +25,7 @@ Requests flow `routes → controllers → services → repositories / models`. S
 
 - Architecture and how to add a module: [`docs/backend-architecture.md`](docs/backend-architecture.md)
 - Collections: [`docs/models.md`](docs/models.md)
-- Endpoints: [`docs/api/`](docs/api/) (users, identity verification, toys, rentals, wallets)
+- Endpoints: [`docs/api/`](docs/api/) (users, identity verification, toys, rentals, wallets, payments)
 - Response format: [`docs/api-conventions.md`](docs/api-conventions.md)
 
 ## Business modules
@@ -39,6 +39,7 @@ Requests flow `routes → controllers → services → repositories / models`. S
 | BF-04 Donation | `donations`, `order-status-history` | Scaffold |
 | BF-05 Dispute and Deposit Settlement | `disputes`, `payments`, `ai-assistance` | Disputes opened on return condition DAMAGED (UC11) |
 | Trust and communication | `ratings`, `chat`, `notifications` | In-app notifications integrated |
+| AI toy advisor | `ai` (`POST /api/v1/ai/toy-advice`) | Implemented: Gemini suggestions, FAQ, fallback, usage logs |
 
 `Shipping` is an order status only. ToyFlow does not operate delivery, select delivery providers, calculate delivery fees or manage tracking codes.
 
@@ -51,7 +52,7 @@ copy .env.example .env
 npm run dev
 ```
 
-> **Note**: The rental order and wallet features use MongoDB multi-document transactions (`withTransaction`), which require MongoDB to run as a replica set.
+> **Note**: The rental order, wallet and toy posting features use MongoDB multi-document transactions (`withTransaction`), which require MongoDB to run as a replica set.
 > - For local development: start `mongod --replSet rs0` and run `rs.initiate()` in `mongosh`.
 > - Automated Vitest tests use an in-memory replica set (`mongodb-memory-server`) automatically without needing a local mongod daemon.
 
@@ -69,6 +70,38 @@ When implementing timers for another order flow (e.g. resale/purchase in UC12/UC
 1. Implement the `DueTimerSource` interface from `src/interfaces/order-timer.ports.ts` (`name: string`, `runDue(now: Date): Promise<{ processed: number; failed: number }>`).
 2. Pass the new service instance into `startOrderTimersJob([container.rentalTimerService, newPurchaseTimerSource])` in `src/server.ts`.
 3. Read timing durations from `SystemSetting` using `SystemSettingService.getNumbers(PURCHASE_TIMING_PREFIX, DEFAULT_PURCHASE_TIMINGS)`.
+## AI toy advisor
+
+`POST /api/v1/ai/toy-advice` (signed-in users) answers a parent's question in Vietnamese with at most 5 real, approved toys for rent or sale (donated toys are never suggested). AI only suggests; the parent decides.
+
+API reference: [docs/api/ai.md](docs/api/ai.md). Design, and the `US-xx` / `BR-xx` / "mục 8.x" codes used in the code comments: [docs/ai-advisor-design.md](docs/ai-advisor-design.md).
+
+Configure it in `.env` (the API key stays on the server, never in the frontend):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AI_ADVISOR_ENABLED` | `false` | `false`: the endpoint returns `503`, nothing else is affected |
+| `GEMINI_API_KEY` | (empty) | Without a key every question falls back to plain search results |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model name (needs `thinkingLevel` support) |
+| `GEMINI_TIMEOUT_MS` | (empty) | Empty: wait until Gemini answers or fails. A number of ms: slower calls fall back to plain search results |
+| `GEMINI_RPM` | `15` | Requests per minute sent to Gemini by the whole server (the key's quota). Extra requests queue up to 30 s, then fall back to plain search results. `0`: no limit |
+| `AI_ADVISOR_DAILY_LIMIT` | `20` | Questions per user per day (Vietnam time); FAQ answers are not counted |
+
+Flow: feature flag, sign-in and validation, FAQ (no Gemini), daily limit, Gemini call 1 (filters, skipped when `filtersFromButtons`), MongoDB search with relaxed filters (price, then category), Gemini call 2 (advice), server-side check of the picked ids. Every question writes one `AiRequest` (status, tokens, latency, model).
+
+Real token usage per question is in the `AiRequest` logs (`token_usage`: input, output, thoughts, calls).
+
+Example request:
+
+```http
+POST /api/v1/ai/toy-advice
+Authorization: Bearer <access token>
+Content-Type: application/json
+
+{ "message": "Bé 4 tuổi thích xếp hình, muốn thuê dưới 150k", "history": [], "filtersFromButtons": false }
+```
+
+The response is a `ToyAdviceDTO`: `advice`, `listings` (at most 5 toys), `filters`, `source`. `data.filters` is the conversation context: send it back as `filters` on the next question.
 
 ## Commands
 

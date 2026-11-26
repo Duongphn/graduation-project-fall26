@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, Camera, CircleCheck, Circle, Clock3, Mail, Phone, ShieldAlert, ShieldCheck, ShieldX, type LucideIcon } from 'lucide-react'
+import { ArrowRight, CalendarDays, Camera, CircleCheck, Circle, Clock3, Gauge, Mail, Phone, ShieldAlert, ShieldCheck, ShieldX, type LucideIcon } from 'lucide-react'
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS } from '../../../routes/paths'
-import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../toy-listings/toy-listing-schema'
+import { ACCEPTED_IMAGE_TYPES, MAX_AVATAR_BYTES } from '../../toy-listings/toy-listing-schema'
 import { getProfileErrorMessage, uploadAvatar, type LatestVerification, type UserProfile, type VerificationStatus } from '../profile-api'
 import { profileQuery } from '../profile-queries'
 
@@ -39,24 +39,28 @@ function initialOf(fullName: string): string {
   return fullName.trim().charAt(0).toUpperCase() || '?'
 }
 
-/** Các mục hoàn thiện hồ sơ, đều suy ra từ dữ liệu backend trả về */
-function completionItems(profile: UserProfile) {
+/** R03 III.6.1.1 (4): 5 mục hoàn thiện hồ sơ, mỗi mục 20% */
+function completionItems(profile: UserProfile, hasAddress: boolean) {
   return [
     { label: 'Ảnh đại diện', done: Boolean(profile.avatarUrl) },
-    { label: 'Số điện thoại', done: Boolean(profile.phone) },
     { label: 'Email', done: Boolean(profile.email) },
-    { label: 'Địa chỉ nhận hàng', done: Boolean(profile.address) },
+    { label: 'Ngày sinh', done: Boolean(profile.dateOfBirth) },
+    { label: 'Địa chỉ nhận hàng', done: hasAddress },
     { label: 'Xác minh danh tính', done: profile.verificationStatus === 'verified' },
   ]
 }
 
+const memberSinceFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
 interface ProfileHeroProps {
   profile: UserProfile
   latestVerification: LatestVerification | null | undefined
+  /** Sổ địa chỉ đã có ít nhất một địa chỉ */
+  hasAddress: boolean
   onAvatarSaved: () => void
 }
 
-export function ProfileHero({ profile, latestVerification, onAvatarSaved }: ProfileHeroProps) {
+export function ProfileHero({ profile, latestVerification, hasAddress, onAvatarSaved }: ProfileHeroProps) {
   const queryClient = useQueryClient()
   const inputRef = useRef<HTMLInputElement>(null)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -78,8 +82,8 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
       setLocalError(`"${file.name}" không phải ảnh JPG, PNG hoặc WebP.`)
       return
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setLocalError(`"${file.name}" lớn hơn 5 MB. Hãy chọn ảnh nhỏ hơn.`)
+    if (file.size > MAX_AVATAR_BYTES) {
+      setLocalError(`"${file.name}" lớn hơn 2 MB. Hãy chọn ảnh nhỏ hơn.`)
       return
     }
     setLocalError(null)
@@ -90,7 +94,7 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
   const verifyAction = VERIFY_ACTION[profile.verificationStatus]
   const StatusIcon = status.icon
   const note = verificationNote(profile.verificationStatus, latestVerification)
-  const items = completionItems(profile)
+  const items = completionItems(profile, hasAddress)
   const percent = Math.round((items.filter((item) => item.done).length / items.length) * 100)
   const avatarError = localError ?? (avatarMutation.error ? getProfileErrorMessage(avatarMutation.error) : null)
 
@@ -114,6 +118,7 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
               ref={inputRef}
               id="profile-avatar-input"
               type="file"
+              aria-label="Chọn ảnh đại diện"
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               className="sr-only"
               onChange={handleFile}
@@ -150,6 +155,22 @@ export function ProfileHero({ profile, latestVerification, onAvatarSaved }: Prof
                 <span className="truncate">{profile.email}</span>
               </li>
             </ul>
+
+            {/* Chỉ đọc: Trust Score tính lại sau mỗi đơn hoàn tất (UC24), ngày tham gia */}
+            <dl className="profile-hero__stats">
+              <div>
+                <dt>
+                  <Gauge aria-hidden /> Điểm uy tín
+                </dt>
+                <dd className="tabular-nums">{profile.trustScore}/100</dd>
+              </div>
+              <div>
+                <dt>
+                  <CalendarDays aria-hidden /> Tham gia từ
+                </dt>
+                <dd className="tabular-nums">{memberSinceFormatter.format(new Date(profile.memberSince))}</dd>
+              </div>
+            </dl>
 
             {note && (
               <p className={`profile-hero__note profile-hero__note--${status.tone}`} role={profile.verificationStatus === 'rejected' ? 'alert' : undefined}>

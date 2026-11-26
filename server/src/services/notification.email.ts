@@ -10,6 +10,7 @@ export interface EmailSpec {
   title: string;
   summary: string;
   reason?: string | undefined;
+  /** Empty for a notification written by its module (notify()). */
   nextStep: string;
   action: { label: string; url: string };
 }
@@ -41,7 +42,7 @@ const renderText = (spec: EmailSpec): string =>
     'Chào bạn,',
     spec.summary,
     ...(spec.reason ? [`Lý do: ${spec.reason}`] : []),
-    spec.nextStep,
+    ...(spec.nextStep ? [spec.nextStep] : []),
     `${spec.action.label}: ${spec.action.url}`,
     'Trân trọng,\nĐội ngũ ToyFlow',
     footer,
@@ -59,7 +60,7 @@ const renderHtml = (spec: EmailSpec): string => {
     spec.reason
       ? `<p style="${paragraph};padding:12px 16px;background-color:${colors.dangerSoft};border-left:4px solid ${colors.danger}"><strong>Lý do:</strong> ${escapeHtml(spec.reason)}</p>`
       : '',
-    `<p style="${paragraph}">${escapeHtml(spec.nextStep)}</p>`,
+    spec.nextStep ? `<p style="${paragraph}">${escapeHtml(spec.nextStep)}</p>` : '',
     `<p style="margin:24px 0"><a href="${url}" style="display:inline-block;padding:10px 20px;background-color:${colors.primary};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold">${escapeHtml(spec.action.label)}</a></p>`,
     `<p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:${colors.muted}">Nếu nút trên không hoạt động, hãy mở liên kết: <a href="${url}" style="color:${colors.primary}">${url}</a></p>`,
     `<p style="${paragraph}">Trân trọng,<br>Đội ngũ ToyFlow</p>`,

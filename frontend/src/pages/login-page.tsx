@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Spin } from 'antd'
+import { Alert, App, Spin } from 'antd'
 import { useCallback, useEffect } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -13,7 +13,7 @@ import { AuthLayout } from '../features/auth/components/auth-layout'
 import { LoginForm } from '../features/auth/components/login-form'
 import { OtpVerificationForm } from '../features/auth/components/otp-verification-form'
 import { ADMIN_ROOT, PATHS } from '../routes/paths'
-import { getApiErrorMessage } from '../services/http-client'
+import { getApiErrorMessage, SESSION_ENDED_REASON } from '../services/http-client'
 import { queryClient } from '../services/query-client'
 import { getCurrentRole } from '../services/current-role'
 import { saveAuthTokens } from '../services/token-storage'
@@ -22,8 +22,6 @@ import { maskEmail } from '../utils/mask-contact'
 /** State các trang khác có thể truyền khi điều hướng tới trang đăng nhập */
 export interface LoginPageState {
   from?: string
-  /** Có giá trị khi vừa đăng ký thành công — dùng để hiện thông báo và điền sẵn email */
-  registeredIdentifier?: string
 }
 
 /** Mã lỗi backend gắn vào `?error=` khi chuyển hướng về sau bước đăng nhập Google */
@@ -40,14 +38,15 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { message } = App.useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const state = location.state as LoginPageState | null
   // Chưa có trang chủ (`/` đang quay về /login) nên mặc định đưa vào trang hồ sơ
   // ?redirect= comes from the /admin guard; only same-site paths are accepted.
   const redirectParam = searchParams.get('redirect')
   const safeRedirect = redirectParam?.startsWith('/') && !redirectParam.startsWith('//') ? redirectParam : null
-  const redirectTo = state?.from ?? safeRedirect ?? PATHS.profile
-  const registeredIdentifier = state?.registeredIdentifier
+  // R03 III.1.2.1 (8): with no page that asked for sign-in, a User lands on the home page
+  const redirectTo = state?.from ?? safeRedirect ?? PATHS.home
 
   // Sau khi Google xác thực, backend chuyển về một trong hai dạng:
   // - Gmail đã đăng ký:  /login?googleCode=...                   → đổi mã lấy phiên, vào thẳng
@@ -57,6 +56,13 @@ export function LoginPage() {
   const googleEmail = searchParams.get('email') ?? ''
   const googleErrorCode = searchParams.get('error')
   const googleError = googleErrorCode && (GOOGLE_ERROR_MESSAGES[googleErrorCode] ?? GOOGLE_ERROR_MESSAGES.google_auth_failed)
+
+  // R03 V.2 MSG58: bị đưa về đây vì phiên đã kết thúc (refresh token bị thu hồi/hết hạn)
+  const sessionEnded = searchParams.get('reason') === SESSION_ENDED_REASON
+  useEffect(() => {
+    // key cố định: StrictMode chạy effect hai lần vẫn chỉ một thông báo
+    if (sessionEnded) message.warning({ key: 'session-ended', content: 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.' })
+  }, [sessionEnded, message])
 
   // useQuery thay vì gọi trong useEffect: StrictMode mount 2 lần sẽ không gửi trùng (mã chỉ dùng được một lần)
   const googleExchange = useQuery({
@@ -125,23 +131,13 @@ export function LoginPage() {
         />
       ) : (
         <>
-          {registeredIdentifier && (
-            <Alert
-              type="success"
-              showIcon
-              title="Đăng ký tài khoản thành công!"
-              description="Vui lòng đăng nhập bằng email hoặc số điện thoại và mật khẩu vừa tạo."
-              className="auth-form__alert"
-            />
-          )}
-
           {googleError && <Alert type="error" showIcon title={googleError} className="auth-form__alert" />}
 
           {googleExchange.isError && (
             <Alert type="error" showIcon title={getApiErrorMessage(googleExchange.error)} className="auth-form__alert" />
           )}
 
-          <LoginForm defaultIdentifier={registeredIdentifier} onSuccess={({ tokens }, rememberMe) => completeLogin(tokens, rememberMe)} />
+          <LoginForm onSuccess={({ tokens }, rememberMe) => completeLogin(tokens, rememberMe)} />
         </>
       )}
     </AuthLayout>

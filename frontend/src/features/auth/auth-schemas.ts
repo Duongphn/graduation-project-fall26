@@ -9,6 +9,8 @@ const isEmail = (value: string) => z.email().safeParse(value).success
 
 export const PASSWORD_MIN_LENGTH = 8
 export const OTP_LENGTH = 6
+/** GB-02: mã OTP có hiệu lực 5 phút */
+export const OTP_TTL_SECONDS = 5 * 60
 
 const emailField = z.string().trim().min(1, 'Vui lòng nhập email').refine(isEmail, 'Email không hợp lệ')
 
@@ -40,7 +42,12 @@ export type LoginFormValues = z.infer<typeof loginSchema>
 
 export const registerSchema = z
   .object({
-    fullName: z.string().trim().min(2, 'Vui lòng nhập họ và tên').max(100, 'Họ và tên tối đa 100 ký tự'),
+    // Khớp FULL_NAME_PATTERN của backend (R03 III.1.1.1 (5)): 2–50 chữ cái và khoảng trắng
+    fullName: z
+      .string()
+      .trim()
+      .min(1, 'Vui lòng nhập họ và tên')
+      .regex(/^[\p{L} ]{2,50}$/u, 'Họ và tên chỉ gồm chữ cái và khoảng trắng, từ 2 đến 50 ký tự'),
     phone: z
       .string()
       .trim()

@@ -28,6 +28,7 @@ const dayLabel = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-dig
 const shortDate = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' })
 const weekdayName = new Intl.DateTimeFormat('vi-VN', { weekday: 'long' })
 const deadlineLabel = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
   hour: '2-digit',
   minute: '2-digit',
   day: '2-digit',
@@ -429,7 +430,8 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
               </p>
             )}
 
-            {quoteError && (
+            {/* Một thông báo lỗi: lỗi khi gửi (kèm khoảng gợi ý) thay cho lỗi báo giá khi báo giá tải lại sau 409 */}
+            {quoteError && !failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <div>
@@ -443,7 +445,7 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
               </div>
             )}
 
-            {unavailable && (
+            {unavailable && !failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <p>Khoảng ngày này vừa có người đặt. Vui lòng chọn ngày khác trên lịch.</p>

@@ -24,9 +24,26 @@ export const PATHS = {
   rentalRequest: '/rentals/requests/:orderId',
   myRentals: '/rentals/mine',
   myRental: '/rentals/mine/:orderId',
+  wallet: '/wallet',
+  /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */
+  walletTopupPayosResult: '/wallet/topup/payos-result',
+  /** Trang mã VietQR của ToyFlow cho một giao dịch PayOS */
+  walletPayosCheckout: '/wallet/topup/payos/:code',
+  notifications: '/notifications',
+  /** Hộp thư chat (UC25) */
+  chat: '/chat',
+  /** Phòng chat: đúng link máy chủ gửi trong thông báo CHAT_MESSAGE (services/chat.notifications.ts) */
+  chatRoom: '/chat/:conversationId',
+  /** UC12: trang Mua ngay của một tin bán lại */
+  toyBuy: '/toys/:toyId/buy',
+  /** UC12–13: đơn mua (người mua) và đơn bán (người bán); thông báo của server trỏ tới /purchases/:id */
+  purchases: '/purchases',
+  sales: '/purchases/sales',
+  purchaseOrder: '/purchases/:orderId',
   // Các trang dưới đây chưa được xây — link trỏ sẵn đúng địa chỉ, tạm thời route `*` đưa về trang chủ
   browseToys: '/toys',
-  donations: '/donations',
+  // Link công khai "Quyên góp": mục Đồ chơi quyên góp trên trang chủ (/donations là trang của người tặng, cần đăng nhập)
+  donations: '/#do-choi-quyen-gop',
   favorites: '/favorites',
   aiAdvisor: '/ai-advisor',
   help: '/help',
@@ -44,10 +61,17 @@ export const myRentalPath = (orderId: string) => PATHS.myRental.replace(':orderI
 
 export const rentalRequestPath = (orderId: string) => PATHS.rentalRequest.replace(':orderId', orderId)
 
-export const myDonationRequestPath = (requestId: string) =>
+export const chatRoomPath = (conversationId: string) => PATHS.chatRoom.replace(':conversationId', conversationId)
+
+export const myDonationRequestPath =(requestId: string) =>
   PATHS.myDonationRequest.replace(':requestId', requestId)
 
 export const myDonationPath = (requestId: string) => PATHS.myDonation.replace(':requestId', requestId)
+
+export const walletPayosCheckoutPath = (code: string) => PATHS.walletPayosCheckout.replace(':code', code)
+
+export const walletPayosResultPath = (code: string) =>
+  `${PATHS.walletTopupPayosResult}?${new URLSearchParams({ orderCode: code }).toString()}`
 
 // Paths of the admin pages: admin-routes, admin-menu and every feature link use these.
 export const ADMIN_ROOT = '/admin'
@@ -62,6 +86,15 @@ export const adminPaths = {
   organizations: `${ADMIN_ROOT}/organizations`,
   donationRequests: `${ADMIN_ROOT}/donation-requests`,
   donationRequest: (id: string) => `${ADMIN_ROOT}/donation-requests/${id}`,
+  disputes: `${ADMIN_ROOT}/disputes`,
+  dispute: (id: string) => `${ADMIN_ROOT}/disputes/${id}`,
+  notifications: `${ADMIN_ROOT}/notifications`,
+  violationReports: `${ADMIN_ROOT}/violation-reports`,
+  violationReport: (id: string) => `${ADMIN_ROOT}/violation-reports/${id}`,
+  users: `${ADMIN_ROOT}/users`,
+  user: (id: string) => `${ADMIN_ROOT}/users/${id}`,
+  auditLogs: `${ADMIN_ROOT}/audit-logs`,
+  withdrawals: `${ADMIN_ROOT}/withdrawals`,
 } as const
 
 // Relative child path of /admin for the route table, e.g. 'toys' or 'toys/:id'.
@@ -73,15 +106,22 @@ export const adminHomeCrumb = { title: 'Quản trị', to: ADMIN_ROOT }
 
 export const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId', toyId)
 
+export const toyBuyPath = (toyId: string) => PATHS.toyBuy.replace(':toyId', toyId)
+
+export const purchaseOrderPath = (orderId: string) => PATHS.purchaseOrder.replace(':orderId', orderId)
+
 export interface BrowseToysFilters {
   type?: 'rent' | 'sell'
   q?: string
-  category?: string
-  minAge?: number
-  maxAge?: number
+  categoryId?: string
+  ageMin?: number
+  ageMax?: number
 }
 
-/** /toys?type=rent&minAge=3 … — bỏ qua tham số rỗng để URL gọn */
+/**
+ * /toys?type=rent&ageMin=3 … — bỏ qua tham số rỗng để URL gọn.
+ * Tên tham số phải khớp parseCatalogSearch (catalog-search-params.ts), nếu không trang /toys bỏ qua bộ lọc.
+ */
 export function browseToysPath(filters: BrowseToysFilters = {}) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(filters)) {

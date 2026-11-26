@@ -25,8 +25,10 @@ export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'SHIPPING',
   'IN_USE',
   'RETURNING',
+  'DISPUTING',
   'COMPLETED',
   'REJECTED',
+  'CANCELLED',
   'EXPIRED',
 ]
 
@@ -38,8 +40,10 @@ export const RENTER_STATUS_FILTERS: readonly RentalStatus[] = [
   'SHIPPING',
   'IN_USE',
   'RETURNING',
+  'DISPUTING',
   'COMPLETED',
   'REJECTED',
+  'CANCELLED',
   'EXPIRED',
 ]
 
@@ -51,10 +55,11 @@ export const OWNER_REJECT_REASON_PRESETS = [
   'Điểm tin cậy của người thuê chưa phù hợp với món đồ này.',
 ] as const
 
-const dayMonth = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' })
-const dayMonthYear = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short' })
+const dayMonth = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })
+const dayMonthYear = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })
+const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short', timeZone: 'Asia/Ho_Chi_Minh' })
 const dateTime = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
   hour: '2-digit',
   minute: '2-digit',
   day: '2-digit',

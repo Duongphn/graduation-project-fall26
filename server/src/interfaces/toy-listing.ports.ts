@@ -1,3 +1,5 @@
+import type { ClientSession } from 'mongoose';
+
 export type ListingType = 'rent' | 'sell';
 
 export type StoredListingStatus = 'pending' | 'active' | 'hidden';
@@ -19,14 +21,30 @@ export interface ToyLocation {
   coordinates?: number[];
 }
 
+/** Stored review data of a toy; `reviewedBy`, `reviewedAt` and `rejectReason` are written by the Admin moderation. */
 export interface ToyModeration {
   submittedAt?: Date;
+  reviewedBy?: unknown;
+  reviewedAt?: Date | undefined;
+  rejectReason?: string | undefined;
+}
+
+/**
+ * What the Owner sees of the review (R03 III.3.2.1): when the listing was sent, and the Admin's
+ * reason while it is rejected. The reviewing Admin's id is not shown.
+ */
+export interface OwnerModerationView {
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  rejectReason?: string;
 }
 
 export interface ToyListingDto {
   id: string;
   ownerId: string;
   categoryId: string;
+  /** Category name, also when the category is hidden (empty string if it no longer exists). */
+  categoryName: string;
   title: string;
   description: string;
   condition: string;
@@ -38,7 +56,9 @@ export interface ToyListingDto {
   quantity: number;
   status: ListingFilterStatus;
   location?: ToyLocation;
-  moderation?: ToyModeration;
+  moderation?: OwnerModerationView;
+  /** When the Owner last declared the toy safe (UC05); absent on older listings. */
+  safetyDeclaredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,8 +66,50 @@ export interface ToyListingDto {
 export interface ToyListingPorts {
   isVerifiedUser(userId: string): Promise<boolean>;
   categoryExists(categoryId: string): Promise<boolean>;
+  /**
+   * Runs `save` in a transaction that first touches the category (conditional write on
+   * `{ _id, status: active }`), so a concurrent hide or delete of the category write-conflicts
+   * with the toy save. Resolves null, without calling `save`, when the category is missing or not
+   * active; otherwise the save result and the category name read by the same write.
+   * `save` can run more than once: the transaction is run again after a write conflict or a
+   * transient commit error. So it must build its write on every call (a new document, or the toy
+   * re-read with `session`), never save a document built or saved outside it. A re-read toy must
+   * not have changed since it was first read (same `__v`), or the edit is refused.
+   */
+  saveWithActiveCategory<T>(
+    categoryId: string,
+    save: (session: ClientSession) => Promise<T>,
+  ): Promise<{ result: T; categoryName: string } | null>;
+  /**
+   * A rental or purchase order in progress, or (GB-12, GB-60) an accepted or shipping donation
+   * request: the toy cannot be hidden, edited or deleted then.
+   */
   hasUnfinishedOrder(toyId: string): Promise<boolean>;
+  /**
+   * D-06: the Donor hid or deleted a donation post. Its pending donation requests are rejected
+   * with the reason and the requesters are notified; resolves how many were closed. Optional so
+   * that test doubles without a donation flow need not provide it.
+   */
+  closePendingDonationRequests?(
+    toyId: string,
+    ownerId: string,
+    why: 'HIDDEN' | 'DELETED',
+    toyTitle: string,
+  ): Promise<number>;
+  /**
+   * Whether a donation post was handed over (a received or completed donation request): it cannot
+   * be shown again. Optional so that test doubles without a donation flow need not provide it.
+   */
+  isDonated?(toyId: string): Promise<boolean>;
+  /**
+   * GB-60: the Admin cancelled a Shipping donation request of the toy after `since` (the post's
+   * last review), so the toy stays hidden until the Donor edits or deletes the post. Optional so
+   * that test doubles without a donation flow need not provide it.
+   */
+  hasCancelledShipment?(toyId: string, since?: Date): Promise<boolean>;
   getSoldToyIds(toyIds: string[]): Promise<Set<string>>;
+  /** Names of the given categories, whatever their status (hidden included). */
+  getCategoryNames(categoryIds: string[]): Promise<Map<string, string>>;
 }
 
 /** Lưu ảnh tin đăng; bản thật là integrations/cloudinary/cloudinary-image-storage.ts */

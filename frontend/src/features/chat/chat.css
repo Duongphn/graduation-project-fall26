@@ -1,0 +1,490 @@
+@layer components {
+  /*
+   * Chat (UC25): hộp thư + phòng chat trong khung trang công khai (SiteLayout, header cao 64px).
+   * Tin của mình: nền navy, chữ trắng; tin người kia: nền xám tím nhạt. Cảnh báo che thông tin liên hệ
+   * dùng tông đồng (brass) để không lẫn với lỗi gửi (đỏ).
+   */
+  .chat-page {
+    @apply py-4 sm:py-6;
+  }
+
+  .chat-shell {
+    @apply grid overflow-hidden rounded-2xl border border-site-line bg-white shadow-[0_12px_40px_-24px_rgb(20_40_75/0.35)] dark:border-night-700 dark:bg-night-900;
+    height: calc(100dvh - 64px - 48px);
+    min-height: 520px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 900px) {
+    .chat-shell {
+      grid-template-columns: 340px minmax(0, 1fr);
+    }
+  }
+
+  /* Mobile: một cột — chưa chọn phòng thì hộp thư, đã chọn thì phòng */
+  @media (max-width: 899px) {
+    .chat-page.has-room .chat-inbox,
+    .chat-page:not(.has-room) .chat-room {
+      display: none;
+    }
+  }
+
+  /* ---------- Ảnh đại diện ---------- */
+  .chat-avatar {
+    @apply shrink-0 rounded-full object-cover;
+  }
+
+  .chat-avatar--empty {
+    @apply grid place-items-center bg-tf-primary-fixed text-sm font-semibold text-tf-primary dark:bg-night-700 dark:text-indigo-200;
+  }
+
+  /* ---------- Hộp thư ---------- */
+  .chat-inbox {
+    @apply flex min-h-0 flex-col border-site-line dark:border-night-700;
+  }
+
+  @media (min-width: 900px) {
+    .chat-inbox {
+      border-right-width: 1px;
+    }
+  }
+
+  .chat-inbox__head {
+    @apply flex flex-col gap-3 border-b border-site-line px-4 pt-4 pb-3 dark:border-night-700;
+  }
+
+  .chat-inbox__title {
+    @apply font-display text-xl font-semibold text-site-ink dark:text-white;
+  }
+
+  .chat-inbox__search {
+    @apply flex h-10 items-center gap-2 rounded-xl border border-site-line bg-tf-surface-low px-3 text-tf-ink-muted focus-within:border-site-primary focus-within:bg-white dark:border-night-700 dark:bg-night-800 dark:text-slate-400;
+  }
+
+  .chat-inbox__search svg {
+    @apply size-4 shrink-0;
+  }
+
+  .chat-inbox__search input {
+    @apply h-full min-w-0 flex-1 bg-transparent text-base text-site-ink placeholder:text-tf-ink-muted focus:outline-none sm:text-sm dark:text-white;
+  }
+
+  .chat-inbox__list {
+    @apply min-h-0 flex-1 overflow-y-auto py-1;
+  }
+
+  .chat-inbox__item {
+    @apply relative flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-tf-surface-low focus-ring dark:hover:bg-night-800;
+  }
+
+  .chat-inbox__item.is-active {
+    @apply bg-tf-primary-fixed dark:bg-night-800;
+  }
+
+  .chat-inbox__item.is-active::before {
+    @apply absolute inset-y-2 left-0 w-[3px] rounded-r bg-tf-primary content-[''] dark:bg-indigo-300;
+  }
+
+  .chat-inbox__text {
+    @apply flex min-w-0 flex-1 flex-col gap-0.5;
+  }
+
+  .chat-inbox__row {
+    @apply flex min-w-0 items-center gap-2;
+  }
+
+  .chat-inbox__name {
+    @apply min-w-0 flex-1 truncate text-sm font-semibold text-site-ink dark:text-white;
+  }
+
+  .chat-inbox__time {
+    @apply shrink-0 text-xs text-tf-ink-muted tabular-nums dark:text-slate-400;
+  }
+
+  .chat-inbox__subject {
+    @apply truncate text-xs text-tf-ink-muted dark:text-slate-400;
+  }
+
+  .chat-inbox__code {
+    @apply mr-1.5 rounded bg-tf-surface px-1.5 py-px font-mono text-[11px] text-tf-primary dark:bg-night-700 dark:text-indigo-200;
+  }
+
+  .chat-inbox__preview {
+    @apply min-w-0 flex-1 truncate text-[13px] text-tf-ink-muted dark:text-slate-400;
+  }
+
+  .chat-inbox__item.is-unread .chat-inbox__preview {
+    @apply font-semibold text-site-ink dark:text-white;
+  }
+
+  .chat-inbox__tag {
+    @apply shrink-0 rounded-full bg-tf-surface px-2 py-px text-[11px] font-medium text-tf-ink-muted dark:bg-night-700 dark:text-slate-300;
+  }
+
+  .chat-inbox__badge {
+    @apply grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-tf-error px-1.5 text-[11px] leading-none font-bold text-white;
+  }
+
+  .chat-inbox__toy {
+    @apply size-11 shrink-0 rounded-lg object-cover;
+  }
+
+  .chat-inbox__state {
+    @apply p-4;
+  }
+
+  .chat-inbox__empty {
+    @apply flex flex-col items-center gap-2 py-12 text-center text-sm text-tf-ink-muted dark:text-slate-400;
+  }
+
+  .chat-inbox__empty svg {
+    @apply size-8 text-tf-outline;
+  }
+
+  .chat-inbox__hint {
+    @apply max-w-60 text-xs;
+  }
+
+  .chat-inbox__skeleton {
+    @apply flex flex-col gap-2 p-4;
+  }
+
+  .chat-inbox__skeleton span {
+    @apply h-14 animate-pulse rounded-xl bg-tf-surface-low dark:bg-night-800;
+  }
+
+  .chat-inbox__more {
+    @apply m-3 h-10 cursor-pointer rounded-xl border border-site-line text-sm font-medium text-site-ink transition-colors hover:bg-tf-surface-low focus-ring disabled:cursor-wait disabled:opacity-60 dark:border-night-700 dark:text-white dark:hover:bg-night-800;
+  }
+
+  /* ---------- Phòng chat ---------- */
+  .chat-room {
+    @apply flex min-h-0 flex-col bg-tf-page dark:bg-night-950;
+  }
+
+  .chat-room--placeholder,
+  .chat-room--state {
+    @apply items-center justify-center gap-3 p-6 text-center text-sm text-tf-ink-muted dark:text-slate-400;
+  }
+
+  .chat-room--placeholder svg {
+    @apply size-10 text-tf-outline;
+  }
+
+  .chat-room__back-link {
+    @apply inline-flex items-center gap-1.5 font-medium text-tf-primary hover:underline dark:text-indigo-300;
+  }
+
+  .chat-room__back-link svg {
+    @apply size-4;
+  }
+
+  .chat-room__head {
+    @apply flex min-h-16 items-center gap-3 border-b border-site-line bg-white px-3 py-2 sm:px-4 dark:border-night-700 dark:bg-night-900;
+  }
+
+  .chat-room__back {
+    @apply grid size-9 shrink-0 place-items-center rounded-full text-tf-ink-muted hover:bg-tf-surface-low focus-ring dark:text-slate-300 dark:hover:bg-night-800;
+  }
+
+  .chat-room__back svg {
+    @apply size-5;
+  }
+
+  @media (min-width: 900px) {
+    .chat-room__back {
+      display: none;
+    }
+  }
+
+  .chat-room__who {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+
+  .chat-room__name {
+    @apply truncate text-[15px] font-semibold text-site-ink dark:text-white;
+  }
+
+  .chat-room__subject {
+    @apply truncate text-xs text-tf-ink-muted dark:text-slate-400;
+  }
+
+  .chat-room__subject-link {
+    @apply inline-flex items-center gap-1 hover:text-tf-primary hover:underline dark:hover:text-indigo-300;
+  }
+
+  .chat-room__subject-link svg {
+    @apply size-3;
+  }
+
+  .chat-room__toy {
+    @apply size-10 shrink-0 rounded-lg object-cover;
+  }
+
+  .chat-room__head-skeleton {
+    @apply h-9 w-48 animate-pulse rounded-lg bg-tf-surface-low dark:bg-night-800;
+  }
+
+  .chat-room__error {
+    @apply flex-1 p-4;
+  }
+
+  /* ---------- Danh sách tin ---------- */
+  .chat-messages {
+    @apply min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6;
+    overscroll-behavior: contain;
+  }
+
+  .chat-messages--loading {
+    @apply flex flex-col gap-3;
+  }
+
+  .chat-messages--loading span {
+    @apply h-10 w-1/2 animate-pulse rounded-2xl bg-tf-surface dark:bg-night-800;
+  }
+
+  .chat-messages--loading span:nth-child(2) {
+    @apply ml-auto w-2/5;
+  }
+
+  .chat-messages__older {
+    @apply mb-3 flex justify-center;
+  }
+
+  .chat-messages__older button {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-site-line bg-white px-3 py-1.5 text-xs font-medium text-tf-ink-muted hover:text-site-ink focus-ring disabled:cursor-wait dark:border-night-700 dark:bg-night-900 dark:text-slate-300;
+  }
+
+  .chat-messages__older svg {
+    @apply size-3.5;
+  }
+
+  .chat-messages__empty {
+    @apply flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-tf-ink-muted dark:text-slate-400;
+  }
+
+  .chat-messages__empty svg {
+    @apply size-9 text-tf-outline;
+  }
+
+  .chat-messages__list {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .chat-messages__day {
+    @apply my-3 flex justify-center;
+  }
+
+  .chat-messages__day span {
+    @apply rounded-full bg-tf-surface px-3 py-0.5 text-[11px] font-medium text-tf-ink-muted dark:bg-night-800 dark:text-slate-400;
+  }
+
+  /* ---------- Bong bóng tin ---------- */
+  .chat-bubble {
+    @apply flex max-w-[78%] flex-col gap-1 sm:max-w-[65%];
+  }
+
+  .chat-bubble.is-mine {
+    @apply items-end self-end;
+  }
+
+  .chat-bubble.is-theirs {
+    @apply items-start self-start;
+  }
+
+  .chat-bubble__body {
+    @apply flex flex-col gap-1.5 overflow-hidden rounded-2xl;
+  }
+
+  .chat-bubble__text {
+    @apply px-3.5 py-2 text-[15px] leading-relaxed break-words whitespace-pre-wrap sm:text-sm;
+  }
+
+  .chat-bubble.is-mine .chat-bubble__body {
+    @apply rounded-br-md bg-tf-primary text-white dark:bg-indigo-300 dark:text-night-950;
+  }
+
+  .chat-bubble.is-theirs .chat-bubble__body {
+    @apply rounded-bl-md bg-white text-site-ink shadow-[0_1px_2px_rgb(20_40_75/0.08)] dark:bg-night-800 dark:text-white;
+  }
+
+  .chat-bubble.is-pending .chat-bubble__body {
+    @apply opacity-70;
+  }
+
+  .chat-bubble.is-failed .chat-bubble__body {
+    @apply opacity-100 ring-2 ring-tf-error/60;
+  }
+
+  .chat-bubble__images {
+    @apply grid gap-0.5;
+  }
+
+  .chat-bubble__images--2 {
+    @apply grid-cols-2;
+  }
+
+  .chat-bubble__images--3 {
+    @apply grid-cols-3;
+  }
+
+  .chat-bubble__image-root,
+  .chat-bubble__images > img {
+    @apply block;
+  }
+
+  .chat-bubble__image,
+  .chat-bubble__images > img {
+    @apply aspect-square w-full max-w-60 cursor-zoom-in object-cover;
+  }
+
+  .chat-bubble__image-missing {
+    @apply grid aspect-square w-full min-w-24 place-items-center bg-tf-surface text-tf-ink-muted dark:bg-night-700;
+  }
+
+  .chat-bubble__image-missing svg {
+    @apply size-6;
+  }
+
+  .chat-bubble__meta {
+    @apply px-1 text-[11px] text-tf-ink-muted tabular-nums dark:text-slate-400;
+  }
+
+  .chat-bubble__seen {
+    @apply font-medium text-tf-secondary dark:text-emerald-300;
+  }
+
+  .chat-bubble__masked {
+    @apply flex items-start gap-1.5 rounded-lg bg-tf-tertiary-fixed px-2.5 py-1.5 text-xs leading-snug text-tf-tertiary dark:bg-amber-950/60 dark:text-amber-200;
+  }
+
+  .chat-bubble__masked svg {
+    @apply mt-px size-3.5 shrink-0;
+  }
+
+  .chat-bubble__failed {
+    @apply flex flex-wrap items-center justify-end gap-x-2 gap-y-1 px-1 text-xs text-tf-error dark:text-red-300;
+  }
+
+  .chat-bubble__failed svg {
+    @apply size-3.5 shrink-0;
+  }
+
+  .chat-bubble__failed button {
+    @apply cursor-pointer font-semibold underline-offset-2 hover:underline focus-ring;
+  }
+
+  /* ---------- Banner chỉ xem / sắp đóng ---------- */
+  .chat-banner {
+    @apply flex items-center gap-2.5 border-t px-4 py-3 text-sm;
+  }
+
+  .chat-banner svg {
+    @apply size-4 shrink-0;
+  }
+
+  .chat-banner--closed {
+    @apply border-site-line bg-tf-surface-low text-tf-ink-muted dark:border-night-700 dark:bg-night-900 dark:text-slate-300;
+  }
+
+  .chat-banner--closing {
+    @apply border-tf-tertiary-fixed bg-tf-tertiary-fixed/60 text-tf-tertiary dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200;
+  }
+
+  /* ---------- Ô soạn tin ---------- */
+  .chat-composer {
+    @apply flex flex-col gap-2 border-t border-site-line bg-white px-3 py-3 sm:px-4 dark:border-night-700 dark:bg-night-900;
+  }
+
+  .chat-composer__attachments {
+    @apply flex gap-2 overflow-x-auto pb-1;
+  }
+
+  .chat-composer__thumb {
+    @apply relative size-16 shrink-0 overflow-hidden rounded-lg border border-site-line dark:border-night-700;
+  }
+
+  .chat-composer__thumb img {
+    @apply size-full object-cover;
+  }
+
+  .chat-composer__thumb.is-error {
+    @apply border-tf-error;
+  }
+
+  .chat-composer__progress,
+  .chat-composer__thumb-error {
+    @apply absolute inset-0 grid place-items-center bg-black/45 text-xs font-semibold text-white tabular-nums;
+  }
+
+  .chat-composer__thumb-error {
+    @apply bg-tf-error/70;
+  }
+
+  .chat-composer__remove {
+    @apply absolute top-0.5 right-0.5 grid size-5 cursor-pointer place-items-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-ring;
+  }
+
+  .chat-composer__remove svg {
+    @apply size-3;
+  }
+
+  .chat-composer__row {
+    @apply flex items-end gap-2;
+  }
+
+  .chat-composer__attach {
+    @apply grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-tf-ink-muted transition-colors hover:bg-tf-surface-low hover:text-tf-primary dark:text-slate-300 dark:hover:bg-night-800;
+  }
+
+  .chat-composer__attach:has(+ *),
+  input:focus-visible + .chat-composer__attach {
+    @apply focus-ring;
+  }
+
+  .chat-composer__attach.is-disabled {
+    @apply cursor-not-allowed opacity-40 hover:bg-transparent;
+  }
+
+  .chat-composer__attach svg {
+    @apply size-5;
+  }
+
+  .chat-composer__field {
+    @apply relative flex min-w-0 flex-1 flex-col;
+  }
+
+  .chat-composer__input {
+    @apply max-h-36 min-h-10 resize-none rounded-2xl border border-site-line bg-tf-surface-low py-2 pr-16 pl-3.5 text-base leading-6 text-site-ink placeholder:text-tf-ink-muted focus:border-site-primary focus:bg-white focus:outline-none sm:text-sm dark:border-night-700 dark:bg-night-800 dark:text-white;
+    field-sizing: content;
+  }
+
+  .chat-composer__input[aria-invalid='true'] {
+    @apply border-tf-error;
+  }
+
+  .chat-composer__counter {
+    @apply pointer-events-none absolute right-3 bottom-2.5 text-[11px] text-tf-ink-muted tabular-nums dark:text-slate-500;
+  }
+
+  .chat-composer__counter.is-over {
+    @apply font-semibold text-tf-error;
+  }
+
+  .chat-composer__send {
+    @apply grid size-10 shrink-0 cursor-pointer place-items-center rounded-full bg-tf-primary text-white transition-[background-color,transform,opacity] duration-200 hover:bg-tf-primary-container focus-ring active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-indigo-300 dark:text-night-950;
+  }
+
+  .chat-composer__send svg {
+    @apply size-[18px];
+  }
+
+  .chat-composer__errors {
+    @apply flex flex-col gap-0.5 text-xs text-tf-error dark:text-red-300;
+  }
+
+  /* ---------- Nút nhắn tin ở trang đơn thuê ---------- */
+  .rental-detail__chat {
+    width: 100%;
+  }
+}

@@ -1,5 +1,7 @@
 // Quick reasons offered in the Admin reason modals (content, not statuses).
 export const rejectReasonPresets = [
+  'Tổ chức tạm ngừng nhận đồ chơi, vui lòng chọn tổ chức khác',
+  'Tổ chức đã đủ đồ chơi loại này, vui lòng chọn tổ chức khác',
   'Tổ chức không phù hợp với độ tuổi của đồ chơi',
   'Thông tin yêu cầu chưa đầy đủ',
   'Đồ chơi không còn phù hợp để tặng',
@@ -11,6 +13,19 @@ export const cancelReasonPresets = [
   'Hai bên đã thống nhất huỷ yêu cầu',
   'Bàn giao thất bại, đồ chơi không đến được bên nhận',
 ] as const
+
+// GB-58: how the Donor handed the toy over (stored values of the API).
+export const donationHandoverMethodLabels: Record<'drop_off' | 'carrier', string> = {
+  drop_off: 'Mang đến điểm nhận',
+  carrier: 'Gửi qua đơn vị vận chuyển',
+}
+
+// GB-59: how the organization confirmed receipt to the Admin (R03 III.7.5.2 (8)).
+export const receiptChannelLabels: Record<'phone' | 'email' | 'in_person', string> = {
+  phone: 'Điện thoại',
+  email: 'Email',
+  in_person: 'Trực tiếp',
+}
 
 // Admin confirmation of a receipt on behalf of the receiver (SHIPPING).
 export const confirmReasonPresets = [
@@ -24,8 +39,8 @@ export const confirmReasonPresets = [
 export const donationSortFields = ['createdAt', 'updatedAt', 'status', 'code'] as const
 export type DonationSortField = (typeof donationSortFields)[number]
 
-// Donor hands a toy over (POST /donation-requests/:id/handover). The backend has no carrier or
-// tracking fields yet, so both are written at the top of the handover note (composeHandoverNote).
+// Donor hands a toy over (POST /donation-requests/:id/handover): the form's choices, sent as
+// handoverMethod 'carrier' or 'drop_off' with the optional carrierName and trackingCode (toHandoverInput).
 export const handoverMethods = ['CARRIER', 'SELF'] as const
 export type HandoverMethod = (typeof handoverMethods)[number]
 

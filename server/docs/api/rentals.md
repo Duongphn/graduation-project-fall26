@@ -238,7 +238,17 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
   - `result`: `'GOOD'` or `'DAMAGED'`.
   - For `GOOD`: Escrow is distributed (`escrow -(R+D)`, `owner +(R-F+L)`, `platform +F`, `renter +(D-L)`). Order moves to `COMPLETED`.
   - For `DAMAGED`: Requires `description` (10–1000 characters) and 1–10 evidence `photos`. Creates an open `Dispute` record, holds escrow untouched, and order moves to `DISPUTING`. Rejected with `409 INVALID_RENTAL_TRANSITION` once the 72h settlement deadline has passed (the order is then auto-settled as GOOD). `GOOD` is still accepted after the deadline.
-- **Response (`200 OK`)**: Updates order to `COMPLETED` or `DISPUTING`.
+- **Response (`200 OK`)**: Updates order to `COMPLETED` or `DISPUTING`. A `DAMAGED` report sets the dispute's reply deadline (`timer.dueAt`, `rental.disputeReplyHours`, default 72h) and notifies the Admins with a link to `/admin/disputes/:disputeId`.
+
+### 13. Admin: Resolve Rental Disputes (UC19)
+Mounted under `/api/v1/admin/disputes`, Admin only (`403 FORBIDDEN` otherwise).
+- `GET /admin/disputes?status=open|resolved&page&limit`: paginated cases. `open` (default) is oldest first; `resolved` is newest first. Each item has the order, toy, both parties (with the Renter's trust score), `frozenAmount` (R + D), `claimant` and `replyDueAt`.
+- `GET /admin/disputes/:id`: the case: the claim (`description`), the whole `rentalOrder` (handover photos of both sides, return photos and note, damage evidence), the status `history` and the `resolution` once decided.
+- `POST /admin/disputes/:id/resolve`: body `{ ruling, compensationRate, adminDecision }`.
+  - `ruling`: `RENTER_AT_FAULT`, `OWNER_AT_FAULT`, `UNDETERMINED` or `FAIR_WEAR_AND_TEAR`.
+  - `compensationRate`: 0, 25, 50, 75 or 100. Above 0 only when the ruling puts the fault on the other side of the claim (`RENTER_AT_FAULT` for an Owner damage report). Owner claim: `K = rate × D`, at most `D − L`; Renter claim: `G = rate × R`.
+  - `adminDecision`: 30–500 characters, sent to both parties.
+  - Accepted only after the reply deadline (`409 DISPUTE_REPLY_PENDING`). One posting `rental:{id}:ruling` pays out the frozen R + D: `escrow −(R+D)`, `owner +(R−G−F'+L+K)`, `platform +F'` with `F' = p × (R−G)`, `renter +(D−L−K+G)`. The dispute becomes `resolved`, the order `COMPLETED` with `settlement.resolution`, and both parties get a `DISPUTE` notification. A second decision is `409 DISPUTE_ALREADY_RESOLVED` (GB-26).
 
 ---
 
@@ -253,7 +263,7 @@ All error responses adhere to the standard envelope `{ "success": false, "error"
 | `INVALID_IMAGE_FORMAT` | 400 | Uploaded file signature does not match JPEG, PNG, or WebP |
 | `CANNOT_RENT_OWN_LISTING` | 403 | Owner attempts to rent their own toy listing |
 | `USER_NOT_VERIFIED` | 403 | Renter has not completed identity verification (UC03) |
-| `RENTER_RESTRICTED` | 403 | Renter trust score is below minimum threshold (< 30) |
+| `RENTER_RESTRICTED` | 403 | GB-29 / MSG28: the Renter's trust score is below `rental.minTrustScore` (default 50) and the toy's deposit is above `rental.trustDepositLimit` (default 500,000 VND). Toys with a deposit at or below the limit can still be rented |
 | `FORBIDDEN_RENTAL_ACTION` | 403 | Party invokes an endpoint restricted to the opposite role (e.g. Renter calls `ship` or Owner calls `pay`) |
 | `TOY_NOT_FOUND` | 404 | Toy listing does not exist, is inactive, or listingType is not 'rent' |
 | `RENTAL_NOT_FOUND` | 404 | Rental order ID does not exist or caller is not a party to the order |
@@ -261,4 +271,7 @@ All error responses adhere to the standard envelope `{ "success": false, "error"
 | `RENTAL_CANCEL_USE_REJECT` | 409 | Owner attempts to cancel a `PENDING` order (must use reject instead) |
 | `RENTAL_CANCEL_NOT_ALLOWED` | 409 | Cancelling an order in `SHIPPING`, `IN_USE`, `RETURNING` or `DISPUTING` (open a dispute instead) |
 | `INVALID_RENTAL_TRANSITION` | 409 | Action cannot be performed in the current order status or deadline has expired |
+| `DISPUTE_NOT_FOUND` | 404 | Admin: the dispute does not exist or is not a rental dispute |
+| `DISPUTE_REPLY_PENDING` | 409 | Admin: the other party's reply window is still open (`details.replyDueAt`) |
+| `DISPUTE_ALREADY_RESOLVED` | 409 | Admin: the dispute already has a ruling |
 | `INSUFFICIENT_BALANCE` | 409 | Renter wallet balance is insufficient to pay totalPayable. Returns `{ required, balance, shortfall }` |

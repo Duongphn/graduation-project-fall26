@@ -1,13 +1,15 @@
-import { Card, Descriptions, Typography } from 'antd'
+import { Card, Descriptions, Tag, Typography } from 'antd'
 
 import { StatusTag, Thumbnail, UserSummary } from '../../../components/common'
 import { donationReceiverTypeLabels } from '../../../constants/labels'
-import { formatAgeRange } from '../../../utils/format'
+import { formatAgeRange, formatDate, formatDateTime } from '../../../utils/format'
+import { donationHandoverMethodLabels, receiptChannelLabels } from '../constants'
 import type { DonationRequestDetail } from '../types'
 
 // The toy, the donor and the receiver (user or organization) of one request.
 export function DonationParties({ request }: { request: DonationRequestDetail }) {
   const { toy, organization } = request
+  const sentAt = request.handovers.find((handover) => handover.step === 'DONOR_SENT')?.at
   return (
     <div className="flex flex-col gap-4">
       <Card title="Đồ chơi" size="small">
@@ -20,7 +22,14 @@ export function DonationParties({ request }: { request: DonationRequestDetail })
               </Descriptions.Item>
               <Descriptions.Item label="Độ tuổi">{formatAgeRange(toy.ageRange)}</Descriptions.Item>
               <Descriptions.Item label="Trạng thái tin">
-                <StatusTag domain="toy" status={toy.status} />
+                {/* GB-60: Đã quyên góp là trạng thái suy ra khi yêu cầu đã xác nhận nhận hàng */}
+                {toy.status === 'donated' ? (
+                  <Tag color="green" className="m-0">
+                    Đã quyên góp
+                  </Tag>
+                ) : (
+                  <StatusTag domain="toy" status={toy.status} />
+                )}
               </Descriptions.Item>
             </Descriptions>
           </div>
@@ -46,6 +55,9 @@ export function DonationParties({ request }: { request: DonationRequestDetail })
                 {organization.address && (
                   <Typography.Text type="secondary">{organization.address}</Typography.Text>
                 )}
+                {!organization.isAccepting && (
+                  <Typography.Text type="warning">Đang tạm ngừng nhận đồ chơi</Typography.Text>
+                )}
                 {organization.contactInfo && (
                   <Typography.Text type="secondary">{organization.contactInfo}</Typography.Text>
                 )}
@@ -55,9 +67,38 @@ export function DonationParties({ request }: { request: DonationRequestDetail })
               </div>
             </Descriptions.Item>
           )}
+          {organization?.receivingPoint && (
+            <Descriptions.Item label="Điểm nhận">
+              <div className="flex flex-col">
+                <span>
+                  {[
+                    organization.receivingPoint.street,
+                    organization.receivingPoint.ward,
+                    organization.receivingPoint.province,
+                  ].join(', ')}
+                </span>
+                <Typography.Text type="secondary">
+                  {organization.receivingPoint.openingHours}
+                </Typography.Text>
+                {organization.receivingPoint.contactName && (
+                  <Typography.Text type="secondary">
+                    {organization.receivingPoint.contactName} ·{' '}
+                    {organization.receivingPoint.contactPhone}
+                  </Typography.Text>
+                )}
+              </div>
+            </Descriptions.Item>
+          )}
           <Descriptions.Item label={organization ? 'Người gửi yêu cầu' : 'Người nhận'}>
             <UserSummary user={request.requester} />
           </Descriptions.Item>
+          {request.status === 'pending' && (
+            <Descriptions.Item label="Bên quyết định">
+              {request.decider === 'ADMIN'
+                ? 'Admin, thay tổ chức (người tặng gửi tới tổ chức)'
+                : 'Người tặng'}
+            </Descriptions.Item>
+          )}
           {request.message && (
             <Descriptions.Item label="Lời nhắn">{request.message}</Descriptions.Item>
           )}
@@ -67,8 +108,40 @@ export function DonationParties({ request }: { request: DonationRequestDetail })
           {request.cancellation?.note && (
             <Descriptions.Item label="Lý do huỷ">{request.cancellation.note}</Descriptions.Item>
           )}
+          {request.expiryReason && (
+            <Descriptions.Item label="Lý do hết hạn">{request.expiryReason}</Descriptions.Item>
+          )}
         </Descriptions>
       </Card>
+      {(request.handoverMethod || request.receipt) && (
+        <Card title="Bàn giao và nhận" size="small">
+          <Descriptions size="small" column={1}>
+            {request.handoverMethod && (
+              <Descriptions.Item label="Cách bàn giao">
+                {donationHandoverMethodLabels[request.handoverMethod]}
+              </Descriptions.Item>
+            )}
+            {request.carrierName && (
+              <Descriptions.Item label="Đơn vị vận chuyển">{request.carrierName}</Descriptions.Item>
+            )}
+            {request.trackingCode && (
+              <Descriptions.Item label="Mã vận đơn">{request.trackingCode}</Descriptions.Item>
+            )}
+            {sentAt && <Descriptions.Item label="Ngày gửi">{formatDateTime(sentAt)}</Descriptions.Item>}
+            {request.receipt?.confirmedBy && (
+              <Descriptions.Item label="Người xác nhận">{request.receipt.confirmedBy}</Descriptions.Item>
+            )}
+            {request.receipt?.channel && (
+              <Descriptions.Item label="Kênh xác nhận">
+                {receiptChannelLabels[request.receipt.channel]}
+              </Descriptions.Item>
+            )}
+            {request.receipt?.receivedAt && (
+              <Descriptions.Item label="Ngày nhận">{formatDate(request.receipt.receivedAt)}</Descriptions.Item>
+            )}
+          </Descriptions>
+        </Card>
+      )}
     </div>
   )
 }

@@ -9,6 +9,11 @@ describe('models index', () => {
     expect(names).toContain('order_timeline');
   });
 
+  it('indexes the toys by categoryId alone (R04 IV 2.2)', () => {
+    const index = models.Toy.schema.indexes().find(([, options]) => options.name === 'by_category_id');
+    expect(index?.[0]).toEqual({ categoryId: 1 });
+  });
+
   it('exports every collection model under its registered name', () => {
     const expected = [
       'AiRequest',

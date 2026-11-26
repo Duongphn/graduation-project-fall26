@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 
 import { env } from '../config/env.js';
+import { accountLockedError, findRunningLock } from '../services/account-lock.service.js';
 import '../types/request-actor.js';
 import { AppError } from '../utils/app-error.js';
 
@@ -62,5 +63,11 @@ export const authenticate: RequestHandler = (req, _res, next) => {
     actorType: role,
   };
 
-  next();
+  // UC29: an account locked by an Admin loses access at once, not when its token expires
+  // (R03 IV security "Session control"). 401, so the web app drops the session and the sign-in
+  // page shows the lock reason (MSG12). Skipped without a database connection.
+  if (mongoose.connection.readyState !== 1) return next();
+  findRunningLock(userId)
+    .then((lock) => next(lock ? accountLockedError(lock, 401) : undefined))
+    .catch(next);
 };

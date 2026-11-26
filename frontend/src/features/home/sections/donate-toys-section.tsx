@@ -8,7 +8,7 @@ import { donateToysQuery } from '../home-queries'
 /** Đồ chơi quyên góp đang chờ người nhận (GET /toys?listingType=donate) — bấm thẻ để xin nhận */
 export function DonateToysSection() {
   return (
-    <section id={DONATE_TOYS_ANCHOR} className="home-container home-section" aria-labelledby="home-donate-title">
+    <section id={DONATE_TOYS_ANCHOR} className="home-container mt-6 sm:mt-8" aria-labelledby="home-donate-title">
       <SectionHeader
         id="home-donate-title"
         title="Đồ chơi quyên góp"

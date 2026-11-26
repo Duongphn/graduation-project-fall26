@@ -30,7 +30,7 @@ export const TOY_WITHDRAWN_REASON = {
 interface CloseCommand {
   id: Types.ObjectId;
   from: StoredDonationStatus;
-  to: 'cancelled' | 'rejected';
+  to: 'expired' | 'rejected';
   // The user who closes it; absent for the system (expiry job).
   actorId?: string;
   set: Record<string, unknown>;
@@ -48,7 +48,7 @@ const closeOne = async (command: CloseCommand): Promise<DonationStatusChangedEve
     assertTransition(donationTransitions, command.from, command.to);
 
     const toyMove = toyMoveFor(command.from, command.to);
-    // The toy goes back to active (accepted -> cancelled). A toy no longer hidden does not stop
+    // The toy goes back to active (accepted -> expired). A toy no longer hidden does not stop
     // the request from closing.
     if (toyMove) await repository.moveToy(current.toyId, toyMove.from, toyMove.to, session);
 
@@ -67,6 +67,7 @@ const closeOne = async (command: CloseCommand): Promise<DonationStatusChangedEve
           ...(command.actorId ? { actorId: command.actorId } : {}),
           action: command.auditAction,
           target: { kind: 'DONATION_REQUEST', id: String(current._id) },
+          details: { from: command.from, to: command.to },
         },
         session,
       );
@@ -86,11 +87,11 @@ export interface ExpiryResult {
 }
 
 /**
- * R03 job 9 "Close donation requests not accepted in time": a pending or accepted request
- * whose timer.dueAt has passed is cancelled (reason EXPIRED); an accepted toy goes back to
- * active. The deadline is set when the request is created (PENDING_EXPIRY_DAYS) and again when
- * it is accepted (HANDOVER_EXPIRY_DAYS); shipping requests have no timer (the Admin resolves
- * them).
+ * JOB-10 (GB-57): a pending or accepted request whose timer.dueAt has passed is set to expired
+ * (R04 3.9 status Expired, expired_at); an accepted toy goes back to active. Both sides are
+ * notified (MSG56). The deadline is set when the request is created (DONATION_DECISION_DAYS)
+ * and again when it is accepted (DONATION_HANDOVER_DAYS); shipping requests have no timer: past
+ * DONATION_CONFIRM_DAYS they are only flagged as overdue for the Admin (GB-57).
  */
 export const expireStaleRequests = async (now: Date = new Date()): Promise<ExpiryResult> => {
   const expire = async (from: 'pending' | 'accepted', reason: string): Promise<number> => {
@@ -101,10 +102,8 @@ export const expireStaleRequests = async (now: Date = new Date()): Promise<Expir
         await closeOne({
           id,
           from,
-          to: 'cancelled',
-          set: {
-            cancellation: { reason: 'EXPIRED', actorType: 'SYSTEM', note: reason, at: now },
-          },
+          to: 'expired',
+          set: { expiredAt: now },
           reason,
           auditAction: 'donation.expire',
         }),

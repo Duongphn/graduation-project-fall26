@@ -26,17 +26,46 @@ export interface DonationToy {
   // Free text in develop's toys model.
   condition: string
   ageRange: { minAge: number; maxAge: number } | null
-  status: ToyStatus
+  // 'donated' once a request for it is confirmed (GB-60, derived by the server).
+  status: ToyStatus | 'donated'
+}
+
+// GB-51: the public part of the receiving point; the Admin view adds its contact.
+export interface DonationReceivingPoint {
+  province: string
+  ward: string
+  street: string
+  openingHours: string
+  acceptsDropOff: boolean
+  acceptsParcel: boolean
+  // Admin detail only.
+  contactName?: string
+  contactPhone?: string
 }
 
 export interface DonationOrganization {
   id: string
   name: string
   status: string
+  // GB-55: false = takes no new requests (pending ones are still decided).
+  isAccepting: boolean
+  // null for an organization saved before receiving points existed.
+  receivingPoint: DonationReceivingPoint | null
   // Admin detail only.
   address?: string
   contactInfo?: string
-  supportCriteria?: string
+  supportCriteria?: string | null
+}
+
+// GB-58 and GB-59 (server constants/donation-request-transitions.ts).
+export type DonationHandoverMethod = 'drop_off' | 'carrier'
+export type ReceiptChannel = 'phone' | 'email' | 'in_person'
+
+// GB-59: the organization's confirmation recorded by the Admin.
+export interface DonationReceipt {
+  confirmedBy: string | null
+  channel: ReceiptChannel | null
+  receivedAt: string | null
 }
 
 // D-03: the other party's full name and phone, only while ACCEPTED or SHIPPING (user routes);
@@ -54,8 +83,19 @@ export interface DonationRequest {
   // The requester's message (develop's itemDetails; the toy title when none was given).
   message: string | null
   deliveryMethod: string
+  // GB-56: who accepts or rejects while pending. ADMIN: a request the Donor sent to an
+  // organization; DONOR: a Receiver's request or the Admin's request for an organization.
+  decider: 'ADMIN' | 'DONOR'
+  handoverMethod: DonationHandoverMethod | null
+  carrierName: string | null
+  trackingCode: string | null
+  receipt: DonationReceipt | null
   // Expiry deadline of the current step (develop's timer.dueAt).
   dueAt: string | null
+  // GB-57: while SHIPPING, the sent date plus DONATION_CONFIRM_DAYS; overdue once it has passed
+  // (flagged for the Admin, never confirmed automatically).
+  confirmDueAt: string | null
+  overdue: boolean
   toy: DonationToy | null
   donor: DonationPerson | null
   requester: DonationPerson | null
@@ -64,6 +104,9 @@ export interface DonationRequest {
   decidedAt: string | null
   rejectReason: string | null
   completedAt: string | null
+  // GB-57: when the expiry job set the request to expired, and why (no decision / no handover in time)
+  expiredAt: string | null
+  expiryReason: string | null
   createdAt: string
   updatedAt: string
 }
@@ -106,16 +149,37 @@ export interface PrivatePhoto {
   format: string
 }
 
+// USER receiver: `reason` is required. Organization (GB-59): confirmedBy, channel, receivedAt
+// (YYYY-MM-DD) and at least one photo are required.
 export interface ConfirmReceivedInput {
-  reason: string
+  reason?: string
   photos?: PrivatePhoto[]
   note?: string
+  confirmedBy?: string
+  channel?: ReceiptChannel
+  receivedAt?: string
 }
 
 // The Donor hands the toy over: 1–10 own HANDOVER_PHOTO uploads and an optional note.
 export interface HandoverInput {
+  // GB-58: drop-off at the receiving point or a carrier chosen by the Donor.
+  handoverMethod?: 'drop_off' | 'carrier'
+  // Optional free text, only for a carrier.
+  carrierName?: string
+  trackingCode?: string
   photos: PrivatePhoto[]
   note?: string
+}
+
+// UC33 (GB-56): the Donor sends their own Active donation post to an organization
+// (POST /donation-requests/to-organization); the Admin accepts or rejects it for the organization.
+export interface DonorOrganizationRequestInput {
+  toyId: string
+  organizationId: string
+  // GB-58: one the organization's receiving point accepts.
+  handoverMethod: 'drop_off' | 'carrier'
+  // Note to the organization, at most 300 characters.
+  message?: string
 }
 
 // GET /donors/:userId/donation-summary: donations the receiver confirmed (COMPLETED).
@@ -134,6 +198,11 @@ export interface DonationListParams extends Omit<PaginationParams, 'sortBy'> {
   sortBy?: DonationSortField
   status?: DonationStatus
   receiverType?: DonationReceiverType
+  organizationId?: string
+  // Province of the organization's receiving point (accents ignored).
+  province?: string
+  // 'true': SHIPPING requests past DONATION_CONFIRM_DAYS (GB-57).
+  overdue?: 'true'
   // Request code or toy title (accents ignored).
   q?: string
 }

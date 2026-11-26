@@ -1,10 +1,13 @@
 import type {
+  DisputeStatus,
   DonationStatus,
   IdentityStatus,
   ListingType,
+  ReportStatus,
   ToyStatus,
   UserStatus,
   VisibilityStatus,
+  WithdrawalStatus,
 } from '../constants/domain'
 import { palette } from './palette'
 
@@ -49,6 +52,26 @@ export const statusStyles = {
     completed: { label: 'Hoàn tất', tone: 'success' },
     rejected: { label: 'Bị từ chối', tone: 'error' },
     cancelled: { label: 'Đã huỷ', tone: 'default' },
+    expired: { label: 'Đã hết hạn', tone: 'default' },
+  },
+  dispute: {
+    open: { label: 'Chờ quyết định', tone: 'warning' },
+    under_review: { label: 'Đang xem xét', tone: 'processing' },
+    resolved: { label: 'Đã giải quyết', tone: 'success' },
+    closed: { label: 'Đã đóng', tone: 'default' },
+  },
+  // Violation reports (UC28, UC29).
+  report: {
+    pending: { label: 'Chờ xử lý', tone: 'warning' },
+    resolved: { label: 'Đã xử lý', tone: 'success' },
+    dismissed: { label: 'Đã bỏ qua', tone: 'default' },
+  },
+  // Withdrawal requests: the Admin transfers the money (completed) or refunds it (rejected).
+  withdrawal: {
+    pending: { label: 'Chờ chuyển khoản', tone: 'warning' },
+    approved: { label: 'Đã duyệt', tone: 'processing' },
+    completed: { label: 'Đã chuyển khoản', tone: 'success' },
+    rejected: { label: 'Đã từ chối', tone: 'error' },
   },
 } as const satisfies {
   toy: StatusMap<ToyStatus>
@@ -56,6 +79,9 @@ export const statusStyles = {
   user: StatusMap<UserStatus>
   visibility: StatusMap<VisibilityStatus>
   donation: StatusMap<DonationStatus>
+  dispute: StatusMap<DisputeStatus>
+  report: StatusMap<ReportStatus>
+  withdrawal: StatusMap<WithdrawalStatus>
 }
 
 export type StatusDomain = keyof typeof statusStyles

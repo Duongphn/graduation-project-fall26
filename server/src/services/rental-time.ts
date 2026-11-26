@@ -77,6 +77,9 @@ export function addHours(date: Date, hours: number): Date {
 /**
  * Validates dates per business rules.
  */
+/** The shortest rental (R03 III.2.2.1 (8): minimum 2 days). */
+export const MIN_RENTAL_DAYS = 2;
+
 export function assertBookablePeriod(
   period: RentalPeriod,
   now: Date,
@@ -93,6 +96,14 @@ export function assertBookablePeriod(
   }
 
   const days = inclusiveDays(period);
+  // R03 III.2.2.1 (8) and UC07: a rental lasts 2 to maxDays (30) days, counted inclusively.
+  if (days < MIN_RENTAL_DAYS) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      `Thời gian thuê từ ${MIN_RENTAL_DAYS} đến ${settings.maxDays} ngày`,
+    );
+  }
   if (days > settings.maxDays) {
     throw new AppError(400, 'VALIDATION_ERROR', `Thời gian thuê tối đa là ${settings.maxDays} ngày`);
   }
@@ -104,42 +115,57 @@ export function assertBookablePeriod(
 }
 
 /**
- * Suggests earliest free range of `days` length between windowStart and windowEnd.
+ * Suggests a free range of `days` length between windowStart and windowEnd. Without `preferredStart`
+ * it is the earliest one; with it (the dates the renter chose) it is the one whose start is closest to
+ * that day, and on a tie the one that starts later (after the booking the renter ran into).
  */
 export function suggestFreeRange(
   occupied: RentalPeriod[],
   days: number,
   windowStart: Date,
   windowEnd: Date,
+  preferredStart?: Date,
 ): RentalPeriod | null {
-  const sortedOccupied = [...occupied].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  const span = (days - 1) * DAY_MS;
   const candidateStarts: Date[] = [windowStart];
-
-  for (const occ of sortedOccupied) {
+  if (preferredStart) {
+    candidateStarts.push(preferredStart);
+  }
+  for (const occ of occupied) {
+    // Right after a booking, and (when the renter chose dates) ending right before one
     candidateStarts.push(new Date(occ.endDate.getTime() + DAY_MS));
-  }
-
-  candidateStarts.sort((a, b) => a.getTime() - b.getTime());
-
-  for (const start of candidateStarts) {
-    if (start.getTime() < windowStart.getTime()) {
-      continue;
-    }
-    const end = new Date(start.getTime() + (days - 1) * DAY_MS);
-    if (end.getTime() > windowEnd.getTime()) {
-      continue;
-    }
-
-    const hasOverlap = sortedOccupied.some(
-      (occ) => start.getTime() <= occ.endDate.getTime() && end.getTime() >= occ.startDate.getTime(),
-    );
-
-    if (!hasOverlap) {
-      return { startDate: start, endDate: end };
+    if (preferredStart) {
+      candidateStarts.push(new Date(occ.startDate.getTime() - DAY_MS - span));
     }
   }
 
-  return null;
+  const free = candidateStarts
+    .filter((start) => {
+      const end = start.getTime() + span;
+      return (
+        start.getTime() >= windowStart.getTime() &&
+        end <= windowEnd.getTime() &&
+        !occupied.some(
+          (occ) => start.getTime() <= occ.endDate.getTime() && end >= occ.startDate.getTime(),
+        )
+      );
+    })
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  let best = free[0];
+  if (!best) {
+    return null;
+  }
+  if (preferredStart) {
+    const target = preferredStart.getTime();
+    for (const start of free) {
+      if (Math.abs(start.getTime() - target) <= Math.abs(best.getTime() - target)) {
+        best = start;
+      }
+    }
+  }
+
+  return { startDate: best, endDate: new Date(best.getTime() + span) };
 }
 
 /**

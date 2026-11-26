@@ -33,9 +33,17 @@ export function DataTable<T extends object>({
   onRow,
   ...tableProps
 }: DataTableProps<T>) {
-  if (error) return <QueryErrorAlert error={error} onRetry={onRetry} />
+  // No data yet: the error replaces the table. A failed background refetch keeps the previous
+  // rows on screen and shows the error above them.
+  if (error && !items) return <QueryErrorAlert error={error} onRetry={onRetry} />
 
   return (
+    <>
+    {error ? (
+      <div className="mb-4">
+        <QueryErrorAlert error={error} onRetry={onRetry} />
+      </div>
+    ) : null}
     <Table<T>
       {...tableProps}
       rowKey={rowKey}
@@ -69,5 +77,6 @@ export function DataTable<T extends object>({
           : false
       }
     />
+    </>
   )
 }

@@ -1,4 +1,4 @@
-import { normalizeSearchText } from '../utils/text.js';
+import { findContactDetails } from '../utils/contact-details.js';
 import type { ModerationListingType, ModerationWarning } from '../validations/toy-moderation.validation.js';
 
 type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
@@ -7,46 +7,9 @@ type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 // reject anything by themselves (LI-03).
 
 // ---- Contact details in the text of a post (GB-11) ----
-
-// Digits with at most one space, dot or dash between them, e.g. "0912 345 678", "091.234.5678".
-const DIGIT_RUN = /\+?\d(?:[\s.-]?\d){7,}/g;
-// Vietnamese mobile (0 + 9 digits) or landline (0 + 10 digits), with or without the 84 prefix.
-const PHONE_DIGITS = /^(?:0|84)\d{9,10}$/;
-const BANK_KEYWORDS =
-  /\b(?:stk|so tai khoan|chuyen khoan|ngan hang|vietcombank|vietinbank|techcombank|agribank|bidv|mbbank|mb bank|tpbank|vpbank|sacombank|acb|momo)\b/;
-// Vietnamese words such as "co", "me" and "ly" are not listed as domains: "tot.Co pin" is text.
-const LINK =
-  /(?:https?:\/\/|www\.)\S+|\b[a-z0-9][a-z0-9-]+\.(?:com|net|org|vn|info|biz|io|shop|store|online|site|xyz|link)\b/;
-const EXTERNAL_CHANNELS = /\b(?:zalo|facebook|fb|messenger|telegram|instagram|tiktok)\b/;
-
-export interface ContactFindings {
-  phone: boolean;
-  bankAccount: boolean;
-  link: boolean;
-}
-
-export const findContactDetails = (text: string): ContactFindings => {
-  const normalized = normalizeSearchText(text);
-  let phone = false;
-  let bankAccount = BANK_KEYWORDS.test(normalized);
-
-  for (const match of text.matchAll(DIGIT_RUN)) {
-    const run = match[0];
-    const digits = run.replace(/\D/g, '');
-    if (PHONE_DIGITS.test(digits)) {
-      phone = true;
-    } else if (!run.includes('.') && /^\d{9,19}$/.test(digits)) {
-      // Prices use dots between thousands ("15.000.000"), so a run with dots is not an account.
-      bankAccount = true;
-    }
-  }
-
-  return {
-    phone,
-    bankAccount,
-    link: LINK.test(normalized) || EXTERNAL_CHANNELS.test(normalized),
-  };
-};
+// Both tiers become warnings here. The strong tier (phone, email, http/www link) also blocks the
+// save of a post (utils/contact-details.ts); the weak tier is only a hint for the Admin.
+export { findContactDetails, type ContactFindings } from '../utils/contact-details.js';
 
 // ---- Warnings for the Admin ----
 

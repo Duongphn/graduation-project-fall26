@@ -345,12 +345,13 @@ describe('UC11: Settle Returned Rental (GOOD or DAMAGED)', () => {
     const owner2Auth = authHeader(owner2Id);
     const orderIds: string[] = [];
 
-    for (const startDate of ['2026-11-05', '2026-11-10']) {
+    // A rental lasts at least 2 days (R03 III.2.2.1 (8)).
+    for (const [startDate, endDate] of [['2026-11-05', '2026-11-06'], ['2026-11-10', '2026-11-11']]) {
       const toy = await createRentToy(owner2Id);
       const created = await request(app)
         .post('/api/v1/rentals')
         .set(renterAuth)
-        .send({ toyId: toy._id.toString(), startDate, endDate: startDate });
+        .send({ toyId: toy._id.toString(), startDate, endDate });
       const id = unwrap(created).id;
       await request(app).post(`/api/v1/rentals/${id}/accept`).set(owner2Auth);
       await fund(renterId, 250_000);
@@ -370,8 +371,8 @@ describe('UC11: Settle Returned Rental (GOOD or DAMAGED)', () => {
 
     expect(results.map((r) => r.status)).toEqual([200, 200]);
     expect(await Wallet.countDocuments({ userId: owner2._id })).toBe(1);
-    // Mỗi đơn 1 ngày: R = 50k, F = 5k → owner nhận 45k × 2
-    expect((await ledger.getOrCreateUserWallet(owner2Id)).balance).toBe(90_000);
+    // Mỗi đơn 2 ngày: R = 100k, F = 10k → owner nhận 90k × 2
+    expect((await ledger.getOrCreateUserWallet(owner2Id)).balance).toBe(180_000);
     expect(await sumBalances()).toBe(0);
   });
 

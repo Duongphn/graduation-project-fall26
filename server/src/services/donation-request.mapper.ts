@@ -2,8 +2,19 @@ import { buildPrivateImageUrl } from '../utils/cloudinary-signing.js';
 import { toIsoString } from '../utils/dates.js';
 import { maskPhone } from '../utils/phone.js';
 import { maskEmail } from '../utils/privacy.js';
-import { counterpartOf, receiverTypeOf } from './donation-request.policy.js';
+import { counterpartOf, deciderOf, receiverTypeOf } from './donation-request.policy.js';
 import type { DonationRecord, Relations } from '../repositories/donation-request.repository.js';
+import { EXPIRED_HANDOVER_REASON, EXPIRED_PENDING_REASON } from './donation-request.lifecycle.js';
+import { DEFAULT_DONATION_SETTINGS } from '../constants/donation-request-transitions.js';
+
+/**
+ * Why the expiry job set the request to expired (GB-57): an accepted request (decided) missed
+ * the handover deadline, a pending one the decision deadline. null while not expired.
+ */
+const expiryReasonOf = (record: DonationRecord): string | null => {
+  if (record.status !== 'expired') return null;
+  return record.decidedAt ? EXPIRED_HANDOVER_REASON : EXPIRED_PENDING_REASON;
+};
 
 /** Who reads the DTO: Admin views get masked contacts, user views the D-03 counterpart. */
 export interface DonationView {
@@ -38,18 +49,48 @@ const person = (relations: Relations, id: unknown, withContacts: boolean) => {
     : base;
 };
 
+type RelatedOrganization = Relations['organizations'] extends Map<string, infer T> ? T : never;
+
+/** GB-62: the address, opening hours and methods are public; the contact is not. */
+const publicPoint = (org: RelatedOrganization) => {
+  const point = org.receivingPoint;
+  if (!point) return null;
+  return {
+    province: point.province,
+    ward: point.ward,
+    street: point.street,
+    openingHours: point.openingHours,
+    acceptsDropOff: point.acceptsDropOff,
+    acceptsParcel: point.acceptsParcel,
+  };
+};
+
 const organization = (relations: Relations, id: unknown, withContacts: boolean) => {
   const org = id ? relations.organizations.get(String(id)) : undefined;
   if (!org) return null;
-  const base = { id: String(org._id), name: org.name, status: org.status };
-  return withContacts
-    ? {
-        ...base,
-        address: org.address,
-        contactInfo: org.contact_info,
-        supportCriteria: org.support_criteria,
-      }
-    : base;
+  const base = {
+    id: String(org._id),
+    name: org.name,
+    status: org.status,
+    isAccepting: org.isAccepting ?? true,
+    receivingPoint: publicPoint(org),
+  };
+  if (!withContacts) return base;
+  const point = base.receivingPoint;
+  return {
+    ...base,
+    address: org.address,
+    contactInfo: org.contact_info,
+    supportCriteria: org.support_criteria ?? null,
+    receivingPoint:
+      point && org.receivingPoint
+        ? {
+            ...point,
+            contactName: org.receivingPoint.contactName,
+            contactPhone: org.receivingPoint.contactPhone,
+          }
+        : null,
+  };
 };
 
 /** D-03: full name and full phone (no email) of the other party while ACCEPTED or SHIPPING. */
@@ -58,20 +99,39 @@ const counterpartContact = (record: DonationRecord, relations: Relations, view: 
   const side = counterpartOf(record, view.viewerId);
   if (side === 'ORGANIZATION') {
     const org = relations.organizations.get(String(record.receiver?.organizationId));
-    return org ? { name: org.name, phone: org.contact_info ?? null } : null;
+    if (!org) return null;
+    // GB-62: the receiving point's contact; an organization saved before receiving points
+    // existed only has its general contact.
+    return org.receivingPoint
+      ? { name: org.receivingPoint.contactName, phone: org.receivingPoint.contactPhone }
+      : { name: org.name, phone: org.contact_info ?? null };
   }
   if (side === null) return null;
   const user = relations.users.get(String(side === 'DONOR' ? record.donorId : record.requestedBy));
   return user ? { name: user.fullName, phone: user.phone ?? null } : null;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * GB-57: a shipping request waits DONATION_CONFIRM_DAYS for the receipt, counted from the
+ * handover; past it, it is flagged as overdue for the Admin (never confirmed automatically).
+ */
+const confirmDueOf = (record: DonationRecord, confirmDays: number): Date | null => {
+  if (record.status !== 'shipping') return null;
+  const sent = record.handovers?.find((handover) => handover.step === 'DONOR_SENT');
+  return sent ? new Date(sent.at.getTime() + confirmDays * DAY_MS) : null;
+};
+
 export const toDonationRequestDto = (
   record: DonationRecord,
   relations: Relations,
   view: DonationView = { admin: false },
+  confirmDays: number = DEFAULT_DONATION_SETTINGS.confirmDays,
 ) => {
   const withContacts = view.admin;
   const toy = relations.toys.get(String(record.toyId));
+  const confirmDueAt = confirmDueOf(record, confirmDays);
   return {
     id: String(record._id),
     code: record.code,
@@ -79,7 +139,21 @@ export const toDonationRequestDto = (
     receiverType: receiverTypeOf(record),
     message: record.itemDetails ?? null,
     deliveryMethod: record.deliveryMethod,
+    decider: deciderOf(record),
+    handoverMethod: record.handoverMethod ?? null,
+    carrierName: record.carrierName ?? null,
+    trackingCode: record.trackingCode ?? null,
+    receipt:
+      record.confirmedBy || record.channel || record.receivedAt
+        ? {
+            confirmedBy: record.confirmedBy ?? null,
+            channel: record.channel ?? null,
+            receivedAt: iso(record.receivedAt),
+          }
+        : null,
     dueAt: iso(record.timer?.dueAt),
+    confirmDueAt: iso(confirmDueAt),
+    overdue: confirmDueAt !== null && confirmDueAt.getTime() < Date.now(),
     toy: toy
       ? {
           id: String(toy._id),
@@ -87,7 +161,8 @@ export const toDonationRequestDto = (
           imageUrl: toy.images[0]?.url ?? null,
           condition: toy.condition,
           ageRange: toy.ageRange ?? null,
-          status: toy.status,
+          // GB-60: 'donated' once a request for it is confirmed (derived, R04 3.3).
+          status: relations.donatedToyIds.has(String(toy._id)) ? 'donated' : toy.status,
         }
       : null,
     donor: person(relations, record.donorId, withContacts),
@@ -97,6 +172,8 @@ export const toDonationRequestDto = (
     decidedAt: iso(record.decidedAt),
     rejectReason: record.rejectReason ?? null,
     completedAt: iso(record.completedAt),
+    expiredAt: iso(record.expiredAt),
+    expiryReason: expiryReasonOf(record),
     createdAt: iso(record.createdAt)!,
     updatedAt: iso(record.updatedAt)!,
   };
@@ -104,9 +181,12 @@ export const toDonationRequestDto = (
 
 /**
  * The status timeline, rebuilt from the request's own fields (develop's donation_requests keeps
- * no separate history): created, decided, handed over, completed or cancelled.
+ * no separate history): created, decided, handed over, completed, cancelled or expired.
  */
-const historyOf = (record: DonationRecord) => {
+const historyOf = (record: DonationRecord, relations: Relations) => {
+  // An Admin decides or confirms for organizations, or creates a request for one (GB-56).
+  const actorTypeOf = (actorId: unknown) =>
+    relations.users.get(String(actorId))?.role === 'ADMIN' ? 'ADMIN' : 'USER';
   type Row = {
     fromStatus: string | null;
     toStatus: string;
@@ -119,7 +199,7 @@ const historyOf = (record: DonationRecord) => {
     {
       fromStatus: null,
       toStatus: 'pending',
-      actorType: 'USER',
+      actorType: actorTypeOf(record.requestedBy),
       actorId: String(record.requestedBy),
       reason: null,
       at: iso(record.createdAt)!,
@@ -131,7 +211,7 @@ const historyOf = (record: DonationRecord) => {
     rows.push({
       fromStatus: last,
       toStatus,
-      actorType: actorId ? 'USER' : 'SYSTEM',
+      actorType: actorId ? actorTypeOf(actorId) : 'SYSTEM',
       actorId: actorId ? String(actorId) : null,
       reason: reason ?? null,
       at: iso(at)!,
@@ -161,6 +241,10 @@ const historyOf = (record: DonationRecord) => {
       at: iso(record.cancellation.at)!,
     });
   }
+  // Set by the expiry job (JOB-10): no actor.
+  if (record.status === 'expired') {
+    push('expired', record.expiredAt, undefined, expiryReasonOf(record) ?? undefined);
+  }
   return rows;
 };
 
@@ -168,8 +252,9 @@ export const toDonationRequestDetailDto = (
   record: DonationRecord,
   relations: Relations,
   view: DonationView = { admin: false },
+  confirmDays?: number,
 ) => ({
-  ...toDonationRequestDto(record, relations, view),
+  ...toDonationRequestDto(record, relations, view, confirmDays),
   decidedBy: record.decidedBy ? String(record.decidedBy) : null,
   handovers: record.handovers.map((handover) => ({
     step: handover.step as 'DONOR_SENT' | 'RECEIVER_RECEIVED',
@@ -187,5 +272,5 @@ export const toDonationRequestDetailDto = (
         at: iso(record.cancellation.at)!,
       }
     : null,
-  history: historyOf(record),
+  history: historyOf(record, relations),
 });

@@ -13,7 +13,18 @@ import {
   adminDonationRequestsRouter,
   donationRequestsRouter,
 } from '../../src/routes/donation-request.routes.js';
-import { expireStaleRequests } from '../../src/services/donation-request.lifecycle.js';
+import {
+  EXPIRED_HANDOVER_REASON,
+  EXPIRED_PENDING_REASON,
+  expireStaleRequests,
+  TOY_WITHDRAWN_REASON,
+} from '../../src/services/donation-request.lifecycle.js';
+import { backfillExpiredStatus } from '../../src/repositories/donation-request.repository.js';
+import { donationTransitions } from '../../src/constants/donation-request-transitions.js';
+import { toyMoveFor } from '../../src/services/donation-request.policy.js';
+import { createToyListingPorts } from '../../src/repositories/toy-listing.repository.js';
+import { ToyListingService } from '../../src/services/toy-listing.service.js';
+import { domainEvents, type DonationStatusChangedEvent } from '../../src/utils/domain-events.js';
 import { IdentityVerification } from '../../src/models/identity-verification.model.js';
 import { Organization } from '../../src/models/organization.model.js';
 import { Toy } from '../../src/models/toy.model.js';
@@ -64,12 +75,15 @@ const get = (who: Who, path: string) => request(app).get(`/api/v1${path}`).set(h
 const toyStatus = async () => (await Toy.findById(toyId).lean())?.status;
 const requestDoc = (id: string) => DonationRequest.findById(id).lean();
 
+// The category of the test toy; the test organization takes it (GB-53).
+const TOY_CATEGORY = newId();
+
 const createDonationToy = async () =>
   String(
     (
       await Toy.create({
         ownerId: oid(ids.donor),
-        categoryId: newId(),
+        categoryId: TOY_CATEGORY,
         title: 'Wooden train set',
         description: 'Complete set with 20 pieces.',
         condition: 'good',
@@ -97,6 +111,8 @@ beforeAll(async () => {
       passwordHash: 'x',
       fullName: who,
       role,
+      // GB-06: Donors and Receivers are verified Users.
+      verificationStatus: 'verified',
     });
     ids[who] = String(user._id);
   }
@@ -115,6 +131,18 @@ beforeEach(async () => {
     address: '1 Street',
     contact_info: '+84901999999',
     support_criteria: 'Children',
+    // GB-51: requests go through the receiving point.
+    receivingPoint: {
+      province: 'Hà Nội',
+      ward: 'Phường Ba Đình',
+      street: '1 Hoàng Hoa Thám',
+      openingHours: '8:00 – 17:00',
+      contactName: 'Nguyễn Văn Nam',
+      contactPhone: '+84987654321',
+      acceptsDropOff: true,
+      acceptsParcel: true,
+    },
+    categoryIds: [TOY_CATEGORY],
   });
   orgId = String(org._id);
 });
@@ -132,6 +160,7 @@ const accepted = async (who: Who = 'receiver') => {
 const shipping = async () => {
   const id = await accepted();
   const res = await post('donor', `/donation-requests/${id}/handover`, {
+    handoverMethod: 'drop_off',
     photos: [photo('donor')],
   });
   expect(res.status).toBe(200);
@@ -162,7 +191,7 @@ describe('locked donor (D-07, GB-05)', () => {
   });
 });
 
-describe('expiry job (D-05, R03 job 9)', () => {
+describe('expiry job (JOB-10, GB-57)', () => {
   it('expires pending requests once timer.dueAt has passed', async () => {
     const id = await create();
     const now = new Date();
@@ -170,8 +199,10 @@ describe('expiry job (D-05, R03 job 9)', () => {
     const later = new Date(now.getTime() + 14 * DAY + 1000);
     expect(await expireStaleRequests(later)).toEqual({ expiredPending: 1, expiredAccepted: 0 });
     const doc = await requestDoc(id);
-    expect(doc?.status).toBe('cancelled');
-    expect(doc?.cancellation).toMatchObject({ reason: 'EXPIRED', actorType: 'SYSTEM' });
+    // R04 3.9: its own Expired status with expired_at, not a cancellation.
+    expect(doc?.status).toBe('expired');
+    expect(doc?.expiredAt?.getTime()).toBe(later.getTime());
+    expect(doc?.cancellation).toBeUndefined();
     expect(doc?.timer?.dueAt).toBeUndefined();
     // Idempotent: a second run finds nothing.
     expect(await expireStaleRequests(later)).toEqual({ expiredPending: 0, expiredAccepted: 0 });
@@ -182,10 +213,109 @@ describe('expiry job (D-05, R03 job 9)', () => {
     expect(await toyStatus()).toBe('hidden');
     const later = new Date(Date.now() + 15 * DAY);
     expect(await expireStaleRequests(later)).toEqual({ expiredPending: 0, expiredAccepted: 1 });
-    expect((await requestDoc(id))?.status).toBe('cancelled');
+    expect((await requestDoc(id))?.status).toBe('expired');
     expect(await toyStatus()).toBe('active');
     // The toy can be requested again.
     await create('other');
+  });
+
+  it('shows the expiry with its reason and date to both sides', async () => {
+    const pendingId = await create();
+    const later = new Date(Date.now() + 15 * DAY);
+    await expireStaleRequests(later);
+
+    const res = await get('receiver', `/donation-requests/${pendingId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      status: 'expired',
+      expiredAt: later.toISOString(),
+      expiryReason: EXPIRED_PENDING_REASON,
+      cancellation: null,
+    });
+    expect(res.body.data.history.at(-1)).toMatchObject({
+      fromStatus: 'pending',
+      toStatus: 'expired',
+      actorType: 'SYSTEM',
+      actorId: null,
+      reason: EXPIRED_PENDING_REASON,
+    });
+
+    const acceptedId = await accepted('other');
+    await expireStaleRequests(new Date(Date.now() + 30 * DAY));
+    const detail = (await get('donor', `/donation-requests/${acceptedId}`)).body.data;
+    expect(detail.expiryReason).toBe(EXPIRED_HANDOVER_REASON);
+    expect(detail.history.map((row: { toStatus: string }) => row.toStatus)).toEqual([
+      'pending',
+      'accepted',
+      'expired',
+    ]);
+  });
+
+  it('publishes the expiry (MSG56) with the request code and reason, from no user', async () => {
+    const id = await create();
+    const events: DonationStatusChangedEvent[] = [];
+    const stop = domainEvents.subscribe('DONATION_STATUS_CHANGED', (event) => {
+      events.push(event);
+    });
+    try {
+      await expireStaleRequests(new Date(Date.now() + 15 * DAY));
+    } finally {
+      stop();
+    }
+    const doc = await requestDoc(id);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      donationRequestId: id,
+      code: doc?.code,
+      from: 'pending',
+      to: 'expired',
+      reason: EXPIRED_PENDING_REASON,
+    });
+    expect(events[0]?.changedBy).toBeUndefined();
+  });
+
+  it('the backfill moves old cancelled+EXPIRED requests to expired, and nothing else', async () => {
+    const old = await create();
+    const userCancelled = await create('other');
+    const at = new Date('2026-11-10T03:00:00.000Z');
+    await DonationRequest.updateOne(
+      { _id: old },
+      {
+        $set: {
+          status: 'cancelled',
+          cancellation: { reason: 'EXPIRED', actorType: 'SYSTEM', note: 'old', at },
+        },
+        $unset: { timer: 1 },
+      },
+    );
+    await DonationRequest.updateOne(
+      { _id: userCancelled },
+      {
+        $set: {
+          status: 'cancelled',
+          cancellation: { reason: 'CANCELLED_BY_USER', actorType: 'USER', at },
+        },
+      },
+    );
+
+    expect(await backfillExpiredStatus()).toBe(1);
+    const moved = await requestDoc(old);
+    expect(moved?.status).toBe('expired');
+    expect(moved?.expiredAt?.toISOString()).toBe(at.toISOString());
+    expect(moved?.cancellation).toBeUndefined();
+    expect((await requestDoc(userCancelled))?.status).toBe('cancelled');
+    // Safe to run again.
+    expect(await backfillExpiredStatus()).toBe(0);
+  });
+
+  it('an expired request cannot be accepted or cancelled any more', async () => {
+    const id = await create();
+    await expireStaleRequests(new Date(Date.now() + 15 * DAY));
+    expect((await post('donor', `/donation-requests/${id}/accept`)).status).toBe(409);
+    expect(
+      (await post('receiver', `/donation-requests/${id}/cancel`, { note: 'Không cần nữa' })).status,
+    ).toBe(409);
+    expect((await requestDoc(id))?.status).toBe('expired');
   });
 
   it('never expires shipping requests', async () => {
@@ -210,9 +340,202 @@ describe('expiry job (D-05, R03 job 9)', () => {
       expect(doc?.status).toBe('accepted');
       expect(await toyStatus()).toBe('hidden');
     } else {
-      expect(doc?.status).toBe('cancelled');
+      expect(doc?.status).toBe('expired');
       expect(await toyStatus()).toBe('active');
     }
+  });
+});
+
+describe('the Donor hides or deletes a donation post (D-06)', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('hiding rejects the pending requests with the reason and tells the requesters', async () => {
+    const first = await create('receiver');
+    const second = await create('other');
+    const events: DonationStatusChangedEvent[] = [];
+    const stop = domainEvents.subscribe('DONATION_STATUS_CHANGED', (event) => {
+      events.push(event);
+    });
+    try {
+      await listings.hide(donor(), toyId);
+    } finally {
+      stop();
+    }
+
+    expect(await toyStatus()).toBe('hidden');
+    for (const id of [first, second]) {
+      expect(await requestDoc(id)).toMatchObject({
+        status: 'rejected',
+        rejectReason: TOY_WITHDRAWN_REASON.HIDDEN,
+      });
+    }
+    expect(events.map((event) => [event.to, event.changedBy, event.reason])).toEqual([
+      ['rejected', ids.donor, TOY_WITHDRAWN_REASON.HIDDEN],
+      ['rejected', ids.donor, TOY_WITHDRAWN_REASON.HIDDEN],
+    ]);
+  });
+
+  it('deleting rejects the pending requests with the toy title kept in the event', async () => {
+    const id = await create();
+    const events: DonationStatusChangedEvent[] = [];
+    const stop = domainEvents.subscribe('DONATION_STATUS_CHANGED', (event) => {
+      events.push(event);
+    });
+    try {
+      await listings.delete(donor(), toyId);
+    } finally {
+      stop();
+    }
+
+    expect(await Toy.findById(toyId)).toBeNull();
+    expect(await requestDoc(id)).toMatchObject({
+      status: 'rejected',
+      rejectReason: TOY_WITHDRAWN_REASON.DELETED,
+    });
+    expect(events[0]).toMatchObject({ to: 'rejected', toyTitle: 'Wooden train set' });
+  });
+
+  it('an accepted request blocks hiding and deleting (GB-12, GB-60)', async () => {
+    const id = await accepted();
+    await expect(listings.hide(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'ORDER_IN_PROGRESS',
+    });
+    await expect(listings.delete(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'ORDER_IN_PROGRESS',
+    });
+    expect((await requestDoc(id))?.status).toBe('accepted');
+    expect(await Toy.findById(toyId)).not.toBeNull();
+  });
+
+  it('shows a hidden post again, but never one that was given away (GB-08, GB-60)', async () => {
+    await Toy.updateOne(
+      { _id: toyId },
+      { $set: { 'moderation.reviewedAt': new Date(), 'moderation.submittedAt': new Date(0) } },
+    );
+    await listings.hide(donor(), toyId);
+    expect((await listings.show(donor(), toyId)).status).toBe('active');
+
+    const id = await accepted();
+    await DonationRequest.updateOne({ _id: id }, { $set: { status: 'completed' } });
+    expect(await toyStatus()).toBe('hidden');
+    await expect(listings.show(donor(), toyId)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'TOY_DONATED',
+    });
+    expect(await toyStatus()).toBe('hidden');
+  });
+});
+
+describe('GB-60: the toy at each move of a request', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('leaves the lists on accept and comes back only when an Accepted request ends', () => {
+    const moves = Object.entries(donationTransitions).flatMap(([from, targets]) =>
+      targets.map((to) => `${from}->${to}: ${toyMoveFor(from as never, to)?.to ?? 'no move'}`),
+    );
+    expect(moves).toEqual([
+      'pending->accepted: hidden',
+      'pending->rejected: no move',
+      'pending->cancelled: no move',
+      'pending->expired: no move',
+      'accepted->shipping: no move',
+      'accepted->cancelled: active',
+      'accepted->expired: active',
+      'shipping->completed: no move',
+      // Lost or unusable toy (UC33 7b, UC35 6.2): it stays hidden.
+      'shipping->cancelled: no move',
+      'received->completed: no move',
+    ]);
+  });
+
+  it('keeps the toy hidden when the Admin cancels a Shipping request, until the Donor edits the post', async () => {
+    const id = await shipping();
+    const res = await post('admin', `/admin/donation-requests/${id}/cancel`, {
+      reason: 'Bưu kiện bị thất lạc',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.status).toBe('cancelled');
+    expect(await toyStatus()).toBe('hidden');
+    // Hidden: nobody can ask for it.
+    expect((await post('other', '/donation-requests', { toyId })).body.error.code).toBe(
+      'TOY_NOT_AVAILABLE',
+    );
+
+    // The Donor edits the post: it goes back to review (GB-08), then to the lists once approved.
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    const edited = await listings.update(donor(), toyId, {
+      title: 'Wooden train set (đủ bộ)',
+      safetyDeclaration: false,
+    });
+    expect(edited.status).toBe('pending');
+    expect(await toyStatus()).toBe('pending');
+  });
+
+  it('keeps a hidden post hidden on edit when no Shipping request was cancelled', async () => {
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          status: 'hidden',
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    await listings.update(donor(), toyId, {
+      title: 'Wooden train set (đủ bộ)',
+      safetyDeclaration: false,
+    });
+    expect(await toyStatus()).toBe('hidden');
+  });
+});
+
+describe('a rejected donation post (UC33 5.1, BF-04 3a)', () => {
+  const listings = new ToyListingService(createToyListingPorts(), fakeStorage);
+  const donor = () => ({ userId: ids.donor, actorType: 'USER' as const });
+
+  it('is sent back to review when the Donor edits it, without the reject reason', async () => {
+    const reviewedAt = new Date();
+    await Toy.updateOne(
+      { _id: toyId },
+      {
+        $set: {
+          status: 'hidden',
+          moderation: { submittedAt: reviewedAt, reviewedAt, rejectReason: 'Ảnh bị mờ' },
+          images: [1, 2, 3].map((n) => ({
+            url: `https://example.com/${n}.jpg`,
+            publicId: `toyflow/toys/${n}`,
+          })),
+        },
+      },
+    );
+    const edited = await listings.update(donor(), toyId, {
+      description: 'Bộ tàu gỗ 20 chi tiết, đã chụp lại rõ từng mặt theo góp ý của Admin.',
+      safetyDeclaration: false,
+    });
+    expect(edited.status).toBe('pending');
+    expect(edited.listingType).toBe('donate');
+    expect(edited.moderation?.rejectReason).toBeUndefined();
+    const toy = await Toy.findById(toyId).lean();
+    expect(toy?.status).toBe('pending');
+    expect(toy?.moderation?.rejectReason).toBeUndefined();
+    expect(toy?.moderation?.submittedAt?.getTime()).toBeGreaterThan(reviewedAt.getTime() - 1);
   });
 });
 
@@ -239,7 +562,10 @@ describe('contact sharing (D-03)', () => {
     expect(admin.body.data.counterpartContact).toBeNull();
     expect(admin.body.data.donor.phone).not.toBe(donorContact.phone);
 
-    await post('donor', `/donation-requests/${id}/handover`, { photos: [photo('donor')] });
+    await post('donor', `/donation-requests/${id}/handover`, {
+      handoverMethod: 'drop_off',
+      photos: [photo('donor')],
+    });
     await post('receiver', `/donation-requests/${id}/confirm-received`, {
       photos: [photo('receiver')],
     });
@@ -253,12 +579,12 @@ describe('contact sharing (D-03)', () => {
     ]);
   });
 
-  it('organization request: the donor sees the organization contact once accepted', async () => {
+  it('organization request: the donor sees the receiving point contact once accepted (GB-62)', async () => {
     const res = await post('admin', '/admin/donation-requests', { toyId, organizationId: orgId });
     const id = res.body.data.id as string;
     expect(await contactOf('donor', id)).toBeNull();
     expect((await post('donor', `/donation-requests/${id}/accept`)).status).toBe(200);
-    expect(await contactOf('donor', id)).toEqual({ name: 'Org A', phone: '+84901999999' });
+    expect(await contactOf('donor', id)).toEqual({ name: 'Nguyễn Văn Nam', phone: '+84987654321' });
     const admin = await get('admin', `/admin/donation-requests/${id}`);
     expect(admin.body.data.organization.contactInfo).toBe('+84901999999');
   });
@@ -266,32 +592,48 @@ describe('contact sharing (D-03)', () => {
 
 describe('donation posts (POST /donation-posts)', () => {
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
-  const send = (who: Who, categoryId: string) =>
-    request(app)
+  const DESCRIPTION = 'Gấu bông còn mới, đã giặt sạch và phơi khô, không rách chỉ hay bong mắt.';
+  // A donation post has 3 to 10 photos (R03 GB-10).
+  const send = (
+    who: Who,
+    categoryId: string,
+    photos = 3,
+    text: { title?: string; description?: string } = {},
+  ) => {
+    const req = request(app)
       .post('/api/v1/donation-posts')
       .set(headers(who))
-      .field('title', 'Gấu bông')
-      .field('description', 'Còn mới')
+      .field('title', text.title ?? 'Gấu bông')
+      .field('description', text.description ?? DESCRIPTION)
       .field('condition', 'like_new')
       .field('categoryId', categoryId)
-      .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }))
-      .attach('images', PNG, { filename: 'a.png', contentType: 'image/png' });
+      .field('ageRange', JSON.stringify({ minAge: 1, maxAge: 5 }));
+    for (let i = 1; i <= photos; i += 1) {
+      void req.attach('images', PNG, { filename: `p${i}.png`, contentType: 'image/png' });
+    }
+    return req;
+  };
+  const verifyDonor = () =>
+    IdentityVerification.collection.insertOne({
+      userId: oid(ids.donor),
+      status: 'verified',
+      submittedAt: new Date(),
+    });
 
   it('creates a pending free donate toy for a verified user in an active category', async () => {
     const category = await Category.create({ name: 'Gấu', slug: 'gau', status: 'active' });
     expect((await send('donor', String(category._id))).status).toBe(403);
 
-    await IdentityVerification.collection.insertOne({
-      userId: oid(ids.donor),
-      status: 'verified',
-      submittedAt: new Date(),
-    });
+    await verifyDonor();
     const res = await send('donor', String(category._id));
     expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.images).toHaveLength(3);
     expect(res.body.data).toMatchObject({
       listingType: 'donate',
       priceOrRate: 0,
       status: 'pending',
+      categoryId: String(category._id),
+      categoryName: 'Gấu',
     });
     const toy = await Toy.findById(res.body.data.id).lean();
     expect(toy).toMatchObject({ listingType: 'donate', priceOrRate: 0, status: 'pending' });
@@ -299,6 +641,84 @@ describe('donation posts (POST /donation-posts)', () => {
 
     expect((await send('donor', String(newId()))).status).toBe(400);
     expect((await request(app).post('/api/v1/donation-posts')).status).toBe(401);
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
+  it('refuses a donation post with fewer than 3 photos and uploads nothing (GB-10)', async () => {
+    const category = await Category.create({ name: 'Búp bê', slug: 'bup-be', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+
+    for (const photos of [0, 2]) {
+      const res = await send('donor', String(category._id), photos);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        message: 'A donation post needs 3 to 10 images.',
+      });
+    }
+    expect(uploaded).toHaveLength(uploadsBefore);
+    expect(await Toy.countDocuments({ categoryId: category._id })).toBe(0);
+
+    // 10 photos is the most a donation post takes; an 11th is refused by the upload middleware.
+    expect((await send('donor', String(category._id), 10)).status).toBe(201);
+    const tooMany = await send('donor', String(category._id), 11);
+    expect(tooMany.status).toBe(400);
+    expect(tooMany.body.error.code).toBe('INVALID_IMAGE_UPLOAD');
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
+  it('checks the title and description like a rent or sale listing (R03 III.5.2.1 (1))', async () => {
+    const category = await Category.create({ name: 'Xe', slug: 'xe', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+    const refused = async (text: { title?: string; description?: string }, field: string) => {
+      const res = await send('donor', String(category._id), 3, text);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({ code: 'VALIDATION_ERROR', details: { field } });
+    };
+
+    await refused({ title: 'T'.repeat(101) }, 'title');
+    await refused({ description: 'D'.repeat(49) }, 'description');
+    await refused({ description: 'D'.repeat(1001) }, 'description');
+    expect(uploaded).toHaveLength(uploadsBefore);
+
+    for (const text of [
+      { title: 'T'.repeat(100) },
+      { description: 'D'.repeat(50) },
+      { description: 'D'.repeat(1000) },
+    ]) {
+      expect((await send('donor', String(category._id), 3, text)).status).toBe(201);
+    }
+    await mongoose.connection.collection('identityverifications').deleteMany({});
+  });
+
+  it('refuses a phone number, an email or a link in the title or description (GB-11)', async () => {
+    const category = await Category.create({ name: 'Bóng', slug: 'bong', status: 'active' });
+    await verifyDonor();
+    const uploadsBefore = uploaded.length;
+    const refused = async (text: { title?: string; description?: string }, field: string) => {
+      const res = await send('donor', String(category._id), 3, text);
+      expect(res.status, JSON.stringify(res.body)).toBe(400);
+      expect(res.body.error).toMatchObject({
+        code: 'CONTACT_DETAILS_NOT_ALLOWED',
+        details: { field },
+      });
+    };
+
+    await refused({ title: 'Gấu bông 0912.345.678' }, 'title');
+    await refused({ description: `${DESCRIPTION}\nZalo +84 912 345 678` }, 'description');
+    await refused({ description: `${DESCRIPTION}\nEmail be.na@gmail.com` }, 'description');
+    await refused({ description: `${DESCRIPTION}\nẢnh: https://imgur.com/abc` }, 'description');
+    expect(uploaded).toHaveLength(uploadsBefore);
+    expect(await Toy.countDocuments({ categoryId: category._id })).toBe(0);
+
+    // Honest text that only warns the Admin is saved.
+    const honest = await send('donor', String(category._id), 3, {
+      title: 'Gấu bông Momo',
+      description: `${DESCRIPTION}\nMẫu đang hot trên TikTok, mã vạch 8936036022345.`,
+    });
+    expect(honest.status, JSON.stringify(honest.body)).toBe(201);
     await mongoose.connection.collection('identityverifications').deleteMany({});
   });
 });

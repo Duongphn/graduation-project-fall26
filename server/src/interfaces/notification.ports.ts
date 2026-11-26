@@ -16,3 +16,18 @@ export interface MailSendResult {
 export interface Mailer {
   send(message: MailMessage): Promise<MailSendResult>;
 }
+
+// Realtime port (UC26): pushes an event to every open tab of one user. sockets/socket.ts
+// implements it with Socket.IO rooms; without it (tests, jobs run alone) nothing is pushed and
+// the web app picks the change up when it reloads the feed.
+export interface NotificationPusher {
+  toUser(userId: string, event: string, payload: unknown): void;
+}
+
+/** Socket.IO events sent to the web app. */
+export const notificationSocketEvents = {
+  /** { notification: NotificationDto, unreadCount: number } */
+  created: 'notification:new',
+  /** { count: number } after a mark read / mark all read (other tabs follow). */
+  unreadCount: 'notification:unread-count',
+} as const;

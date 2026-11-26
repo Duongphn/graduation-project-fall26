@@ -11,3 +11,7 @@ export const withoutTones = (text: string): string =>
 // Client-side search for antd Select/AutoComplete: true when `label` contains `input`.
 export const matchesWithoutTones = (input: string, label: unknown): boolean =>
   withoutTones(String(label ?? '')).includes(withoutTones(input))
+
+// Same as the server's normalizeText: NFC, single spaces, trimmed ("  Bé   Na " -> "Bé Na").
+export const normalizeText = (text: string): string =>
+  text.normalize('NFC').replace(/\s+/g, ' ').trim()

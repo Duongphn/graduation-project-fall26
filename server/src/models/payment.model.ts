@@ -9,6 +9,19 @@ const paymentSchema = new Schema(
     amount: { type: Number, required: true },
     gateway: { type: String, required: true },
     gatewayTransactionNo: { type: String },
+    // Result code: '00' paid; CANCELLED / EXPIRED / FAILED (PayOS link status), 'expired', 'link_error' → status 'failed'
+    gatewayResponseCode: { type: String },
+    // PayOS paymentLinkId of the checkout page
+    gatewayLinkId: { type: String },
+    // PayOS transfer details shown on ToyFlow's own QR page
+    checkout: {
+      qrCode: { type: String },
+      checkoutUrl: { type: String },
+      bin: { type: String },
+      accountNumber: { type: String },
+      accountName: { type: String },
+      description: { type: String },
+    },
     status: { type: String, required: true, default: 'pending' },
     expiresAt: { type: Date },
   },

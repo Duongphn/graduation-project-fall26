@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller.js';
+import { env } from '../config/env.js';
+import { createRateLimiter } from '../middlewares/rate-limit.js';
 import type { AuthService } from '../services/auth.service.js';
 
 export function createAuthRouter(
@@ -7,6 +9,13 @@ export function createAuthRouter(
   controller: AuthController = new AuthController(service),
 ): Router {
   const authRouter = Router();
+
+  // Bursts of sign-in, code and reset requests from one client are slowed down (TC-SEC-032).
+  const limitPerMinute = env.authRateLimitPerMinute;
+  authRouter.post(
+    '/auth/*path',
+    createRateLimiter({ windowMs: 60_000, max: limitPerMinute, enabled: limitPerMinute > 0 }),
+  );
 
   // 1. Đăng ký tài khoản (Email, Password, FullName, Phone)
   authRouter.post('/auth/register', controller.register);

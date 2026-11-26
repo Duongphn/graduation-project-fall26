@@ -20,6 +20,15 @@ import type {
 } from '../src/types/toy-catalog.types.js';
 import { errorHandler } from '../src/middlewares/error-handler.js';
 
+// Availability dates are relative to the real today (UTC): validateAvailabilityQuery refuses a
+// "from" date before today, so fixed dates fail once they are in the past.
+const utcDay = (offset: number) => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset))
+    .toISOString()
+    .slice(0, 10);
+};
+
 describe('UC05 Toy Catalog API', () => {
   let app: express.Express;
   let mockPort: ToyCatalogReadPort;
@@ -183,8 +192,8 @@ describe('UC05 Toy Catalog API', () => {
   });
 
   describe('GET /api/v1/toys/:toyId/availability (calendar)', () => {
-    const validFrom = '2026-11-01';
-    const validTo = '2026-11-30';
+    const validFrom = utcDay(0);
+    const validTo = utcDay(29);
 
     it('returns 200 with occupied periods', async () => {
       const res = await request(app).get(
@@ -209,7 +218,7 @@ describe('UC05 Toy Catalog API', () => {
 
     it('returns 400 when from > to', async () => {
       const res = await request(app).get(
-        `/api/v1/toys/${sampleDetail.id}/availability?from=2026-11-30&to=2026-11-01`,
+        `/api/v1/toys/${sampleDetail.id}/availability?from=${utcDay(29)}&to=${utcDay(0)}`,
       );
 
       expect(res.status).toBe(400);
@@ -218,7 +227,7 @@ describe('UC05 Toy Catalog API', () => {
 
     it('returns 400 when window exceeds 180 days', async () => {
       const res = await request(app).get(
-        `/api/v1/toys/${sampleDetail.id}/availability?from=2026-11-01&to=2027-06-01`,
+        `/api/v1/toys/${sampleDetail.id}/availability?from=${utcDay(0)}&to=${utcDay(181)}`,
       );
 
       expect(res.status).toBe(400);
@@ -526,7 +535,7 @@ describe('API router mount order', () => {
     const detail = await request(app).get(`/api/v1/toys/${SAMPLE_TOY_ID}`);
     const availability = await request(app)
       .get(`/api/v1/toys/${SAMPLE_TOY_ID}/availability`)
-      .query({ from: '2026-11-01', to: '2026-11-30' });
+      .query({ from: utcDay(0), to: utcDay(29) });
 
     expect(detail.status).toBe(200);
     expect(detail.body.id).toBe(SAMPLE_TOY_ID);

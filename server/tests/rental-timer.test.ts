@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { OrderStatusHistory, RentalOrder, Wallet } from '../src/models/index.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OrderStatusHistory, RentalOrder, SystemSetting, Wallet } from '../src/models/index.js';
 import {
   authHeader,
   buildRentalApp,
@@ -133,6 +135,45 @@ describe('UC12: Rental Timers and Scheduler', () => {
     await fund(renterId, 500_000);
     const payRes = await request(app).post(`/api/v1/rentals/${orderId}/pay`).set(renterAuth);
     expect(payRes.status).toBe(409);
+  });
+
+  // Review 20/11, rental bug 9: the texts said 24 / 12 / 48 giờ whatever the Admin configured.
+  it('writes the configured hours in the expiry and auto-confirm notifications', async () => {
+    await SystemSetting.create([
+      { key: 'rental.ownerResponseHours', value: '6' },
+      { key: 'rental.paymentHours', value: '3' },
+      { key: 'rental.receiptAutoConfirmHours', value: '24' },
+    ]);
+    const bodies = () => notifier.sent.map((n: any) => n.body).join(' | ');
+    const book = async (startDate: string, endDate: string) =>
+      unwrap(await request(app).post('/api/v1/rentals').set(renterAuth).send({ toyId, startDate, endDate })).id;
+
+    await book('2026-11-05', '2026-11-07');
+    notifier.sent.length = 0;
+    clock.advanceHours(6);
+    expect((await timerService.runDue()).processed).toBe(1);
+    expect(bodies()).toContain('không phản hồi yêu cầu thuê trong vòng 6 giờ');
+    expect(bodies()).toContain('Thời hạn 6 giờ phản hồi đã hết');
+    expect(bodies()).not.toMatch(/24 giờ/);
+
+    const unpaid = await book('2026-11-05', '2026-11-07');
+    await request(app).post(`/api/v1/rentals/${unpaid}/accept`).set(ownerAuth);
+    notifier.sent.length = 0;
+    clock.advanceHours(3);
+    expect((await timerService.runDue()).processed).toBe(1);
+    expect(bodies()).toContain('Thời hạn 3 giờ thanh toán đã hết');
+    expect(bodies()).toContain('không thanh toán đơn thuê trong vòng 3 giờ');
+
+    const shipped = await book('2026-11-10', '2026-11-12');
+    await request(app).post(`/api/v1/rentals/${shipped}/accept`).set(ownerAuth);
+    await fund(renterId, 500_000);
+    await request(app).post(`/api/v1/rentals/${shipped}/pay`).set(renterAuth);
+    await request(app).post(`/api/v1/rentals/${shipped}/ship`).set(ownerAuth).attach('photos', JPEG, 'ship.jpg');
+    notifier.sent.length = 0;
+    clock.advanceHours(24);
+    expect((await timerService.runDue()).processed).toBe(1);
+    expect(bodies()).toContain('Thời hạn 24 giờ đã hết, đơn thuê tự động chuyển');
+    expect(bodies()).not.toMatch(/48 giờ/);
   });
 
   it('auto-confirms receipt after 48h', async () => {

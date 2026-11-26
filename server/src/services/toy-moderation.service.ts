@@ -22,6 +22,7 @@ import {
   type ModerationToyStatus,
   type ApproveToyBody,
   type RejectToyBody,
+  type SafetyChecklist,
   type ToyModerationCountsQuery,
   type ToyModerationDecision,
   type ToyModerationDetail,
@@ -29,13 +30,11 @@ import {
   type ToyModerationQueueQuery,
   type ToyStatusCounts,
 } from '../validations/toy-moderation.validation.js';
+import { LISTING_PHOTO_LIMITS } from '../validations/toy-listing.validation.js';
 import { buildModerationWarnings } from './toy-moderation.warnings.js';
 
 // Admin moderation of toy posts (UC27): every new or edited post stays pending until an
 // Admin approves or rejects it (FE-03, GB-08). Nothing is approved automatically (LI-03).
-
-// Develop has no settings for these yet: one photo minimum for every listing type.
-const MIN_PHOTOS = 1;
 
 /** Moderation decisions on develop's toy statuses; a rejected post is hidden with a reason. */
 const toyTransitions: TransitionMap<ModerationToyStatus> = {
@@ -55,7 +54,9 @@ const byId = <T extends { _id: Types.ObjectId }>(rows: T[]): Map<string, T> =>
 
 // ---- Queue ----
 
-// Oldest submission first for the pending queue (index moderation_queue), newest first otherwise.
+// Oldest submission first for the pending queue (R03 III.7.1.1 (4)), newest first otherwise. The
+// repository reads moderation.submittedAt with createdAt as fallback. No other ordering (such as
+// posts with warnings first) is applied.
 const resolvePaging = (query: ToyModerationQueueQuery) => {
   const paging = toMongoPaging(query, toyModerationSortFields);
   const sortable = (toyModerationSortFields as readonly string[]).includes(query.sortBy ?? '');
@@ -119,7 +120,8 @@ export const getDetail = async (id: string): Promise<ToyModerationDetail> => {
   ]);
   const owner = owners[0];
   const now = new Date();
-  const minPhotos = MIN_PHOTOS;
+  // GB-10: the same minimum the listing forms enforce (3 for rent and donation, 4 for sale).
+  const minPhotos = LISTING_PHOTO_LIMITS[toy.listingType].min;
 
   const item = toListItem(toy, category, owner);
   const warnings = buildModerationWarnings({
@@ -145,6 +147,7 @@ export const getDetail = async (id: string): Promise<ToyModerationDetail> => {
         ? { id: String(reviewerId), fullName: reviewer?.fullName ?? null }
         : null,
       reviewedAt: toIsoString(toy.moderation?.reviewedAt),
+      safetyChecklist: toy.moderation?.safetyChecklist ?? null,
     },
     warnings,
   };
@@ -152,7 +155,8 @@ export const getDetail = async (id: string): Promise<ToyModerationDetail> => {
 
 // ---- Decisions ----
 
-type Decision = { to: 'active' } | { to: 'hidden'; reason: string };
+type Decision =
+  { to: 'active'; safetyChecklist: SafetyChecklist } | { to: 'hidden'; reason: string };
 
 const decide = async (
   toyId: string,
@@ -221,7 +225,7 @@ const decide = async (
     };
     const updated =
       decision.to === 'active'
-        ? await repository.approvePending(write)
+        ? await repository.approvePending({ ...write, safetyChecklist: decision.safetyChecklist })
         : await repository.rejectPending({ ...write, reason: decision.reason });
     // Another Admin or an Owner edit won the race between the read and the write.
     if (!updated) {
@@ -236,6 +240,7 @@ const decide = async (
         context,
         decision.to === 'active' ? 'toy.approve' : 'toy.reject',
         { kind: 'TOY', id: String(current._id) },
+        decision.to === 'hidden' ? { reason: decision.reason } : undefined,
       ),
       session,
     );
@@ -270,7 +275,12 @@ export const approveToy = (
   body: ApproveToyBody,
   context: AdminContext,
 ): Promise<ToyModerationDecision> =>
-  decide(toyId, body.expectedUpdatedAt, { to: 'active' }, context);
+  decide(
+    toyId,
+    body.expectedUpdatedAt,
+    { to: 'active', safetyChecklist: body.safetyChecklist },
+    context,
+  );
 
 export const rejectToy = (
   toyId: string,

@@ -19,6 +19,9 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
   const profile = organization.data
   const name = profile?.name ?? request.organization?.name ?? request.requester?.fullName ?? 'Bên nhận'
   const contact = request.counterpartContact
+  const isOrganization = request.receiverType === 'ORGANIZATION'
+  // GB-51: the receiving point of the organization (public part: address and opening hours).
+  const point = isOrganization ? (request.organization?.receivingPoint ?? profile?.receivingPoint ?? null) : null
   // Với tổ chức, backend trả thông tin liên hệ dạng chữ (contact_info), không chắc là số điện thoại
   const dialable = contact?.phone && PHONE_PATTERN.test(contact.phone) ? contact.phone.replace(/[\s.]/g, '') : null
 
@@ -49,12 +52,25 @@ export function DonationReceiverCard({ request }: { request: DonationRequestDeta
       </div>
 
       <dl className="mt-4 flex flex-col gap-3 border-t border-tf-surface pt-4 text-sm leading-6">
-        {profile && (
+        {(point || profile) && (
           <div className="flex gap-2">
             <MapPin className="mt-1 size-4 shrink-0 text-tf-ink-muted" aria-hidden />
             <div>
               <dt className="font-semibold text-tf-ink">Địa chỉ nhận hàng</dt>
-              <dd className="text-tf-ink-muted">{profile.address}</dd>
+              <dd className="text-tf-ink-muted">
+                {point ? `${point.street}, ${point.ward}, ${point.province}` : profile?.address}
+              </dd>
+              {point && <dd className="text-tf-ink-muted">Giờ nhận: {point.openingHours}</dd>}
+            </div>
+          </div>
+        )}
+        {/* GB-62: the receiving point's contact person, only while the request is Accepted or Shipping. */}
+        {isOrganization && contact?.name && (
+          <div className="flex gap-2">
+            <UserRound className="mt-1 size-4 shrink-0 text-tf-ink-muted" aria-hidden />
+            <div>
+              <dt className="font-semibold text-tf-ink">Người liên hệ tại điểm nhận</dt>
+              <dd className="text-tf-ink-muted">{contact.name}</dd>
             </div>
           </div>
         )}

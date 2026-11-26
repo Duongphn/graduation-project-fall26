@@ -7,7 +7,13 @@ import {
   searchQuerySchema,
 } from './common.validation.js';
 import { z } from './zod.js';
-import { storedDonationStatuses } from '../constants/donation-request-transitions.js';
+import { normalizeText } from '../utils/text.js';
+import {
+  DONOR_REQUEST_NOTE_MAX,
+  handoverMethods,
+  receiptChannels,
+  storedDonationStatuses,
+} from '../constants/donation-request-transitions.js';
 
 const donationReceiverTypes = ['USER', 'ORGANIZATION'] as const;
 
@@ -39,6 +45,32 @@ export const createRequestBodySchema = z
   .openapi('CreateDonationRequest');
 export type CreateRequestBody = z.infer<typeof createRequestBodySchema>;
 
+/** MSG52 (R03 V.2): a handover needs a method. */
+export const handoverMethodSchema = z
+  .enum(handoverMethods, { error: 'Vui lòng chọn mang đến hoặc gửi qua vận chuyển.' })
+  .openapi({ description: 'drop_off (at the receiving point) or carrier (GB-58).' });
+
+/**
+ * UC33 2.1, GB-56: the Donor sends their own Active donation post to an organization that is
+ * accepting toys; the Admin decides it. The Donor picks the method (required, MSG52); it is
+ * checked against the receiving point now and can still change at the handover.
+ */
+export const donorOrganizationRequestBodySchema = z
+  .object({
+    toyId: objectIdSchema,
+    organizationId: objectIdSchema,
+    message: z
+      .string()
+      .trim()
+      .max(DONOR_REQUEST_NOTE_MAX, `Ghi chú tối đa ${DONOR_REQUEST_NOTE_MAX} ký tự.`)
+      .optional()
+      .openapi({ description: 'Note to the organization (R03 III.5.2.1 (8)).' }),
+    handoverMethod: handoverMethodSchema,
+  })
+  .strict()
+  .openapi('DonorOrganizationRequest');
+export type DonorOrganizationRequestBody = z.infer<typeof donorOrganizationRequestBodySchema>;
+
 export const adminCreateRequestBodySchema = createRequestBodySchema
   .extend({ organizationId: objectIdSchema })
   .strict()
@@ -59,9 +91,29 @@ export const adminCancelBodySchema = z
   .openapi('AdminCancelDonationRequest');
 export type AdminCancelBody = z.infer<typeof adminCancelBodySchema>;
 
+/**
+ * GB-58: the method is required (MSG52) and must be one the organization's receiving point
+ * accepts (422 HANDOVER_METHOD_NOT_ALLOWED). Carrier name and tracking code are optional free
+ * text, for a carrier only; ToyFlow does not check them (LI-05).
+ */
 export const handoverBodySchema = z
-  .object({ photos: photosSchema, note: noteSchema })
+  .object({
+    handoverMethod: handoverMethodSchema,
+    carrierName: z.string().trim().min(1).max(100).optional(),
+    trackingCode: z.string().trim().min(1).max(50).optional(),
+    photos: photosSchema,
+    note: noteSchema,
+  })
   .strict()
+  .refine(
+    (body) =>
+      body.handoverMethod === 'carrier' ||
+      (body.carrierName === undefined && body.trackingCode === undefined),
+    {
+      message: 'Chỉ nhập đơn vị vận chuyển và mã vận đơn khi gửi qua vận chuyển.',
+      path: ['carrierName'],
+    },
+  )
   .openapi('DonationHandoverInput');
 export type HandoverBody = z.infer<typeof handoverBodySchema>;
 
@@ -82,7 +134,25 @@ export type ConfirmReceivedBody = z.infer<typeof confirmReceivedBodySchema>;
  * recorded as the RECEIVER_RECEIVED handover.
  */
 export const adminConfirmReceivedBodySchema = z
-  .object({ photos: photosSchema.optional(), note: noteSchema, reason: reasonSchema.optional() })
+  .object({
+    photos: photosSchema.optional(),
+    note: noteSchema,
+    reason: reasonSchema.optional(),
+    // GB-59, organization receivers only (required there, 422 RECEIPT_DETAILS_REQUIRED).
+    confirmedBy: z
+      .string()
+      .trim()
+      .min(2)
+      .max(100)
+      .optional()
+      .openapi({ description: 'The person at the organization who confirmed receipt.' }),
+    channel: z.enum(receiptChannels).optional(),
+    receivedAt: z.iso.date().optional().openapi({
+      description:
+        'Received date (YYYY-MM-DD, Vietnam time): not before the sent date, not in the future.',
+      example: '2026-11-17',
+    }),
+  })
   .strict()
   .openapi('AdminDonationReceiptInput');
 export type AdminConfirmReceivedBody = z.infer<typeof adminConfirmReceivedBodySchema>;
@@ -99,6 +169,30 @@ export type MyRequestsQuery = z.infer<typeof myRequestsQuerySchema>;
 const adminFilterShape = {
   receiverType: z.enum(donationReceiverTypes).optional(),
   organizationId: objectIdSchema.optional(),
+  // UC35 step 1: the province of the organization's receiving point, as the Admin types it.
+  province: z
+    .string()
+    .max(100)
+    .transform((value) => normalizeText(value) || undefined)
+    .refine((value) => value === undefined || value.length >= 2, {
+      message: 'Tỉnh/Thành phố cần từ 2 đến 100 ký tự.',
+    })
+    .optional()
+    .openapi({
+      description:
+        "Province of the organization's receiving point. Accents, case, extra spaces and a " +
+        '"TP."/"Thành phố"/"Tỉnh" prefix are ignored.',
+      example: 'Hồ Chí Minh',
+    }),
+  overdue: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value === 'true'))
+    .openapi({
+      description:
+        'true: only shipping requests past DONATION_CONFIRM_DAYS (GB-57); false: the others.',
+      example: 'true',
+    }),
   q: searchQuerySchema.openapi({
     description: 'Request code (prefix) or toy title (accents ignored).',
   }),
@@ -132,19 +226,45 @@ const toySummarySchema = z
     imageUrl: z.string().nullable(),
     condition: z.string(),
     ageRange: z.object({ minAge: z.number(), maxAge: z.number() }).nullable(),
-    status: z.enum(['pending', 'active', 'hidden']),
+    status: z.enum(['pending', 'active', 'hidden', 'donated']).openapi({
+      description:
+        'Stored toy status, or donated once a request for it is confirmed (GB-60, derived).',
+    }),
   })
   .openapi('DonationToy');
 
+const receivingPointSummarySchema = z
+  .object({
+    province: z.string(),
+    ward: z.string(),
+    street: z.string(),
+    openingHours: z.string(),
+    acceptsDropOff: z.boolean(),
+    acceptsParcel: z.boolean(),
+  })
+  .openapi('DonationReceivingPoint', {
+    description:
+      'Public part of the receiving point; its contact is in counterpartContact (GB-62).',
+  });
+
 const organizationSummarySchema = z
-  .object({ id: z.string(), name: z.string(), status: z.string() })
+  .object({
+    id: z.string(),
+    name: z.string(),
+    status: z.string(),
+    isAccepting: z.boolean(),
+    receivingPoint: receivingPointSummarySchema.nullable(),
+  })
   .openapi('DonationOrganization');
 
 const adminOrganizationSchema = organizationSummarySchema
   .extend({
     address: z.string(),
     contactInfo: z.string(),
-    supportCriteria: z.string(),
+    supportCriteria: z.string().nullable(),
+    receivingPoint: receivingPointSummarySchema
+      .extend({ contactName: z.string(), contactPhone: z.string() })
+      .nullable(),
   })
   .openapi('DonationAdminOrganization');
 
@@ -166,7 +286,31 @@ export const donationRequestSchema = z
     receiverType: z.enum(donationReceiverTypes),
     message: z.string().nullable(),
     deliveryMethod: z.string(),
+    decider: z.enum(['ADMIN', 'DONOR']).openapi({
+      description:
+        'GB-56: who accepts or rejects while pending. ADMIN for a request the Donor sent to an ' +
+        'organization; DONOR otherwise.',
+    }),
+    handoverMethod: z.enum(handoverMethods).nullable(),
+    carrierName: z.string().nullable(),
+    trackingCode: z.string().nullable(),
+    receipt: z
+      .object({
+        confirmedBy: z.string().nullable(),
+        channel: z.enum(receiptChannels).nullable(),
+        receivedAt: isoDateTimeSchema.nullable(),
+      })
+      .nullable()
+      .openapi({ description: "GB-59: the organization's confirmation recorded by the Admin." }),
     dueAt: isoDateTimeSchema.nullable(),
+    confirmDueAt: isoDateTimeSchema.nullable().openapi({
+      description:
+        'GB-57: while shipping, the handover date plus DONATION_CONFIRM_DAYS; null otherwise.',
+    }),
+    overdue: z.boolean().openapi({
+      description:
+        'GB-57: shipping and past confirmDueAt (flagged for the Admin, never confirmed).',
+    }),
     toy: toySummarySchema.nullable(),
     donor: personSchema.nullable(),
     requester: personSchema.nullable(),
@@ -175,6 +319,12 @@ export const donationRequestSchema = z
     decidedAt: isoDateTimeSchema.nullable(),
     rejectReason: z.string().nullable(),
     completedAt: isoDateTimeSchema.nullable(),
+    expiredAt: isoDateTimeSchema.nullable().openapi({
+      description: 'GB-57: when the expiry job (JOB-10) set the request to expired.',
+    }),
+    expiryReason: z.string().nullable().openapi({
+      description: 'Why it expired (no decision, or no handover, in time); null otherwise.',
+    }),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
   })

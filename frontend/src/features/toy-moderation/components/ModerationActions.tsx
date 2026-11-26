@@ -1,24 +1,37 @@
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { Button, Popconfirm, Tooltip } from 'antd'
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ReasonModal } from '../../../components/common'
-import { rejectReasonPresets } from '../constants'
+import { rejectReasonPresets, safetyChecklistItems, type SafetyChecklistKey } from '../constants'
 import { useApproveToy, useRejectToy } from '../hooks'
-import type { ToyModerationDetail } from '../types'
+import type { SafetyChecklist, ToyModerationDetail } from '../types'
 
 interface ModerationActionsProps {
   toy: ToyModerationDetail
   // Where to go after a decision: the queue, with its tab and filters.
   backTo: string
+  // The safety checklist items the Admin has ticked; approve needs all of them (GB-48).
+  checkedItems: readonly SafetyChecklistKey[]
 }
 
-// "Duyệt" (with confirmation) and "Từ chối" (with a reason) for a pending post. Every decision
-// sends the updatedAt the Admin is looking at; on a 409 the detail is refetched in place.
-export function ModerationActions({ toy, backTo }: ModerationActionsProps) {
+const toSafetyChecklist = (checked: readonly SafetyChecklistKey[]): SafetyChecklist =>
+  Object.fromEntries(
+    safetyChecklistItems.map((item) => [item.key, checked.includes(item.key)]),
+  ) as SafetyChecklist
+
+// "Duyệt" (with confirmation, after the full safety checklist) and "Từ chối" (with a reason, no
+// checklist) for a pending post. Every decision sends the updatedAt the Admin is looking at; on a
+// 409 the detail is refetched in place.
+export function ModerationActions({ toy, backTo, checkedItems }: ModerationActionsProps) {
   const navigate = useNavigate()
   const [rejectOpen, setRejectOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const approveRef = useRef<HTMLButtonElement>(null)
+  const confirmId = useId()
+  const confirmOkId = `${confirmId}-ok`
+  const confirmCancelId = `${confirmId}-cancel`
   const approve = useApproveToy({ onSuccess: () => navigate(backTo) })
   const reject = useRejectToy({
     onSuccess: () => {
@@ -27,35 +40,77 @@ export function ModerationActions({ toy, backTo }: ModerationActionsProps) {
     },
   })
 
+  // Keyboard (R03 IV.2.1, DEF-ST-56): the confirmation takes the focus when it opens, so Enter
+  // approves and Esc closes it, and gives the focus back to "Duyệt" when it closes.
+  useEffect(() => {
+    if (!confirmOpen) return
+    const timer = window.setTimeout(() => document.getElementById(confirmOkId)?.focus())
+    return () => window.clearTimeout(timer)
+  }, [confirmOpen, confirmOkId])
+
+  const onConfirmOpenChange = (open: boolean) => {
+    setConfirmOpen(open)
+    const focused = document.activeElement
+    // Only when the focus was in the confirmation (or nowhere): a control the Admin clicked keeps it.
+    if (!open && (!focused || focused === document.body || [confirmOkId, confirmCancelId].includes(focused.id))) {
+      approveRef.current?.focus()
+    }
+  }
+
   if (toy.status !== 'pending') {
     return <Button onClick={() => navigate(backTo)}>Quay lại danh sách</Button>
   }
 
   // The backend refuses too (409 CATEGORY_NOT_AVAILABLE); the button explains it up front.
   const categoryBlocked = toy.category?.status !== 'active'
+  const checklistIncomplete = safetyChecklistItems.some((item) => !checkedItems.includes(item.key))
+  const approveBlocked = categoryBlocked || checklistIncomplete
   const busy = approve.isPending || reject.isPending
+  const approveDisabled = approveBlocked || reject.isPending
 
   return (
     <>
       <Tooltip
-        title={categoryBlocked ? 'Danh mục đang bị ẩn nên không thể duyệt tin này.' : undefined}
+        title={
+          categoryBlocked
+            ? 'Danh mục đang bị ẩn nên không thể duyệt tin này.'
+            : checklistIncomplete
+              ? 'Đánh dấu đủ các mục kiểm tra an toàn trước khi duyệt.'
+              : undefined
+        }
       >
         <Popconfirm
           title="Duyệt tin đăng này?"
           description="Tin sẽ hiển thị công khai cho mọi người."
           okText="Duyệt"
           cancelText="Huỷ"
-          disabled={categoryBlocked || busy}
-          onConfirm={() => approve.mutate({ id: toy.id, expectedUpdatedAt: toy.updatedAt })}
+          okButtonProps={{ id: confirmOkId }}
+          cancelButtonProps={{ id: confirmCancelId }}
+          open={confirmOpen}
+          onOpenChange={onConfirmOpenChange}
+          disabled={approveBlocked || busy}
+          onConfirm={() =>
+            approve.mutate({
+              id: toy.id,
+              expectedUpdatedAt: toy.updatedAt,
+              safetyChecklist: toSafetyChecklist(checkedItems),
+            })
+          }
         >
-          <Button
-            type="primary"
-            icon={<CheckOutlined />}
-            loading={approve.isPending}
-            disabled={categoryBlocked || reject.isPending}
-          >
-            Duyệt
-          </Button>
+          {/* A disabled button gets no mouse events, so the tooltip listens on this wrapper
+              (the button lets the pointer through while disabled). */}
+          <span className={approveDisabled ? 'inline-block cursor-not-allowed' : 'inline-block'}>
+            <Button
+              ref={approveRef}
+              type="primary"
+              icon={<CheckOutlined />}
+              loading={approve.isPending}
+              disabled={approveDisabled}
+              className={approveDisabled ? 'pointer-events-none' : undefined}
+            >
+              Duyệt
+            </Button>
+          </span>
         </Popconfirm>
       </Tooltip>
       <Button

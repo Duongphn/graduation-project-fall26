@@ -1,11 +1,14 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
-import { conflict, notFound, unprocessable } from '../utils/http-errors.js';
+import { AppError } from '../utils/app-error.js';
+import { conflict, forbidden, notFound, unprocessable } from '../utils/http-errors.js';
 import { domainEvents } from '../utils/domain-events.js';
+import { notify } from '../utils/notify.js';
+import { notificationLinks } from './notification.links.js';
 import { toMongoPaging } from '../utils/response.js';
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
-import { HANDOVER_EXPIRY_DAYS, PENDING_EXPIRY_DAYS } from '../constants/donation-request-transitions.js';
+import { type HandoverMethod } from '../constants/donation-request-transitions.js';
 import {
   type DonationView,
   encodePhoto,
@@ -19,6 +22,7 @@ import {
   canDecide,
   canHandOver,
   canView,
+  deciderOf,
   receiverTypeOf,
   type DonationActor,
 } from './donation-request.policy.js';
@@ -29,12 +33,16 @@ import {
   HANDOVER_PHOTO_PATTERN,
   type ConfirmReceivedBody,
   type CreateRequestBody,
+  type DonorOrganizationRequestBody,
   type HandoverBody,
   type MyRequestsQuery,
 } from '../validations/donation-request.validation.js';
 import {
   adminContextOf,
+  donationSettings,
+  organizationNotAccepting,
   organizationNotAvailable,
+  organizationWithoutPoint,
   requestNotFound,
   toyNotAvailable,
   buildEvent,
@@ -50,12 +58,20 @@ export const viewOf = (actor: DonationActor): DonationView =>
   actor.isAdmin ? { admin: true } : { admin: false, viewerId: actor.userId };
 
 export const toDtos = async (records: DonationRecord[], view: DonationView) => {
-  const relations = await repository.loadRelations(records, view.admin);
-  return records.map((record) => toDonationRequestDto(record, relations, view));
+  const [relations, { confirmDays }] = await Promise.all([
+    repository.loadRelations(records, view.admin),
+    donationSettings(),
+  ]);
+  return records.map((record) => toDonationRequestDto(record, relations, view, confirmDays));
 };
 
-export const toDetail = async (record: DonationRecord, view: DonationView) =>
-  toDonationRequestDetailDto(record, await repository.loadRelations([record], view.admin), view);
+export const toDetail = async (record: DonationRecord, view: DonationView) => {
+  const [relations, { confirmDays }] = await Promise.all([
+    repository.loadRelations([record], view.admin),
+    donationSettings(),
+  ]);
+  return toDonationRequestDetailDto(record, relations, view, confirmDays);
+};
 
 export const listPage = async (
   filter: RequestFilter,
@@ -69,12 +85,55 @@ export const listPage = async (
   return { items: await toDtos(items, view), total };
 };
 
-// ---- Create (receiver, or an Admin for an organization) ---------------------------------------
+// ---- Create (receiver, an Admin for an organization, or the Donor to an organization) ---------
 
-export const createRequest = async (
+/** GB-51/GB-58: the methods a receiving point accepts. */
+const allowedMethodsOf = (point: OrganizationPoint): HandoverMethod[] => [
+  ...(point.acceptsDropOff ? (['drop_off'] as const) : []),
+  ...(point.acceptsParcel ? (['carrier'] as const) : []),
+];
+
+type OrganizationPoint = { acceptsDropOff: boolean; acceptsParcel: boolean };
+
+/**
+ * GB-51/GB-58: the method must be one the receiving point accepts. An organization saved before
+ * receiving points existed has none until the Admin enters it, so it takes no toy (409).
+ */
+const assertMethodAllowed = (method: HandoverMethod, point: OrganizationPoint | undefined) => {
+  if (!point) throw organizationWithoutPoint();
+  const allowed = allowedMethodsOf(point);
+  if (!allowed.includes(method)) {
+    throw unprocessable(
+      'HANDOVER_METHOD_NOT_ALLOWED',
+      method === 'drop_off'
+        ? 'Điểm nhận của tổ chức không nhận đồ mang đến. Vui lòng gửi qua vận chuyển.'
+        : 'Điểm nhận của tổ chức không nhận bưu kiện. Vui lòng mang đến điểm nhận.',
+      { field: 'handoverMethod', allowed },
+    );
+  }
+};
+
+/**
+ * RECEIVER: a User asks for someone else's post, or an Admin for an organization.
+ * DONOR (UC33, GB-56): the Donor sends their own post to an organization; the Admin decides.
+ */
+type CreateSide = 'RECEIVER' | 'DONOR';
+
+const insertPendingRequest = async (
   actor: DonationActor,
-  input: CreateRequestBody & { organizationId?: string },
+  input: CreateRequestBody & {
+    organizationId?: string;
+    handoverMethod?: HandoverMethod | undefined;
+  },
+  side: CreateSide,
 ) => {
+  // GB-06, MSG17: a Receiver (and a Donor) is a verified User (R03 actors 5–6); same refusal as
+  // the other actions that need a verified identity. An Admin acts for an organization.
+  if (!actor.isAdmin && !(await repository.isVerifiedUser(actor.userId))) {
+    throw new AppError(403, 'USER_NOT_VERIFIED', 'Tài khoản chưa được xác thực danh tính.');
+  }
+  // GB-57: the Pending deadline (DONATION_DECISION_DAYS, UC30).
+  const { decisionDays } = await donationSettings();
   const created = await repository
     .withTransaction(async (session) => {
       // Conditional writes, not reads: they conflict with a concurrent accept of the toy and a
@@ -86,19 +145,46 @@ export const createRequest = async (
         }
         throw toyNotAvailable();
       }
-      if (String(toy.ownerId) === actor.userId) {
+      const ownToy = String(toy.ownerId) === actor.userId;
+      if (side === 'RECEIVER' && ownToy) {
         throw unprocessable('OWN_TOY', 'Bạn không thể xin đồ chơi do chính mình tặng.');
+      }
+      if (side === 'DONOR' && !ownToy) {
+        throw forbidden('Chỉ người đăng tin quyên góp mới gửi được đồ chơi này tới tổ chức.');
       }
       // GB-05: the toys of a locked account are hidden, so they cannot be requested.
       if ((await repository.findUserStatus(toy.ownerId, session))?.toUpperCase() === 'LOCKED') {
         throw conflict('DONOR_LOCKED', 'Người quyên góp đang bị khóa, không thể gửi yêu cầu.');
       }
       if (input.organizationId) {
-        if (!(await repository.touchActiveOrganization(input.organizationId, session))) {
-          if (!(await repository.findOrganization(input.organizationId, session))) {
-            throw notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
-          }
+        // GB-55: a new request needs an active organization that is accepting toys.
+        const organization = await repository.touchActiveOrganization(
+          input.organizationId,
+          session,
+          { accepting: true },
+        );
+        if (!organization) {
+          const found = await repository.findOrganization(input.organizationId, session);
+          if (!found) throw organizationNotFound();
+          if (/^active$/i.test(found.status)) throw organizationNotAccepting();
           throw organizationNotAvailable();
+        }
+        // GB-51: no receiving point, no new request.
+        if (!organization.receivingPoint) throw organizationWithoutPoint();
+        // UC35 1.1, GB-53/GB-54: the Admin asks for a post only for an organization that takes
+        // the toy's category.
+        if (
+          actor.isAdmin &&
+          !(organization.categoryIds ?? []).some((id) => String(id) === String(toy.categoryId))
+        ) {
+          throw unprocessable(
+            'ORGANIZATION_CATEGORY_NOT_ACCEPTED',
+            'Tổ chức này không nhận đồ chơi thuộc danh mục của món đồ này.',
+            [{ field: 'organizationId', message: 'Chọn tổ chức nhận danh mục của đồ chơi.' }],
+          );
+        }
+        if (input.handoverMethod) {
+          assertMethodAllowed(input.handoverMethod, organization.receivingPoint);
         }
       }
 
@@ -110,7 +196,8 @@ export const createRequest = async (
           ...(input.organizationId ? { organizationId: input.organizationId } : {}),
           // develop's itemDetails (required): the requester's message, else the toy title.
           itemDetails: input.message || toy.title,
-          dueAt: daysFromNow(PENDING_EXPIRY_DAYS),
+          dueAt: daysFromNow(decisionDays),
+          ...(input.handoverMethod ? { handoverMethod: input.handoverMethod } : {}),
         },
         session,
       );
@@ -140,6 +227,98 @@ export const createRequest = async (
   const { record } = created;
   domainEvents.publish(buildEvent(record, created.toyTitle, undefined, 'pending', actor.userId));
   return toDetail(record, viewOf(actor));
+};
+
+export const createRequest = (
+  actor: DonationActor,
+  input: CreateRequestBody & { organizationId?: string },
+) => insertPendingRequest(actor, input, 'RECEIVER');
+
+/**
+ * UC33 (GB-56): the Donor sends their own Active donation post to an organization that is
+ * accepting toys (GB-55), with an optional note (max 300) and handover method. The request is
+ * Pending and the Admin accepts or rejects it for the organization.
+ */
+export const createOrganizationRequestByDonor = (
+  actor: DonationActor,
+  input: DonorOrganizationRequestBody,
+) => insertPendingRequest(actor, input, 'DONOR');
+
+const organizationNotFound = () => notFound('ORGANIZATION_NOT_FOUND', 'Không tìm thấy tổ chức.');
+
+/**
+ * UC33 step 4 for a new donation post: the chosen organization takes toys now (GB-55, MSG51)
+ * and its receiving point allows the method (GB-58), as POST /donation-requests/to-organization
+ * checks. Checked again when the request is created after the Admin approves the post.
+ */
+export const assertOrganizationTakesToys = async (
+  organizationId: string,
+  handoverMethod: HandoverMethod,
+) => {
+  const organization = await repository.findOrganization(organizationId);
+  if (!organization) throw organizationNotFound();
+  if (!/^active$/i.test(organization.status)) throw organizationNotAvailable();
+  if (organization.isAccepting === false) throw organizationNotAccepting();
+  if (!organization.receivingPoint) throw organizationWithoutPoint();
+  assertMethodAllowed(handoverMethod, organization.receivingPoint);
+};
+
+/**
+ * UC33 step 5: the Admin approved a new donation post sent to an organization, so its request is
+ * created as Pending, as if the Donor had sent the Active post to it (the Donor is its creator;
+ * the Admin decides it, GB-56), and the Donor is told (GB-61). When the organization no longer
+ * takes toys, no request is created, the post stays open and the Donor is told to choose
+ * another organization (step 6.1, MSG51). Returns the request, or undefined.
+ */
+export const createRequestForApprovedPost = async (toyId: string) => {
+  const toy = await repository.takeDonationTarget(toyId);
+  if (!toy) return undefined;
+  const { organizationId, handoverMethod, note } = toy.donationTarget;
+  const donorId = String(toy.ownerId);
+  try {
+    const created = await insertPendingRequest(
+      { userId: String(toy.ownerId), isAdmin: false },
+      {
+        toyId,
+        organizationId: String(organizationId),
+        handoverMethod,
+        // R03 III.5.2.1 (8): the note goes to the organization with the request.
+        ...(note ? { message: note } : {}),
+      },
+      'DONOR',
+    );
+    const receiver = created.organization?.name ?? 'tổ chức đã chọn';
+    notify({
+      type: 'DONATION_STATUS_CHANGED',
+      to: donorId,
+      title: `Phiếu quyên góp "${toy.title}" đã được gửi tới ${receiver}`,
+      body:
+        `Tin quyên góp của bạn đã được duyệt. Phiếu quyên góp ${created.code} đã được gửi tới ` +
+        `${receiver}; ToyFlow sẽ chấp nhận hoặc từ chối thay tổ chức.`,
+      link: notificationLinks.myDonation(created.id),
+    });
+    return created;
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode < 500) {
+      console.info(`Donation request not created for the approved post ${toyId}: ${error.code}`);
+      const organization = await repository.findOrganization(organizationId).catch(() => null);
+      const why =
+        error.code === 'HANDOVER_METHOD_NOT_ALLOWED'
+          ? 'điểm nhận của tổ chức không còn nhận cách bàn giao bạn đã chọn'
+          : 'tổ chức hiện không nhận đồ chơi';
+      notify({
+        type: 'DONATION_STATUS_CHANGED',
+        to: donorId,
+        title: `Chưa gửi được "${toy.title}" tới ${organization?.name ?? 'tổ chức đã chọn'}`,
+        body:
+          `Tin quyên góp của bạn đã được duyệt, nhưng ${why} nên chưa có yêu cầu quyên góp. ` +
+          'Tin vẫn mở: vui lòng chọn tổ chức khác, hoặc chờ người nhận và ToyFlow ghép tổ chức phù hợp.',
+        link: notificationLinks.toyDetail(toyId),
+      });
+      return undefined;
+    }
+    throw error;
+  }
 };
 
 // ---- Reads -----------------------------------------------------------------------------------
@@ -193,32 +372,42 @@ const detailOf = async (record: DonationRecord, actor: DonationActor) =>
   toDetail(record, viewOf(actor));
 
 /**
- * D-04: the Donor decides. An Admin may not accept or reject a PENDING request (not even an
- * organization request an Admin filed); Admins only resolve stuck ACCEPTED/SHIPPING requests
- * (cancel, confirm receipt). Runs after the 404 and status checks of the transition.
+ * GB-56: the side that did not create the request decides it. The Admin decides a request the
+ * Donor sent to an organization (409 ADMIN_DECISION_REQUIRED for the Donor); the Donor decides
+ * a request from a Receiver or from the Admin for an organization (409 DONOR_DECISION_REQUIRED
+ * for an Admin). Runs after the 404 and status checks of the transition.
  */
-const assertNotAdminDecision = (actor: DonationActor) => () => {
-  if (actor.isAdmin) {
+const assertDecider = (actor: DonationActor) => (record: DonationRecord) => {
+  const decider = deciderOf(record);
+  if (decider === 'DONOR' && actor.isAdmin) {
     throw conflict(
       'DONOR_DECISION_REQUIRED',
-      'Chỉ người quyên góp mới được chấp nhận hoặc từ chối yêu cầu nhận tặng.',
+      'Người quyên góp chấp nhận hoặc từ chối yêu cầu này.',
+    );
+  }
+  if (decider === 'ADMIN' && !actor.isAdmin) {
+    throw conflict(
+      'ADMIN_DECISION_REQUIRED',
+      'Admin sẽ chấp nhận hoặc từ chối yêu cầu bạn gửi tới tổ chức.',
     );
   }
 };
 
-export const accept = async (actor: DonationActor, id: string) =>
-  detailOf(
+export const accept = async (actor: DonationActor, id: string) => {
+  const { handoverDays } = await donationSettings();
+  return detailOf(
     await transition({
       id,
       to: 'accepted',
       actor,
       allowed: canDecide,
-      check: assertNotAdminDecision(actor),
-      // The donor now has HANDOVER_EXPIRY_DAYS to hand the toy over.
-      set: { ...decided(actor), 'timer.dueAt': daysFromNow(HANDOVER_EXPIRY_DAYS) },
+      check: assertDecider(actor),
+      // GB-57: the donor now has DONATION_HANDOVER_DAYS to hand the toy over.
+      set: { ...decided(actor), 'timer.dueAt': daysFromNow(handoverDays) },
     }),
     actor,
   );
+};
 
 export const reject = async (actor: DonationActor, id: string, reason: string) =>
   detailOf(
@@ -227,7 +416,7 @@ export const reject = async (actor: DonationActor, id: string, reason: string) =
       to: 'rejected',
       actor,
       allowed: canDecide,
-      check: assertNotAdminDecision(actor),
+      check: assertDecider(actor),
       set: { ...decided(actor), rejectReason: reason },
       unset: ['timer'],
       reason,
@@ -289,19 +478,93 @@ const handover = (
   at: new Date(),
 });
 
+/**
+ * GB-58: an organization's receiving point limits the method (none: 409
+ * ORGANIZATION_NO_RECEIVING_POINT, GB-51); a User receiver takes both.
+ */
+const assertMethodForRequest =
+  (method: HandoverMethod) => async (record: DonationRecord, session: ClientSession) => {
+    const organizationId = record.receiver?.organizationId;
+    if (!organizationId) return;
+    const organization = await repository.findOrganization(organizationId, session);
+    assertMethodAllowed(method, organization?.receivingPoint);
+  };
+
 export const handOver = async (actor: DonationActor, id: string, body: HandoverBody) => {
   assertOwnPhotos(actor, body.photos);
+  const carrier = body.handoverMethod === 'carrier';
   return detailOf(
     await transition({
       id,
       to: 'shipping',
-      unset: ['timer'],
+      unset: [
+        'timer',
+        // A method chosen at the request may change; drop the carrier fields of a drop-off.
+        ...(carrier ? [] : ['carrierName', 'trackingCode']),
+      ],
       actor,
       allowed: canHandOver,
+      check: assertMethodForRequest(body.handoverMethod),
+      set: {
+        handoverMethod: body.handoverMethod,
+        ...(carrier && body.carrierName ? { carrierName: body.carrierName } : {}),
+        ...(carrier && body.trackingCode ? { trackingCode: body.trackingCode } : {}),
+      },
       pushHandover: handover('DONOR_SENT', actor, body),
     }),
     actor,
   );
+};
+
+/** GB-59: what the Admin records when an organization confirms receipt. */
+export interface OrganizationReceipt {
+  confirmedBy?: string | undefined;
+  channel?: 'phone' | 'email' | 'in_person' | undefined;
+  // YYYY-MM-DD, Vietnam time.
+  receivedAt?: string | undefined;
+}
+
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+/** The Vietnam calendar day of an instant: "2026-11-17". */
+const vietnamDay = (date: Date) => new Date(date.getTime() + VN_OFFSET_MS).toISOString().slice(0, 10);
+/** "2026-11-17" -> 2026-11-17T00:00:00+07:00. */
+const fromVietnamDay = (day: string) => new Date(`${day}T00:00:00+07:00`);
+
+/**
+ * GB-59 for an organization: who confirmed, the channel, the received date and at least one
+ * photo (MSG53). The date is not before the sent date and not in the future.
+ */
+const assertOrganizationReceipt = (
+  record: DonationRecord,
+  receipt: OrganizationReceipt,
+  photoCount: number,
+) => {
+  const missing = [
+    ...(receipt.confirmedBy ? [] : ['confirmedBy']),
+    ...(receipt.channel ? [] : ['channel']),
+    ...(receipt.receivedAt ? [] : ['receivedAt']),
+  ];
+  if (missing.length > 0) {
+    throw unprocessable(
+      'RECEIPT_DETAILS_REQUIRED',
+      'Cần nhập người xác nhận, kênh xác nhận và ngày nhận của tổ chức.',
+      missing.map((field) => ({ field, message: 'Bắt buộc khi xác nhận cho tổ chức.' })),
+    );
+  }
+  if (photoCount === 0) {
+    throw unprocessable('RECEIPT_PHOTO_REQUIRED', 'Vui lòng tải lên ít nhất một ảnh nhận hàng.', [
+      { field: 'photos', message: 'Cần ít nhất một ảnh.' },
+    ]);
+  }
+  const sent = record.handovers.find((item) => item.step === 'DONOR_SENT');
+  const day = receipt.receivedAt!;
+  if (day > vietnamDay(new Date()) || (sent && day < vietnamDay(sent.at))) {
+    throw unprocessable(
+      'RECEIVED_AT_INVALID',
+      'Ngày nhận không được trước ngày gửi và không được ở tương lai.',
+      [{ field: 'receivedAt', message: 'Ngày nhận không hợp lệ.' }],
+    );
+  }
 };
 
 export const confirmReceived = async (
@@ -310,8 +573,9 @@ export const confirmReceived = async (
   body: Omit<ConfirmReceivedBody, 'photos'> & {
     photos?: ConfirmReceivedBody['photos'] | undefined;
   },
-  options: { reason?: string | undefined } = {},
+  options: { reason?: string | undefined; receipt?: OrganizationReceipt } = {},
 ) => {
+  const receipt = options.receipt ?? {};
   // GB-20: the receiving user always gives receipt photos (the route schema requires them).
   if (!actor.isAdmin && (body.photos ?? []).length === 0) {
     throw unprocessable(
@@ -334,8 +598,20 @@ export const confirmReceived = async (
             'Cần nhập lý do khi Admin xác nhận đã nhận thay người nhận.',
           );
         }
+        if (actor.isAdmin && receiverTypeOf(record) === 'ORGANIZATION') {
+          assertOrganizationReceipt(record, receipt, (body.photos ?? []).length);
+        }
       },
-      set: { completedAt: new Date() },
+      set: (record) => ({
+        completedAt: new Date(),
+        ...(actor.isAdmin && receiverTypeOf(record) === 'ORGANIZATION'
+          ? {
+              confirmedBy: receipt.confirmedBy,
+              channel: receipt.channel,
+              receivedAt: fromVietnamDay(receipt.receivedAt!),
+            }
+          : {}),
+      }),
       ...(body.photos
         ? {
             pushHandover: handover('RECEIVER_RECEIVED', actor, {

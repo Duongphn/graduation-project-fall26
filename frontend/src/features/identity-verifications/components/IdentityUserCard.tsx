@@ -8,7 +8,8 @@ interface IdentityUserCardProps {
   verification: IdentityVerificationDetail
 }
 
-// Account data the Admin compares with the citizen ID card (name, date of birth, age).
+// Account data the Admin compares with the citizen ID card. The age (18+, GB-07) is read on the
+// card itself: the account has no date of birth.
 export function IdentityUserCard({ verification }: IdentityUserCardProps) {
   const { user } = verification
   if (!user) {

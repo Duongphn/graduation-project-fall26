@@ -33,12 +33,19 @@ export function FavoriteButton({ toyId, toyTitle, className = '' }: FavoriteButt
   return (
     <button
       type="button"
-      className={`favorite-button ${isFavorite ? 'is-active' : ''} ${className}`}
+      className={`grid size-8 cursor-pointer place-items-center rounded-full bg-white/95 shadow-sm transition-[color,transform,background-color] duration-200 ease-out-quint hover:scale-110 hover:text-tf-error focus-ring active:scale-95 dark:bg-night-900/90 ${
+        isFavorite
+          ? 'text-tf-error dark:text-rose-400 dark:hover:text-rose-400'
+          : 'text-tf-ink-muted dark:text-slate-300'
+      } ${className}`}
       aria-pressed={isFavorite}
       aria-label={isFavorite ? `Bỏ "${toyTitle}" khỏi yêu thích` : `Thêm "${toyTitle}" vào yêu thích`}
       onClick={handleClick}
     >
-      <Heart aria-hidden />
+      <Heart
+        className={`size-4 transition-[fill,transform] duration-200 ${isFavorite ? 'scale-110 fill-current' : ''}`}
+        aria-hidden
+      />
     </button>
   )
 }

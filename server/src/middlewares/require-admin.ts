@@ -11,11 +11,11 @@ export const requireAdmin: RequestHandler = (req, _res, next) => {
     typeof req.auth.userId !== 'string' ||
     !mongoose.Types.ObjectId.isValid(req.auth.userId)
   ) {
-    return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required.'));
+    return next(new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập để tiếp tục.'));
   }
 
   if (req.auth.actorType !== 'ADMIN') {
-    return next(new AppError(403, 'FORBIDDEN', 'Admin access required.'));
+    return next(new AppError(403, 'FORBIDDEN', 'Chức năng này chỉ dành cho Admin.'));
   }
 
   next();

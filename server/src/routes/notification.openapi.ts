@@ -12,8 +12,10 @@ import {
 import {
   listNotificationsQuerySchema,
   markAllReadResultSchema,
+  notificationPreferencesSchema,
   notificationSchema,
   unreadCountSchema,
+  updateNotificationPreferencesSchema,
 } from '../validations/notification.validation.js';
 
 const tags = ['Notifications'];
@@ -79,5 +81,40 @@ openApiRegistry.registerPath({
       content: jsonContent(successResponseSchema(notificationSchema)),
     },
     ...errorResponses(400, 401, 404),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/notifications/preferences',
+  tags,
+  security,
+  summary: 'Cài đặt thông báo của tôi (loại nào đang tắt)',
+  responses: {
+    200: {
+      description: 'Mỗi loại thông báo: có được tắt không, đang tắt không, có gửi email không',
+      content: jsonContent(successResponseSchema(notificationPreferencesSchema)),
+    },
+    ...errorResponses(401),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'put',
+  path: '/api/v1/notifications/preferences',
+  tags,
+  security,
+  summary: 'Tắt thông báo theo loại',
+  description:
+    'Thay danh sách loại đang tắt. Chỉ tắt được loại có canMute = true; loại quan trọng: 400 NOTIFICATION_TYPE_NOT_MUTABLE.',
+  request: {
+    body: { required: true, content: jsonContent(updateNotificationPreferencesSchema) },
+  },
+  responses: {
+    200: {
+      description: 'Cài đặt sau khi lưu',
+      content: jsonContent(successResponseSchema(notificationPreferencesSchema)),
+    },
+    ...errorResponses(400, 401),
   },
 });

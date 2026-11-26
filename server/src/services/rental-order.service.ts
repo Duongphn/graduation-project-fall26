@@ -18,6 +18,7 @@ import {
   suggestFreeRange,
   vnToday,
 } from './rental-time.js';
+import { notificationLinks } from './notification.links.js';
 import { toRentalOrderDto } from './rental-order.mapper.js';
 import { computeLateFee, quotePricing } from './rental-pricing.js';
 import {
@@ -38,6 +39,8 @@ import { validateToyImage } from '../utils/image-validation.js';
 import { type RentalCancelActor } from '../types/order-cancel.types.js';
 import { decideRentalCancel } from './rental-cancel-policy.js';
 import { RentalOrderCore } from './rental-order-core.js';
+import { isTrustBlocked } from './trust-review.rules.js';
+import { recordTrustBlock } from './trust-review.service.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
 
@@ -52,12 +55,14 @@ interface RentEligibility {
 /** Hành động do Renter/Owner gọi qua API (UC06–UC11). */
 export class RentalOrderService extends RentalOrderCore {
   /** Như notifyParty: lỗi thông báo không được làm hỏng hành động đã commit. */
-  private async notifyAdmins(title: string, body: string): Promise<void> {
+  private async notifyAdmins(title: string, body: string, link?: string): Promise<void> {
     try {
       const admins = await this.userModel.find({ role: 'ADMIN' }).select('_id').lean();
       await Promise.all(
         admins.map((admin) =>
-          this.notifier.notify({ userId: admin._id.toString(), title, body }).catch(() => {}),
+          this.notifier
+            .notify({ userId: admin._id.toString(), title, body, ...(link ? { link } : {}) })
+            .catch(() => {}),
         ),
       );
     } catch {
@@ -131,9 +136,21 @@ export class RentalOrderService extends RentalOrderCore {
       throw new AppError(403, 'CANNOT_RENT_OWN_LISTING', 'Không thể thuê đồ chơi của chính mình.');
     }
 
-    const score = user.trust?.score;
-    if (score !== undefined && score !== null && score < settings.minTrustScore) {
-      throw new AppError(403, 'RENTER_RESTRICTED', 'Điểm tin cậy không đủ điều kiện thuê đồ chơi.');
+    // GB-29: chỉ chặn khi điểm dưới ngưỡng VÀ tiền cọc trên mức Admin đặt (MSG28), trừ khi Admin
+    // đã gỡ chặn; lượt bị chặn được ghi lại cho Admin xem xét (UC29, FE-09)
+    if (isTrustBlocked(user.trust, toy.depositPrice ?? 0, settings)) {
+      await recordTrustBlock({
+        userId: actor.userId,
+        trust: user.trust,
+        toy,
+        settings,
+        now: this.clock.now(),
+      });
+      throw new AppError(
+        403,
+        'RENTER_RESTRICTED',
+        'Điểm tin cậy của bạn quá thấp để thuê đồ chơi này.',
+      );
     }
 
     const startDate = parseDateOnly(input.startDate);
@@ -189,7 +206,7 @@ export class RentalOrderService extends RentalOrderCore {
           session,
         );
         const days = inclusiveDays({ startDate, endDate });
-        const suggestion = suggestFreeRange(allOccupied, days, windowStart, windowEnd);
+        const suggestion = suggestFreeRange(allOccupied, days, windowStart, windowEnd, startDate);
 
         throw new AppError(
           409,
@@ -777,11 +794,12 @@ export class RentalOrderService extends RentalOrderCore {
         );
       }
 
-      // Quá 72h thì đơn được coi là "Tốt" (UC11), nên không còn báo hư hỏng được
+      // Quá hạn kiểm tra (48 h, GB-22) thì đơn được coi là "Tốt" (UC12), nên không còn báo hư hỏng được
       this.assertBeforeDeadline(existing, 'SETTLEMENT', this.clock.now());
 
       const updated = await this.withUploadedPhotos(files, async (photos) => {
         const now = this.clock.now();
+        const s = await this.settings.getRentalSettings();
         const disputeId = new Types.ObjectId();
 
         return this.transition({
@@ -805,6 +823,8 @@ export class RentalOrderService extends RentalOrderCore {
                   description,
                   status: 'open',
                   openedAt: now,
+                  // Người thuê có 72 giờ phản hồi, sau đó Admin quyết định (GB-24, UC19)
+                  timer: { dueAt: new Date(now.getTime() + s.disputeReplyHours * 3_600_000) },
                 },
               ],
               { session },
@@ -831,6 +851,9 @@ export class RentalOrderService extends RentalOrderCore {
       await this.notifyAdmins(
         'Khiếu nại hư hỏng đồ chơi mới',
         `Đơn thuê ${updated.code} có báo cáo hư hỏng đồ chơi từ chủ đồ chơi.`,
+        updated.settlement?.disputeId
+          ? notificationLinks.adminDispute(updated.settlement.disputeId.toString())
+          : undefined,
       );
 
       return toRentalOrderDto(updated);
