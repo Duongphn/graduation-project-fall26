@@ -71,7 +71,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { key: "purchases", label: "Đơn mua bán", icon: ShoppingBag, to: PATHS.purchases },
   { key: "wallet", label: "Ví ToyFlow", icon: Wallet, to: PATHS.wallet },
   { key: "favorites", label: "Danh sách yêu thích", icon: Heart },
-  { key: "reviews", label: "Đánh giá nhận được", icon: Star },
+  { key: "reviews", label: "Đánh giá nhận được", icon: Star, to: PATHS.myReviews },
   { key: "password", label: "Đổi mật khẩu", icon: KeyRound },
 ];
 

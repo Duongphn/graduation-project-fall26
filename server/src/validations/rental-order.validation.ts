@@ -3,6 +3,14 @@ import {
   rentalOrderStatuses,
   type RentalOrderStatus,
 } from '../constants/rental-order-status.js';
+import {
+  COMPLAINT_DESCRIPTION_MAX,
+  COMPLAINT_DESCRIPTION_MIN,
+  DISPUTE_RESPONSE_MAX,
+  DISPUTE_RESPONSE_MIN,
+  renterComplaintReasons,
+  type RenterComplaintReason,
+} from '../constants/rental-complaint.js';
 import { parseDateOnly } from '../services/rental-time.js';
 import {
   STATUS_GROUP_MAP,
@@ -245,4 +253,50 @@ export function validateReturnRentalInput(body: unknown): { note?: string | unde
   }
 
   return trimmed ? { note: trimmed } : {};
+}
+
+/** Chuỗi đã trim trong khoảng [min, max] ký tự, không thì báo `message` */
+function readText(value: unknown, min: number, max: number, message: string): string {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (trimmed.length < min || trimmed.length > max) {
+    throw new AppError(400, 'VALIDATION_ERROR', message);
+  }
+  return trimmed;
+}
+
+export interface RenterComplaintInput {
+  reason: RenterComplaintReason;
+  description: string;
+}
+
+/** UC17: kiểm tra trước khi service upload ảnh bằng chứng, để dữ liệu sai không để lại ảnh rác */
+export function validateRenterComplaintInput(body: unknown): RenterComplaintInput {
+  const { reason, description } =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  if (!(renterComplaintReasons as readonly unknown[]).includes(reason)) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Vui lòng chọn lý do khiếu nại.');
+  }
+  return {
+    reason: reason as RenterComplaintReason,
+    description: readText(
+      description,
+      COMPLAINT_DESCRIPTION_MIN,
+      COMPLAINT_DESCRIPTION_MAX,
+      `Mô tả vấn đề phải có độ dài từ ${COMPLAINT_DESCRIPTION_MIN} đến ${COMPLAINT_DESCRIPTION_MAX} ký tự.`,
+    ),
+  };
+}
+
+/** UC18: lời phản hồi của bên bị khiếu nại */
+export function validateDisputeResponseInput(body: unknown): { message: string } {
+  const { message } =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  return {
+    message: readText(
+      message,
+      DISPUTE_RESPONSE_MIN,
+      DISPUTE_RESPONSE_MAX,
+      `Phản hồi phải có độ dài từ ${DISPUTE_RESPONSE_MIN} đến ${DISPUTE_RESPONSE_MAX} ký tự.`,
+    ),
+  };
 }

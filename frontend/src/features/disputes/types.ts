@@ -48,6 +48,10 @@ export interface DisputeResolution {
 
 export interface DisputeDetail extends DisputeListItem {
   description: string
+  /** Photos of the party who opened the dispute (Renter on receipt, Owner on return) */
+  evidencePhotos: ToyImage[]
+  /** The other party's one reply within 72 hours (UC18) */
+  response?: { message: string; photos: ToyImage[]; respondedAt: string }
   rentalOrder: RentalOrder
   history: RentalHistoryEntry[]
   resolution?: DisputeResolution

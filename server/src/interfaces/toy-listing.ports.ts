@@ -1,3 +1,4 @@
+import type { RatingSummary } from '../services/review.mapper.js';
 import type { ClientSession } from 'mongoose';
 
 export type ListingType = 'rent' | 'sell';
@@ -59,6 +60,7 @@ export interface ToyListingDto {
   moderation?: OwnerModerationView;
   /** When the Owner last declared the toy safe (UC05); absent on older listings. */
   safetyDeclaredAt?: Date;
+  rating: RatingSummary;
   createdAt: Date;
   updatedAt: Date;
 }

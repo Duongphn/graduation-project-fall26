@@ -22,6 +22,10 @@ export function createRentalOrderRouter(service: RentalOrderService): Router {
   router.post('/:id/receive', authenticate, requireActor, rentalPhotoUpload, controller.receive);
   router.post('/:id/return', authenticate, requireActor, rentalPhotoUpload, controller.returnToy);
   router.post('/:id/settle', authenticate, requireActor, rentalPhotoUpload, controller.settle);
+  // Khiếu nại (UC17–UC18): người thuê mở, hai bên xem, bên bị khiếu nại phản hồi một lần
+  router.post('/:id/complaints', authenticate, requireActor, rentalPhotoUpload, controller.openComplaint);
+  router.get('/:id/dispute', authenticate, controller.getDispute);
+  router.post('/:id/dispute/response', authenticate, requireActor, rentalPhotoUpload, controller.respondToDispute);
 
   return router;
 }

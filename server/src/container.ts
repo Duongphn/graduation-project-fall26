@@ -50,6 +50,7 @@ import { setIdentityReviewService } from './services/identity-review.service.js'
 import { IdentityVerificationService } from './services/identity-verification.service.js';
 import { setNotificationMailer } from './services/notification.service.js';
 import { RentalDisputeService } from './services/rental-dispute.service.js';
+import { ReviewService } from './services/review.service.js';
 import { RentalOrderService } from './services/rental-order.service.js';
 import { RentalSystemService } from './services/rental-system.service.js';
 import { RentalTimerService } from './services/rental-timer.service.js';
@@ -101,6 +102,7 @@ export interface ContainerOverrides {
   withdrawalService?: WithdrawalService;
   rentalOrderService?: RentalOrderService;
   rentalDisputeService?: RentalDisputeService;
+  reviewService?: ReviewService;
   rentalSystemService?: RentalSystemService;
   rentalTimerService?: RentalTimerService;
   purchaseOrderService?: PurchaseOrderService;
@@ -124,6 +126,7 @@ export interface Container {
   withdrawalService: WithdrawalService;
   rentalOrderService: RentalOrderService;
   rentalDisputeService: RentalDisputeService;
+  reviewService: ReviewService;
   rentalSystemService: RentalSystemService;
   rentalTimerService: RentalTimerService;
   rentalOrderRepository: RentalOrderRepository;
@@ -221,6 +224,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const rentalOrderService = overrides.rentalOrderService ?? new RentalOrderService(rentalDeps);
   const rentalDisputeService =
     overrides.rentalDisputeService ?? new RentalDisputeService(rentalDeps);
+  const reviewService =
+    overrides.reviewService ??
+    new ReviewService({ clock, settings: rentalSettings, notifier: rentalNotifier });
   const rentalSystemService =
     overrides.rentalSystemService ?? new RentalSystemService(rentalDeps);
 
@@ -253,6 +259,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     withdrawalService,
     rentalOrderService,
     rentalDisputeService,
+    reviewService,
     rentalSystemService,
     rentalTimerService,
     rentalOrderRepository,

@@ -1,5 +1,14 @@
 import mongoose, { type Model, Schema, type Types } from 'mongoose';
 import { compensationRates, disputeRulings, type DisputeRuling } from '../constants/dispute-ruling.js';
+import { type ToyImage } from '../interfaces/toy-listing.ports.js';
+
+const photoSchema = new Schema(
+  {
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+  },
+  { _id: false },
+);
 
 /** Phán quyết của Admin (UC19). Ghi một lần, không sửa được (GB-26). */
 export interface IDisputeResolution {
@@ -17,6 +26,13 @@ export interface IDisputeResolution {
   adminDecision: string;
 }
 
+/** Phản hồi một lần của bên bị khiếu nại trong hạn 72 giờ (UC18, GB-24). */
+export interface IDisputeResponse {
+  message: string;
+  photos: ToyImage[];
+  respondedAt: Date;
+}
+
 export interface IDispute {
   _id: Types.ObjectId;
   code: string;
@@ -26,6 +42,9 @@ export interface IDispute {
   respondentId: Types.ObjectId;
   reason: string;
   description: string;
+  /** Ảnh bằng chứng khi người thuê khiếu nại (UC17); khiếu nại của chủ đồ dùng settlement.evidencePhotos của đơn */
+  evidencePhotos?: ToyImage[];
+  response?: IDisputeResponse;
   status: 'open' | 'under_review' | 'resolved' | 'closed';
   openedAt: Date;
   timer?: {
@@ -47,6 +66,17 @@ const disputeSchema = new Schema<IDispute>(
     respondentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     reason: { type: String, required: true },
     description: { type: String, required: true },
+    evidencePhotos: { type: [photoSchema], default: undefined },
+    response: {
+      type: new Schema(
+        {
+          message: { type: String, required: true },
+          photos: { type: [photoSchema], default: [] },
+          respondedAt: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+    },
     status: { type: String, required: true, default: 'open' }, // open, under_review, resolved, closed
     openedAt: { type: Date, default: Date.now },
     // Hạn bên bị khiếu nại phản hồi (72 giờ, GB-24); Admin quyết định sau hạn này (UC19)

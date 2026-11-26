@@ -201,4 +201,35 @@ export class RentalOrderController {
       next(err);
     }
   };
+
+  /** UC17: người thuê khiếu nại (multipart: reason, description, photos 1–10) */
+  public openComplaint = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const files = (req.files as Express.Multer.File[]) ?? [];
+      const data = await this.service.openComplaint(req.auth!, req.params.id as string, req.body, files);
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public getDispute = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const data = await this.service.getDispute(req.auth!, req.params.id as string);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** UC18: bên bị khiếu nại phản hồi (multipart: message, photos 0–10) */
+  public respondToDispute = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const files = (req.files as Express.Multer.File[]) ?? [];
+      const data = await this.service.respondToDispute(req.auth!, req.params.id as string, req.body, files);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  };
 }

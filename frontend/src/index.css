@@ -14,6 +14,7 @@
 @import './features/toy-catalog/toy-search.css';
 @import './features/toy-catalog/toy-detail.css';
 @import './features/rentals/rentals.css';
+@import './features/reviews/reviews.css';
 @import './features/chat/chat.css';
 @import './layouts/site/site-layout.css';
 @import './features/legal/legal.css';

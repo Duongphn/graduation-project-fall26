@@ -94,6 +94,7 @@ describe('Rental orders keep the settings they were created with (GB-38)', () =>
       settlementHours: 48,
       returnReminderHours: 24,
       disputeReplyHours: 72,
+      renterComplaintHours: 24,
       lateFeeMultiplier: 1.5,
     });
   });

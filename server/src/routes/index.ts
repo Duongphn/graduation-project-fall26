@@ -14,8 +14,14 @@ import {
   donorProfileRouter,
 } from './donation-request.routes.js';
 import './health.openapi.js';
+import './review.openapi.js';
 import { adminIdentityReviewRouter } from './identity-review.routes.js';
 import { notificationsRouter } from './notification.routes.js';
+import {
+  createRentalReviewRouter,
+  createToyReviewsRouter,
+  createUserReviewsRouter,
+} from './review.routes.js';
 import { adminOrganizationsRouter, organizationsRouter } from './organization.routes.js';
 import { adminSettingsRouter, publicSettingsRouter } from './system-setting.routes.js';
 import { adminToyModerationRouter } from './toy-moderation.routes.js';
@@ -48,9 +54,13 @@ export function createApiRouter(container: Container): Router {
   // Thứ tự quan trọng: router đăng tin đứng trước router công khai để /toys/mine không bị
   // hiểu là GET /toys/:toyId. Router đăng tin chỉ gắn requireActor trên từng route,
   // nên khách vẫn đi tiếp tới GET /toys, /toys/showcase, /toys/:toyId… mà không cần đăng nhập.
+  // Đánh giá công khai (GET /toys/:id/reviews, /users/:id/reviews) không cần đăng nhập, nên gắn
+  // trước router /users vốn bắt đăng nhập cho mọi route.
+  router.use('/toys', createToyReviewsRouter(container.reviewService));
   router.use('/toys', createToyListingRouter(container.toyListingService));
   router.use('/toys', createToyCatalogRouter(container.toyCatalogService));
 
+  router.use('/users', createUserReviewsRouter(container.reviewService));
   router.use('/users', authenticate, createUsersRouter(container.usersService));
   router.use(
     '/identity-verifications',
@@ -61,6 +71,7 @@ export function createApiRouter(container: Container): Router {
   router.use(createWalletRouter(container.walletService, container.withdrawalService));
   // UC17 PayOS top-up: /payments/topup/payos, /payos/:code, /payos/:code/cancel, /payos-return, /payos-webhook
   router.use('/payments', createPaymentRouter(container.payosTopupService));
+  router.use('/rentals', createRentalReviewRouter(container.reviewService));
   router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
   router.use('/purchase-orders', createPurchaseOrderRouter(container.purchaseOrderService));
 

@@ -1,3 +1,5 @@
+import type { RatingSummary } from '../services/review.mapper.js';
+
 export interface ToySearchQuery {
   q?: string;
   type?: 'rent' | 'sell';
@@ -35,6 +37,7 @@ export interface ToyCardDto {
     type: string;
     coordinates: [number, number];
   } | null;
+  rating: RatingSummary;
   createdAt: string;
 }
 
@@ -64,6 +67,7 @@ export interface ToyDetailDto {
     id: string;
     displayName: string;
   };
+  rating: RatingSummary;
   createdAt: string;
   updatedAt: string;
 }

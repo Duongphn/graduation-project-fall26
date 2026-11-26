@@ -1,4 +1,4 @@
-# Rentals Feature Module (UC06–UC11, UC14)
+# Rentals Feature Module (UC06–UC11, UC14, UC17–UC19)
 
 The `rentals` module provides APIs for the complete peer-to-peer toy rental workflow: quote and order creation, Owner review, wallet payment into escrow, handover with condition photos, return request with late fee calculation, condition settlement (GOOD or DAMAGED), and order cancellation with escrow refunds.
 
@@ -23,6 +23,9 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
 | `POST` | `/:id/receive` | UC09 | Renter | Uploads receipt photos and starts rental period (`IN_USE`) |
 | `POST` | `/:id/return` | UC10 | Renter | Uploads return photos, computes late fee (`RETURNING`), starts 72h settlement timer |
 | `POST` | `/:id/settle` | UC11 | Owner | Settles as `GOOD` (distributes escrow) or `DAMAGED` (opens Dispute, holds escrow) |
+| `POST` | `/:id/complaints` | UC17 | Renter | Reports a problem within 24h of receipt (`IN_USE` → `DISPUTING`), opens a Dispute, holds escrow |
+| `GET` | `/:id/dispute` | UC17–19 | Party | The order's dispute as the parties see it: claim, evidence, deadline, reply |
+| `POST` | `/:id/dispute/response` | UC18 | Respondent | Answers the dispute once within 72h; the Admin may rule right after |
 
 ---
 
@@ -240,15 +243,25 @@ All routes are mounted under `/api/v1/rentals`. Every endpoint requires authenti
   - For `DAMAGED`: Requires `description` (10–1000 characters) and 1–10 evidence `photos`. Creates an open `Dispute` record, holds escrow untouched, and order moves to `DISPUTING`. Rejected with `409 INVALID_RENTAL_TRANSITION` once the 72h settlement deadline has passed (the order is then auto-settled as GOOD). `GOOD` is still accepted after the deadline.
 - **Response (`200 OK`)**: Updates order to `COMPLETED` or `DISPUTING`. A `DAMAGED` report sets the dispute's reply deadline (`timer.dueAt`, `rental.disputeReplyHours`, default 72h) and notifies the Admins with a link to `/admin/disputes/:disputeId`.
 
-### 13. Admin: Resolve Rental Disputes (UC19)
+### 14. Renter Complaint (UC17)
+- **Method / Path**: `POST /api/v1/rentals/:id/complaints` (`multipart/form-data`), the Renter only (`403` for the Owner).
+- **Form Data**: `reason` (`DAMAGED_ON_RECEIPT | MISSING_PARTS | NOT_AS_DESCRIBED | OTHER`), `description` (10–1000 characters after trim), `photos` (1–10 images).
+- **When**: order `IN_USE`, at most `rental.renterComplaintHours` (default 24, copied onto the order like the other time limits, GB-38) after `rentalStartedAt`; later is `409 COMPLAINT_WINDOW_CLOSED`.
+- **Response (`201 Created`)**: the order in `DISPUTING` (its timer removed). A `Dispute` is created with the Renter as claimant, the Owner as respondent, the photos as `evidencePhotos` and `timer.dueAt = now + disputeReplyHours`. The Owner gets a `DISPUTE` notification and the Admins a link to the case. The Owner's own way to complain stays `settle` with `DAMAGED`.
+
+### 15. View and Answer the Dispute (UC18)
+- `GET /api/v1/rentals/:id/dispute` (either party): `{ id, code, status, reason, description, claimant, viewerRole, evidencePhotos, openedAt, replyDueAt, canRespond, response?, resolvedAt? }`. `404 DISPUTE_NOT_FOUND` when the order has none. The ruling and its amounts are in the order's `settlement.resolution`.
+- `POST /api/v1/rentals/:id/dispute/response` (`multipart/form-data`), the respondent only (`403 FORBIDDEN_RENTAL_ACTION` for the claimant): `message` (10–1000 characters), `photos` (0–10 images). Once only (`409 DISPUTE_ALREADY_ANSWERED`), before the deadline (`409 DISPUTE_REPLY_CLOSED`). The dispute becomes `under_review` with `response { message, photos, respondedAt }`; the claimant and the Admins are notified.
+
+### 16. Admin: Resolve Rental Disputes (UC19)
 Mounted under `/api/v1/admin/disputes`, Admin only (`403 FORBIDDEN` otherwise).
 - `GET /admin/disputes?status=open|resolved&page&limit`: paginated cases. `open` (default) is oldest first; `resolved` is newest first. Each item has the order, toy, both parties (with the Renter's trust score), `frozenAmount` (R + D), `claimant` and `replyDueAt`.
-- `GET /admin/disputes/:id`: the case: the claim (`description`), the whole `rentalOrder` (handover photos of both sides, return photos and note, damage evidence), the status `history` and the `resolution` once decided.
+- `GET /admin/disputes/:id`: the case: the claim (`description`, `evidencePhotos`), the reply (`response`, UC18) when given, the whole `rentalOrder` (handover photos of both sides, return photos and note, damage evidence), the status `history` and the `resolution` once decided.
 - `POST /admin/disputes/:id/resolve`: body `{ ruling, compensationRate, adminDecision }`.
   - `ruling`: `RENTER_AT_FAULT`, `OWNER_AT_FAULT`, `UNDETERMINED` or `FAIR_WEAR_AND_TEAR`.
   - `compensationRate`: 0, 25, 50, 75 or 100. Above 0 only when the ruling puts the fault on the other side of the claim (`RENTER_AT_FAULT` for an Owner damage report). Owner claim: `K = rate × D`, at most `D − L`; Renter claim: `G = rate × R`.
   - `adminDecision`: 30–500 characters, sent to both parties.
-  - Accepted only after the reply deadline (`409 DISPUTE_REPLY_PENDING`). One posting `rental:{id}:ruling` pays out the frozen R + D: `escrow −(R+D)`, `owner +(R−G−F'+L+K)`, `platform +F'` with `F' = p × (R−G)`, `renter +(D−L−K+G)`. The dispute becomes `resolved`, the order `COMPLETED` with `settlement.resolution`, and both parties get a `DISPUTE` notification. A second decision is `409 DISPUTE_ALREADY_RESOLVED` (GB-26).
+  - Accepted once the respondent replied (UC18) or the reply deadline passed (`409 DISPUTE_REPLY_PENDING` before). One posting `rental:{id}:ruling` pays out the frozen R + D: `escrow −(R+D)`, `owner +(R−G−F'+L+K)`, `platform +F'` with `F' = p × (R−G)`, `renter +(D−L−K+G)`. The dispute becomes `resolved`, the order `COMPLETED` with `settlement.resolution`, and both parties get a `DISPUTE` notification. A second decision is `409 DISPUTE_ALREADY_RESOLVED` (GB-26).
 
 ---
 
@@ -271,7 +284,10 @@ All error responses adhere to the standard envelope `{ "success": false, "error"
 | `RENTAL_CANCEL_USE_REJECT` | 409 | Owner attempts to cancel a `PENDING` order (must use reject instead) |
 | `RENTAL_CANCEL_NOT_ALLOWED` | 409 | Cancelling an order in `SHIPPING`, `IN_USE`, `RETURNING` or `DISPUTING` (open a dispute instead) |
 | `INVALID_RENTAL_TRANSITION` | 409 | Action cannot be performed in the current order status or deadline has expired |
-| `DISPUTE_NOT_FOUND` | 404 | Admin: the dispute does not exist or is not a rental dispute |
-| `DISPUTE_REPLY_PENDING` | 409 | Admin: the other party's reply window is still open (`details.replyDueAt`) |
+| `DISPUTE_NOT_FOUND` | 404 | Admin: the dispute does not exist or is not a rental dispute; party: the order has no dispute |
+| `DISPUTE_REPLY_PENDING` | 409 | Admin: the other party has not replied and the reply window is still open (`details.replyDueAt`) |
+| `COMPLAINT_WINDOW_CLOSED` | 409 | Renter complaint more than `renterComplaintHours` (24h) after receipt |
+| `DISPUTE_ALREADY_ANSWERED` | 409 | The respondent already replied to the dispute |
+| `DISPUTE_REPLY_CLOSED` | 409 | The reply comes after the 72h deadline |
 | `DISPUTE_ALREADY_RESOLVED` | 409 | Admin: the dispute already has a ruling |
 | `INSUFFICIENT_BALANCE` | 409 | Renter wallet balance is insufficient to pay totalPayable. Returns `{ required, balance, shortfall }` |

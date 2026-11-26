@@ -23,6 +23,7 @@ export const PATHS = {
   rentalRequests: '/rentals/requests',
   rentalRequest: '/rentals/requests/:orderId',
   myRentals: '/rentals/mine',
+  myReviews: '/profile/reviews',
   myRental: '/rentals/mine/:orderId',
   wallet: '/wallet',
   /** PayOS chuyển về đây sau khi thanh toán hoặc huỷ (PAYOS_RETURN_URL ở server) */

@@ -1,6 +1,13 @@
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import type { RentalGroup, RentalOrder, RentalRole, RentalStatus } from './rental-orders-api'
+import {
+  RENTER_COMPLAINT_HOURS,
+  type DisputeStatus,
+  type RentalGroup,
+  type RentalOrder,
+  type RentalRole,
+  type RentalStatus,
+} from './rental-orders-api'
 
 /** Nhãn và tông màu trạng thái đơn thuê; tông map sang class .rental-status--{tone} */
 export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
@@ -179,3 +186,28 @@ export function useNow(intervalMs = 30_000): number {
   }, [intervalMs])
   return now
 }
+
+/** Lý do khiếu nại: của người thuê khi nhận đồ (UC17) và của chủ đồ khi quyết toán Hư hỏng */
+export const COMPLAINT_REASON_META: Record<string, { label: string; hint?: string }> = {
+  DAMAGED_ON_RECEIPT: { label: 'Hư hỏng khi nhận', hint: 'Nứt, gãy, không hoạt động ngay khi mở ra' },
+  MISSING_PARTS: { label: 'Thiếu bộ phận', hint: 'Thiếu chi tiết, phụ kiện so với ảnh và mô tả' },
+  NOT_AS_DESCRIBED: { label: 'Không đúng mô tả', hint: 'Khác mẫu, khác tình trạng chủ đồ đã ghi' },
+  OTHER: { label: 'Vấn đề khác', hint: 'Mô tả cụ thể ở bên dưới' },
+  DAMAGED_ON_RETURN: { label: 'Hư hỏng khi trả' },
+}
+
+export const complaintReasonLabel = (reason: string) => COMPLAINT_REASON_META[reason]?.label ?? reason
+
+/** Trạng thái khiếu nại; tông dùng chung class .rental-status--{tone} */
+export const DISPUTE_STATUS_META: Record<DisputeStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
+  open: { label: 'Chờ phản hồi', tone: 'alert' },
+  under_review: { label: 'Quản trị viên đang xem xét', tone: 'wait' },
+  resolved: { label: 'Đã có phán quyết', tone: 'done' },
+  closed: { label: 'Đã đóng', tone: 'stop' },
+}
+
+/** Hạn người thuê khiếu nại: 24 giờ kể từ lúc nhận đồ; null khi chưa nhận */
+export const renterComplaintDueAt = (rentalStartedAt: string | undefined): string | null =>
+  rentalStartedAt
+    ? new Date(new Date(rentalStartedAt).getTime() + RENTER_COMPLAINT_HOURS * 3_600_000).toISOString()
+    : null

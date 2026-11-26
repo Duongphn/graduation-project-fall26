@@ -21,9 +21,9 @@ Every MongoDB collection has one Mongoose model in `src/models/<name>.model.ts`,
 | `purchase-order.model.ts` | `PurchaseOrder` | toy catalog, toy listings | Status catalog in `src/constants/resale-order-status.ts`. |
 | `refresh-token.model.ts` | `RefreshToken` | auth | |
 | `rental-order.model.ts` | `RentalOrder` | rental-orders, toy catalog, toy listings | Complete peer-to-peer rental flow (UC06–UC11). API: `docs/api/rentals.md`. |
-| `review.model.ts` | — | — | Empty placeholder; schema not defined yet, not exported from `index.ts`. |
+| `review.model.ts` | `Review` | reviews, toy catalog | Two-way rental reviews: one per order and reviewer (`review_once_per_order`), `userRating` 1–5, `toyRating` only from the renter. Open for `reviewWindowDays` (default 14) after the order completes. API: `docs/api/reviews.md`. |
 | `system-setting.model.ts` | `SystemSetting` | rental-orders, system-setting, category seed | Configurable business values (`rental.ownerResponseHours`, etc.). Also the internal marker `CATEGORIES_SEEDED` written by the category seed (not a business setting). |
-| `toy.model.ts` | `Toy` | toy catalog, toy listings, rental-orders | `bookingVersion` optimistic lock for concurrent bookings. API: `docs/api/toys.md`. |
+| `toy.model.ts` | `Toy` | toy catalog, toy listings, rental-orders, reviews | `bookingVersion` optimistic lock for concurrent bookings. `rating` {sum, count} of renters' toy ratings. API: `docs/api/toys.md`. |
 | `user.model.ts` | `User` | auth, users, identity verification, toy catalog, rental-orders | API: `docs/api/users.md`. |
 | `violation-report.model.ts` | `ViolationReport` | — | Scaffold. |
 | `voucher.model.ts` | `Voucher` | — | Scaffold. |

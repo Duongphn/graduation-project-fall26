@@ -37,6 +37,7 @@ function toPublicDto(record: CatalogToyRecord): PublicToyDto {
     ageRange: record.ageRange,
     images: record.images,
     createdAt: record.createdAt,
+    rating: record.rating,
   };
 }
 

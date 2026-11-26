@@ -1,0 +1,851 @@
+@layer components {
+  /*
+   * Đánh giá sau đơn thuê (UC24): khung đánh giá trong đơn thuê, tab Đánh giá của trang đồ chơi,
+   * trang "Đánh giá nhận được". Ngôn ngữ chung với trang đơn thuê: navy là màu hành động, đồng chỉ
+   * cho sao và vạch nhấn, góc gần như vuông (2px), phân lớp bằng đường kẻ mảnh thay vì đổ bóng.
+   * Các khối này nằm trong nhiều layout khác nhau nên tự khai báo token --rv-*.
+   */
+  .review-panel,
+  .toy-reviews,
+  .reviews-page,
+  .review-list,
+  .star-rating,
+  .rating-summary {
+    --rv-paper: #ffffff;
+    --rv-sunken: var(--color-tf-surface-low);
+    --rv-ink: var(--color-tf-ink);
+    --rv-muted: var(--color-tf-ink-muted);
+    --rv-navy: var(--color-tf-primary);
+    --rv-navy-hover: var(--color-tf-primary-container);
+    /* Đồng: sao và vạch nhấn (~3.2:1, không dùng cho chữ nhỏ); chữ nhấn dùng --rv-brass-text */
+    --rv-brass: var(--color-tf-accent);
+    --rv-brass-text: var(--color-tf-tertiary);
+    --rv-brass-soft: var(--color-tf-tertiary-fixed);
+    --rv-star-off: #d9dbe3;
+    --rv-red: var(--color-tf-error);
+    --rv-rule: var(--color-tf-surface);
+    --rv-rule-strong: var(--color-tf-outline);
+    --rv-radius: 2px;
+    --rv-ease: var(--ease-out-quint);
+    --dur-reveal: 560ms;
+  }
+
+  .dark .review-panel,
+  .dark .toy-reviews,
+  .dark .reviews-page,
+  .dark .review-list,
+  .dark .star-rating,
+  .dark .rating-summary {
+    --rv-paper: var(--color-night-900);
+    --rv-sunken: var(--color-night-800);
+    --rv-ink: #ecebe6;
+    --rv-muted: #a6a8b4;
+    --rv-navy: #b9c6e4;
+    --rv-navy-hover: #d4ddef;
+    --rv-brass: #c9a66b;
+    --rv-brass-text: #d8b97f;
+    --rv-brass-soft: rgb(201 166 107 / 0.14);
+    --rv-star-off: #3a3b47;
+    --rv-rule: var(--color-night-800);
+    --rv-rule-strong: var(--color-night-700);
+  }
+
+  /* ---------- Sao: chỉ đọc ---------- */
+  .star-rating {
+    position: relative;
+    display: inline-flex;
+    vertical-align: middle;
+    line-height: 0;
+  }
+
+  .star-rating__base,
+  .star-rating__fill {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  .star-rating__base {
+    color: var(--rv-star-off);
+  }
+
+  .star-rating__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    overflow: hidden;
+    color: var(--rv-brass);
+    white-space: nowrap;
+  }
+
+  .star-rating svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    stroke-width: 0;
+  }
+
+  .star-rating--sm svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* "★ 4,5 (12)" trên thẻ đồ chơi và đầu trang chi tiết */
+  .rating-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--rv-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toy-card__price .rating-summary {
+    margin-left: auto;
+    align-self: center;
+  }
+
+  .rating-summary strong {
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .rating-summary__star {
+    width: 14px;
+    height: 14px;
+    color: var(--rv-brass);
+    fill: currentColor;
+    stroke-width: 0;
+  }
+
+  .rating-summary--empty {
+    font-style: italic;
+  }
+
+  /* ---------- Chọn sao ---------- */
+  .star-input {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .star-input__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .star-input__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .star-input__stars {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  /* Vùng chạm 44px dù sao chỉ 26px */
+  .star-input__star {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -4px -3px;
+    border-radius: var(--rv-radius);
+    color: var(--rv-star-off);
+    cursor: pointer;
+    transition: color 200ms var(--rv-ease);
+  }
+
+  .star-input__star svg {
+    width: 26px;
+    height: 26px;
+    fill: currentColor;
+    stroke-width: 0;
+    transition: transform 280ms var(--rv-ease);
+  }
+
+  .star-input__star.is-on {
+    color: var(--rv-brass);
+  }
+
+  .star-input__star:focus-visible {
+    outline: 2px solid var(--rv-navy);
+    outline-offset: -4px;
+  }
+
+  .star-input__star:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  @media (hover: hover) {
+    .star-input__star:not(:disabled):hover svg {
+      transform: scale(1.12);
+    }
+  }
+
+  .star-input__star:not(:disabled):active svg {
+    transform: scale(0.92);
+  }
+
+  .star-input__word {
+    min-width: 6em;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--rv-brass-text);
+  }
+
+  .star-input__error,
+  .review-form__error {
+    font-size: 13px;
+    color: var(--rv-red);
+  }
+
+  /* ---------- Khung đánh giá trong đơn thuê ---------- */
+  .review-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    border: 1px solid var(--rv-rule);
+    border-radius: var(--rv-radius);
+    background: var(--rv-paper);
+  }
+
+  /* Vạch đồng bên trái: đây là việc còn lại của đơn */
+  .review-panel::before {
+    content: '';
+    position: absolute;
+    inset: -1px auto -1px -1px;
+    width: 3px;
+    background: var(--rv-brass);
+  }
+
+  .review-panel--loading {
+    min-height: 180px;
+    background: linear-gradient(90deg, var(--rv-sunken), var(--rv-paper), var(--rv-sunken));
+    background-size: 200% 100%;
+    animation: review-shimmer 1.4s linear infinite;
+  }
+
+  .review-panel__head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .review-panel__eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rv-brass-text);
+  }
+
+  .review-panel__title {
+    font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    color: var(--rv-ink);
+  }
+
+  .review-panel__due {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--rv-muted);
+  }
+
+  .review-panel__due svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .review-panel__due strong {
+    color: var(--rv-ink);
+  }
+
+  .review-panel__text {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--rv-muted);
+  }
+
+  .review-panel__theirs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rv-rule);
+  }
+
+  .review-panel__subtitle {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--rv-ink);
+  }
+
+  .review-panel__mine {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .review-panel__scores {
+    display: grid;
+    gap: 8px;
+  }
+
+  .review-panel__scores > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--rv-rule);
+  }
+
+  .review-panel__scores dt {
+    font-size: 14px;
+    color: var(--rv-muted);
+  }
+
+  .review-panel__scores dd {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .review-panel__quote {
+    padding: 4px 0 4px 14px;
+    border-left: 2px solid var(--rv-brass);
+    font-size: 15px;
+    line-height: 1.65;
+    white-space: pre-line;
+    color: var(--rv-ink);
+  }
+
+  .review-panel__locked {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--rv-muted);
+  }
+
+  .review-panel__locked svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  /* ---------- Form ---------- */
+  .review-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .review-form__comment {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .review-form__comment label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .review-form__optional {
+    font-weight: 400;
+    color: var(--rv-muted);
+  }
+
+  .review-form__comment .ant-input {
+    border-radius: var(--rv-radius);
+  }
+
+  .review-form__hint {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--rv-muted);
+  }
+
+  .review-form__submit {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    align-self: flex-start;
+    min-height: 44px;
+    padding: 0 22px;
+    overflow: hidden;
+    border-radius: var(--rv-radius);
+    background: var(--rv-navy);
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    cursor: pointer;
+    transition:
+      background-color 200ms var(--rv-ease),
+      transform 200ms var(--rv-ease);
+  }
+
+  .dark .review-form__submit {
+    color: var(--color-night-950);
+  }
+
+  .review-form__submit svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 300ms var(--rv-ease);
+  }
+
+  /* Vạch đồng chạy từ trái sang dưới chân nút khi rê chuột */
+  .review-form__submit::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background: var(--rv-brass);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 360ms var(--rv-ease);
+  }
+
+  @media (hover: hover) {
+    .review-form__submit:not(:disabled):hover {
+      background: var(--rv-navy-hover);
+    }
+
+    .review-form__submit:not(:disabled):hover::after {
+      transform: scaleX(1);
+    }
+
+    .review-form__submit:not(:disabled):hover svg {
+      transform: translateX(3px);
+    }
+  }
+
+  .review-form__submit:not(:disabled):active {
+    transform: scale(0.98);
+  }
+
+  .review-form__submit:focus-visible {
+    outline: 2px solid var(--rv-navy);
+    outline-offset: 2px;
+  }
+
+  .review-form__submit:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  /* ---------- Danh sách đánh giá ---------- */
+  .review-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .review-item {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--rv-rule);
+  }
+
+  .review-item:first-child {
+    padding-top: 4px;
+  }
+
+  .review-item:last-child {
+    border-bottom: 0;
+  }
+
+  .review-item__avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--rv-sunken);
+  }
+
+  .review-item__avatar--initials {
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--rv-navy);
+  }
+
+  .review-item__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .review-item__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+
+  .review-item__name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .review-item__role {
+    padding: 1px 6px;
+    border: 1px solid var(--rv-rule-strong);
+    border-radius: var(--rv-radius);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rv-muted);
+  }
+
+  .review-item__date {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--rv-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .review-item__comment {
+    max-width: 65ch;
+    font-size: 15px;
+    line-height: 1.65;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    color: var(--rv-ink);
+  }
+
+  .review-item__comment--empty {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--rv-muted);
+  }
+
+  .review-item--skeleton .review-item__avatar,
+  .review-skeleton-line {
+    background: linear-gradient(90deg, var(--rv-sunken), var(--rv-rule), var(--rv-sunken));
+    background-size: 200% 100%;
+    animation: review-shimmer 1.4s linear infinite;
+  }
+
+  .review-skeleton-line {
+    display: block;
+    height: 12px;
+    border-radius: var(--rv-radius);
+  }
+
+  .review-pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  /* ---------- Tab Đánh giá trên trang đồ chơi ---------- */
+  .toy-reviews {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .toy-reviews__summary {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rv-rule);
+  }
+
+  .toy-reviews__score {
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--rv-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toy-reviews__score span {
+    margin-left: 2px;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--rv-muted);
+  }
+
+  .toy-reviews__count {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--rv-muted);
+  }
+
+  .toy-reviews__none {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--rv-muted);
+  }
+
+  /* ---------- Trang "Đánh giá nhận được" ---------- */
+  .reviews-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 820px;
+    padding-block: 24px 64px;
+    color: var(--rv-ink);
+  }
+
+  .reviews-page__crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--rv-muted);
+  }
+
+  .reviews-page__crumbs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: color 200ms var(--rv-ease);
+  }
+
+  .reviews-page__crumbs a:hover {
+    color: var(--rv-navy);
+  }
+
+  .reviews-page__crumbs svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .reviews-page__crumbs [aria-current] {
+    font-weight: 500;
+    color: var(--rv-ink);
+  }
+
+  .reviews-page__head {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--rv-rule);
+    animation: review-rise 640ms var(--rv-ease) both;
+  }
+
+  .reviews-page__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rv-brass-text);
+  }
+
+  .reviews-page__eyebrow svg {
+    width: 13px;
+    height: 13px;
+    fill: var(--rv-brass);
+    stroke: var(--rv-brass);
+  }
+
+  .reviews-page__title {
+    font-size: clamp(1.75rem, 1.4rem + 1.4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+
+  .reviews-page__lead {
+    max-width: 60ch;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--rv-muted);
+  }
+
+  .reviews-page__tabs {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--rv-rule);
+    scrollbar-width: none;
+  }
+
+  .reviews-page__tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--rv-muted);
+    cursor: pointer;
+    transition: color 200ms var(--rv-ease);
+  }
+
+  /* Gạch chân chạy từ trái sang: tab đang chọn và khi rê chuột */
+  .reviews-page__tab::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 -1px 0;
+    height: 2px;
+    background: var(--rv-navy);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 360ms var(--rv-ease);
+  }
+
+  .reviews-page__tab.is-active {
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .reviews-page__tab.is-active::after {
+    transform: scaleX(1);
+  }
+
+  @media (hover: hover) {
+    .reviews-page__tab:hover {
+      color: var(--rv-ink);
+    }
+
+    .reviews-page__tab:not(.is-active):hover::after {
+      transform: scaleX(1);
+      background: var(--rv-rule-strong);
+    }
+  }
+
+  .reviews-page__tab:focus-visible {
+    outline: 2px solid var(--rv-navy);
+    outline-offset: 2px;
+  }
+
+  .reviews-page__tab-count {
+    padding: 0 6px;
+    border-radius: var(--rv-radius);
+    background: var(--rv-sunken);
+    font-size: 12px;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reviews-page__empty {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 32px 24px;
+    border: 1px dashed var(--rv-rule-strong);
+    border-radius: var(--rv-radius);
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--rv-muted);
+  }
+
+  .reviews-page__empty-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--rv-ink);
+  }
+
+  .reviews-page__empty-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin-top: 4px;
+    font-weight: 600;
+    color: var(--rv-navy);
+  }
+
+  .reviews-page__empty-link svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 300ms var(--rv-ease);
+  }
+
+  @media (hover: hover) {
+    .reviews-page__empty-link:hover svg {
+      transform: translateX(4px);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .review-panel {
+      padding: 20px 16px;
+    }
+
+    .review-form__submit {
+      align-self: stretch;
+    }
+
+    .review-item__date {
+      margin-left: 0;
+      flex-basis: 100%;
+    }
+
+    .toy-reviews__score {
+      font-size: 36px;
+    }
+  }
+
+  @keyframes review-shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes review-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .review-panel--loading,
+    .review-item--skeleton .review-item__avatar,
+    .review-skeleton-line,
+    .reviews-page__head {
+      animation: none;
+    }
+
+    .star-input__star,
+    .star-input__star svg,
+    .review-form__submit,
+    .review-form__submit::after,
+    .review-form__submit svg,
+    .reviews-page__tab::after,
+    .reviews-page__empty-link svg {
+      transition: none;
+    }
+  }
+}

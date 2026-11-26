@@ -4,7 +4,6 @@ import {
   type RentalOrderStatus,
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
-import mongoose, { type ClientSession, type HydratedDocument, Types } from 'mongoose';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 import { type LedgerEntry } from '../interfaces/wallet.ports.js';
 import { type RentalOrderDoc } from '../models/rental-order.model.js';
@@ -49,6 +48,8 @@ import {
   type RentalListQuery,
   type RentalPeriodInput,
   type SettleRentalInput,
+  validateDisputeResponseInput,
+  validateRenterComplaintInput,
 } from '../validations/rental-order.validation.js';
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
@@ -57,6 +58,9 @@ import { type RentalCancelActor } from '../types/order-cancel.types.js';
 import { decideRentalCancel } from './rental-cancel-policy.js';
 import { RentalOrderCore } from './rental-order-core.js';
 import { isTrustBlocked } from './trust-review.rules.js';
+import { disputeEvidencePhotos } from './rental-dispute.service.js';
+import { type IDispute } from '../models/dispute.model.js';
+import { type PartyDisputeDto } from '../types/rental-dispute.types.js';
 import { recordTrustBlock } from './trust-review.service.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
@@ -1016,5 +1020,206 @@ export class RentalOrderService extends RentalOrderCore {
     }
 
     throw new AppError(400, 'VALIDATION_ERROR', 'Kết quả quyết toán phải là GOOD hoặc DAMAGED.');
+  }
+
+  /**
+   * UC17: người thuê báo đồ có vấn đề (hỏng khi nhận, thiếu bộ phận, không đúng mô tả) trong
+   * renterComplaintHours kể từ lúc nhận đồ. Đơn IN_USE → DISPUTING, R + D vẫn giữ ở escrow, chủ đồ có
+   * disputeReplyHours để phản hồi (UC18) rồi Admin phán quyết (UC19). Chủ đồ khiếu nại qua quyết toán Hư hỏng.
+   */
+  public async openComplaint(
+    actor: RequestActor,
+    orderId: string,
+    body: unknown,
+    files: Express.Multer.File[],
+  ): Promise<RentalOrderDto> {
+    const existing = await this.loadForParty(actor, orderId, 'renter');
+    this.assertStatus(existing, 'IN_USE');
+    // Kiểm tra trước khi upload để dữ liệu sai không để lại ảnh rác
+    const input = validateRenterComplaintInput(body);
+    if (!files || files.length === 0) {
+      throw new AppError(400, 'INVALID_IMAGE_UPLOAD', 'Vui lòng tải lên từ 1 đến 10 ảnh bằng chứng.');
+    }
+
+    const s = withOrderPolicy(await this.settings.getRentalSettings(), existing.policy);
+    const startedAt = existing.rentalStartedAt ?? existing.handover?.receivedAt;
+    const windowEnd = startedAt ? startedAt.getTime() + s.renterComplaintHours * 3_600_000 : 0;
+    if (this.clock.now().getTime() > windowEnd) {
+      throw new AppError(
+        409,
+        'COMPLAINT_WINDOW_CLOSED',
+        `Chỉ có thể khiếu nại trong ${s.renterComplaintHours} giờ kể từ lúc nhận đồ chơi.`,
+      );
+    }
+
+    const updated = await this.withUploadedPhotos(files, async (photos) => {
+      const now = this.clock.now();
+      return this.transition({
+        orderId,
+        from: 'IN_USE',
+        to: 'DISPUTING',
+        changedBy: actor.userId,
+        note: 'Người thuê khiếu nại tình trạng đồ chơi',
+        inTransaction: async (order, session) => {
+          await this.disputeModel.create(
+            [
+              {
+                code: 'DP' + this.repository.generateCode(now).slice(2),
+                orderType: 'rental_order',
+                orderId: order._id,
+                claimantId: order.renterId,
+                respondentId: order.ownerId,
+                reason: input.reason,
+                description: input.description,
+                evidencePhotos: photos,
+                status: 'open',
+                openedAt: now,
+                // Chủ đồ có 72 giờ phản hồi, sau đó Admin quyết định (GB-24, UC19)
+                timer: { dueAt: new Date(now.getTime() + s.disputeReplyHours * 3_600_000) },
+              },
+            ],
+            { session },
+          );
+        },
+      });
+    });
+
+    const dispute = await this.disputeModel
+      .findOne({ orderType: 'rental_order', orderId: updated._id })
+      .select('_id')
+      .lean();
+    await this.notifyParty(
+      updated,
+      'owner',
+      'Người thuê khiếu nại tình trạng đồ chơi',
+      `Người thuê đơn ${updated.code} báo đồ chơi có vấn đề. Bạn có ${s.disputeReplyHours} giờ để phản hồi kèm bằng chứng.`,
+      'DISPUTE',
+    );
+    await this.notifyAdmins(
+      'Khiếu nại đơn thuê mới',
+      `Đơn thuê ${updated.code} có khiếu nại từ người thuê.`,
+      dispute ? notificationLinks.adminDispute(dispute._id.toString()) : undefined,
+    );
+
+    return toRentalOrderDto(updated);
+  }
+
+  /** Khiếu nại mới nhất của đơn, cho người thuê / chủ đồ của đơn đó xem (UC17–UC19). */
+  public async getDispute(actor: RequestActor, orderId: string): Promise<PartyDisputeDto> {
+    const order = await this.loadForParty(actor, orderId, 'any');
+    const dispute = await this.findOrderDispute(order._id);
+    return this.toPartyDispute(dispute, order, actor);
+  }
+
+  /**
+   * UC18: bên bị khiếu nại phản hồi một lần, trong hạn, kèm 0–10 ảnh. Khiếu nại chuyển sang
+   * under_review và Admin được phán quyết ngay, không phải chờ hết hạn.
+   */
+  public async respondToDispute(
+    actor: RequestActor,
+    orderId: string,
+    body: unknown,
+    files: Express.Multer.File[],
+  ): Promise<PartyDisputeDto> {
+    const order = await this.loadForParty(actor, orderId, 'any');
+    const dispute = await this.findOrderDispute(order._id);
+    if (!dispute.respondentId.equals(actor.userId)) {
+      throw new AppError(403, 'FORBIDDEN_RENTAL_ACTION', 'Chỉ bên bị khiếu nại mới được phản hồi.');
+    }
+    if (dispute.response) {
+      throw new AppError(409, 'DISPUTE_ALREADY_ANSWERED', 'Bạn đã phản hồi khiếu nại này.');
+    }
+    if (dispute.status !== 'open') {
+      throw new AppError(409, 'DISPUTE_ALREADY_RESOLVED', 'Khiếu nại này đã có phán quyết.');
+    }
+    const { message } = validateDisputeResponseInput(body);
+    const dueAt = await this.replyDueAtOf(dispute, order);
+    if (this.clock.now().getTime() >= dueAt.getTime()) {
+      throw new AppError(409, 'DISPUTE_REPLY_CLOSED', 'Đã hết hạn phản hồi khiếu nại.');
+    }
+
+    const save = async (photos: ToyImage[]) => {
+      const now = this.clock.now();
+      // Điều kiện nằm trong câu update: hai lần gửi cùng lúc hoặc Admin vừa phán quyết thì không ghi đè
+      const res = await this.disputeModel.updateOne(
+        { _id: dispute._id, status: 'open', response: { $exists: false } },
+        {
+          $set: {
+            status: 'under_review',
+            response: { message, photos, respondedAt: now },
+          },
+        },
+      );
+      if (res.modifiedCount === 0) {
+        throw new AppError(409, 'DISPUTE_ALREADY_ANSWERED', 'Khiếu nại đã được phản hồi hoặc đã có phán quyết.');
+      }
+    };
+    if (files && files.length > 0) {
+      await this.withUploadedPhotos(files, save);
+    } else {
+      await save([]);
+    }
+
+    const claimantRole = dispute.claimantId.equals(order.renterId) ? 'renter' : 'owner';
+    await this.notifyParty(
+      order,
+      claimantRole,
+      'Khiếu nại đơn thuê đã có phản hồi',
+      `Bên còn lại đã phản hồi khiếu nại đơn ${order.code}. Quản trị viên sẽ xem xét và ra phán quyết.`,
+      'DISPUTE',
+    );
+    await this.notifyAdmins(
+      'Khiếu nại đã có phản hồi',
+      `Khiếu nại đơn thuê ${order.code} đã có phản hồi, có thể phán quyết.`,
+      notificationLinks.adminDispute(dispute._id.toString()),
+    );
+
+    return this.toPartyDispute(await this.findOrderDispute(order._id), order, actor);
+  }
+
+  private async findOrderDispute(orderId: Types.ObjectId): Promise<IDispute> {
+    const dispute = await this.disputeModel
+      .findOne({ orderType: 'rental_order', orderId })
+      .sort({ openedAt: -1 })
+      .lean();
+    if (!dispute) {
+      throw new AppError(404, 'DISPUTE_NOT_FOUND', 'Đơn thuê này chưa có khiếu nại.');
+    }
+    return dispute;
+  }
+
+  /** Khiếu nại cũ chưa có timer thì tính hạn từ lúc mở theo chính sách của đơn */
+  private async replyDueAtOf(dispute: IDispute, order: RentalOrderDoc): Promise<Date> {
+    if (dispute.timer?.dueAt) return dispute.timer.dueAt;
+    const s = withOrderPolicy(await this.settings.getRentalSettings(), order.policy);
+    return new Date(dispute.openedAt.getTime() + s.disputeReplyHours * 3_600_000);
+  }
+
+  private async toPartyDispute(
+    dispute: IDispute,
+    order: RentalOrderDoc,
+    actor: RequestActor,
+  ): Promise<PartyDisputeDto> {
+    const replyDueAt = await this.replyDueAtOf(dispute, order);
+    const isRespondent = dispute.respondentId.equals(actor.userId);
+    return {
+      id: dispute._id.toString(),
+      code: dispute.code,
+      status: dispute.status,
+      reason: dispute.reason,
+      description: dispute.description,
+      claimant: dispute.claimantId.equals(order.renterId) ? 'renter' : 'owner',
+      viewerRole: isRespondent ? 'respondent' : 'claimant',
+      evidencePhotos: disputeEvidencePhotos(dispute, order),
+      openedAt: dispute.openedAt,
+      replyDueAt,
+      canRespond:
+        isRespondent &&
+        dispute.status === 'open' &&
+        !dispute.response &&
+        this.clock.now().getTime() < replyDueAt.getTime(),
+      response: dispute.response ?? undefined,
+      resolvedAt: dispute.resolvedAt ?? undefined,
+    };
   }
 }

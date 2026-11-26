@@ -2,6 +2,7 @@ import { Baby, MapPin, ShieldCheck, ToyBrick } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useRevealOnScroll } from '../../../hooks/use-reveal-on-scroll'
+import { RatingSummaryText } from '../../reviews/components/star-rating'
 import { toyDetailPath } from '../../../routes/paths'
 import { formatVnd } from '../../toy-listings/format-vnd'
 import { conditionLevel, formatAgeRange, formatPostedAgo } from '../catalog-search-params'
@@ -108,6 +109,7 @@ export function ToyCard({ toy, index, distanceKm }: ToyCardProps) {
           <p className="catalog-card__price">
             <strong>{toy.listingType === 'donate' ? 'Miễn phí' : formatVnd(toy.priceOrRate)}</strong>
             {toy.listingType === 'rent' && <span>/ngày</span>}
+            {toy.listingType === 'rent' && <RatingSummaryText rating={toy.rating} compact />}
           </p>
           <PriceNote toy={toy} />
 

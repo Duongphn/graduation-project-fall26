@@ -84,20 +84,38 @@ function EvidenceBlock({ title, at, photos, text }: { title: string; at?: string
   )
 }
 
-/** Evidence of both sides, side by side (R03 III.7.4.1 fields 2–4). */
+/**
+ * Evidence of both sides, side by side (R03 III.7.4.1 fields 2–4). The claim sits with the party who
+ * opened it (Owner: damage found on return; Renter: problem found on receipt, UC17) and the reply
+ * (UC18) with the other party.
+ */
 export function DisputeEvidence({ dispute }: { dispute: DisputeDetail }) {
-  const { handover, returnInfo, settlement } = dispute.rentalOrder
+  const { handover, returnInfo } = dispute.rentalOrder
+  const claim = (
+    <EvidenceBlock
+      title={dispute.claimant === 'owner' ? 'Ảnh hư hỏng khi nhận lại' : 'Khiếu nại khi nhận đồ'}
+      at={dispute.openedAt}
+      photos={dispute.evidencePhotos}
+      text={dispute.description}
+    />
+  )
+  const reply = dispute.response ? (
+    <EvidenceBlock
+      title="Phản hồi khiếu nại"
+      at={dispute.response.respondedAt}
+      photos={dispute.response.photos}
+      text={dispute.response.message}
+    />
+  ) : (
+    <Typography.Text type="secondary">Chưa phản hồi khiếu nại.</Typography.Text>
+  )
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card title="Bằng chứng của chủ đồ" size="small">
         <div className="flex flex-col gap-4">
           <EvidenceBlock title="Ảnh lúc giao đồ" at={handover?.shippedAt} photos={handover?.ownerPhotos} />
-          <EvidenceBlock
-            title="Ảnh hư hỏng khi nhận lại"
-            at={settlement?.settledAt}
-            photos={settlement?.evidencePhotos}
-            text={dispute.description}
-          />
+          {dispute.claimant === 'owner' ? claim : reply}
         </div>
       </Card>
       <Card title="Bằng chứng của người thuê" size="small">
@@ -108,7 +126,10 @@ export function DisputeEvidence({ dispute }: { dispute: DisputeDetail }) {
             photos={handover?.renterPhotos}
             text={handover?.autoConfirmed ? 'Hệ thống tự xác nhận nhận hàng (người thuê không gửi ảnh).' : undefined}
           />
-          <EvidenceBlock title="Ảnh lúc trả đồ" at={returnInfo?.requestedAt} photos={returnInfo?.photos} text={returnInfo?.note} />
+          {returnInfo && (
+            <EvidenceBlock title="Ảnh lúc trả đồ" at={returnInfo.requestedAt} photos={returnInfo.photos} text={returnInfo.note} />
+          )}
+          {dispute.claimant === 'renter' ? claim : reply}
         </div>
       </Card>
     </div>

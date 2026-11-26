@@ -10,6 +10,9 @@ import { RentalFinancialBreakdown } from '../features/rentals/components/rental-
 import { RentalPeriod, RentalStatusBadge, RentalThumb } from '../features/rentals/components/rental-parts'
 import { RentalTimeline } from '../features/rentals/components/rental-timeline'
 import { RentalCancelAction } from '../features/rentals/components/rental-cancel-action'
+import { RentalComplaintPanel } from '../features/rentals/components/rental-complaint-panel'
+import { RentalDisputePanel } from '../features/rentals/components/rental-dispute-panel'
+import { RentalReviewPanel } from '../features/reviews/components/rental-review-panel'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
@@ -239,11 +242,17 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
     text = isOwner
       ? 'Tiền thuê sau phí nền tảng (cộng phí trả trễ nếu có) đã vào ví của bạn. Xem chi tiết ở mục Quyết toán.'
       : `${formatVnd(refund)} tiền cọc đã được hoàn vào ví của bạn. Cảm ơn bạn đã giữ gìn đồ chơi.`
+  } else if (order.status === 'DISPUTING' && !order.settlement) {
+    // Người thuê khiếu nại khi nhận đồ (UC17): đơn chưa qua quyết toán
+    title = isRenter ? 'Đã gửi khiếu nại' : 'Người thuê khiếu nại tình trạng đồ chơi'
+    text = isRenter
+      ? 'Chủ đồ có 72 giờ để phản hồi, sau đó quản trị viên ToyFlow xem ảnh của hai bên rồi quyết định phần tiền thuê.'
+      : 'Xem nội dung khiếu nại và gửi phản hồi kèm ảnh trong 72 giờ. Tiền thuê và tiền cọc được giữ đến khi có phán quyết.'
   } else if (order.status === 'DISPUTING') {
     title = isOwner ? 'Đã mở khiếu nại hư hỏng' : 'Chủ đồ báo đồ chơi bị hư hỏng'
     text = isOwner
       ? 'Quản trị viên ToyFlow sẽ xem ảnh lúc giao, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền cọc.'
-      : 'Tiền thuê và tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp lúc nhận và lúc trả là căn cứ bảo vệ bạn.'
+      : 'Tiền thuê và tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Bạn có 72 giờ để phản hồi kèm ảnh lúc nhận và lúc trả.'
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
@@ -364,6 +373,8 @@ export function RentalRequestDetailPage() {
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
               <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              {/* UC17: trong 24 giờ đầu sau khi nhận, người thuê báo đồ có vấn đề */}
+              {isRenter && order.status === 'IN_USE' && <RentalComplaintPanel order={order} now={now} />}
               {(isOwner || isRenter) && (
                 <>
                   <RentalCancelAction order={order} role={isOwner ? 'owner' : 'renter'} now={now} />
@@ -378,6 +389,16 @@ export function RentalRequestDetailPage() {
             </aside>
 
             <div className="rental-detail__main">
+              {/* Đơn hoàn tất: việc còn lại của cả hai bên là đánh giá nhau */}
+              {order.status === 'COMPLETED' && (isOwner || isRenter) && (
+                <RentalReviewPanel order={order} isRenter={isRenter} now={now} />
+              )}
+
+              {/* Khiếu nại (UC17–UC19): nội dung hai bên và form phản hồi; vẫn hiện sau phán quyết để xem lại */}
+              {(isOwner || isRenter) && (order.status === 'DISPUTING' || order.settlement?.resolution) && (
+                <RentalDisputePanel orderId={order.id} now={now} />
+              )}
+
               <section className="rental-block" aria-labelledby="period-title">
                 <h2 id="period-title" className="rental-section-title">
                   Thời gian thuê

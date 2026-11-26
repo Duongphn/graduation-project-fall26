@@ -1,6 +1,7 @@
 import 'multer';
 import mongoose, { type HydratedDocument, type Model } from 'mongoose';
 import type { RequestActor } from '../types/request-actor.js';
+import { toRatingSummary } from './review.mapper.js';
 import { AppError } from '../utils/app-error.js';
 import type { ToyImageStorage } from '../interfaces/toy-listing.ports.js';
 import { validateToyImage } from '../utils/image-validation.js';
@@ -123,6 +124,7 @@ export class ToyListingService {
       ...(doc.location ? { location: doc.location } : {}),
       ...(doc.moderation ? { moderation: toOwnerModerationView(doc.moderation) } : {}),
       ...(doc.safetyDeclaredAt ? { safetyDeclaredAt: doc.safetyDeclaredAt } : {}),
+      rating: toRatingSummary(doc.rating),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };

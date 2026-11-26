@@ -5,6 +5,7 @@ import {
   rulingUpholdsClaim,
 } from '../constants/dispute-ruling.js';
 import { type RentalOrderStatus } from '../constants/rental-order-status.js';
+import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 import { type IDispute } from '../models/dispute.model.js';
 import { type IRentalOrder } from '../models/rental-order.model.js';
 import {
@@ -35,6 +36,15 @@ const rulingLabels: Record<DisputeRuling, string> = {
 const vnd = (amount: number) => `${amount.toLocaleString('vi-VN')} VND`;
 
 const notFound = () => new AppError(404, 'DISPUTE_NOT_FOUND', 'Không tìm thấy khiếu nại.');
+
+/**
+ * Ảnh bằng chứng của bên khiếu nại: người thuê gửi kèm khiếu nại (lưu trên Dispute), chủ đồ gửi khi
+ * quyết toán Hư hỏng (lưu ở settlement của đơn).
+ */
+export const disputeEvidencePhotos = (
+  dispute: Pick<IDispute, 'evidencePhotos'>,
+  order: Pick<IRentalOrder, 'settlement'>,
+): ToyImage[] => dispute.evidencePhotos ?? order.settlement?.evidencePhotos ?? [];
 
 /**
  * Admin giải quyết khiếu nại đơn thuê (UC19): danh sách, hồ sơ bằng chứng hai bên và phán quyết.
@@ -190,6 +200,8 @@ export class RentalDisputeService extends RentalOrderCore {
     return {
       ...this.toListItem(dispute, order, settings, users, toys),
       description: dispute.description,
+      evidencePhotos: disputeEvidencePhotos(dispute, order),
+      response: dispute.response ?? undefined,
       rentalOrder: toRentalOrderDto(order),
       history: history.map((h) => ({
         oldStatus: (h.oldStatus as RentalOrderStatus) ?? undefined,
@@ -260,8 +272,8 @@ export class RentalDisputeService extends RentalOrderCore {
     const now = this.clock.now();
     const settings = await this.settings.getRentalSettings();
     const replyDueAt = this.replyDueAt(dispute, settings);
-    // UC19: chỉ quyết định khi bên kia đã phản hồi hoặc hết 72 giờ (chưa có bước phản hồi, UC18)
-    if (now.getTime() < replyDueAt.getTime()) {
+    // UC19: chỉ quyết định khi bên kia đã phản hồi (UC18) hoặc đã hết 72 giờ phản hồi
+    if (!dispute.response && now.getTime() < replyDueAt.getTime()) {
       throw new AppError(
         409,
         'DISPUTE_REPLY_PENDING',

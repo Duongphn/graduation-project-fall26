@@ -28,6 +28,7 @@ export interface IToy {
   bookingVersion: number;
   // UC33: a new donation post sent to an organization (donation flow only).
   donationTarget?: ToyDonationTarget | undefined;
+  rating?: { sum: number; count: number };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -118,6 +119,11 @@ export const toySchema = new Schema<IToy>(
         { _id: false },
       ),
       default: undefined,
+    },
+    // Tổng và số lượt điểm đồ chơi người thuê chấm; trung bình = sum / count
+    rating: {
+      sum: { type: Number, default: 0 },
+      count: { type: Number, default: 0 },
     },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },

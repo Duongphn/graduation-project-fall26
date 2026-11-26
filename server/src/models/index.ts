@@ -15,6 +15,7 @@ export { Payment } from './payment.model.js';
 export { PurchaseOrder, type IPurchaseOrder } from './purchase-order.model.js';
 export { RefreshToken, type IRefreshToken } from './refresh-token.model.js';
 export { RentalOrder, type IRentalOrder, type RentalOrderDoc } from './rental-order.model.js';
+export { Review, type IReview, type ReviewDirection } from './review.model.js';
 export { SystemSetting, type ISystemSetting } from './system-setting.model.js';
 export { Toy, type IToy } from './toy.model.js';
 export { User, type IUser } from './user.model.js';

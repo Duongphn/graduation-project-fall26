@@ -24,6 +24,10 @@ export interface RentalSettings {
   bookingWindowDays: number;
   /** Hạn bên bị khiếu nại phản hồi trước khi Admin quyết định (GB-24) */
   disputeReplyHours: number;
+  /** Người thuê báo đồ có vấn đề trong số giờ này kể từ lúc nhận đồ (UC17) */
+  renterComplaintHours: number;
+  /** Số ngày sau khi quyết toán mà hai bên còn được đánh giá nhau */
+  reviewWindowDays: number;
 }
 
 export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
@@ -40,6 +44,8 @@ export const DEFAULT_RENTAL_SETTINGS: RentalSettings = {
   maxDays: 30,
   bookingWindowDays: 180,
   disputeReplyHours: 72,
+  renterComplaintHours: 24,
+  reviewWindowDays: 14,
 };
 
 /**
@@ -53,6 +59,7 @@ export const RENTAL_POLICY_FIELDS = [
   'settlementHours',
   'returnReminderHours',
   'disputeReplyHours',
+  'renterComplaintHours',
   'lateFeeMultiplier',
 ] as const satisfies readonly (keyof RentalSettings)[];
 
@@ -123,11 +130,12 @@ export interface RentalOrderDto {
     lateDays: number;
     lateFee: number;
   } | undefined;
+  /** Có khi chủ đồ quyết toán, hoặc chỉ có `resolution` khi Admin phán quyết khiếu nại của người thuê */
   settlement?: {
-    result: 'GOOD' | 'DAMAGED';
+    result?: 'GOOD' | 'DAMAGED' | undefined;
     evidencePhotos?: ToyImage[] | undefined;
     description?: string | undefined;
-    settledAt: Date;
+    settledAt?: Date | undefined;
     autoSettled?: boolean | undefined;
     disputeId?: string | undefined;
     resolution?: RentalRulingSummary | undefined;

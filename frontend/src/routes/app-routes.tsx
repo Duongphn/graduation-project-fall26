@@ -21,6 +21,7 @@ import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
+import { MyReviewsPage } from '../pages/my-reviews-page'
 import { NotificationsPage } from '../pages/notifications-page'
 import { ProfilePage } from '../pages/profile-page'
 import { PrivacyPage } from '../pages/privacy-page'
@@ -445,6 +446,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <RentalOrdersListPage role="renter" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.myReviews,
+    element: (
+      <RequireAuth>
+        <MyReviewsPage />
       </RequireAuth>
     ),
   },

@@ -63,13 +63,14 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
             lateFee: doc.returnInfo.lateFee ?? 0,
           }
         : undefined,
+    // Khiếu nại của người thuê không qua quyết toán: settlement chỉ có resolution sau phán quyết
     settlement:
-      doc.settlement && doc.settlement.settledAt
+      doc.settlement && (doc.settlement.settledAt || doc.settlement.resolution)
         ? {
-            result: doc.settlement.result,
+            result: doc.settlement.result ?? undefined,
             evidencePhotos: doc.settlement.evidencePhotos ?? undefined,
             description: doc.settlement.description ?? undefined,
-            settledAt: doc.settlement.settledAt,
+            settledAt: doc.settlement.settledAt ?? undefined,
             autoSettled: doc.settlement.autoSettled ?? undefined,
             disputeId: doc.settlement.disputeId?.toString() ?? undefined,
             resolution: doc.settlement.resolution ?? undefined,

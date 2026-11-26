@@ -44,6 +44,7 @@ describe('UC05 Toy Catalog API', () => {
     category: { id: '64b000000000000000000099', name: 'Building Toys', slug: 'building-toys' },
     ageRange: { minAge: 8, maxAge: 14 },
     condition: 'like_new',
+    rating: { average: 4.5, count: 2 },
     location: { type: 'Point', coordinates: [106.66, 10.76] },
     createdAt: '2026-10-14T00:00:00.000Z',
   };
@@ -59,6 +60,7 @@ describe('UC05 Toy Catalog API', () => {
     category: { id: '64b000000000000000000099', name: 'Building Toys', slug: 'building-toys' },
     ageRange: { minAge: 8, maxAge: 14 },
     condition: 'like_new',
+    rating: { average: 4.5, count: 2 },
     location: { type: 'Point', coordinates: [106.66, 10.76] },
     owner: { id: '64b000000000000000000088', displayName: 'Nguyen Van A' },
     createdAt: '2026-10-14T00:00:00.000Z',
@@ -268,6 +270,7 @@ const fakeReadPort: ToyCatalogReadPort = {
           category: { id: '64b000000000000000000099', name: 'Lắp ráp', slug: 'lap-rap' },
           ageRange: { minAge: 6, maxAge: 12 },
           condition: 'like_new',
+          rating: { average: null, count: 0 },
           owner: { id: '64b000000000000000000088', displayName: 'A' },
           createdAt: '2026-10-14T00:00:00.000Z',
           updatedAt: '2026-10-14T00:00:00.000Z',
@@ -301,6 +304,7 @@ function makeToy(overrides: Partial<FakeToy> = {}): FakeToy {
     ageRange: { minAge: 3, maxAge: 8 },
     images: [],
     createdAt: new Date(NOW.getTime() - sequence * 60_000),
+    rating: { average: null, count: 0 },
     status: 'active',
     ...overrides,
   };
@@ -328,6 +332,7 @@ function createFakeRepository(toys: FakeToy[]): ToyCatalogRepository {
     ageRange: toy.ageRange,
     images: toy.images,
     createdAt: toy.createdAt,
+    rating: toy.rating,
   });
 
   return {

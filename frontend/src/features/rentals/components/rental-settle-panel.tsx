@@ -267,7 +267,12 @@ export function RentalSettlementRecord({ order, isOwner }: { order: RentalOrderD
         <p className="rental-settle__verdict is-damaged">
           <Scale aria-hidden />
           <span>
-            <strong>Quản trị viên đã giải quyết khiếu nại hư hỏng</strong>
+            <strong>
+              {/* Khiếu nại của chủ đồ đi qua quyết toán Hư hỏng; của người thuê thì không có result */}
+              {settlement.result === 'DAMAGED'
+                ? 'Quản trị viên đã giải quyết khiếu nại hư hỏng'
+                : 'Quản trị viên đã giải quyết khiếu nại của người thuê'}
+            </strong>
             <time dateTime={resolution.resolvedAt}>{formatDateTime(resolution.resolvedAt)}</time>
           </span>
         </p>
@@ -291,10 +296,12 @@ export function RentalSettlementRecord({ order, isOwner }: { order: RentalOrderD
         {good ? <BadgeCheck aria-hidden /> : <Scale aria-hidden />}
         <span>
           <strong>{good ? 'Đồ chơi còn tốt' : 'Chủ đồ báo hư hỏng, đang khiếu nại'}</strong>
-          <time dateTime={settlement.settledAt}>
-            {formatDateTime(settlement.settledAt)}
-            {settlement.autoSettled && ' · hệ thống tự quyết toán vì hết hạn kiểm tra'}
-          </time>
+          {settlement.settledAt && (
+            <time dateTime={settlement.settledAt}>
+              {formatDateTime(settlement.settledAt)}
+              {settlement.autoSettled && ' · hệ thống tự quyết toán vì hết hạn kiểm tra'}
+            </time>
+          )}
         </span>
       </p>
 
