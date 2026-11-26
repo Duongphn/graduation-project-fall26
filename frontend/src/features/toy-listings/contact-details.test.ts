@@ -12,6 +12,11 @@ describe('hasBlockedContactDetails (GB-11)', () => {
       'Zalo 091.234.5678',
       'Gọi +84 912 345 678',
       'Máy bàn 024 3826 1234',
+      // E2E 26/11 #10: nhiều dấu cách, chấm hoặc gạch giữa các nhóm
+      'Gọi 0912  345  678',
+      'Gọi 0912 - 345 - 678',
+      'Zalo +84  912  345  678',
+      'Năm 2023 - 0912 - 345 - 678',
       'Hỏi qua be.na@gmail.com',
       'Xem thêm https://shopee.vn/lego-123',
       'Trang www.facebook.com/do-choi',
@@ -30,6 +35,10 @@ describe('hasBlockedContactDetails (GB-11)', () => {
       'Số seri 2023 0915 1234 trên đế xe',
       'Giá mua 1.250.000đ, kích thước 120 x 60 x 45 cm',
       'Awww.cute, bé rất thích',
+      'Giá 84.000 - 120.000đ, size 0 - 3 tuổi',
+      'Thuê từ 18-11-2026 - 25-11-2026',
+      'Giờ hẹn 08.30 - 10.30 - 12',
+      'Giá 1 500 000 - 2 000 000 đ',
     ]) {
       expect(hasBlockedContactDetails(text), text).toBe(false)
     }

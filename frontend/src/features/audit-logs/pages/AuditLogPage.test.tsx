@@ -202,6 +202,40 @@ describe('AuditLogPage (UC31)', () => {
     expect(screen.getByText('Hoàn tiền sự cố')).toBeInTheDocument()
   })
 
+  // E2E 26/11 #14: withdrawal entries and their group filter are in Vietnamese, not raw keys.
+  it('shows a withdrawal entry and its group filter with Vietnamese labels', async () => {
+    list.mockResolvedValue({
+      items: [
+        {
+          id: '7',
+          action: 'withdrawal.reject',
+          actor: { id: ADMIN_ID, fullName: 'Admin Một' },
+          targetType: 'WITHDRAWAL_REQUEST',
+          targetId: '64b0000000000000000000ee',
+          details: { code: 'RT-20261126-0001', amount: 300000, userId: '64b0000000000000000000dd', notes: 'Sai số tài khoản' },
+          ipAddress: '10.0.0.1',
+          createdAt: '2026-11-26T07:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    })
+    filters.mockResolvedValue({ actions: ['withdrawal.complete', 'withdrawal.reject'], actors: [] })
+    renderAt('/admin/audit-logs')
+
+    expect(await screen.findByText('Từ chối lệnh rút tiền (hoàn tiền vào ví)')).toBeInTheDocument()
+    expect(screen.getByText('Lệnh rút tiền')).toBeInTheDocument()
+    for (const label of ['Mã lệnh rút:', 'Số tiền:', 'Mã người dùng:', 'Ghi chú:']) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
+    expect(screen.getByText('RT-20261126-0001')).toBeInTheDocument()
+    expect(screen.getByText('Sai số tài khoản')).toBeInTheDocument()
+    expect(screen.queryByText(/^(code|userId|notes):$/)).not.toBeInTheDocument()
+
+    await userEvent.setup().click(await screen.findByRole('combobox', { name: 'Loại thao tác' }))
+    expect(await screen.findByTitle('Rút tiền (tất cả)')).toBeInTheDocument()
+    expect(screen.queryByTitle('withdrawal (tất cả)')).not.toBeInTheDocument()
+  })
+
   it('sends the filters of the URL (actor, action area, time range) to the API', async () => {
     const from = '2026-11-01T00:00:00.000Z'
     const to = '2026-11-18T23:59:59.999Z'

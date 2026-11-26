@@ -168,13 +168,13 @@ export class RentalSystemService extends RentalOrderCore {
           updated,
           'renter',
           'Đơn thuê đã hết hạn thanh toán',
-          `Thời hạn ${s.paymentHours} giờ thanh toán đã hết. Đơn thuê đã bị hủy.`,
+          `Thời hạn ${s.paymentHours} giờ thanh toán đã hết. Đơn thuê đã hết hạn.`,
         );
         await this.notifyParty(
           updated,
           'owner',
           'Đơn thuê đã hết hạn thanh toán',
-          `Người thuê đã không thanh toán đơn thuê trong vòng ${s.paymentHours} giờ. Đơn thuê đã bị hủy.`,
+          `Người thuê đã không thanh toán đơn thuê trong vòng ${s.paymentHours} giờ. Đơn thuê đã hết hạn.`,
         );
       }
     } catch (err) {

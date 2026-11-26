@@ -27,7 +27,7 @@ export interface TransactionFilter {
   /** reference.kind, e.g. rental_order or payment */
   kind?: string | undefined;
   direction?: 'credit' | 'debit' | undefined;
-  /** createdAt range, both ends included */
+  /** createdAt range by calendar day in Viet Nam (UTC+7), both days included */
   startDate?: Date | undefined;
   endDate?: Date | undefined;
 }

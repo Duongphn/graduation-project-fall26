@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
 import { computeFinancialBreakdown } from '../../src/services/rental-financial-breakdown.js';
+import { rulingSplit } from '../../src/services/rental-pricing.js';
 import type { IRentalOrder } from '../../src/models/rental-order.model.js';
 
 const baseOrder: IRentalOrder = {
@@ -242,6 +243,162 @@ describe('computeFinancialBreakdown', () => {
       const ownerRes = computeFinancialBreakdown(expiredOrder, 'owner');
       expect(ownerRes.payoutStatus).toBe('CANCELLED');
       expect(ownerRes.items.netEarnings).toBe(0);
+    });
+  });
+
+  // E2E 26/11 bug 2: a paid order cancelled later shows the refund and the cancel fee (cancel ledger)
+  describe('CANCELLED after payment with a cancel fee', () => {
+    const cancelled = (fee: number): IRentalOrder => ({
+      ...baseOrder,
+      status: 'CANCELLED',
+      cancellation: {
+        by: fee > 0 ? 'RENTER' : 'OWNER',
+        userId: new Types.ObjectId(),
+        reason: 'Đổi kế hoạch',
+        fee,
+        cancelledAt: new Date('2026-11-18'),
+      },
+    });
+
+    it('renter: paid, rent refunded minus the fee, deposit back; owner receives the fee', () => {
+      // Without the status history the fee alone shows the order was paid
+      const renter = computeFinancialBreakdown(cancelled(60_000), 'renter');
+      expect(renter.settlementStatus).toBe('REFUNDED');
+      expect(renter.items).toMatchObject({
+        rentalFee: 300_000,
+        depositPaid: 500_000,
+        depositRefunded: 500_000,
+        rentRefunded: 240_000,
+        cancelFee: 60_000,
+        totalRefunded: 740_000,
+        totalActualCost: 60_000,
+      });
+      expect(renter.summary.description).toContain('740.000');
+      expect(renter.summary.description).toContain('60.000');
+      expect(renter.summary.description).not.toContain('đầy đủ');
+
+      const owner = computeFinancialBreakdown(cancelled(60_000), 'owner');
+      expect(owner.payoutStatus).toBe('PAID_OUT');
+      expect(owner.items).toMatchObject({ cancelFee: 60_000, netEarnings: 60_000, platformFee: 0 });
+      expect(owner.summary.description).toContain('60.000');
+
+      const admin = computeFinancialBreakdown(cancelled(60_000), 'admin');
+      expect(admin.platformRevenue).toBe(0);
+      expect(admin.items.escrowBalance).toBe(0);
+    });
+
+    it('owner cancel without fee: paid status comes from the history (wasPaid)', () => {
+      const unknown = computeFinancialBreakdown(cancelled(0), 'renter');
+      expect(unknown.settlementStatus).toBe('CANCELLED');
+
+      const renter = computeFinancialBreakdown(cancelled(0), 'renter', { wasPaid: true });
+      expect(renter.settlementStatus).toBe('REFUNDED');
+      expect(renter.items).toMatchObject({
+        depositPaid: 500_000,
+        depositRefunded: 500_000,
+        rentRefunded: 300_000,
+        cancelFee: 0,
+        totalRefunded: 800_000,
+        totalActualCost: 0,
+      });
+      const owner = computeFinancialBreakdown(cancelled(0), 'owner', { wasPaid: true });
+      expect(owner.payoutStatus).toBe('CANCELLED');
+      expect(owner.items.netEarnings).toBe(0);
+    });
+
+    it('a fee above the rent is taken from the deposit (clamped to what was paid)', () => {
+      const renter = computeFinancialBreakdown(cancelled(350_000), 'renter');
+      expect(renter.items).toMatchObject({ rentRefunded: 0, depositRefunded: 450_000, totalRefunded: 450_000 });
+      const huge = computeFinancialBreakdown(cancelled(900_000), 'renter');
+      expect(huge.items).toMatchObject({ cancelFee: 800_000, totalRefunded: 0, depositRefunded: 0 });
+    });
+  });
+
+  // E2E 26/11 bug 3: after a dispute ruling the breakdown follows settlement.resolution
+  describe('COMPLETED by a dispute ruling', () => {
+    const ruled = (
+      pricing: { rentalFee: number; depositAmount: number },
+      lateFee: number,
+      ruling: 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT',
+      compensation: number,
+      rentRefund: number,
+    ): IRentalOrder => {
+      const platformFeeRate = 0.1;
+      const split = rulingSplit({ ...pricing, platformFeeRate, lateFee, compensation, rentRefund });
+      return {
+        ...baseOrder,
+        pricing: {
+          ...baseOrder.pricing,
+          ...pricing,
+          platformFeeRate,
+          platformFee: Math.round(platformFeeRate * pricing.rentalFee),
+          totalPayable: pricing.rentalFee + pricing.depositAmount,
+        },
+        status: 'COMPLETED',
+        returnInfo: { requestedAt: new Date(), lateDays: lateFee > 0 ? 2 : 0, lateFee, photos: [] },
+        settlement: {
+          result: 'DAMAGED',
+          settledAt: new Date('2026-11-26'),
+          resolution: {
+            ruling,
+            compensationAmount: compensation,
+            rentRefundAmount: rentRefund,
+            ownerAmount: split.owner,
+            renterAmount: split.renter,
+            platformFee: split.platform,
+            adminDecision: 'Quyết định của quản trị viên',
+            resolvedAt: new Date('2026-11-26'),
+          },
+        },
+      };
+    };
+
+    it('E2E case: 2 days × 30k, deposit 400k, 2 days late, renter at fault 50%', () => {
+      const order = ruled({ rentalFee: 60_000, depositAmount: 400_000 }, 60_000, 'RENTER_AT_FAULT', 200_000, 0);
+
+      const renter = computeFinancialBreakdown(order, 'renter');
+      expect(renter.settlementStatus).toBe('SETTLED');
+      expect(renter.items).toMatchObject({
+        lateFee: 60_000,
+        compensation: 200_000,
+        depositRefunded: 140_000,
+        totalRefunded: 140_000,
+        totalActualCost: 320_000,
+      });
+      expect(renter.summary.description).toContain('140.000');
+
+      const owner = computeFinancialBreakdown(order, 'owner');
+      expect(owner.items).toMatchObject({
+        grossRentalFee: 60_000,
+        platformFee: 6_000,
+        lateCompensation: 60_000,
+        compensation: 200_000,
+        netEarnings: 314_000,
+      });
+      expect(owner.summary.description).toContain('314.000');
+
+      const admin = computeFinancialBreakdown(order, 'admin');
+      expect(admin.platformRevenue).toBe(6_000);
+      expect(admin.items.netEarnings).toBe(314_000);
+    });
+
+    it('owner at fault 100%: rent back to the renter, the platform keeps nothing', () => {
+      const order = ruled({ rentalFee: 300_000, depositAmount: 500_000 }, 0, 'OWNER_AT_FAULT', 0, 300_000);
+
+      const renter = computeFinancialBreakdown(order, 'renter');
+      expect(renter.items).toMatchObject({
+        rentRefunded: 300_000,
+        depositRefunded: 500_000,
+        totalRefunded: 800_000,
+        totalActualCost: 0,
+      });
+
+      const owner = computeFinancialBreakdown(order, 'owner');
+      expect(owner.items).toMatchObject({ rentRefund: 300_000, platformFee: 0, netEarnings: 0 });
+
+      const admin = computeFinancialBreakdown(order, 'admin');
+      expect(admin.platformRevenue).toBe(0);
+      expect(admin.items.platformRevenue).toBe(0);
     });
   });
 

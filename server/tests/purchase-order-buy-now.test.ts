@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
-import { Category, Toy } from '../src/models/index.js';
-import { authHeader, createUser, fund } from './helpers/rental-fixtures.js';
+import { Category, PurchaseOrder, Toy } from '../src/models/index.js';
+import { authHeader, createRentToy, createUser, fund } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
 
 describe('Purchase Order Buy Now API', () => {
@@ -203,6 +203,113 @@ describe('Purchase Order Buy Now API', () => {
       expect(res2.status).toBe(409);
       expect(res2.body.error.code).toBe('TOY_ALREADY_SOLD');
     });
+  });
+
+  describe('POST /api/v1/purchase-orders/buy-now: GB-06, wrong toy, phone form', () => {
+    const delivery = {
+      deliveryMethod: 'DELIVERY',
+      recipientName: 'Nguyễn Văn A',
+      province: 'TP. Hồ Chí Minh',
+      ward: 'Bến Nghé',
+      street: '123 Lê Lợi',
+    };
+
+    it.each(['unverified', 'pending', 'rejected'])(
+      'GB-06: tài khoản %s không mua được, ví và tin không đổi',
+      async (verificationStatus) => {
+        const seller = await createUser();
+        const buyer = await createUser({ verificationStatus });
+        const toy = await createSellToy(seller.id, 100_000);
+        await fund(buyer.id, 500_000);
+
+        const res = await request(app)
+          .post('/api/v1/purchase-orders/buy-now')
+          .set(authHeader(buyer.id))
+          .send({ toyId: toy.id, deliveryMethod: 'LOCAL_PICKUP' });
+
+        expect(res.status).toBe(403);
+        expect(res.body.error.code).toBe('USER_NOT_VERIFIED');
+        expect(await PurchaseOrder.countDocuments()).toBe(0);
+        const after = await Toy.findById(toy.id);
+        expect(after?.status).toBe('active');
+        expect(after?.quantity).toBe(1);
+      },
+    );
+
+    it('tin cho thuê: 400 INVALID_LISTING_TYPE như /quote, tin không bị khoá', async () => {
+      const owner = await createUser();
+      const buyer = await createUser();
+      const rentToy = await createRentToy(owner._id);
+      await fund(buyer.id, 500_000);
+
+      const res = await request(app)
+        .post('/api/v1/purchase-orders/buy-now')
+        .set(authHeader(buyer.id))
+        .send({ toyId: rentToy.id, deliveryMethod: 'LOCAL_PICKUP' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_LISTING_TYPE');
+      expect((await Toy.findById(rentToy.id))?.status).toBe('active');
+    });
+
+    it('toyId không tồn tại hoặc tin chưa duyệt: 404 TOY_NOT_FOUND', async () => {
+      const seller = await createUser();
+      const buyer = await createUser();
+      const pending = await createSellToy(seller.id);
+      await Toy.updateOne({ _id: pending._id }, { $set: { status: 'pending' } });
+      await fund(buyer.id, 500_000);
+
+      for (const toyId of [new mongoose.Types.ObjectId().toString(), pending.id]) {
+        const res = await request(app)
+          .post('/api/v1/purchase-orders/buy-now')
+          .set(authHeader(buyer.id))
+          .send({ toyId, deliveryMethod: 'LOCAL_PICKUP' });
+        expect(res.status).toBe(404);
+        expect(res.body.error.code).toBe('TOY_NOT_FOUND');
+      }
+    });
+
+    it.each([
+      ['+84 933 000 003', '0933000003'],
+      ['+84933000003', '0933000003'],
+      ['84933000003', '0933000003'],
+      ['0933.000.003', '0933000003'],
+      ['  0933-000-003  ', '0933000003'],
+      ['0933000003', '0933000003'],
+    ])('SĐT người nhận "%s" được lưu dạng %s', async (typed, stored) => {
+      const seller = await createUser();
+      const buyer = await createUser();
+      const toy = await createSellToy(seller.id, 100_000);
+      await fund(buyer.id, 500_000);
+
+      const res = await request(app)
+        .post('/api/v1/purchase-orders/buy-now')
+        .set(authHeader(buyer.id))
+        .send({ toyId: toy.id, ...delivery, recipientPhone: typed });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.deliveryInfo.recipientPhone).toBe(stored);
+      const order = await PurchaseOrder.findById(res.body.data.id).lean();
+      expect(order?.deliveryInfo?.recipientPhone).toBe(stored);
+    });
+
+    it.each(['0933 000', '+85 933 000 003', '09330000031', '0|33000003'])(
+      'SĐT người nhận sai "%s": 400, không tạo đơn',
+      async (typed) => {
+        const seller = await createUser();
+        const buyer = await createUser();
+        const toy = await createSellToy(seller.id, 100_000);
+        await fund(buyer.id, 500_000);
+
+        const res = await request(app)
+          .post('/api/v1/purchase-orders/buy-now')
+          .set(authHeader(buyer.id))
+          .send({ toyId: toy.id, ...delivery, recipientPhone: typed });
+
+        expect(res.status).toBe(400);
+        expect(await PurchaseOrder.countDocuments()).toBe(0);
+      },
+    );
   });
 
   describe('GET /api/v1/purchase-orders/mine and /:orderId', () => {

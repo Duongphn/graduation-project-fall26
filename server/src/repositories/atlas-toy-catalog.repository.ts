@@ -20,6 +20,8 @@ import type {
   ToySearchQuery,
 } from '../interfaces/toy-catalog.ports.js';
 
+export const SEARCH_FAILED_MESSAGE = 'Chưa tìm được đồ chơi lúc này. Vui lòng thử lại sau.';
+
 export interface AtlasToyCatalogRepositoryDependencies {
   toyModel?: Model<IToy>;
   categoryModel?: Model<ICategory>;
@@ -309,8 +311,9 @@ export class AtlasToyCatalogRepository implements ToyCatalogReadPort {
 
       return { items, total };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new AppError(500, 'SEARCH_EXECUTION_ERROR', `Search operation failed: ${message}`);
+      // The driver message (index name, Atlas hints) is for the server log only.
+      console.error('Toy search failed.', err);
+      throw new AppError(500, 'SEARCH_EXECUTION_ERROR', SEARCH_FAILED_MESSAGE);
     }
   }
 

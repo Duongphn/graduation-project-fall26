@@ -35,12 +35,15 @@ export const resendGoogleOtpSchema = z.object({
   tempToken: z.string().min(1, 'Token tạm thời (tempToken) là bắt buộc'),
 });
 
+// Emails are trimmed before the format check, like login; the service lower-cases them.
+const emailField = () => z.string().trim().email('Email không đúng định dạng');
+
 export const devTestLoginSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
+  email: emailField(),
 });
 
 export const registerSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
+  email: emailField(),
   password: passwordField('Mật khẩu'),
   fullName: z
     .string()
@@ -48,11 +51,12 @@ export const registerSchema = z.object({
     .regex(FULL_NAME_PATTERN, 'Họ và tên chỉ gồm chữ cái và khoảng trắng, từ 2 đến 50 ký tự'),
   phone: z
     .string()
-    .regex(/^(0|\+84)[3|5|7|8|9][0-9]{8}$/, 'Số điện thoại không hợp lệ (Ví dụ: 0912345678)'),
+    .trim()
+    .regex(/^(0|\+84)[35789][0-9]{8}$/, 'Số điện thoại không hợp lệ (Ví dụ: 0912345678)'),
 });
 
 export const verifyRegistrationOtpSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
+  email: emailField(),
   otpCode: z
     .string()
     .length(6, 'Mã OTP phải có đúng 6 chữ số')
@@ -60,7 +64,7 @@ export const verifyRegistrationOtpSchema = z.object({
 });
 
 export const resendRegistrationOtpSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
+  email: emailField(),
 });
 
 export const loginSchema = z.object({
@@ -69,11 +73,11 @@ export const loginSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
+  email: emailField(),
 });
 
 export const verifyResetCodeSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
+  email: emailField(),
   otpCode: z
     .string()
     .length(6, 'Mã OTP phải có đúng 6 chữ số')

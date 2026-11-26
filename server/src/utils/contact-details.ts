@@ -10,8 +10,10 @@ import { normalizeSearchText, normalizeText } from './text.js';
 //   they only become warnings for the Admin on the moderation screen and never block a save.
 // The web form mirrors the strong tier in features/toy-listings/contact-details.ts.
 
-// Digits with at most one space, dot or dash between them, e.g. "0912 345 678", "091.234.5678".
-const DIGIT_RUN = /\+?\d(?:[\s.-]?\d){7,}/g;
+// A digit group: digits with at most one space, dot or dash between them, e.g. "0912 345 678",
+// "091.234.5678". A phone may also be split into groups with wider gaps ("0912  345  678",
+// "0912 - 345 - 678"); see scanDigitRuns.
+const DIGIT_GROUP = /\+?\d(?:[\s.-]?\d)*/g;
 // Vietnamese mobile (0 + 9 digits) or landline (0 + 10 digits), with or without the 84 prefix.
 const PHONE_DIGITS = /^(?:0|84)\d{9,10}$/;
 // An email address: "be.na@gmail.com".
@@ -26,12 +28,72 @@ const LINK =
   /(?:https?:\/\/|www\.)\S+|\b[a-z0-9][a-z0-9-]+\.(?:com|net|org|vn|info|biz|io|shop|store|online|site|xyz|link)\b/;
 const EXTERNAL_CHANNELS = /\b(?:zalo|facebook|fb|messenger|telegram|instagram|tiktok)\b/;
 
-const hasPhoneNumber = (text: string): boolean => {
-  for (const match of text.matchAll(DIGIT_RUN)) {
-    if (PHONE_DIGITS.test(match[0].replace(/\D/g, ''))) return true;
+// Groups joined by a wider gap only count as a phone when they follow the numbering plan
+// (mobile 03/05/07/08/09 + 8 digits, landline 02 + 9 digits), start like a phone ("0…", "+84…",
+// "84") and hold no date or time ("18-11-2026", "08.30"), so prices and dates stay readable.
+const GAP = /^[\s.-]+$/;
+const GAPPED_PHONE_DIGITS = /^(?:0|84)(?:[35789]\d{8}|2\d{9})$/;
+const DATE_OR_TIME = /^(?:\d{1,2}[.-]\d{1,2}(?:[.-]\d{2,4})?|\d{4}-\d{1,2}-\d{1,2})$/;
+const MAX_PHONE_DIGITS = 12;
+
+const onlyDigits = (value: string): string => value.replace(/\D/g, '');
+
+interface DigitRun {
+  start: number;
+  end: number;
+  text: string;
+  phone: boolean;
+}
+
+/** Index of the last group of the phone number that starts at groups[first], or -1. */
+const phoneEnd = (text: string, groups: DigitRun[], first: number): number => {
+  const head = groups[first]!;
+  if (PHONE_DIGITS.test(onlyDigits(head.text))) return first;
+  const startsLikePhone = /^[0+]/.test(head.text) || head.text === '84';
+  if (!startsLikePhone || DATE_OR_TIME.test(head.text)) return -1;
+
+  let digits = onlyDigits(head.text);
+  let last = -1;
+  for (let next = first + 1; next < groups.length; next += 1) {
+    const group = groups[next]!;
+    const gap = text.slice(groups[next - 1]!.end, group.start);
+    if (!GAP.test(gap) || DATE_OR_TIME.test(group.text)) break;
+    digits += onlyDigits(group.text);
+    if (digits.length > MAX_PHONE_DIGITS) break;
+    if (GAPPED_PHONE_DIGITS.test(digits)) last = next;
   }
-  return false;
+  return last;
 };
+
+/** Splits the text into digit runs; a phone number written in several groups is one run. */
+const scanDigitRuns = (text: string): DigitRun[] => {
+  const groups = [...text.matchAll(DIGIT_GROUP)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    text: match[0],
+    phone: false,
+  }));
+  const runs: DigitRun[] = [];
+  for (let index = 0; index < groups.length; ) {
+    const last = phoneEnd(text, groups, index);
+    if (last < 0) {
+      runs.push(groups[index]!);
+      index += 1;
+    } else {
+      const start = groups[index]!.start;
+      const end = groups[last]!.end;
+      runs.push({ start, end, text: text.slice(start, end), phone: true });
+      index = last + 1;
+    }
+  }
+  return runs;
+};
+
+// 9-19 digits without dots: a bank account number (prices use dots: "15.000.000").
+const isBankAccount = (run: DigitRun): boolean =>
+  !run.phone && !run.text.includes('.') && /^\d{9,19}$/.test(onlyDigits(run.text));
+
+const hasPhoneNumber = (text: string): boolean => scanDigitRuns(text).some((run) => run.phone);
 
 export interface BlockedContactFindings {
   phone: boolean;
@@ -65,15 +127,9 @@ export const findContactDetails = (text: string): ContactFindings => {
   let phone = false;
   let bankAccount = BANK_KEYWORDS.test(normalized);
 
-  for (const match of text.matchAll(DIGIT_RUN)) {
-    const run = match[0];
-    const digits = run.replace(/\D/g, '');
-    if (PHONE_DIGITS.test(digits)) {
-      phone = true;
-    } else if (!run.includes('.') && /^\d{9,19}$/.test(digits)) {
-      // Prices use dots between thousands ("15.000.000"), so a run with dots is not an account.
-      bankAccount = true;
-    }
+  for (const run of scanDigitRuns(text)) {
+    if (run.phone) phone = true;
+    else if (isBankAccount(run)) bankAccount = true;
   }
 
   return {
@@ -117,17 +173,14 @@ export const maskContactDetails = (text: string): MaskedText => {
     kinds.add('EMAIL');
     return CONTACT_MASK;
   });
-  masked = masked.replace(DIGIT_RUN, (run) => {
-    const digits = run.replace(/\D/g, '');
-    if (PHONE_DIGITS.test(digits)) {
-      kinds.add('PHONE');
-      return CONTACT_MASK;
-    }
-    if (!run.includes('.') && /^\d{9,19}$/.test(digits)) {
-      kinds.add('BANK_ACCOUNT');
-      return CONTACT_MASK;
-    }
-    return run;
-  });
-  return { text: masked, kinds: [...kinds] };
+  let result = '';
+  let cursor = 0;
+  for (const run of scanDigitRuns(masked)) {
+    const kind = run.phone ? 'PHONE' : isBankAccount(run) ? 'BANK_ACCOUNT' : undefined;
+    if (!kind) continue;
+    kinds.add(kind);
+    result += masked.slice(cursor, run.start) + CONTACT_MASK;
+    cursor = run.end;
+  }
+  return { text: result + masked.slice(cursor), kinds: [...kinds] };
 };

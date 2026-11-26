@@ -18,7 +18,19 @@ function formatCurrency(amount: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(amount)} VND`;
 }
 
-function checkIsPaid(order: IRentalOrder | RentalOrderDoc): boolean {
+/** What the caller knows beyond the order document. */
+export interface FinancialBreakdownContext {
+  /** The order reached PAID at some point (from the status history) */
+  wasPaid?: boolean | undefined;
+}
+
+function checkIsPaid(
+  order: IRentalOrder | RentalOrderDoc,
+  context: FinancialBreakdownContext,
+): boolean {
+  if (typeof context.wasPaid === 'boolean') {
+    return context.wasPaid;
+  }
   const dynamicOrder = order as unknown as { isPaid?: unknown; paid?: unknown; paidAt?: unknown };
   if (typeof dynamicOrder.isPaid === 'boolean') {
     return dynamicOrder.isPaid;
@@ -47,28 +59,55 @@ function checkIsPaid(order: IRentalOrder | RentalOrderDoc): boolean {
     return true;
   }
 
+  // A cancel fee is only charged on a paid order
+  if ((order.cancellation?.fee ?? 0) > 0) {
+    return true;
+  }
+
   return false;
+}
+
+/**
+ * The cancel ledger of a paid order (rental-order.service cancel): escrow pays back R + D, the fee
+ * goes to the owner and the rest to the renter. The fee is taken from the rent first.
+ */
+function paidCancelSplit(order: IRentalOrder | RentalOrderDoc) {
+  const rentalFee = order.pricing?.rentalFee ?? 0;
+  const depositAmount = order.pricing?.depositAmount ?? 0;
+  const total = order.pricing?.totalPayable ?? rentalFee + depositAmount;
+  const fee = Math.min(Math.max(order.cancellation?.fee ?? 0, 0), total);
+  return {
+    fee,
+    refund: total - fee,
+    rentRefunded: Math.max(0, rentalFee - fee),
+    depositRefunded: Math.max(0, depositAmount - Math.max(0, fee - rentalFee)),
+  };
 }
 
 export function computeFinancialBreakdown(
   order: IRentalOrder | RentalOrderDoc,
   role: 'renter',
+  context?: FinancialBreakdownContext,
 ): RenterFinancialBreakdownDto;
 export function computeFinancialBreakdown(
   order: IRentalOrder | RentalOrderDoc,
   role: 'owner',
+  context?: FinancialBreakdownContext,
 ): OwnerFinancialBreakdownDto;
 export function computeFinancialBreakdown(
   order: IRentalOrder | RentalOrderDoc,
   role: 'admin',
+  context?: FinancialBreakdownContext,
 ): AdminFinancialBreakdownDto;
 export function computeFinancialBreakdown(
   order: IRentalOrder | RentalOrderDoc,
   role: 'renter' | 'owner' | 'admin',
+  context?: FinancialBreakdownContext,
 ): RentalFinancialBreakdownDto;
 export function computeFinancialBreakdown(
   order: IRentalOrder | RentalOrderDoc,
   role: 'renter' | 'owner' | 'admin',
+  context: FinancialBreakdownContext = {},
 ): RentalFinancialBreakdownDto {
   const isTerminal = TERMINAL_RENTAL_STATUSES.has(order.status);
   const isEstimated = !isTerminal;
@@ -81,13 +120,20 @@ export function computeFinancialBreakdown(
     order.pricing?.platformFee ?? Math.round(rentalFee * platformFeeRate);
   const lateFee = order.returnInfo?.lateFee ?? 0;
 
-  const isPaid = checkIsPaid(order);
+  const isPaid = checkIsPaid(order, context);
   const depositPaid = isPaid ? depositAmount : 0;
+  const isCancelled =
+    order.status === 'CANCELLED' || order.status === 'REJECTED' || order.status === 'EXPIRED';
+  // Paid then cancelled: refund and fee as posted by the cancel ledger
+  const cancelSplit = isCancelled && isPaid ? paidCancelSplit(order) : undefined;
+  // Dispute ruling: the Admin's split (rulingSplit) replaces the GOOD settlement
+  const ruling = order.status === 'COMPLETED' ? order.settlement?.resolution : undefined;
 
   // 1. Renter View Calculation
   let settlementStatus: RentalSettlementStatus;
   let depositRefunded: number;
   let totalActualCost: number;
+  const renterExtras: Partial<RenterFinancialItemsDto> = {};
 
   if (order.status === 'PENDING' || order.status === 'ACCEPTED') {
     settlementStatus = 'PENDING_PAYMENT';
@@ -97,10 +143,27 @@ export function computeFinancialBreakdown(
     settlementStatus = 'DISPUTED';
     depositRefunded = 0; // frozen in escrow
     totalActualCost = rentalFee + lateFee;
-  } else if (order.status === 'CANCELLED' || order.status === 'REJECTED' || order.status === 'EXPIRED') {
-    settlementStatus = isPaid ? 'REFUNDED' : 'CANCELLED';
-    depositRefunded = isPaid ? depositPaid : 0;
-    totalActualCost = 0;
+  } else if (isCancelled) {
+    if (cancelSplit) {
+      settlementStatus = 'REFUNDED';
+      depositRefunded = cancelSplit.depositRefunded;
+      totalActualCost = cancelSplit.fee;
+      renterExtras.rentRefunded = cancelSplit.rentRefunded;
+      renterExtras.cancelFee = cancelSplit.fee;
+      renterExtras.totalRefunded = cancelSplit.refund;
+    } else {
+      settlementStatus = 'CANCELLED';
+      depositRefunded = 0;
+      totalActualCost = 0;
+    }
+  } else if (ruling) {
+    settlementStatus = 'SETTLED';
+    // renterAmount = D - L - K + G; the cost is everything paid that did not come back
+    depositRefunded = Math.max(0, depositPaid - lateFee - ruling.compensationAmount);
+    totalActualCost = rentalFee + depositPaid - ruling.renterAmount;
+    renterExtras.rentRefunded = ruling.rentRefundAmount;
+    renterExtras.compensation = ruling.compensationAmount;
+    renterExtras.totalRefunded = ruling.renterAmount;
   } else if (order.status === 'COMPLETED') {
     settlementStatus = 'SETTLED';
     depositRefunded = Math.max(0, depositPaid - lateFee);
@@ -115,7 +178,9 @@ export function computeFinancialBreakdown(
   let renterDescription: string;
   switch (settlementStatus) {
     case 'SETTLED':
-      renterDescription = `Đơn thuê đã quyết toán xong. Bạn đã thanh toán ${formatCurrency(totalActualCost)} và nhận lại ${formatCurrency(depositRefunded)} tiền cọc.`;
+      renterDescription = ruling
+        ? `Đơn thuê đã quyết toán theo phán quyết khiếu nại. Bạn được hoàn ${formatCurrency(ruling.renterAmount)} vào ví, tổng chi thực tế ${formatCurrency(totalActualCost)}.`
+        : `Đơn thuê đã quyết toán xong. Bạn đã thanh toán ${formatCurrency(totalActualCost)} và nhận lại ${formatCurrency(depositRefunded)} tiền cọc.`;
       break;
     case 'PENDING_PAYMENT':
       renterDescription = 'Đang chờ người thuê thanh toán tiền thuê và tiền cọc.';
@@ -131,7 +196,10 @@ export function computeFinancialBreakdown(
         'Đơn thuê đang trong quá trình khiếu nại. Toàn bộ tiền cọc và tiền thuê tạm thời bị đóng băng để giải quyết tranh chấp.';
       break;
     case 'REFUNDED':
-      renterDescription = 'Đơn thuê đã bị huỷ. Tiền đã được hoàn lại đầy đủ vào ví của bạn.';
+      renterDescription =
+        cancelSplit && cancelSplit.fee > 0
+          ? `Đơn thuê đã bị huỷ sau khi thanh toán. Bạn được hoàn ${formatCurrency(cancelSplit.refund)} vào ví, phí huỷ ${formatCurrency(cancelSplit.fee)} được chuyển cho chủ đồ.`
+          : `Đơn thuê đã bị huỷ sau khi thanh toán. Toàn bộ ${formatCurrency(cancelSplit?.refund ?? depositRefunded)} đã được hoàn lại vào ví của bạn.`;
       break;
     case 'CANCELLED':
       renterDescription = 'Đơn thuê đã bị huỷ trước khi thanh toán.';
@@ -144,6 +212,7 @@ export function computeFinancialBreakdown(
     lateFee,
     depositRefunded,
     totalActualCost,
+    ...renterExtras,
   };
 
   const renterSummary: FinancialBreakdownSummaryDto = {
@@ -168,6 +237,9 @@ export function computeFinancialBreakdown(
   let payoutStatus: RentalPayoutStatus;
   let lateCompensation: number;
   let netEarnings: number;
+  // What the platform actually keeps: 0 on a cancelled order, the ruling's share after a dispute
+  let ownerPlatformFee = platformFee;
+  const ownerExtras: Partial<OwnerFinancialItemsDto> = {};
 
   const grossRentalFee = rentalFee;
 
@@ -179,10 +251,20 @@ export function computeFinancialBreakdown(
     payoutStatus = 'DISPUTED';
     lateCompensation = lateFee;
     netEarnings = 0; // frozen in escrow pending resolution
-  } else if (order.status === 'CANCELLED' || order.status === 'REJECTED' || order.status === 'EXPIRED') {
-    payoutStatus = 'CANCELLED';
+  } else if (isCancelled) {
+    const fee = cancelSplit?.fee ?? 0;
+    payoutStatus = fee > 0 ? 'PAID_OUT' : 'CANCELLED';
     lateCompensation = 0;
-    netEarnings = 0;
+    netEarnings = fee;
+    ownerPlatformFee = 0;
+    ownerExtras.cancelFee = fee;
+  } else if (ruling) {
+    payoutStatus = 'PAID_OUT';
+    lateCompensation = lateFee;
+    netEarnings = ruling.ownerAmount;
+    ownerPlatformFee = ruling.platformFee;
+    ownerExtras.compensation = ruling.compensationAmount;
+    ownerExtras.rentRefund = ruling.rentRefundAmount;
   } else if (order.status === 'COMPLETED') {
     payoutStatus = 'PAID_OUT';
     lateCompensation = lateFee;
@@ -197,7 +279,13 @@ export function computeFinancialBreakdown(
   let ownerDescription: string;
   switch (payoutStatus) {
     case 'PAID_OUT':
-      ownerDescription = `Đơn thuê đã quyết toán hoàn tất. Thu nhập ${formatCurrency(netEarnings)} đã được giải ngân vào ví của bạn.`;
+      if (isCancelled) {
+        ownerDescription = `Người thuê đã huỷ đơn sau khi thanh toán. Phí huỷ ${formatCurrency(netEarnings)} đã được chuyển vào ví của bạn.`;
+      } else if (ruling) {
+        ownerDescription = `Đơn thuê đã quyết toán theo phán quyết khiếu nại. ${formatCurrency(netEarnings)} đã được chuyển vào ví của bạn.`;
+      } else {
+        ownerDescription = `Đơn thuê đã quyết toán hoàn tất. Thu nhập ${formatCurrency(netEarnings)} đã được giải ngân vào ví của bạn.`;
+      }
       break;
     case 'WAITING_PAYMENT':
       ownerDescription = 'Đang chờ người thuê thực hiện thanh toán.';
@@ -220,9 +308,10 @@ export function computeFinancialBreakdown(
   const ownerItems: OwnerFinancialItemsDto = {
     grossRentalFee,
     platformFeeRate,
-    platformFee,
+    platformFee: ownerPlatformFee,
     lateCompensation,
     netEarnings,
+    ...ownerExtras,
   };
 
   const ownerSummary: FinancialBreakdownSummaryDto = {
@@ -251,8 +340,8 @@ export function computeFinancialBreakdown(
     }
   }
 
-  // Phí nền tảng chỉ vào ví platform khi quyết toán (postSettleLedger)
-  const platformRevenue = order.status === 'COMPLETED' ? platformFee : 0;
+  // Phí nền tảng chỉ vào ví platform khi quyết toán (postSettleLedger) hoặc theo phán quyết
+  const platformRevenue = order.status === 'COMPLETED' ? ownerPlatformFee : 0;
 
   const adminItems: AdminFinancialItemsDto = {
     rentalFee,
@@ -262,7 +351,7 @@ export function computeFinancialBreakdown(
     totalActualCost,
     grossRentalFee,
     platformFeeRate,
-    platformFee,
+    platformFee: ownerPlatformFee,
     lateCompensation,
     netEarnings,
     escrowBalance,

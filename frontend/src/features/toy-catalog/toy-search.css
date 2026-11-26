@@ -90,8 +90,10 @@
 
   /* ---------- Hàng lọc nhanh: loại tin + độ tuổi ---------- */
 
+  /* One column that can shrink below its content, so the chip rows scroll inside it, not the page */
   .catalog-quick {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     margin-top: 18px;
     padding-bottom: 18px;

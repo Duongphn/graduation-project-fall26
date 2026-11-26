@@ -38,3 +38,28 @@ describe('đăng ký xong được đăng nhập (UC01 bước 5)', () => {
     expect(profile.body.data.email).toBe(email);
   });
 });
+
+// E2E 26/11 #9 and #11: the API (not only the web form) checks these inputs.
+describe('đăng ký qua API: email có dấu cách, SĐT có ký tự "|"', () => {
+  it('chấp nhận email có dấu cách đầu/cuối và lưu dạng đã trim, chữ thường', async () => {
+    const res = await api
+      .post('/api/v1/auth/register')
+      .send({ email: '  Space@Example.com ', fullName: 'Nguyen Van Moi', phone: '0912345671', password: 'Test@1234' });
+    expect(res.status).toBeLessThan(300);
+    const otp = await OtpRequest.findOne({ identifier: 'space@example.com', purpose: 'register' }).lean();
+    expect(otp).not.toBeNull();
+
+    const created = await api.post('/api/v1/auth/register/verify-otp').send({ email: ' space@example.com ', otpCode: otp!.otp_code });
+    expect(created.status).toBe(201);
+    expect(await User.exists({ email: 'space@example.com' })).not.toBeNull();
+  });
+
+  it('từ chối SĐT "0|11000012" với 400 VALIDATION_ERROR', async () => {
+    const res = await api
+      .post('/api/v1/auth/register')
+      .send({ email, fullName: 'Nguyen Van Moi', phone: '0|11000012', password: 'Test@1234' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await OtpRequest.countDocuments({ identifier: email })).toBe(0);
+  });
+});

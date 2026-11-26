@@ -225,6 +225,14 @@ export interface RenterFinancialItemsDto {
   lateFee: number;
   depositRefunded: number;
   totalActualCost: number;
+  /** Rent given back: cancel refund of a paid order or the dispute ruling's rent refund */
+  rentRefunded?: number | undefined;
+  /** Cancel fee kept from a paid order (goes to the owner) */
+  cancelFee?: number | undefined;
+  /** Damage compensation taken from the deposit by a dispute ruling */
+  compensation?: number | undefined;
+  /** Everything credited back to the renter's wallet (cancel or ruling) */
+  totalRefunded?: number | undefined;
 }
 
 export interface OwnerFinancialItemsDto {
@@ -233,6 +241,12 @@ export interface OwnerFinancialItemsDto {
   platformFee: number;
   lateCompensation: number;
   netEarnings: number;
+  /** Cancel fee received when the renter cancelled a paid order; set on cancelled orders */
+  cancelFee?: number | undefined;
+  /** Damage compensation received by a dispute ruling */
+  compensation?: number | undefined;
+  /** Rent given back to the renter by a dispute ruling */
+  rentRefund?: number | undefined;
 }
 
 export interface AdminFinancialItemsDto {

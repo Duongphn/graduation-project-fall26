@@ -171,7 +171,7 @@ export class RentalOrderRepository {
         toySummary = {
           id: toyDoc._id.toString(),
           name: toyDoc.title,
-          slug: (toyDoc as any).slug || slugify(toyDoc.title, { fallback: 'toy' }),
+          slug: (toyDoc as { slug?: string }).slug || slugify(toyDoc.title, { fallback: 'toy' }),
           primaryImage: images[0]?.url,
           images,
           dailyRate: toyDoc.priceOrRate,

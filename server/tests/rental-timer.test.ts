@@ -123,11 +123,19 @@ describe('UC12: Rental Timers and Scheduler', () => {
 
     // Advance 12h
     clock.advanceHours(12);
+    notifier.sent.length = 0;
     const run = await timerService.runDue();
     expect(run.processed).toBe(1);
 
     const checkOrder = await RentalOrder.findById(orderId);
     expect(checkOrder?.status).toBe('EXPIRED');
+    // E2E 26/11 bug 4: the status is EXPIRED, so both parties are told it expired, not cancelled
+    const sent = notifier.sent.filter((n: any) => n.orderId === orderId);
+    expect(sent.map((n: any) => n.userId).sort()).toEqual([ownerId, renterId].sort());
+    for (const n of sent) {
+      expect(n.body).toContain('Đơn thuê đã hết hạn.');
+      expect(n.body).not.toMatch(/hủy|huỷ/);
+    }
 
     // Now try to pay -> 409
     await fund(renterId, 500_000);

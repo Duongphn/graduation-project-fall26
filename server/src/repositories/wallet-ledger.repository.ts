@@ -15,6 +15,15 @@ import {
 } from '../models/index.js';
 import { AppError } from '../utils/app-error.js';
 
+const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** First or last millisecond of the date's calendar day in Viet Nam (UTC+7), as in withdrawals. */
+const vietnamDayBound = (date: Date, end: boolean) => {
+  const day = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return new Date(day - VIETNAM_OFFSET_MS + (end ? DAY_MS - 1 : 0));
+};
+
 export class WalletLedgerRepository implements WalletLedgerPort {
   private readonly walletModel: Model<IWallet>;
   private readonly transactionModel: Model<IWalletTransaction>;
@@ -208,9 +217,10 @@ export class WalletLedgerRepository implements WalletLedgerPort {
     options: TransactionFilter = {},
   ): Promise<{ items: IWalletTransaction[]; total: number }> {
     const skip = (page - 1) * limit;
+    // startDate / endDate are calendar days in Viet Nam, both included
     const createdAt = {
-      ...(options.startDate ? { $gte: options.startDate } : {}),
-      ...(options.endDate ? { $lte: options.endDate } : {}),
+      ...(options.startDate ? { $gte: vietnamDayBound(options.startDate, false) } : {}),
+      ...(options.endDate ? { $lte: vietnamDayBound(options.endDate, true) } : {}),
     };
     const filter = {
       walletId: new Types.ObjectId(walletId),

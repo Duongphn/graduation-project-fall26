@@ -288,6 +288,7 @@ export function NewDonationPage() {
               photos={photos.photos}
               rejections={photos.rejections}
               requiredError={photoError}
+              minPhotos={MIN_DONATION_PHOTOS}
               canReorder
               disabled={create.isPending}
               onAddFiles={(files) => {

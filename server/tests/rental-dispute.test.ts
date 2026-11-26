@@ -263,6 +263,53 @@ describe('UC19: Admin resolves a rental dispute', () => {
     expect(await WalletTransaction.countDocuments({ postingKey: `rental:${orderId}:ruling` })).toBe(3);
   });
 
+  // E2E 26/11 bug 3: after a ruling the cost breakdown follows the ruling, like the wallets
+  it('shows the ruling split in the order breakdown for renter, owner and Admin', async () => {
+    // Late 2 days (L = 100k), renter at fault 50%: K = min(100k, 200k − 100k) = 100k
+    const { orderId, disputeId } = await disputedOrder('2026-11-09T03:00:00Z');
+    afterReplyWindow();
+    const res = await resolve(disputeId, { ruling: 'RENTER_AT_FAULT', compensationRate: 50, adminDecision: DECISION });
+    expect(res.status).toBe(200);
+    const wallets = await balances();
+    expect(wallets).toEqual({ escrow: 0, owner: 335_000, platform: 15_000, renter: 150_000 });
+
+    const breakdown = async (auth: any) =>
+      unwrap(await request(app).get(`/api/v1/rentals/${orderId}`).set(auth)).financialBreakdown;
+
+    const renter = await breakdown(renterAuth);
+    expect(renter.settlementStatus).toBe('SETTLED');
+    expect(renter.items).toMatchObject({
+      rentalFee: 150_000,
+      depositPaid: 200_000,
+      lateFee: 100_000,
+      compensation: 100_000,
+      rentRefunded: 0,
+      depositRefunded: 0,
+      totalRefunded: 0,
+      totalActualCost: 350_000,
+    });
+    // Renter funded 500k: 500k − 350k paid + 0 back = 150k
+    expect(wallets.renter).toBe(500_000 - 350_000 + renter.items.totalRefunded);
+    expect(renter.summary.description).toContain('phán quyết');
+
+    const owner = await breakdown(ownerAuth);
+    expect(owner.payoutStatus).toBe('PAID_OUT');
+    expect(owner.items).toMatchObject({
+      grossRentalFee: 150_000,
+      platformFee: 15_000,
+      lateCompensation: 100_000,
+      compensation: 100_000,
+      rentRefund: 0,
+      netEarnings: 335_000,
+    });
+    expect(owner.items.netEarnings).toBe(wallets.owner);
+
+    const all = await breakdown(adminAuth);
+    expect(all.platformRevenue).toBe(wallets.platform);
+    expect(all.owner.items.netEarnings).toBe(335_000);
+    expect(all.renter.items.totalRefunded).toBe(0);
+  });
+
   it('a no-fault ruling refunds the whole deposit and allows no compensation', async () => {
     const { disputeId } = await disputedOrder();
     afterReplyWindow();
