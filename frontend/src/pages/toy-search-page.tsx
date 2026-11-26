@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { ChevronRight, Home, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -26,7 +27,22 @@ import { getApiErrorMessage } from '../services/http-client'
 
 const countFormatter = new Intl.NumberFormat('vi-VN')
 
-function ResultSummary({ total, keyword }: { total: number | undefined; keyword: string | undefined }) {
+const SEARCH_FAILED_TEXT = 'Hệ thống tìm kiếm đang gặp sự cố. Bạn thử lại sau ít phút nhé.'
+
+/** A server failure gets a fixed Vietnamese text; other errors (network, 4xx) keep their message. */
+const searchErrorText = (error: unknown) =>
+  isAxiosError(error) && (error.response?.status ?? 0) >= 500 ? SEARCH_FAILED_TEXT : getApiErrorMessage(error)
+
+function ResultSummary({
+  total,
+  keyword,
+  failed,
+}: {
+  total: number | undefined
+  keyword: string | undefined
+  failed: boolean
+}) {
+  if (failed) return <>Chưa tải được kết quả</>
   if (total === undefined) return <>Đang tìm…</>
   return (
     <>
@@ -55,6 +71,7 @@ export function ToySearchPage() {
 
   const activeCount = countActiveFilters(filters)
   const total = search.data?.total
+  const searchFailed = search.isError && !search.data
   // Bản nháp trong panel làm mới mỗi khi bộ lọc trên URL đổi (gỡ chip, bấm gợi ý, nút Back)
   const panelKey = toCatalogSearch({
     ...filters,
@@ -99,11 +116,11 @@ export function ToySearchPage() {
         ))}
       </ul>
     )
-  } else if (search.isError && !search.data) {
+  } else if (searchFailed) {
     results = (
       <div className="catalog-empty" role="alert">
         <h2 className="catalog-empty__title">Chưa tải được danh sách.</h2>
-        <p className="catalog-empty__text">{getApiErrorMessage(search.error)}</p>
+        <p className="catalog-empty__text">{searchErrorText(search.error)}</p>
         <button type="button" className="pl-btn pl-btn--ghost" onClick={() => void search.refetch()}>
           Thử lại
         </button>
@@ -202,7 +219,7 @@ export function ToySearchPage() {
           >
             <div className="catalog-results__head">
               <h2 id="catalog-results-title" className="catalog-results__count" aria-live="polite">
-                <ResultSummary total={total} keyword={filters.q} />
+                <ResultSummary total={total} keyword={filters.q} failed={searchFailed} />
               </h2>
 
               <div className="catalog-results__tools">

@@ -1,9 +1,12 @@
 import type { Model } from 'mongoose';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ToySearchQuery } from '../src/interfaces/toy-catalog.ports.js';
 import type { IToy } from '../src/models/toy.model.js';
-import { AtlasToyCatalogRepository } from '../src/repositories/atlas-toy-catalog.repository.js';
+import {
+  AtlasToyCatalogRepository,
+  SEARCH_FAILED_MESSAGE,
+} from '../src/repositories/atlas-toy-catalog.repository.js';
 
 // Local MongoDB has no Atlas Search: these tests read the $search stage the repository builds and
 // apply its filter clauses to sample toys with a small evaluator of the operators it uses.
@@ -130,5 +133,25 @@ describe('AtlasToyCatalogRepository age filter (half-open groups, R03 S3)', () =
         { equals: { path: 'listingType', value: 'rent' } },
       ]),
     );
+  });
+});
+
+// E2E 26/11 #13: a failed search returns a generic Vietnamese message; the driver detail is only logged.
+describe('AtlasToyCatalogRepository search error', () => {
+  it('hides the MongoDB message from the response and logs it', async () => {
+    const driverMessage = 'Using $search and $vectorSearch aggregation stages requires additional configuration.';
+    const toyModel = {
+      aggregate: () => ({ exec: async () => Promise.reject(new Error(driverMessage)) }),
+    } as unknown as Model<IToy>;
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const error = await new AtlasToyCatalogRepository({ toyModel })
+      .search({ page: 1, limit: 12, sort: 'newest' })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ statusCode: 500, code: 'SEARCH_EXECUTION_ERROR', message: SEARCH_FAILED_MESSAGE });
+    expect((error as Error).message).not.toContain('$search');
+    expect(log).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ message: driverMessage }));
+    log.mockRestore();
   });
 });
