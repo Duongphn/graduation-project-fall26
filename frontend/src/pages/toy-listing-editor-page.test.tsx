@@ -216,6 +216,11 @@ describe('ToyListingEditorPage', () => {
       fullName: 'Chủ đồ chơi',
       email: 'owner@test.vn',
       phone: '0912345678',
+      dateOfBirth: null,
+      gender: null,
+      bio: null,
+      trustScore: 0,
+      memberSince: '2026-01-01T00:00:00.000Z',
       verificationStatus: 'pending',
       role: 'USER',
     })

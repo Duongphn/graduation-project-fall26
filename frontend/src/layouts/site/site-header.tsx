@@ -7,6 +7,7 @@ import { useScrolledPast } from '../../hooks/use-scrolled-past'
 import { AI_ADVISOR_NAV_ITEM, SITE_NAV } from '../../features/home/home-content'
 import { browseToysPath, PATHS } from '../../routes/paths'
 import { AccountMenu } from './account-menu'
+import { ChatMenu } from './chat-menu'
 import { HeaderPopover } from './header-popover'
 import { NotificationMenu } from './notification-menu'
 import { SiteBrand } from './site-brand'
@@ -85,7 +86,8 @@ export function SiteHeader({ revealSearchAfterId }: SiteHeaderProps) {
           <Link to={PATHS.favorites} className="site-icon-button site-header__optional" aria-label="Đồ chơi yêu thích">
             <Heart aria-hidden />
           </Link>
-          {/* Thông báo chỉ có nghĩa khi đã đăng nhập (khách đã có nút Đăng nhập) */}
+          {/* Tin nhắn và thông báo chỉ có nghĩa khi đã đăng nhập (khách đã có nút Đăng nhập) */}
+          {isSignedIn && <ChatMenu />}
           {isSignedIn && <NotificationMenu />}
           {/* aria-label: màn hẹp chỉ còn dấu + */}
           <Link to={PATHS.newListing} className="site-post-button" aria-label="Đăng đồ chơi">

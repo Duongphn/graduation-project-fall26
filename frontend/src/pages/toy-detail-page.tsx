@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bookmark, ChevronRight, Flag, Home, MessageCircle, ShoppingBag } from 'lucide-react'
+import { Bookmark, ChevronRight, Flag, Home, ShoppingBag } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { OpenChatButton } from '../features/chat/components/open-chat-button'
 import { RequestDonationCard } from '../features/donations/components/request-donation-card'
 import { RentalBookingCard } from '../features/toy-catalog/components/rental-booking-card'
 import { SimilarToys } from '../features/toy-catalog/components/similar-toys'
@@ -12,6 +13,9 @@ import { toyDetailQuery } from '../features/toy-catalog/toy-catalog-queries'
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { formatDate } from '../features/toy-listings/listing-display'
 import { AccountLayout } from '../layouts/account/account-layout'
+import { profileQuery } from '../features/profile/profile-queries'
+import { useIsSignedIn } from '../hooks/use-is-signed-in'
+import { PATHS } from '../routes/paths'
 import { PATHS, toyBuyPath } from '../routes/paths'
 import { getApiErrorCode, getApiErrorMessage } from '../services/http-client'
 import { getStoredUser } from '../services/token-storage'
@@ -124,7 +128,11 @@ function DetailTabs({ toy }: { toy: ToyDetail }) {
   )
 }
 
-function OwnerCard({ toy }: { toy: ToyDetail }) {
+export function OwnerCard({ toy }: { toy: ToyDetail }) {
+  const isSignedIn = useIsSignedIn()
+  const profile = useQuery({ ...profileQuery, enabled: isSignedIn })
+  // Chủ tin không nhắn tin với chính mình (server cũng chặn: CHAT_WITH_SELF)
+  const isOwner = isSignedIn && profile.data?.id === toy.owner.id
   return (
     <section className="tf-card owner-card" aria-label="Chủ đồ chơi">
       <span className="owner-card__avatar" aria-hidden>
@@ -134,10 +142,9 @@ function OwnerCard({ toy }: { toy: ToyDetail }) {
         <span className="tf-caption">Chủ đồ chơi</span>
         <strong className="owner-card__name">{toy.owner.displayName}</strong>
       </div>
-      <button type="button" className="tf-btn tf-btn--soft tf-btn--inline owner-card__chat" disabled title={UPCOMING}>
-        <MessageCircle aria-hidden />
-        Nhắn tin
-      </button>
+      {!isOwner && (
+        <OpenChatButton kind="TOY" id={toy.id} className="tf-btn tf-btn--soft tf-btn--inline owner-card__chat" />
+      )}
     </section>
   )
 }

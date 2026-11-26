@@ -19,7 +19,7 @@ const PUZZLE = '64b000000000000000000001'
 
 const page = <T,>(items: T[]) => ({
   items,
-  pagination: { page: 1, limit: 20, totalItems: items.length, totalPages: 1 },
+  pagination: { page: 1, limit: 20, totalItems: items.length, totalPages: 1, hasNextPage: false, hasPrevPage: false },
 })
 
 const toy = {
