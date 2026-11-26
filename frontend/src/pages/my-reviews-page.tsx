@@ -68,8 +68,7 @@ export function MyReviewsPage() {
           </p>
           <h1 className="reviews-page__title">Đánh giá nhận được</h1>
           <p className="reviews-page__lead">
-            Những gì người thuê và chủ đồ nói về bạn sau mỗi đơn thuê hoàn tất. Đánh giá góp vào điểm tin cậy, giúp bạn
-            được thuê những món đồ có tiền cọc cao.
+            Những gì người thuê và chủ đồ nói về bạn sau mỗi đơn thuê hoàn tất.
           </p>
         </header>
 

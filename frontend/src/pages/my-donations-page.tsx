@@ -14,7 +14,7 @@ import {
   toMyDonationsSearch,
 } from '../features/donations/donor-queries'
 import type { DonationRequest } from '../features/donations/types'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { myDonationPath, PATHS } from '../routes/paths'
 
 // 'received' không dùng trong luồng này (bên nhận xác nhận là hoàn tất luôn) nên không có tab riêng
@@ -66,8 +66,8 @@ export function MyDonationsPage() {
   }, [])
 
   return (
-    <SiteLayout>
-      <div className="home-container py-6 sm:py-8">
+    <AccountLayout activeItem="donations">
+      <div className="py-6 sm:py-8">
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-tf-ink-muted">
           <Link to={PATHS.home} className="inline-flex items-center gap-1 hover:text-tf-primary">
             <Home className="size-3.5" aria-hidden /> Trang chủ
@@ -153,6 +153,6 @@ export function MyDonationsPage() {
           )}
         </section>
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }

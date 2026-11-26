@@ -1,5 +1,5 @@
 @layer components {
-  /* Trang tài khoản dùng bảng màu sáng của thiết kế ToyFlow Replay */
+  /* Trang tài khoản dùng bảng màu sáng của thiết kế ToyFlow Replay; dark mode đổi biến màu bên dưới */
   .account-layout {
     @apply min-h-screen bg-tf-page text-tf-ink;
   }
@@ -13,7 +13,40 @@
     @apply sticky top-0 z-40 flex h-16 items-center justify-between border-b border-tf-surface bg-white/90 px-2 backdrop-blur-md sm:px-6 lg:hidden;
   }
 
+  .account-topbar__actions {
+    @apply flex items-center gap-1;
+  }
+
   .account-content {
     @apply w-full px-4 pb-16 sm:px-8;
   }
+}
+
+/*
+ * Dark mode của khu tài khoản: mọi màu ở đây đi qua biến --color-tf-* và --color-white (bg-white),
+ * nên chỉ cần đổi biến trong .account-layout. Màu nhấn (primary, secondary, error) sáng lên và chữ
+ * "trắng" trên nền nhấn thành chữ tối (giống colorTextLightSolid của antd dark).
+ */
+/* .catalog-page: trang Tìm đồ chơi / chi tiết đồ chơi dùng khung trang chủ nhưng vẫn dùng thẻ tf-* của khu tài khoản */
+.dark .account-layout,
+.dark .catalog-page {
+  color-scheme: dark;
+  --color-white: #1c1d27;
+  --color-tf-page: #15161e;
+  --color-tf-surface-low: #22232e;
+  --color-tf-surface: #2c2d3a;
+  --color-tf-surface-high: #3a3b47;
+  --color-tf-ink: #eef0f6;
+  --color-tf-ink-muted: #a9aebb;
+  --color-tf-outline: #4c4e5c;
+  --color-tf-primary: #a5b4fc;
+  --color-tf-primary-container: #c7d2fe;
+  --color-tf-primary-fixed: #2b3052;
+  --color-tf-accent: #c9a56b;
+  --color-tf-secondary: #7dd3a8;
+  --color-tf-secondary-container: #1f3a2f;
+  --color-tf-tertiary: #e0bd84;
+  --color-tf-tertiary-fixed: #3b3122;
+  --color-tf-error: #f49b93;
+  --color-tf-error-container: #45201d;
 }

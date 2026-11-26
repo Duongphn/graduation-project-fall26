@@ -107,20 +107,28 @@ export class AtlasToyCatalogRepository implements ToyCatalogReadPort {
       filterClauses.push({ range: priceRange });
     }
 
-    // Age overlap: listing.minAge <= query.ageMax AND listing.maxAge >= query.ageMin
+    // Age overlap of half-open ranges [minAge, maxAge) (R03 S3 age groups 0-1, 1-3, 3-6, 6-12,
+    // 12+): a 3-6 toy is not in the 6-12 group. A toy or a query for one age only
+    // (minAge === maxAge) counts as [minAge, minAge + 1), as in MongoToyCatalogRepository.
     if (query.ageMax !== undefined) {
       filterClauses.push({
         range: {
           path: 'ageRange.minAge',
-          lte: query.ageMax,
+          lt:
+            query.ageMin !== undefined
+              ? Math.max(query.ageMax, query.ageMin + 1)
+              : query.ageMax,
         },
       });
     }
     if (query.ageMin !== undefined) {
       filterClauses.push({
-        range: {
-          path: 'ageRange.maxAge',
-          gte: query.ageMin,
+        compound: {
+          should: [
+            { range: { path: 'ageRange.maxAge', gt: query.ageMin } },
+            { range: { path: 'ageRange.minAge', gte: query.ageMin } },
+          ],
+          minimumShouldMatch: 1,
         },
       });
     }
@@ -284,8 +292,8 @@ export class AtlasToyCatalogRepository implements ToyCatalogReadPort {
             minAge: doc.ageRange?.minAge ?? 0,
             maxAge: doc.ageRange?.maxAge ?? 0,
           },
-          condition: doc.condition,
           rating: toRatingSummary(doc.rating),
+          condition: doc.condition,
           location: doc.location?.coordinates
             ? {
                 type: doc.location.type || 'Point',
@@ -349,8 +357,8 @@ export class AtlasToyCatalogRepository implements ToyCatalogReadPort {
         minAge: toy.ageRange?.minAge ?? 0,
         maxAge: toy.ageRange?.maxAge ?? 0,
       },
-      condition: toy.condition,
       rating: toRatingSummary(toy.rating),
+      condition: toy.condition,
       location: toy.location?.coordinates
         ? {
             type: toy.location.type || 'Point',

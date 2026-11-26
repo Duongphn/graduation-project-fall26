@@ -1,13 +1,15 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
+import { App } from 'antd'
 import { useApiMutation } from '../../hooks/useApiMutation'
 import { ApiError } from '../../services/api-error'
 import { apiGet, apiPost, apiPostForm } from '../../services/http'
 import type { RentalPricing } from '../toy-catalog/rental-request-api'
 import type { ToyImage } from '../toy-listings/toy-listing-api'
+import { myWalletQuery, walletKeys } from '../wallet/wallet-queries'
 
 /**
  * GET /rentals, GET /rentals/:id, /history, POST /:id/accept, /:id/reject (UC07), POST /:id/pay (UC08),
- * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
+ * POST /:id/ship, /:id/receive (UC09), POST /:id/return (UC10), POST /:id/settle (UC11), POST /:id/cancel (UC14) và GET /wallets/me — server/docs/api/rentals.md, wallets.md
  */
 
 export const RENTAL_STATUSES = [
@@ -65,31 +67,68 @@ export interface RentalOrder {
     lateFee: number
   }
   /** Kết quả chủ đồ kiểm tra đồ trả: GOOD → Hoàn tất, DAMAGED → Đang khiếu nại (cọc giữ nguyên) */
+  /** Chủ đồ quyết toán; khiếu nại của người thuê không qua quyết toán nên chỉ có `resolution` sau phán quyết */
   settlement?: {
-    result: SettlementResult
+    result?: SettlementResult
     evidencePhotos?: ToyImage[]
     description?: string
-    settledAt: string
+    settledAt?: string
     /** true khi hết hạn kiểm tra mà chủ đồ chưa báo, hệ thống tự quyết toán là Tốt */
     autoSettled?: boolean
     disputeId?: string
+    /** Có khi quản trị viên đã giải quyết khiếu nại (UC19): số tiền mỗi bên nhận và lý do */
+    resolution?: RentalRulingSummary
   }
-  /** Có khi đơn đã có khiếu nại (người thuê hoặc chủ đồ mở) */
-  disputeId?: string
+  cancellation?: RentalCancellation
 }
 
 export type SettlementResult = 'GOOD' | 'DAMAGED'
 
-/** Chi tiết đơn: khi người xem là chủ đồ, server kèm thông tin người thuê */
-export interface RentalOrderDetail extends RentalOrder {
-  renter?: {
-    fullName: string
-    avatar?: string
-    trustScore?: number
-    verified: boolean
-  }
+/** Hồ sơ một bên của đơn (người thuê hoặc chủ đồ) */
+export interface RentalParty {
+  id?: string
+  fullName: string
+  avatar?: string
+  trustScore?: number
+  verified: boolean
+  role?: 'renter' | 'owner'
 }
 
+/** Tóm tắt đồ chơi server gắn kèm đơn (tin đã ẩn/xoá thì không có) */
+export interface RentalToySummary {
+  id: string
+  name: string
+  slug: string
+  primaryImage?: string
+  dailyRate: number
+  depositAmount: number
+}
+
+/** Có khi đơn bị huỷ (UC14): ai huỷ, lý do và phí huỷ người thuê bị trừ (0 khi được hoàn 100%) */
+export interface RentalCancellation {
+  by: 'RENTER' | 'OWNER'
+  userId: string
+  reason: string
+  fee: number
+  cancelledAt: string
+}
+
+export type DisputeRuling = 'RENTER_AT_FAULT' | 'OWNER_AT_FAULT' | 'UNDETERMINED' | 'FAIR_WEAR_AND_TEAR'
+
+export interface RentalRulingSummary {
+  ruling: DisputeRuling
+  /** K: phần cọc bồi thường cho chủ đồ */
+  compensationAmount: number
+  /** G: phần tiền thuê hoàn cho người thuê */
+  rentRefundAmount: number
+  ownerAmount: number
+  renterAmount: number
+  platformFee: number
+  adminDecision: string
+  resolvedAt: string
+}
+
+/** Một mốc lịch sử đơn trong hồ sơ khiếu nại (API Admin): changedBy là id người thao tác */
 export interface RentalHistoryEntry {
   oldStatus?: RentalStatus
   newStatus: RentalStatus
@@ -98,15 +137,123 @@ export interface RentalHistoryEntry {
   occurredAt: string
 }
 
+/** Một mốc trong lịch sử đơn; changedBy.isSystem khi hệ thống tự chuyển (hết hạn, tự xác nhận…) */
+export interface RentalTimelineEntry {
+  oldStatus?: RentalStatus | null
+  newStatus: RentalStatus
+  changedBy: { id: string | null; name: string; role: string; isSystem: boolean }
+  notes?: string
+  occurredAt: string
+}
+
+/** Một mốc lịch sử đơn trong hồ sơ khiếu nại của Admin (UC19): changedBy là id người thao tác */
+export interface RentalHistoryEntry {
+  oldStatus?: RentalStatus
+  newStatus: RentalStatus
+  changedBy: string
+  notes?: string
+  occurredAt: string
+}
+
+export interface RenterFinancialItems {
+  rentalFee: number
+  depositPaid: number
+  lateFee: number
+  depositRefunded: number
+  totalActualCost: number
+}
+
+export interface OwnerFinancialItems {
+  grossRentalFee: number
+  platformFeeRate: number
+  platformFee: number
+  lateCompensation: number
+  netEarnings: number
+}
+
+interface FinancialSummary {
+  status: string
+  description: string
+}
+
+export interface RenterFinancialBreakdown {
+  role: 'renter'
+  currency: string
+  /** true khi đơn chưa kết thúc: số tiền có thể còn đổi (phí trễ, quyết toán) */
+  isEstimated: boolean
+  settlementStatus: string
+  items: RenterFinancialItems
+  summary: FinancialSummary
+}
+
+export interface OwnerFinancialBreakdown {
+  role: 'owner'
+  currency: string
+  isEstimated: boolean
+  payoutStatus: string
+  items: OwnerFinancialItems
+  summary: FinancialSummary
+}
+
+export interface AdminFinancialBreakdown {
+  role: 'admin'
+  currency: string
+  isEstimated: boolean
+  items: RenterFinancialItems &
+    OwnerFinancialItems & { escrowBalance?: number; platformRevenue?: number }
+  renter?: RenterFinancialBreakdown
+  owner?: OwnerFinancialBreakdown
+  platformRevenue?: number
+  summary: FinancialSummary
+}
+
+export type RentalFinancialBreakdown = RenterFinancialBreakdown | OwnerFinancialBreakdown | AdminFinancialBreakdown
+
+/**
+ * Chi tiết đơn (GET /rentals/:id): kèm hồ sơ hai bên, đồ chơi, lịch sử có tên người thao tác và bảng
+ * chia tiền theo vai người xem. Người thuê không nhận phí nền tảng trong pricing.
+ */
+export interface RentalOrderDetail extends RentalOrder {
+  renter?: RentalParty
+  owner?: RentalParty
+  toy?: RentalToySummary
+  timeline?: RentalTimelineEntry[]
+  financialBreakdown?: RentalFinancialBreakdown
+}
+
+/** Vai người xem trên danh sách; `all` chỉ dành cho quản trị viên */
 export type RentalRole = 'owner' | 'renter'
+export type RentalListRole = RentalRole | 'all'
+
+/** Nhóm trạng thái server hiểu (STATUS_GROUP_MAP) */
+export const RENTAL_GROUPS = ['all', 'pending', 'active', 'completed', 'cancelled', 'disputed'] as const
+export type RentalGroup = (typeof RENTAL_GROUPS)[number]
+
+/** Một dòng của GET /rentals: không có toyId mà có sẵn tóm tắt đồ chơi và bên còn lại */
+export interface RentalOrderItem {
+  id: string
+  code: string
+  role: 'renter' | 'owner' | 'admin'
+  status: RentalStatus
+  period: { startDate: string; endDate: string }
+  pricing: Pick<RentalPricing, 'days' | 'dailyRate' | 'rentalFee' | 'depositAmount' | 'totalPayable'> &
+    Partial<Pick<RentalPricing, 'platformFee' | 'platformFeeRate'>>
+  toy?: RentalToySummary
+  counterpart?: RentalParty
+  /** Chỉ có khi quản trị viên xem đơn mình không tham gia */
+  renter?: RentalParty
+  owner?: RentalParty
+  timer?: { kind: RentalTimerKind; dueAt: string }
+  createdAt: string
+}
 
 export interface RentalListFilters {
-  status?: RentalStatus
+  group: RentalGroup
   page: number
 }
 
 interface RentalListPage {
-  items: RentalOrder[]
+  items: RentalOrderItem[]
   total: number
   page: number
   limit: number
@@ -116,18 +263,57 @@ export const RENTAL_REQUESTS_PAGE_SIZE = 10
 
 export const rentalKeys = {
   all: ['rentals'] as const,
-  list: (role: RentalRole, filters: RentalListFilters) => ['rentals', role, filters] as const,
+  list: (role: RentalListRole, filters: RentalListFilters) => ['rentals', role, filters] as const,
   detail: (orderId: string) => ['rentals', 'detail', orderId] as const,
-  history: (orderId: string) => ['rentals', 'history', orderId] as const,
+  dispute: (orderId: string) => ['rentals', 'dispute', orderId] as const,
 }
 
-export const rentalListQuery = (role: RentalRole, filters: RentalListFilters) =>
+/** UC17: lý do người thuê khiếu nại khi nhận đồ (chủ đồ khiếu nại qua quyết toán Hư hỏng) */
+export const COMPLAINT_REASONS = ['DAMAGED_ON_RECEIPT', 'MISSING_PARTS', 'NOT_AS_DESCRIBED', 'OTHER'] as const
+export type ComplaintReason = (typeof COMPLAINT_REASONS)[number]
+export const COMPLAINT_DESCRIPTION_MIN = 10
+export const COMPLAINT_DESCRIPTION_MAX = 1000
+export const RESPONSE_MESSAGE_MIN = 10
+export const RESPONSE_MESSAGE_MAX = 1000
+/** Mặc định của server (renterComplaintHours); server vẫn là nơi kiểm tra hạn cuối cùng */
+export const RENTER_COMPLAINT_HOURS = 24
+
+export type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'closed'
+
+/** Khiếu nại của đơn như hai bên thấy (GET /rentals/:id/dispute) */
+export interface RentalDispute {
+  id: string
+  code: string
+  status: DisputeStatus
+  /** ComplaintReason, hoặc DAMAGED_ON_RETURN khi chủ đồ quyết toán Hư hỏng */
+  reason: string
+  description: string
+  claimant: 'owner' | 'renter'
+  viewerRole: 'claimant' | 'respondent'
+  evidencePhotos: ToyImage[]
+  openedAt: string
+  replyDueAt: string
+  /** Người xem là bên bị khiếu nại, chưa phản hồi và còn hạn */
+  canRespond: boolean
+  response?: { message: string; photos: ToyImage[]; respondedAt: string }
+  resolvedAt?: string
+}
+
+export const rentalDisputeQuery = (orderId: string) =>
+  queryOptions({
+    queryKey: rentalKeys.dispute(orderId),
+    queryFn: () => apiGet<RentalDispute>(`/rentals/${orderId}/dispute`),
+    staleTime: 15_000,
+    retry: false,
+  })
+
+export const rentalListQuery = (role: RentalListRole, filters: RentalListFilters) =>
   queryOptions({
     queryKey: rentalKeys.list(role, filters),
     queryFn: () =>
       apiGet<RentalListPage>('/rentals', {
         role,
-        status: filters.status,
+        group: filters.group === 'all' ? undefined : filters.group,
         page: filters.page,
         limit: RENTAL_REQUESTS_PAGE_SIZE,
       }),
@@ -140,14 +326,6 @@ export const rentalDetailQuery = (orderId: string) =>
   queryOptions({
     queryKey: rentalKeys.detail(orderId),
     queryFn: () => apiGet<RentalOrderDetail>(`/rentals/${orderId}`),
-    staleTime: 15_000,
-    retry: false,
-  })
-
-export const rentalHistoryQuery = (orderId: string) =>
-  queryOptions({
-    queryKey: rentalKeys.history(orderId),
-    queryFn: () => apiGet<RentalHistoryEntry[]>(`/rentals/${orderId}/history`),
     staleTime: 15_000,
     retry: false,
   })
@@ -173,6 +351,44 @@ export const useOwnerRentalDecision = (orderId: string, toyId: string | undefine
   return { accept, reject }
 }
 
+/** Server báo lỗi ảnh bằng tiếng Anh (vd. "Image content does not match PNG file signature."): dịch theo mã lỗi */
+const PHOTO_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_IMAGE_FORMAT: 'Ảnh bị hỏng hoặc không phải ảnh JPG, PNG, WebP thật. Vui lòng chụp hoặc chọn ảnh khác.',
+  CLOUDINARY_NOT_CONFIGURED: 'Máy chủ lưu ảnh chưa sẵn sàng. Vui lòng thử lại sau.',
+}
+
+/** Lỗi multer (INVALID_IMAGE_UPLOAD kèm details.code) */
+const UPLOAD_LIMIT_MESSAGES: Record<string, string> = {
+  LIMIT_FILE_SIZE: 'Mỗi ảnh tối đa 5 MB. Vui lòng chọn ảnh nhỏ hơn.',
+  LIMIT_FILE_COUNT: 'Chỉ được gửi tối đa 10 ảnh.',
+  LIMIT_UNEXPECTED_FILE: 'Chỉ được gửi tối đa 10 ảnh.',
+}
+
+/** Câu chữ có dấu tiếng Việt (câu của server bằng tiếng Anh chỉ có ký tự ASCII) */
+const isVietnamese = (text: string) => /[^ -~]/.test(text)
+
+/** Câu tiếng Việt cho lỗi ảnh server trả về; null khi không phải lỗi ảnh hoặc server đã ghi tiếng Việt */
+export function rentalPhotoErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  if (PHOTO_ERROR_MESSAGES[error.code]) return PHOTO_ERROR_MESSAGES[error.code]
+  if (error.code !== 'INVALID_IMAGE_UPLOAD') return null
+  const multerCode = (error.details as { code?: string } | undefined)?.code
+  if (multerCode && UPLOAD_LIMIT_MESSAGES[multerCode]) return UPLOAD_LIMIT_MESSAGES[multerCode]
+  // Số ảnh thiếu/thừa do dịch vụ thuê đồ báo đã là tiếng Việt; lỗi đọc form của multer (vd. "Unexpected end of form") thì không
+  return isVietnamese(error.message) ? null : 'Không tải được ảnh lên. Vui lòng chọn lại ảnh rồi thử lại.'
+}
+
+/** onError cho các bước gửi ảnh: lỗi ảnh hiện bằng tiếng Việt, lỗi khác để useApiMutation báo như cũ */
+const usePhotoErrorHandler = () => {
+  const { message } = App.useApp()
+  return (error: unknown) => {
+    const text = rentalPhotoErrorMessage(error)
+    if (!text) return false
+    message.error(text)
+    return true
+  }
+}
+
 /** Bước bàn giao: chủ đồ gửi (PAID → SHIPPING) hoặc người thuê nhận (SHIPPING → IN_USE) */
 export type HandoverStep = 'ship' | 'receive'
 
@@ -182,8 +398,9 @@ const HANDOVER_SUCCESS: Record<HandoverStep, string> = {
 }
 
 /** Gửi ảnh tình trạng (multipart, trường `photos`, 1–10 ảnh) kèm xác nhận giao/nhận */
-export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess?: () => void) =>
-  useApiMutation({
+export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess?: () => void) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
     mutationFn: (photos: File[]) => {
       const form = new FormData()
       photos.forEach((file) => form.append('photos', file))
@@ -193,14 +410,17 @@ export const useRentalHandover = (orderId: string, step: HandoverStep, onSuccess
     invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
     onSuccess,
+    onError,
   })
+}
 
 /** Ghi chú khi trả đồ: không bắt buộc, tối đa 500 ký tự như server */
 export const RETURN_NOTE_MAX = 500
 
 /** Người thuê gửi trả (IN_USE → RETURNING): 1–10 ảnh tình trạng + ghi chú; server tính phí trả trễ */
-export const useRentalReturn = (orderId: string) =>
-  useApiMutation({
+export const useRentalReturn = (orderId: string) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
     mutationFn: ({ photos, note }: { photos: File[]; note: string }) => {
       const form = new FormData()
       photos.forEach((file) => form.append('photos', file))
@@ -210,141 +430,103 @@ export const useRentalReturn = (orderId: string) =>
     successMessage: 'Đã gửi yêu cầu trả đồ. Chủ đồ sẽ kiểm tra tình trạng rồi quyết toán tiền cọc.',
     invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
+    onError,
   })
+}
 
-/**
- * Chủ đồ xác nhận đồ trả về còn tốt (RETURNING → COMPLETED): tiền thuê vào ví chủ đồ, cọc hoàn cho người
- * thuê. Báo hư hỏng đi qua khiếu nại (useOpenRentalDispute) để chọn được lý do.
- */
-export const useRentalSettle = (orderId: string) =>
-  useApiMutation({
-    mutationFn: () => apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' }),
-    successMessage: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
-    invalidate: [rentalKeys.all, walletKeys.me],
-    invalidateOnConflict: true,
-  })
+/** Mô tả hư hỏng: 10–1000 ký tự như server */
+export const DAMAGE_DESCRIPTION_MIN = 10
+export const DAMAGE_DESCRIPTION_MAX = 1000
 
-/** Lý do khiếu nại server nhận, theo vai người gửi */
-export type ComplaintRole = 'renter' | 'owner'
-export const COMPLAINT_REASONS = {
-  renter: ['DAMAGED_ON_RECEIPT', 'MISSING_PARTS', 'NOT_AS_DESCRIBED', 'OTHER'],
-  owner: ['DAMAGED_ON_RETURN', 'MISSING_PARTS', 'OTHER'],
-} as const satisfies Record<ComplaintRole, readonly string[]>
-export type ComplaintReason = (typeof COMPLAINT_REASONS)[ComplaintRole][number]
+export type SettleInput = { result: 'GOOD' } | { result: 'DAMAGED'; photos: File[]; description: string }
 
-/** Mô tả khiếu nại: 10–1000 ký tự như server */
-export const COMPLAINT_DESCRIPTION_MIN = 10
-export const COMPLAINT_DESCRIPTION_MAX = 1000
-
-/**
- * Người thuê khiếu nại trong 24 giờ kể từ lúc xác nhận nhận đồ (renterComplaintHours của server).
- * Server là bên quyết định cuối: hết hạn thì trả COMPLAINT_WINDOW_CLOSED.
- */
-export const RENTER_COMPLAINT_HOURS = 24
-
-export interface OpenComplaintInput {
-  reason: ComplaintReason
-  description: string
-  photos: File[]
+const SETTLE_SUCCESS: Record<SettlementResult, string> = {
+  GOOD: 'Đã quyết toán. Tiền thuê đã vào ví của bạn, tiền cọc được hoàn cho người thuê.',
+  DAMAGED: 'Đã báo hư hỏng và mở khiếu nại. Tiền cọc được giữ nguyên cho đến khi ToyFlow giải quyết.',
 }
 
 /**
- * Gửi khiếu nại (POST /rentals/:id/disputes, multipart): đơn chuyển sang Đang khiếu nại, tiền thuê và cọc
- * nằm nguyên trong ví ký quỹ đến khi quản trị viên phán quyết. Mỗi đơn chỉ có một khiếu nại.
+ * Chủ đồ quyết toán đơn đang trả (RETURNING): GOOD gửi JSON; DAMAGED gửi multipart với 1–10 ảnh bằng
+ * chứng (`photos`) và mô tả. Sau đó tải lại đơn và ví (tiền thuê vừa vào ví khi GOOD).
  */
-export const useOpenRentalDispute = (orderId: string) =>
-  useApiMutation({
-    mutationFn: ({ reason, description, photos }: OpenComplaintInput) => {
+/**
+ * UC17: người thuê báo đồ có vấn đề trong 24 giờ sau khi nhận (multipart: reason, description, 1–10 ảnh).
+ * Đơn chuyển sang Đang khiếu nại; tải lại đơn và khiếu nại.
+ */
+export const useOpenRentalComplaint = (orderId: string) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
+    mutationFn: ({ reason, description, photos }: { reason: ComplaintReason; description: string; photos: File[] }) => {
       const form = new FormData()
       form.append('reason', reason)
       form.append('description', description.trim())
       photos.forEach((file) => form.append('photos', file))
-      return apiPostForm<unknown>(`/rentals/${orderId}/disputes`, form)
+      return apiPostForm<RentalOrder>(`/rentals/${orderId}/complaints`, form)
     },
-    successMessage: 'Đã gửi khiếu nại. Tiền thuê và tiền cọc được ToyFlow giữ cho đến khi có phán quyết.',
-    invalidate: [rentalKeys.all, walletKeys.me],
+    successMessage: 'Đã gửi khiếu nại. Chủ đồ có 72 giờ để phản hồi, sau đó quản trị viên ToyFlow quyết định.',
+    invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
+    onError,
   })
-
-/** open: chờ bên bị khiếu nại phản hồi; under_review: quản trị viên xem xét; resolved/closed: đã xong */
-export type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'closed'
-export type DisputeVerdict = 'CLAIMANT_FAVORED' | 'RESPONDENT_FAVORED' | 'PARTIAL'
-
-/** Khiếu nại như một bên của đơn thấy (GET /disputes/:id) */
-export interface RentalDispute {
-  id: string
-  code: string
-  orderId: string
-  claimantId: string
-  respondentId: string
-  claimantRole: ComplaintRole
-  reason: ComplaintReason
-  description: string
-  evidencePhotos: ToyImage[]
-  status: DisputeStatus
-  openedAt: string
-  /** Hạn phản hồi 72 giờ; mất đi khi đã phản hồi hoặc đã chuyển sang xem xét */
-  responseDueAt?: string
-  response?: { message: string; photos: ToyImage[]; respondedAt: string }
-  reviewStartedAt?: string
-  /** true khi hết hạn mà bên bị khiếu nại không phản hồi */
-  responseMissed?: boolean
-  resolution?: {
-    verdict: DisputeVerdict
-    compensation: number
-    reason: string
-    resolvedAt: string
-    payout: { renter: number; owner: number }
-  }
 }
 
-export const disputeKeys = {
-  detail: (disputeId: string) => ['disputes', disputeId] as const,
-}
-
-export const disputeQuery = (disputeId: string) =>
-  queryOptions({
-    queryKey: disputeKeys.detail(disputeId),
-    queryFn: () => apiGet<RentalDispute>(`/disputes/${disputeId}`),
-    staleTime: 15_000,
-    retry: false,
-  })
-
-/** Phản hồi khiếu nại: 10–1000 ký tự như server, ảnh không bắt buộc (tối đa 10) */
-export const RESPONSE_MESSAGE_MIN = 10
-export const RESPONSE_MESSAGE_MAX = 1000
-
-/**
- * Bên bị khiếu nại phản hồi một lần trong 72 giờ (POST /disputes/:id/response, multipart `message`,
- * `photos`): khiếu nại chuyển sang Đang xem xét và quản trị viên được báo.
- */
-export const useRespondDispute = (disputeId: string) =>
-  useApiMutation({
+/** UC18: bên bị khiếu nại phản hồi một lần (multipart: message, 0–10 ảnh) */
+export const useRespondRentalDispute = (orderId: string) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
     mutationFn: ({ message, photos }: { message: string; photos: File[] }) => {
       const form = new FormData()
       form.append('message', message.trim())
       photos.forEach((file) => form.append('photos', file))
-      return apiPostForm<RentalDispute>(`/disputes/${disputeId}/response`, form)
+      return apiPostForm<RentalDispute>(`/rentals/${orderId}/dispute/response`, form)
     },
-    successMessage: 'Đã gửi phản hồi. Quản trị viên ToyFlow sẽ xem xét ảnh và giải thích của cả hai bên.',
-    invalidate: [disputeKeys.detail(disputeId), rentalKeys.all],
+    successMessage: 'Đã gửi phản hồi. Quản trị viên ToyFlow sẽ xem xét hồ sơ của cả hai bên.',
+    invalidate: [rentalKeys.all],
     invalidateOnConflict: true,
+    onError,
   })
-
-/** Số dư ví của người đang đăng nhập (GET /wallets/me) */
-export interface WalletSummary {
-  balance: number
-  currency: string
 }
 
-export const walletKeys = { me: ['wallet', 'me'] as const }
+export const useRentalSettle = (orderId: string) => {
+  const onError = usePhotoErrorHandler()
+  return useApiMutation({
+    mutationFn: (input: SettleInput) => {
+      if (input.result === 'GOOD') return apiPost<RentalOrder>(`/rentals/${orderId}/settle`, { result: 'GOOD' })
+      const form = new FormData()
+      form.append('result', 'DAMAGED')
+      form.append('description', input.description.trim())
+      input.photos.forEach((file) => form.append('photos', file))
+      return apiPostForm<RentalOrder>(`/rentals/${orderId}/settle`, form)
+    },
+    successMessage: (_data, input) => SETTLE_SUCCESS[input.result],
+    invalidate: [rentalKeys.all, walletKeys.me],
+    invalidateOnConflict: true,
+    onError,
+  })
+}
 
-export const myWalletQuery = queryOptions({
-  queryKey: walletKeys.me,
-  queryFn: () => apiGet<WalletSummary>('/wallets/me'),
-  staleTime: 10_000,
-  retry: false,
-})
+/**
+ * Huỷ đơn (POST /:id/cancel, lý do 5–500 ký tự). Sau đó tải lại đơn, ví (tiền hoàn) và lịch trống của
+ * món đồ, vì đơn huỷ nhả các ngày đã giữ.
+ */
+export const useRentalCancel = (orderId: string, toyId: string | undefined, onSuccess?: () => void) =>
+  useApiMutation({
+    mutationFn: (reason: string) => apiPost<RentalOrder>(`/rentals/${orderId}/cancel`, { reason }),
+    successMessage: (order) => {
+      const fee = order.cancellation?.fee ?? 0
+      const refund = order.pricing.totalPayable - fee
+      return order.status === 'CANCELLED' && fee > 0
+        ? `Đã huỷ đơn. Hoàn ${refund.toLocaleString('vi-VN')} ₫ về ví người thuê, phí huỷ ${fee.toLocaleString('vi-VN')} ₫.`
+        : 'Đã huỷ đơn. Lịch của món đồ đã được mở lại.'
+    },
+    invalidate: [rentalKeys.all, walletKeys.me, ...(toyId ? [['toy-availability', toyId]] : [])],
+    invalidateOnConflict: true,
+    onSuccess,
+  })
+
+/** Số dư ví của người đang đăng nhập (GET /wallets/me) — dùng chung với màn hình Ví */
+export { myWalletQuery, walletKeys }
+export type { WalletSummary } from '../wallet/wallet-api'
 
 /** details của lỗi 409 INSUFFICIENT_BALANCE khi thanh toán */
 export interface InsufficientBalance {

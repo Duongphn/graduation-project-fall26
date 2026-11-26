@@ -52,18 +52,6 @@ export interface DatesUnavailableDetails {
   suggestion: DateRange | null
 }
 
-/** details của lỗi 403 RENTER_RESTRICTED (server/docs/api/reviews.md, "Rent gate") */
-export interface RenterRestrictedDetails {
-  score: number
-  minTrustScore: number
-  depositCap: number
-  /** true chỉ khi chính lần gửi này vừa đưa người dùng vào danh sách Admin xem xét */
-  queued: boolean
-}
-
-export const isRenterRestrictedDetails = (value: unknown): value is RenterRestrictedDetails =>
-  typeof value === 'object' && value !== null && 'score' in value && 'minTrustScore' in value && 'depositCap' in value
-
 export const rentalRequestApi = {
   quote: (input: RentalPeriodInput) => apiPost<RentalQuote>('/rentals/quote', input),
   create: (input: RentalPeriodInput) => apiPost<CreatedRentalOrder>('/rentals', input),

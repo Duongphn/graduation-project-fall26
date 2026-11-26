@@ -55,7 +55,7 @@ import { AGE_OPTIONS } from '../toy-listings/toy-listing-schema'
  * Dữ liệu động (đồ chơi, danh mục) luôn lấy từ API — không đặt ở đây.
  */
 
-/** Bảng màu nhấn dùng chung cho icon, ô ảnh chờ và thẻ — mỗi tone có class BEM tương ứng trong home.css */
+/** Bảng màu nhấn dùng chung cho icon, ô ảnh chờ và thẻ — class Tailwind của mỗi tone ở TONE_CLASSES (home-styles.ts) */
 export type Tone =
   | 'rose'
   | 'orange'
@@ -105,8 +105,8 @@ export interface NavItem {
 }
 
 export const SITE_NAV: NavItem[] = [
-  { label: 'Thuê đồ chơi', to: browseToysPath({ type: 'rent' }) },
-  { label: 'Mua lại', to: browseToysPath({ type: 'sell' }) },
+  { label: 'Thuê đồ chơi', to: PATHS.rentToys },
+  { label: 'Mua lại', to: PATHS.resaleToys },
   { label: 'Quyên góp', to: PATHS.donations },
 ]
 
@@ -143,12 +143,12 @@ export const TRUST_POINTS: IconText[] = [
   { icon: ShieldCheck, text: 'Người dùng xác minh CCCD' },
   { icon: Wallet, text: 'Tiền cọc giữ trong ví' },
   { icon: Camera, text: 'Ảnh bàn giao 2 chiều' },
-  { icon: Lock, text: 'Thanh toán VNPay, MoMo' },
+  { icon: Lock, text: 'Nạp ví qua PayOS (VietQR)' },
 ]
 
 export interface HeroBannerSlide {
   id: string
-  /** Tông màu nền của slide — có class `hero-banner__slide--{tone}` trong home.css */
+  /** Tông màu nền của slide — class Tailwind ở SLIDE_TONES (hero-banner-carousel.tsx) */
   tone: 'sky' | 'orange' | 'emerald'
   icon: LucideIcon
   eyebrow: string
@@ -333,7 +333,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { label: 'Thuê đồ chơi', to: browseToysPath({ type: 'rent' }) },
       { label: 'Mua đồ chơi cũ', to: browseToysPath({ type: 'sell' }) },
-      { label: 'Quyên góp từ thiện', to: PATHS.donations },
+      { label: 'Quyên góp từ thiện', to: PATHS.charityOrganizations },
       { label: 'AI tư vấn theo tuổi', to: PATHS.aiAdvisor },
     ],
   },

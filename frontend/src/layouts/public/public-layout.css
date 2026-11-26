@@ -4,7 +4,7 @@
    * nên dark mode chỉ cần đổi bộ biến ở `.dark .public-layout`.
    * Giá trị lấy từ bảng --color-tf-* (index.css) để trùng với trang tài khoản / đăng tin.
    * Navy là màu hành động duy nhất; xanh lá (secondary) chỉ để phân biệt nhãn "Bán lại".
-   * `.catalog-page` (trang Tìm đồ chơi trong AccountLayout) dùng cùng bộ token, chỉ ở giao diện sáng.
+   * `.catalog-page` (Tìm đồ chơi, chi tiết đồ chơi trong AccountLayout) dùng cùng bộ token, cả dark mode.
    */
   .public-layout,
   .catalog-page {
@@ -57,7 +57,8 @@
     color: var(--pl-ink);
   }
 
-  .dark .public-layout {
+  .dark .public-layout,
+  .dark .catalog-page {
     --pl-bg: var(--color-night-950);
     --pl-paper: var(--color-night-900);
     --pl-sunken: var(--color-night-800);

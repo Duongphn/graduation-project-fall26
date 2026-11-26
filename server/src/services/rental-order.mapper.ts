@@ -1,7 +1,15 @@
-import { type RentalOrderStatus } from '../constants/rental-order-status.js';
-import { type IOrderStatusHistory } from '../models/order-status-history.model.js';
 import { type IRentalOrder, type RentalOrderDoc } from '../models/rental-order.model.js';
-import { type RentalHistoryEntryDto, type RentalOrderDto } from '../types/rental-order.types.js';
+import { type EnrichedRentalOrderDoc } from '../repositories/rental-order.repository.js';
+import {
+  type RentalFinancialBreakdownDto,
+  type RentalOrderDetailDto,
+  type RentalOrderDto,
+  type RentalOrderItemDto,
+  type RentalOrderItemPricingDto,
+  type RentalPartyProfileDto,
+  type RentalTimelineEntryDto,
+  type RentalToySummaryDto,
+} from '../types/rental-order.types.js';
 import { formatDateOnly } from './rental-time.js';
 
 /** Chuyển document đơn thuê sang DTO trả về API; nhóm con rỗng (chưa giao, chưa trả…) bị bỏ. */
@@ -20,6 +28,16 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
     status: doc.status,
     timer: doc.timer?.kind && doc.timer.dueAt ? { kind: doc.timer.kind, dueAt: doc.timer.dueAt } : undefined,
     rejectionReason: doc.rejectionReason ?? undefined,
+    cancellation:
+      doc.cancellation && doc.cancellation.cancelledAt
+        ? {
+            by: doc.cancellation.by,
+            userId: doc.cancellation.userId.toString(),
+            reason: doc.cancellation.reason,
+            fee: doc.cancellation.fee,
+            cancelledAt: doc.cancellation.cancelledAt,
+          }
+        : undefined,
     handover:
       doc.handover &&
       (doc.handover.shippedAt ||
@@ -45,29 +63,111 @@ export function toRentalOrderDto(doc: RentalOrderDoc | IRentalOrder): RentalOrde
             lateFee: doc.returnInfo.lateFee ?? 0,
           }
         : undefined,
+    // Khiếu nại của người thuê không qua quyết toán: settlement chỉ có resolution sau phán quyết
     settlement:
-      doc.settlement && doc.settlement.settledAt
+      doc.settlement && (doc.settlement.settledAt || doc.settlement.resolution)
         ? {
-            result: doc.settlement.result,
+            result: doc.settlement.result ?? undefined,
             evidencePhotos: doc.settlement.evidencePhotos ?? undefined,
             description: doc.settlement.description ?? undefined,
-            settledAt: doc.settlement.settledAt,
+            settledAt: doc.settlement.settledAt ?? undefined,
             autoSettled: doc.settlement.autoSettled ?? undefined,
             disputeId: doc.settlement.disputeId?.toString() ?? undefined,
+            resolution: doc.settlement.resolution ?? undefined,
           }
         : undefined,
-    disputeId: doc.disputeId?.toString() ?? undefined,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
 }
 
-export function toRentalHistoryEntryDto(r: IOrderStatusHistory): RentalHistoryEntryDto {
+/** Chuyển document đơn thuê sang Item DTO cho danh sách đơn thuê (bỏ platformFee nếu là renter). */
+export function toRentalOrderItemDto(
+  doc: EnrichedRentalOrderDoc | IRentalOrder | RentalOrderDoc,
+  actorRole?: string,
+): RentalOrderItemDto {
+  const enriched = doc as Partial<EnrichedRentalOrderDoc>;
+  const isOwner =
+    actorRole === 'owner' ||
+    (actorRole !== 'renter' && enriched.role === 'owner');
+  const role: RentalOrderItemDto['role'] =
+    enriched.role === 'admin' ? 'admin' : isOwner ? 'owner' : 'renter';
+
+  // Renter does not receive platformFee or platformFeeRate in item pricing
+  const isRenter =
+    actorRole === 'renter' ||
+    (!actorRole && enriched.role === 'renter') ||
+    (!actorRole && !enriched.role);
+
+  const pricing: RentalOrderItemPricingDto = {
+    days: doc.pricing.days,
+    dailyRate: doc.pricing.dailyRate,
+    rentalFee: doc.pricing.rentalFee,
+    depositAmount: doc.pricing.depositAmount,
+    totalPayable: doc.pricing.totalPayable,
+  };
+
+  if (!isRenter) {
+    pricing.platformFeeRate = doc.pricing.platformFeeRate;
+    pricing.platformFee = doc.pricing.platformFee;
+  }
+
   return {
-    oldStatus: (r.oldStatus as RentalOrderStatus) ?? undefined,
-    newStatus: r.newStatus as RentalOrderStatus,
-    changedBy: r.changedBy.toString(),
-    notes: r.notes ?? undefined,
-    occurredAt: r.occurredAt,
+    id: doc._id.toString(),
+    code: doc.code,
+    role,
+    status: doc.status,
+    period: {
+      startDate: formatDateOnly(doc.period.startDate),
+      endDate: formatDateOnly(doc.period.endDate),
+    },
+    pricing,
+    toy: enriched.toy ?? undefined,
+    counterpart: enriched.counterpart ?? undefined,
+    ...(enriched.renter !== undefined ? { renter: enriched.renter } : {}),
+    ...(enriched.owner !== undefined ? { owner: enriched.owner } : {}),
+    timer:
+      doc.timer?.kind && doc.timer.dueAt
+        ? { kind: doc.timer.kind, dueAt: doc.timer.dueAt }
+        : undefined,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
+}
+
+/** Chuyển document đơn thuê sang Detail DTO hoàn chỉnh kèm metadata mở rộng. */
+export function toRentalOrderDetailDto(
+  order: RentalOrderDoc | IRentalOrder,
+  extras: {
+    toy?: RentalToySummaryDto | undefined;
+    renter?: RentalPartyProfileDto | undefined;
+    owner?: RentalPartyProfileDto | undefined;
+    timeline?: RentalTimelineEntryDto[] | undefined;
+    financialBreakdown?: RentalFinancialBreakdownDto | undefined;
+    viewerRole?: 'renter' | 'owner' | 'admin' | undefined;
+  } = {},
+): RentalOrderDetailDto {
+  const baseDto = toRentalOrderDto(order);
+  const pricing: RentalOrderItemPricingDto = {
+    days: order.pricing.days,
+    dailyRate: order.pricing.dailyRate,
+    rentalFee: order.pricing.rentalFee,
+    depositAmount: order.pricing.depositAmount,
+    totalPayable: order.pricing.totalPayable,
+  };
+  if (extras.viewerRole !== 'renter') {
+    pricing.platformFeeRate = order.pricing.platformFeeRate;
+    pricing.platformFee = order.pricing.platformFee;
+  }
+  return {
+    ...baseDto,
+    pricing,
+    ...(extras.toy !== undefined ? { toy: extras.toy } : {}),
+    ...(extras.renter !== undefined ? { renter: extras.renter } : {}),
+    ...(extras.owner !== undefined ? { owner: extras.owner } : {}),
+    ...(extras.timeline !== undefined ? { timeline: extras.timeline } : {}),
+    ...(extras.financialBreakdown !== undefined
+      ? { financialBreakdown: extras.financialBreakdown }
+      : {}),
   };
 }

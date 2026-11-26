@@ -4,7 +4,6 @@ import type {
   RentalNotifier,
   RentalSettingsProvider,
 } from '../interfaces/rental-order.ports.js';
-import type { TrustRecomputer } from '../interfaces/trust.ports.js';
 import { RentalOrder, type IRentalOrder } from '../models/rental-order.model.js';
 import { Review, type IReview, type ReviewDirection } from '../models/review.model.js';
 import { Toy, type IToy } from '../models/toy.model.js';
@@ -27,7 +26,6 @@ export interface ReviewServiceDeps {
   clock: Clock;
   settings: RentalSettingsProvider;
   notifier: RentalNotifier;
-  trust: TrustRecomputer;
   reviewModel?: Model<IReview>;
   rentalOrderModel?: Model<IRentalOrder>;
   toyModel?: Model<IToy>;
@@ -40,7 +38,6 @@ export class ReviewService {
   private readonly clock: Clock;
   private readonly settings: RentalSettingsProvider;
   private readonly notifier: RentalNotifier;
-  private readonly trust: TrustRecomputer;
   private readonly reviewModel: Model<IReview>;
   private readonly rentalOrderModel: Model<IRentalOrder>;
   private readonly toyModel: Model<IToy>;
@@ -50,7 +47,6 @@ export class ReviewService {
     this.clock = deps.clock;
     this.settings = deps.settings;
     this.notifier = deps.notifier;
-    this.trust = deps.trust;
     this.reviewModel = deps.reviewModel ?? Review;
     this.rentalOrderModel = deps.rentalOrderModel ?? RentalOrder;
     this.toyModel = deps.toyModel ?? Toy;
@@ -129,7 +125,6 @@ export class ReviewService {
       throw err;
     }
 
-    await this.trust.recomputeQuietly([revieweeId.toString()]);
     try {
       await this.notifier.notify({
         userId: revieweeId.toString(),
@@ -212,11 +207,15 @@ export class ReviewService {
     return { items, total, page: query.page, limit: query.limit };
   }
 
+  /**
+   * The window opens when the order is completed: at the Admin's ruling for an order that went
+   * through a dispute, otherwise at the Owner's settlement.
+   */
   private async deadlineOf(order: IRentalOrder): Promise<Date | null> {
-    const settledAt = order.settlement?.settledAt;
-    if (!settledAt) return null;
+    const completedAt = order.settlement?.resolution?.resolvedAt ?? order.settlement?.settledAt;
+    if (!completedAt) return null;
     const { reviewWindowDays } = await this.settings.getRentalSettings();
-    return new Date(settledAt.getTime() + reviewWindowDays * DAY_MS);
+    return new Date(completedAt.getTime() + reviewWindowDays * DAY_MS);
   }
 
   private async reviewerOf(userId: string): Promise<ReviewerDto> {

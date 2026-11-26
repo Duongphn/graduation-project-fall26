@@ -1,5 +1,5 @@
-import type { RatingSummary } from '../services/review.mapper.js';
 import type { ListingType, ToyAgeRange } from '../interfaces/toy-listing.ports.js';
+import type { RatingSummary } from '../services/review.mapper.js';
 
 /** Loại tin trong danh sách công khai: thêm 'donate' (tin quyên góp, priceOrRate 0) ngoài rent/sell */
 export type CatalogListingType = ListingType | 'donate';
@@ -18,8 +18,8 @@ export interface PublicToyDto {
   depositPrice?: number;
   ageRange: ToyAgeRange;
   images: { url: string }[];
-  rating: RatingSummary;
   createdAt: Date;
+  rating: RatingSummary;
 }
 
 export type ToyCatalogSort = 'newest' | 'popular';
@@ -27,7 +27,7 @@ export type ToyCatalogSort = 'newest' | 'popular';
 export interface ToyCatalogQuery {
   listingType?: CatalogListingType;
   categoryId?: string;
-  /** Lọc theo độ tuổi: lấy đồ chơi có khoảng tuổi giao với [minAge, maxAge] */
+  /** Lọc theo độ tuổi: lấy đồ chơi có khoảng tuổi giao với [minAge, maxAge) (nhóm tuổi S3) */
   minAge?: number;
   maxAge?: number;
   sort: ToyCatalogSort;
@@ -61,8 +61,8 @@ export interface CatalogToyRecord {
   depositPrice?: number | undefined;
   ageRange: ToyAgeRange;
   images: { url: string }[];
-  rating: RatingSummary;
   createdAt: Date;
+  rating: RatingSummary;
 }
 
 /** Truy vấn collection toys — tách khỏi service để test không cần MongoDB */

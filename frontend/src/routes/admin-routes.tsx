@@ -20,9 +20,20 @@ export const adminRoutes: RouteObject[] = [
   { path: adminChildPath(adminPaths.donationRequests), ...lazyPage(() => import('../features/donations/pages/AdminDonationRequestsPage'), 'AdminDonationRequestsPage') },
   { path: adminChildPath(adminPaths.donationRequests, '/:id'), ...lazyPage(() => import('../features/donations/pages/AdminDonationRequestDetailPage'), 'AdminDonationRequestDetailPage') },
   // Rental disputes (UC19)
-  { path: adminChildPath(adminPaths.disputes), ...lazyPage(() => import('../features/dispute-resolution/pages/DisputeQueuePage'), 'DisputeQueuePage') },
-  { path: adminChildPath(adminPaths.disputes, '/:id'), ...lazyPage(() => import('../features/dispute-resolution/pages/DisputeCaseFilePage'), 'DisputeCaseFilePage') },
-  // Trust Score review queue (UC24)
-  { path: adminChildPath(adminPaths.trustReviews), ...lazyPage(() => import('../features/trust-review/pages/TrustReviewQueuePage'), 'TrustReviewQueuePage') },
-  { path: adminChildPath(adminPaths.trustReviews, '/:userId'), ...lazyPage(() => import('../features/trust-review/pages/TrustReviewDetailPage'), 'TrustReviewDetailPage') },
+  { path: adminChildPath(adminPaths.disputes), ...lazyPage(() => import('../features/disputes/pages/DisputeListPage'), 'DisputeListPage') },
+  { path: adminChildPath(adminPaths.disputes, '/:id'), ...lazyPage(() => import('../features/disputes/pages/DisputeDetailPage'), 'DisputeDetailPage') },
+  // Notifications (UC26): the bell in the header opens the latest ones
+  { path: adminChildPath(adminPaths.notifications), ...lazyPage(() => import('../features/notifications/pages/AdminNotificationsPage'), 'AdminNotificationsPage') },
+  // Violation reports (UC29)
+  { path: adminChildPath(adminPaths.violationReports), ...lazyPage(() => import('../features/violation-reports/pages/ViolationReportListPage'), 'ViolationReportListPage') },
+  { path: adminChildPath(adminPaths.violationReports, '/:id'), ...lazyPage(() => import('../features/violation-reports/pages/ViolationReportDetailPage'), 'ViolationReportDetailPage') },
+  // User accounts (UC29)
+  { path: adminChildPath(adminPaths.users), ...lazyPage(() => import('../features/accounts/pages/AccountListPage'), 'AccountListPage') },
+  { path: adminChildPath(adminPaths.users, '/:id'), ...lazyPage(() => import('../features/accounts/pages/AccountDetailPage'), 'AccountDetailPage') },
+  // Audit log (UC31)
+  { path: adminChildPath(adminPaths.withdrawals), ...lazyPage(() => import('../features/withdrawal-requests/pages/AdminWithdrawalsPage'), 'AdminWithdrawalsPage') },
+
+  { path: adminChildPath(adminPaths.auditLogs), ...lazyPage(() => import('../features/audit-logs/pages/AuditLogPage'), 'AuditLogPage') },
+  // System settings (UC30): fees, limits, time limits; ?edit=<key> opens Setting Detail
+  { path: adminChildPath(adminPaths.settings), ...lazyPage(() => import('../features/system-settings/pages/SystemSettingsPage'), 'SystemSettingsPage') },
 ]

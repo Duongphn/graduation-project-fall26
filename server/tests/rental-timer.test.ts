@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OrderStatusHistory, RentalOrder, Wallet } from '../src/models/index.js';
+import { OrderStatusHistory, RentalOrder, SystemSetting, Wallet } from '../src/models/index.js';
 import {
   authHeader,
   buildRentalApp,
@@ -10,7 +10,7 @@ import {
   fund,
 } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
-import { RentalTimerService, startRentalScheduler } from '../src/services/rental-timer.service.js';
+import { RentalTimerService } from '../src/services/rental-timer.service.js';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
@@ -133,6 +133,45 @@ describe('UC12: Rental Timers and Scheduler', () => {
     await fund(renterId, 500_000);
     const payRes = await request(app).post(`/api/v1/rentals/${orderId}/pay`).set(renterAuth);
     expect(payRes.status).toBe(409);
+  });
+
+  // Review 20/11, rental bug 9: the texts said 24 / 12 / 48 giờ whatever the Admin configured.
+  it('writes the configured hours in the expiry and auto-confirm notifications', async () => {
+    await SystemSetting.create([
+      { key: 'rental.ownerResponseHours', value: '6' },
+      { key: 'rental.paymentHours', value: '3' },
+      { key: 'rental.receiptAutoConfirmHours', value: '24' },
+    ]);
+    const bodies = () => notifier.sent.map((n: any) => n.body).join(' | ');
+    const book = async (startDate: string, endDate: string) =>
+      unwrap(await request(app).post('/api/v1/rentals').set(renterAuth).send({ toyId, startDate, endDate })).id;
+
+    await book('2026-11-05', '2026-11-07');
+    notifier.sent.length = 0;
+    clock.advanceHours(6);
+    expect((await timerService.runDue()).processed).toBe(1);
+    expect(bodies()).toContain('không phản hồi yêu cầu thuê trong vòng 6 giờ');
+    expect(bodies()).toContain('Thời hạn 6 giờ phản hồi đã hết');
+    expect(bodies()).not.toMatch(/24 giờ/);
+
+    const unpaid = await book('2026-11-05', '2026-11-07');
+    await request(app).post(`/api/v1/rentals/${unpaid}/accept`).set(ownerAuth);
+    notifier.sent.length = 0;
+    clock.advanceHours(3);
+    expect((await timerService.runDue()).processed).toBe(1);
+    expect(bodies()).toContain('Thời hạn 3 giờ thanh toán đã hết');
+    expect(bodies()).toContain('không thanh toán đơn thuê trong vòng 3 giờ');
+
+    const shipped = await book('2026-11-10', '2026-11-12');
+    await request(app).post(`/api/v1/rentals/${shipped}/accept`).set(ownerAuth);
+    await fund(renterId, 500_000);
+    await request(app).post(`/api/v1/rentals/${shipped}/pay`).set(renterAuth);
+    await request(app).post(`/api/v1/rentals/${shipped}/ship`).set(ownerAuth).attach('photos', JPEG, 'ship.jpg');
+    notifier.sent.length = 0;
+    clock.advanceHours(24);
+    expect((await timerService.runDue()).processed).toBe(1);
+    expect(bodies()).toContain('Thời hạn 24 giờ đã hết, đơn thuê tự động chuyển');
+    expect(bodies()).not.toMatch(/48 giờ/);
   });
 
   it('auto-confirms receipt after 48h', async () => {
@@ -381,44 +420,5 @@ describe('UC12: Rental Timers and Scheduler', () => {
 
     const secondRun = await timerService.runDue();
     expect(secondRun.processed).toBe(0);
-  });
-
-  describe('Scheduler non-overlapping ticks', () => {
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('scheduler does not overlap ticks', async () => {
-      vi.useFakeTimers();
-
-      let callCount = 0;
-      let resolveSlowCall: (() => void) | null = null;
-
-      const slowTimer = {
-        runDue: async () => {
-          callCount += 1;
-          return new Promise<{ processed: number; failed: number }>((resolve) => {
-            resolveSlowCall = () => resolve({ processed: 0, failed: 0 });
-          });
-        },
-      } as unknown as RentalTimerService;
-
-      const stop = startRentalScheduler(slowTimer, 1000);
-
-      // Advance 1s -> tick 1 triggers slow call
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(callCount).toBe(1);
-
-      // Advance 2s more while slow call is still pending
-      await vi.advanceTimersByTimeAsync(2000);
-      expect(callCount).toBe(1); // Still 1, did not overlap!
-
-      // Resolve the pending call
-      resolveSlowCall!();
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(callCount).toBe(2); // Next tick proceeds
-
-      stop();
-    });
   });
 });

@@ -1,11 +1,14 @@
 import { adminAuditEntry, writeAuditLog } from '../repositories/audit-log.repository.js';
-import { notFound } from '../utils/http-errors.js';
 import { domainEvents } from '../utils/domain-events.js';
+import { notFound } from '../utils/http-errors.js';
 import type { AdminContext } from '../utils/admin-context.js';
 import { zeroFilledCounts } from '../utils/counts.js';
 import { toSkipLimit } from '../utils/response.js';
 import { assertTransition } from '../utils/transitions.js';
-import { IdentityVerificationService } from './identity-verification.service.js';
+import {
+  IdentityVerificationService,
+  VERIFICATION_NOT_FOUND_MESSAGE,
+} from './identity-verification.service.js';
 import type { VerificationStatus } from '../interfaces/identity-verification.ports.js';
 import { getReviewStorage, signDocuments, signedKeys } from './identity-review.documents.js';
 import { toDetailUser, toQueueUser, toVerificationSummary } from './identity-review.mapper.js';
@@ -19,8 +22,7 @@ import { verificationStatuses, verificationTransitions } from '../constants/iden
 // DefaultIdentityVerificationEvents); this module adds the queue search, counts, previous
 // requests, document links and the audit log.
 
-const verificationNotFound = () =>
-  notFound('NOT_FOUND', 'Verification submission not found.');
+const verificationNotFound = () => notFound('NOT_FOUND', VERIFICATION_NOT_FOUND_MESSAGE);
 
 const resolveSort = (query: IdentityQueueQuery): Record<string, 1 | -1> => {
   if (query.sortBy) {
@@ -123,22 +125,29 @@ const decide = async (id: string, context: AdminContext, decision: Decision, rea
   const reviewedBy = context.actor.actorId;
 
   // Develop's review: 404 NOT_FOUND, 409 SUBMISSION_NOT_PENDING when already decided.
-  const receipt = await createReviewService().review(reviewedBy, id, {
-    action: decision === 'verified' ? 'approve' : 'reject',
-    ...(reason ? { rejectionReason: reason } : {}),
-  });
+  // notify: false, the user is notified once through IDENTITY_REVIEWED below.
+  const receipt = await createReviewService().review(
+    reviewedBy,
+    id,
+    {
+      action: decision === 'verified' ? 'approve' : 'reject',
+      ...(reason ? { rejectionReason: reason } : {}),
+    },
+    { notify: false },
+  );
   const verification = await repository.findVerificationById(id);
   const userId = verification ? String(verification.userId) : '';
 
   await writeAuditLog(
-    adminAuditEntry(context, decision === 'verified' ? 'identity.verify' : 'identity.reject', {
-      kind: 'IDENTITY_VERIFICATION',
-      id,
-    }),
+    adminAuditEntry(
+      context,
+      decision === 'verified' ? 'identity.verify' : 'identity.reject',
+      { kind: 'IDENTITY_VERIFICATION', id },
+      reason ? { reason } : undefined,
+    ),
   );
 
-  // For other subscribers (e.g. email). The in-app notification is already written by
-  // develop's DefaultIdentityVerificationEvents.
+  // The notification subscriber turns this into the in-app notification and the email.
   domainEvents.publish({
     type: 'IDENTITY_REVIEWED',
     verificationId: receipt.id,

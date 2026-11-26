@@ -51,6 +51,47 @@ export const AGE_OPTIONS = [
   { label: '12+ tuổi & Ba mẹ sưu tầm', minAge: 12, maxAge: 99 },
 ] as const
 
+/** UC05: cam kết an toàn người đăng tin cho thuê / bán phải tick đủ mỗi lần gửi tin đi duyệt */
+export const LISTING_SAFETY_COMMITMENTS = [
+  {
+    key: 'noSharpParts',
+    title: 'Không có cạnh sắc, mảnh vỡ hay vết nứt có thể gây thương tích',
+    hint: 'Đã kiểm tra kỹ các góc, khớp nối và bề mặt đồ chơi.',
+  },
+  {
+    key: 'ageFitsSmallParts',
+    title: 'Độ tuổi khai báo phù hợp với các chi tiết nhỏ',
+    hint: 'Chi tiết nhỏ có nguy cơ hóc với trẻ dưới 3 tuổi.',
+  },
+  {
+    key: 'batterySecured',
+    title: 'Pin (nếu có) không phồng, không rò rỉ; nắp pin được vặn chặt',
+    hint: 'Đồ chơi không dùng pin thì vẫn tick để xác nhận.',
+  },
+  {
+    key: 'notBannedAndClean',
+    title: 'Không thuộc danh mục bị cấm hoặc bị thu hồi; đã được vệ sinh sạch sẽ',
+    hint: 'Không ẩm mốc, không bám bẩn hay có mùi lạ.',
+  },
+  {
+    key: 'honestPhotos',
+    title: 'Ảnh và mô tả đúng hiện trạng, không che giấu lỗi',
+    hint: 'Ghi rõ mọi vết trầy, chi tiết thiếu hoặc hỏng trong mô tả.',
+  },
+] as const
+
+export type ListingSafetyKey = (typeof LISTING_SAFETY_COMMITMENTS)[number]['key']
+
+export const EMPTY_LISTING_SAFETY: Record<ListingSafetyKey, boolean> = {
+  noSharpParts: false,
+  ageFitsSmallParts: false,
+  batterySecured: false,
+  notBannedAndClean: false,
+  honestPhotos: false,
+}
+
+export const SAFETY_REQUIRED_MESSAGE = 'Vui lòng xác nhận đủ các cam kết an toàn.'
+
 export const listingSchema = z
   .object({
     listingType: z.enum(['rent', 'sell']),
@@ -72,8 +113,18 @@ export const listingSchema = z
       .refine((value) => !hasBlockedContactDetails(value), CONTACT_DETAILS_MESSAGES.description),
     priceOrRate: z.number({ error: 'Vui lòng nhập giá' }).int('Giá phải là số nguyên (VND)'),
     depositPrice: z.number().int('Tiền cọc phải là số nguyên (VND)').optional(),
+    safety: z.object({
+      noSharpParts: z.boolean(),
+      ageFitsSmallParts: z.boolean(),
+      batterySecured: z.boolean(),
+      notBannedAndClean: z.boolean(),
+      honestPhotos: z.boolean(),
+    }),
   })
   .superRefine((values, ctx) => {
+    if (Object.values(values.safety).some((ticked) => !ticked)) {
+      ctx.addIssue({ code: 'custom', path: ['safety'], message: SAFETY_REQUIRED_MESSAGE })
+    }
     const range = PRICE_RULES[values.listingType]
     if (values.priceOrRate < range.min || values.priceOrRate > range.max) {
       ctx.addIssue({
@@ -102,4 +153,5 @@ export const EMPTY_LISTING_VALUES: Partial<ListingFormValues> = {
   categoryId: '',
   condition: '',
   description: '',
+  safety: EMPTY_LISTING_SAFETY,
 }

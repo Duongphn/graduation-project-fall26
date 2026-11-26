@@ -79,6 +79,44 @@ describe('five wrong codes cancel the code (TC-SEC-016)', () => {
     expect(await User.exists({ email })).toBeNull();
   });
 
+  it('registration: after 5 wrong codes a new code can be requested and creates the account', async () => {
+    await api.post('/api/v1/auth/register').send(registration);
+    const first = await OtpRequest.findOne({ identifier: email, purpose: 'register' }).lean();
+    const wrong = first!.otp_code === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) await api.post('/api/v1/auth/register/verify-otp').send({ email, otpCode: wrong });
+
+    // The 60-second wait still applies to the cancelled code
+    const tooSoon = await api.post('/api/v1/auth/register/resend-otp').send({ email });
+    expect(tooSoon.status).toBe(429);
+    expect(tooSoon.body.error.code).toBe('OTP_RESEND_TOO_SOON');
+
+    await skipResendWait(email, 'register');
+    const resent = await api.post('/api/v1/auth/register/resend-otp').send({ email });
+    expect(resent.status).toBe(200);
+    expect(sendOtpEmail).toHaveBeenCalledTimes(2);
+
+    const latest = await OtpRequest.findOne({ identifier: email, purpose: 'register', is_used: false }).lean();
+    expect(latest!.attempts).toBe(0);
+    const created = await api.post('/api/v1/auth/register/verify-otp').send({ email, otpCode: latest!.otp_code });
+    expect(created.status).toBe(201);
+    expect(await User.exists({ email, phone: registration.phone })).not.toBeNull();
+  });
+
+  it('registration: no new code once the account is created or the pending sign-up is over an hour old', async () => {
+    await api.post('/api/v1/auth/register').send(registration);
+    const otp = await OtpRequest.findOne({ identifier: email, purpose: 'register' }).lean();
+    expect((await api.post('/api/v1/auth/register/verify-otp').send({ email, otpCode: otp!.otp_code })).status).toBe(201);
+    await skipResendWait(email, 'register');
+    expect((await api.post('/api/v1/auth/register/resend-otp').send({ email })).status).toBe(409);
+
+    await Promise.all([User.deleteMany({ email }), OtpRequest.deleteMany({})]);
+    await api.post('/api/v1/auth/register').send(registration);
+    await OtpRequest.collection.updateMany({ identifier: email }, { $set: { createdAt: new Date(Date.now() - 61 * 60_000) } });
+    const stale = await api.post('/api/v1/auth/register/resend-otp').send({ email });
+    expect(stale.status).toBe(400);
+    expect(stale.body.error.code).toBe('REGISTRATION_EXPIRED');
+  });
+
   it('four wrong codes still leave the right code usable', async () => {
     await api.post('/api/v1/auth/register').send(registration);
     const otp = await OtpRequest.findOne({ identifier: email, purpose: 'register' }).lean();

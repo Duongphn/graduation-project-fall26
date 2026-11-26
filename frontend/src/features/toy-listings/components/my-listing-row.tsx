@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
+import { Building2, Eye, EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS, toyListingEditPath } from '../../../routes/paths'
 import { formatVnd } from '../format-vnd'
 import { displayCode, formatDate, isRejected, REJECTED_LABEL, STATUS_LABELS } from '../listing-display'
-import { deleteToyListing, getListingErrorMessage, hideToyListing, type ToyListing } from '../toy-listing-api'
+import { deleteToyListing, getListingErrorMessage, hideToyListing, showToyListing, type ToyListing } from '../toy-listing-api'
 import { MY_LISTINGS_ROOT_KEY, myListingQuery } from '../toy-listing-queries'
 import type { DonationToyState } from '../../donations/donor-queries'
+import { SendToOrganizationModal } from '../../donations/components/send-to-organization-modal'
 
 interface MyListingRowProps {
   listing: ToyListing
@@ -32,6 +33,8 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
   const isDonation = listing.listingType === 'donate'
   // Đồ đang trao hoặc đã tặng: không cho ẩn/xoá (phiếu quyên góp còn tham chiếu tới đồ chơi)
   const lockedByDonation = donationState !== undefined
+  // Tin tặng chỉ sửa khi bị từ chối hoặc bị ẩn (UC33 5.1, GB-60): sửa xong là gửi duyệt lại
+  const canEdit = !isDonation || (!lockedByDonation && listing.status === 'hidden')
 
   const refreshLists = () => {
     void queryClient.invalidateQueries({ queryKey: MY_LISTINGS_ROOT_KEY })
@@ -39,9 +42,17 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
   }
 
   const hideMutation = useMutation({ mutationFn: () => hideToyListing(listing.id), onSuccess: refreshLists })
+  const showMutation = useMutation({ mutationFn: () => showToyListing(listing.id), onSuccess: refreshLists })
   const deleteMutation = useMutation({ mutationFn: () => deleteToyListing(listing.id), onSuccess: refreshLists })
-  const isBusy = hideMutation.isPending || deleteMutation.isPending
-  const actionError = hideMutation.error ?? deleteMutation.error
+  const isBusy = hideMutation.isPending || showMutation.isPending || deleteMutation.isPending
+  const actionError = hideMutation.error ?? showMutation.error ?? deleteMutation.error
+  // R03 III.3.2.1: chỉ tin đang hiển thị mới ẩn được (tin chờ duyệt chỉ có Sửa và Xoá); tin chủ đồ
+  // đã ẩn (không bị từ chối) có "Hiện lại" (GB-08)
+  const canHide = !lockedByDonation && listing.status === 'active'
+  const canShowAgain = !lockedByDonation && listing.status === 'hidden' && !rejected
+  // UC33 (GB-56): tin tặng đang hiển thị, chưa có ai được đồng ý tặng, gửi được tới một tổ chức
+  const canSendToOrganization = isDonation && !lockedByDonation && listing.status === 'active'
+  const [sendingToOrganization, setSendingToOrganization] = useState(false)
 
   return (
     <article className={`listing-row ${isBusy ? 'is-busy' : ''}`}>
@@ -72,8 +83,7 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         </div>
 
         <h3 className="listing-row__title">
-          {/* Tin tặng không sửa bằng form đăng tin (không có giá) */}
-          {isDonation ? (
+          {!canEdit ? (
             listing.title
           ) : (
             <Link to={toyListingEditPath(listing.id)} className="listing-row__title-link">
@@ -96,7 +106,7 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
         {rejected && showingReason && (
           <p id={reasonId} className="listing-row__reason">
             <strong>Lý do từ chối:</strong> {listing.moderation?.rejectReason}
-            {!isDonation && ' Sửa tin rồi lưu để gửi duyệt lại.'}
+            {' Sửa tin rồi lưu để gửi duyệt lại.'}
           </p>
         )}
 
@@ -133,16 +143,33 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
                 {showingReason ? 'Ẩn lý do' : 'Xem lý do'}
               </button>
             )}
-            {!isDonation && (
+            {canEdit && (
               <Link to={toyListingEditPath(listing.id)} className="row-btn row-btn--primary">
                 <Pencil aria-hidden />
                 Sửa
               </Link>
             )}
-            {!lockedByDonation && listing.status !== 'hidden' && listing.status !== 'sold' && (
+            {canSendToOrganization && (
+              <button
+                type="button"
+                className="row-btn row-btn--primary"
+                onClick={() => setSendingToOrganization(true)}
+                disabled={isBusy}
+              >
+                <Building2 aria-hidden />
+                Gửi tới tổ chức
+              </button>
+            )}
+            {canHide && (
               <button type="button" className="row-btn" onClick={() => hideMutation.mutate()} disabled={isBusy}>
                 {hideMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <EyeOff aria-hidden />}
                 Ẩn tin
+              </button>
+            )}
+            {canShowAgain && (
+              <button type="button" className="row-btn" onClick={() => showMutation.mutate()} disabled={isBusy}>
+                {showMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <Eye aria-hidden />}
+                Hiện lại
               </button>
             )}
             {lockedByDonation ? (
@@ -158,6 +185,14 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
           </>
         )}
       </div>
+
+      {canSendToOrganization && (
+        <SendToOrganizationModal
+          open={sendingToOrganization}
+          onClose={() => setSendingToOrganization(false)}
+          toy={listing}
+        />
+      )}
     </article>
   )
 }

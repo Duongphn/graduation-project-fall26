@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { RentalOrder, Review, Toy, User } from '../src/models/index.js';
+import { RentalOrder, Review, Toy } from '../src/models/index.js';
 import {
   authHeader,
   buildRentalApp,
@@ -69,9 +69,6 @@ describe('UC24: submit and view rental reviews', () => {
     expect(res.body.data.reviewer.email).toBeUndefined();
     const toy = await Toy.findById(toyId);
     expect(toy?.rating).toMatchObject({ sum: 4, count: 1 });
-    const owner = await User.findById(ownerId);
-    expect(owner?.trust?.reviewCount).toBe(1);
-    expect(owner?.trust?.score).toBeNull();
     const sent = notifier.sent.filter((n: any) => n.userId === ownerId);
     expect(sent).toHaveLength(1);
     expect(sent[0].title).toBe('Bạn có đánh giá mới');
@@ -204,25 +201,26 @@ describe('UC24: submit and view rental reviews', () => {
       .set(renterAuth)
       .attach('photos', JPEG, 'return.jpg');
     clock.advanceHours(1);
-    const dispute = await request(app)
-      .post(`/api/v1/rentals/${id}/disputes`)
+    // Chủ đồ báo hư hỏng: đơn chuyển DISPUTING và mở khiếu nại
+    const damaged = await request(app)
+      .post(`/api/v1/rentals/${id}/settle`)
       .set(ownerAuth)
-      .field('reason', 'DAMAGED_ON_RETURN')
+      .field('result', 'DAMAGED')
       .field('description', 'Đồ chơi bị nứt phần thân, thiếu một bánh xe.')
       .attach('photos', JPEG, 'evidence.jpg');
-    const disputeId = dispute.body.data.dispute.id;
-    await request(app)
-      .post(`/api/v1/disputes/${disputeId}/response`)
-      .set(renterAuth)
-      .field('message', 'Đồ chơi còn nguyên vẹn khi trả, có ảnh đối chiếu.');
+    expect(damaged.body.data.status).toBe('DISPUTING');
+    const disputeId = damaged.body.data.settlement.disputeId;
+    // Phán quyết đến sau 20 ngày, quá hạn đánh giá 14 ngày nếu tính từ lúc báo hư hỏng:
+    // hạn đánh giá phải tính từ lúc đơn thật sự hoàn tất
+    clock.advanceHours(20 * 24);
     const adminAuth = authHeader(String((await createUser({ role: 'ADMIN' }))._id), 'ADMIN');
     const resolved = await request(app)
       .post(`/api/v1/admin/disputes/${disputeId}/resolve`)
       .set(adminAuth)
       .send({
-        verdict: 'PARTIAL',
-        compensation: 50_000,
-        reason: 'Ảnh lúc giao và lúc trả cho thấy vết nứt mới xuất hiện sau khi thuê.',
+        ruling: 'RENTER_AT_FAULT',
+        compensationRate: 25,
+        adminDecision: 'Ảnh lúc giao và lúc trả cho thấy vết nứt mới xuất hiện sau khi thuê.',
       });
     expect(resolved.status).toBe(200);
 

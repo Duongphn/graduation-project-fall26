@@ -1,7 +1,6 @@
 import mongoose, { type Model, Schema, type Types } from 'mongoose';
 
 export type ReviewDirection = 'RENTER_TO_OWNER' | 'OWNER_TO_RENTER';
-export type TrustDecision = 'ALLOW' | 'KEEP_RESTRICTED';
 
 export interface IReview {
   _id: Types.ObjectId;

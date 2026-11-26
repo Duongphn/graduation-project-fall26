@@ -8,6 +8,7 @@ import { ListingPhotoUploader } from './listing-photo-uploader'
 import { ListingPricingSection } from './listing-pricing-section'
 import { ListingPublishPanel } from './listing-publish-panel'
 import { ListingPurposeSection } from './listing-purpose-section'
+import { ListingSafetySection } from './listing-safety-section'
 import { PATHS } from '../../../routes/paths'
 import { getApiErrorCode } from '../../../services/http-client'
 import { useListingPhotos } from '../hooks/use-listing-photos'
@@ -24,11 +25,13 @@ import {
 import { isListingTypeLocked, isRejected } from '../listing-display'
 import { categoriesQuery } from '../toy-listing-queries'
 import {
+  EMPTY_LISTING_SAFETY,
   EMPTY_LISTING_VALUES,
   LISTING_IMAGE_TYPES,
   LISTING_MAX_IMAGES,
   LISTING_PHOTO_LIMITS,
   listingSchema,
+  SAFETY_REQUIRED_MESSAGE,
   tooFewPhotosMessage,
   type ListingFormValues,
 } from '../toy-listing-schema'
@@ -39,7 +42,10 @@ const CATEGORY_GONE_ERROR = 'Danh mục vừa chọn không còn hoạt động,
 /** Ảnh tin cho thuê / bán: tối đa 8 ảnh JPG, PNG hoặc WebP (GB-10) */
 const LISTING_PHOTO_RULES = { maxImages: LISTING_MAX_IMAGES, acceptedTypes: LISTING_IMAGE_TYPES }
 
-/** Đưa tin đăng từ backend về giá trị form */
+/**
+ * Đưa tin đăng từ backend về giá trị form. Cam kết an toàn luôn bắt đầu chưa tick, kể cả khi sửa
+ * và sau mỗi lần lưu (UC05): mỗi lần gửi tin đi duyệt phải cam kết lại.
+ */
 function toSavedValues(listing?: ToyListing): Partial<ListingFormValues> {
   if (!listing) return EMPTY_LISTING_VALUES
   return {
@@ -53,6 +59,7 @@ function toSavedValues(listing?: ToyListing): Partial<ListingFormValues> {
     description: listing.description,
     priceOrRate: listing.priceOrRate,
     depositPrice: listing.depositPrice,
+    safety: EMPTY_LISTING_SAFETY,
   }
 }
 
@@ -111,6 +118,10 @@ export function ToyListingForm({
       const contactField = getContactDetailsField(error)
       if (contactField) {
         setError(contactField, { type: 'server', message: CONTACT_DETAILS_MESSAGES[contactField] }, { shouldFocus: true })
+      }
+      // UC05: máy chủ đòi cam kết an toàn (vd. client cũ không gửi cờ): báo ngay ở mục cam kết
+      if (getApiErrorCode(error) === 'SAFETY_DECLARATION_REQUIRED') {
+        setError('safety', { type: 'server', message: SAFETY_REQUIRED_MESSAGE }, { shouldFocus: true })
       }
     },
     onSuccess: (saved) => {
@@ -212,6 +223,9 @@ export function ToyListingForm({
         <div className="listing-form__side">
           <fieldset disabled={isSaving} className="contents">
             <ListingPricingSection typeLocked={typeLocked} />
+          </fieldset>
+          <fieldset disabled={isSaving} className="contents">
+            <ListingSafetySection />
           </fieldset>
           <ListingPublishPanel
             isEdit={isEdit}

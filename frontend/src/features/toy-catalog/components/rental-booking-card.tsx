@@ -6,20 +6,17 @@ import { Link, useLocation } from 'react-router-dom'
 import { useIsSignedIn } from '../../../hooks/use-is-signed-in'
 import { myRentalPath, PATHS } from '../../../routes/paths'
 import { ApiError, getErrorMessage } from '../../../services/api-error'
-import { TrustRestrictedNotice } from './trust-restricted-notice'
 import { getApiErrorMessage } from '../../../services/http-client'
 import { profileQuery } from '../../profile/profile-queries'
 import { formatVnd } from '../../toy-listings/format-vnd'
 import type { ToyDetail } from '../toy-catalog-api'
 import { toyAvailabilityQuery } from '../toy-catalog-queries'
 import {
-  isRenterRestrictedDetails,
   rentalQuoteQuery,
   useCreateRental,
   type CreatedRentalOrder,
   type DateRange,
   type DatesUnavailableDetails,
-  type RenterRestrictedDetails,
 } from '../rental-request-api'
 
 const DATE_KEY = 'YYYY-MM-DD'
@@ -57,8 +54,6 @@ interface Failure {
   message: string
   code?: string
   suggestion?: DateRange | null
-  /** Có khi bị chặn vì điểm tin cậy (403 RENTER_RESTRICTED) */
-  restricted?: RenterRestrictedDetails
 }
 
 const toFailure = (error: unknown): Failure => {
@@ -68,8 +63,6 @@ const toFailure = (error: unknown): Failure => {
     message: error.message,
     code: error.code,
     suggestion: error.code === 'RENTAL_DATES_UNAVAILABLE' ? (details?.suggestion ?? null) : undefined,
-    restricted:
-      error.code === 'RENTER_RESTRICTED' && isRenterRestrictedDetails(error.details) ? error.details : undefined,
   }
 }
 
@@ -437,16 +430,8 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
               </p>
             )}
 
-            {/* Báo giá chỉ báo bị chặn; gửi yêu cầu (POST /rentals) mới đưa người thuê vào danh sách Admin xem xét */}
-            {quoteError?.restricted && !failure?.restricted && (
-              <TrustRestrictedNotice
-                details={quoteError.restricted}
-                requesting={create.isPending}
-                onRequestReview={submit}
-              />
-            )}
-
-            {quoteError && !quoteError.restricted && (
+            {/* Một thông báo lỗi: lỗi khi gửi (kèm khoảng gợi ý) thay cho lỗi báo giá khi báo giá tải lại sau 409 */}
+            {quoteError && !failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <div>
@@ -460,16 +445,14 @@ export function RentalBookingCard({ toy }: { toy: ToyDetail }) {
               </div>
             )}
 
-            {unavailable && (
+            {unavailable && !failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <p>Khoảng ngày này vừa có người đặt. Vui lòng chọn ngày khác trên lịch.</p>
               </div>
             )}
 
-            {failure?.restricted && <TrustRestrictedNotice details={failure.restricted} />}
-
-            {failure && !failure.restricted && (
+            {failure && (
               <div className="rent-ticket__alert" role="alert">
                 <CircleAlert aria-hidden />
                 <div>

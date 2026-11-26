@@ -1,6 +1,7 @@
 import { Descriptions, Tag, Typography } from 'antd'
 import type { DescriptionsProps } from 'antd'
 
+import { formatDate } from '../../../utils/format'
 import { ageGroupLabel, handoverMethodLabelsOf } from '../constants'
 import type { Organization } from '../types'
 
@@ -83,10 +84,28 @@ const needsItems = (
     : []),
 ]
 
-// R03 III.7.5.1 (4) and (7): the receiving point and the needs of one organization.
+// UC34, R03 III.7.5.1 (2): what the Admin checked and when.
+const verificationItems = (organization: Organization): DescriptionsProps['items'] => [
+  {
+    key: 'verified',
+    label: 'Đã xác minh',
+    children: organization.verifiedAt ? formatDate(organization.verifiedAt) : missing,
+  },
+  { key: 'note', label: 'Ghi chú xác minh', children: organization.verificationNote ?? missing },
+]
+
+// R03 III.7.5.1 (2), (4) and (7): the check, the receiving point and the needs of one organization.
 export function OrganizationDetails({ organization, categoryNames }: OrganizationDetailsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Descriptions
+        size="small"
+        column={1}
+        bordered
+        title="Xác minh"
+        className="lg:col-span-2"
+        items={verificationItems(organization)}
+      />
       <Descriptions size="small" column={1} bordered title="Điểm nhận đồ chơi" items={pointItems(organization)} />
       <Descriptions
         size="small"

@@ -2,23 +2,22 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, BadgeCheck, Check, ChevronRight, Clock, Home, ShieldAlert, UserRound, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { OpenChatButton } from '../features/chat/components/open-chat-button'
 
 import { QueryErrorAlert, ReasonModal } from '../components/common'
 import { profileQuery } from '../features/profile/profile-queries'
+import { RentalFinancialBreakdown } from '../features/rentals/components/rental-financial-breakdown'
+import { RentalPeriod, RentalStatusBadge, RentalThumb } from '../features/rentals/components/rental-parts'
+import { RentalTimeline } from '../features/rentals/components/rental-timeline'
+import { RentalCancelAction } from '../features/rentals/components/rental-cancel-action'
+import { RentalComplaintPanel } from '../features/rentals/components/rental-complaint-panel'
+import { RentalDisputePanel } from '../features/rentals/components/rental-dispute-panel'
 import { RentalReviewPanel } from '../features/reviews/components/rental-review-panel'
-import { RentalPeriod, RentalStatusBadge, RentalToyImage } from '../features/rentals/components/rental-parts'
 import { RentalHandoverPanel, RentalHandoverRecord } from '../features/rentals/components/rental-handover-panel'
 import { RentalPayPanel } from '../features/rentals/components/rental-pay-panel'
-import { RentalComplaintPanel } from '../features/rentals/components/rental-complaint-form'
-import { RentalDisputePanel } from '../features/rentals/components/rental-dispute-panel'
 import { RentalReturnPanel, RentalReturnRecord } from '../features/rentals/components/rental-return-panel'
 import { RentalSettlePanel, RentalSettlementRecord } from '../features/rentals/components/rental-settle-panel'
-import {
-  rentalDetailQuery,
-  rentalHistoryQuery,
-  useOwnerRentalDecision,
-  type RentalOrderDetail,
-} from '../features/rentals/rental-orders-api'
+import { rentalDetailQuery, useOwnerRentalDecision, type RentalOrderDetail } from '../features/rentals/rental-orders-api'
 import {
   describeReturnDue,
   estimateLateFee,
@@ -29,9 +28,8 @@ import {
   RENTAL_STATUS_META,
   useNow,
 } from '../features/rentals/rental-display'
-import { toyDetailQuery } from '../features/toy-catalog/toy-catalog-queries'
 import { formatVnd } from '../features/toy-listings/format-vnd'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { PATHS } from '../routes/paths'
 
 const toyDetailPath = (toyId: string) => PATHS.toyDetail.replace(':toyId', toyId)
@@ -72,9 +70,7 @@ function RenterCard({ renter }: { renter: RentalOrderDetail['renter'] }) {
           {score === undefined ? (
             <span className="rental-renter__no-score">Chưa có điểm</span>
           ) : (
-            <>
-              <strong>{Math.round(score)}</strong> / 100
-            </>
+            <strong>{score.toFixed(1)}</strong>
           )}
         </dd>
       </dl>
@@ -204,7 +200,7 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
 
   // Các trạng thái chỉ để xem: nói rõ đơn đang ở đâu và ai làm bước tiếp theo
   let title: string
-  let text: string | null = null
+  let text: string | null
   if (order.status === 'PENDING') {
     title = isOwner ? 'Đã quá hạn phản hồi' : 'Đang chờ chủ đồ duyệt'
     text = isOwner
@@ -234,32 +230,49 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
     const deadline = order.timer && remaining ? `trước ${formatDateTime(order.timer.dueAt)} (${remaining})` : 'trong thời hạn kiểm tra'
     title = 'Đang chờ chủ đồ kiểm tra'
     text = `Chủ đồ kiểm tra tình trạng ${deadline}. Nếu đồ còn tốt, bạn được hoàn ${formatVnd(order.pricing.depositAmount - lateFee)} tiền cọc${lateFee > 0 ? ` (đã trừ ${formatVnd(lateFee)} phí trả trễ)` : ''}.`
+  } else if (order.status === 'COMPLETED' && order.settlement?.resolution) {
+    const { ownerAmount, renterAmount } = order.settlement.resolution
+    title = 'Khiếu nại đã được giải quyết'
+    text = isOwner
+      ? `Quản trị viên đã ra phán quyết. ${formatVnd(ownerAmount)} đã vào ví của bạn. Xem chi tiết ở mục Quyết toán.`
+      : `Quản trị viên đã ra phán quyết. ${formatVnd(renterAmount)} đã được hoàn vào ví của bạn. Xem chi tiết ở mục Quyết toán.`
   } else if (order.status === 'COMPLETED') {
     const refund = order.pricing.depositAmount - (order.returnInfo?.lateFee ?? 0)
     title = 'Đơn thuê đã hoàn tất'
     text = isOwner
       ? 'Tiền thuê sau phí nền tảng (cộng phí trả trễ nếu có) đã vào ví của bạn. Xem chi tiết ở mục Quyết toán.'
       : `${formatVnd(refund)} tiền cọc đã được hoàn vào ví của bạn. Cảm ơn bạn đã giữ gìn đồ chơi.`
+  } else if (order.status === 'DISPUTING' && !order.settlement) {
+    // Người thuê khiếu nại khi nhận đồ (UC17): đơn chưa qua quyết toán
+    title = isRenter ? 'Đã gửi khiếu nại' : 'Người thuê khiếu nại tình trạng đồ chơi'
+    text = isRenter
+      ? 'Chủ đồ có 72 giờ để phản hồi, sau đó quản trị viên ToyFlow xem ảnh của hai bên rồi quyết định phần tiền thuê.'
+      : 'Xem nội dung khiếu nại và gửi phản hồi kèm ảnh trong 72 giờ. Tiền thuê và tiền cọc được giữ đến khi có phán quyết.'
   } else if (order.status === 'DISPUTING') {
-    // Chủ đồ mở khiếu nại lúc quyết toán (có settlement DAMAGED); còn lại là người thuê mở lúc nhận đồ
-    const ownerClaimed = order.settlement?.result === 'DAMAGED'
-    const viewerClaimed = ownerClaimed ? isOwner : isRenter
-    title = viewerClaimed
-      ? 'Bạn đã gửi khiếu nại'
-      : ownerClaimed
-        ? 'Chủ đồ đã gửi khiếu nại'
-        : 'Người thuê đã gửi khiếu nại'
-    text = viewerClaimed
-      ? 'Bên kia được báo để phản hồi. Quản trị viên ToyFlow xem ảnh lúc giao, lúc nhận, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền. Tiền thuê và tiền cọc được giữ trong ví ký quỹ đến khi có phán quyết.'
-      : 'Tiền thuê và tiền cọc được giữ trong ví ký quỹ trong lúc quản trị viên ToyFlow xem xét. Ảnh bạn chụp ở các bước giao nhận là căn cứ bảo vệ bạn.'
+    title = isOwner ? 'Đã mở khiếu nại hư hỏng' : 'Chủ đồ báo đồ chơi bị hư hỏng'
+    text = isOwner
+      ? 'Quản trị viên ToyFlow sẽ xem ảnh lúc giao, lúc trả và ảnh bằng chứng của bạn rồi quyết định phần tiền cọc.'
+      : 'Tiền thuê và tiền cọc đang được giữ trong lúc quản trị viên ToyFlow xem xét. Bạn có 72 giờ để phản hồi kèm ảnh lúc nhận và lúc trả.'
   } else if (order.status === 'REJECTED') {
     title = 'Đã từ chối yêu cầu'
     text = order.rejectionReason ? `Lý do: ${order.rejectionReason}` : null
-  } else if (order.status === 'EXPIRED') {
+  } else if (order.status === 'CANCELLED') {
+    const c = order.cancellation
+    const byMe = c ? (c.by === 'OWNER') === isOwner : false
+    const who = !c ? 'Đơn' : byMe ? 'Bạn' : c.by === 'OWNER' ? 'Chủ đồ' : 'Người thuê'
+    title = `${who} đã huỷ đơn thuê`
+    const money = !c
+      ? ''
+      : c.fee > 0
+        ? ` Người thuê được hoàn ${formatVnd(order.pricing.totalPayable - c.fee)}, phí huỷ ${formatVnd(c.fee)} chuyển cho chủ đồ.`
+        : ''
+    text = c
+      ? `Lý do: “${c.reason}” · ${formatDateTime(c.cancelledAt)}.${money} Lịch của món đồ đã được mở lại.`
+      : 'Lịch của món đồ đã được mở lại.'
+  } else {
+    // Còn lại EXPIRED: hệ thống tự huỷ vì quá hạn
     title = 'Yêu cầu đã hết hạn'
     text = 'Đơn đã tự huỷ vì quá hạn phản hồi hoặc thanh toán. Lịch của món đồ đã được mở lại.'
-  } else {
-    title = `Đơn đang ở bước “${RENTAL_STATUS_META[order.status].label}”`
   }
 
   return (
@@ -274,30 +287,34 @@ function DecisionPanel({ order, isOwner, isRenter, now }: DecisionPanelProps) {
 export function RentalRequestDetailPage() {
   const { orderId = '' } = useParams()
   const detail = useQuery(rentalDetailQuery(orderId))
-  const history = useQuery(rentalHistoryQuery(orderId))
   const profile = useQuery(profileQuery)
   const order = detail.data
-  const toy = useQuery({ ...toyDetailQuery(order?.toyId ?? ''), enabled: Boolean(order) })
   const now = useNow()
   const isOwner = Boolean(order && profile.data && order.ownerId === profile.data.id)
   const isRenter = Boolean(order && profile.data && order.renterId === profile.data.id)
-  // Người thuê mở khiếu nại: disputeId ở đơn; chủ đồ mở lúc quyết toán: còn có ở settlement
-  const disputeId = order?.disputeId ?? order?.settlement?.disputeId
-  // Breadcrumb quay về đúng danh sách của vai trò người xem
+  // Breadcrumb quay về đúng danh sách của vai trò người xem; quản trị viên không tham gia đơn về tab Tất cả
+  const isAdminViewer = order?.financialBreakdown?.role === 'admin'
   const backTo = isRenter
     ? { to: PATHS.myRentals, label: 'Đơn thuê của tôi' }
-    : { to: PATHS.rentalRequests, label: 'Yêu cầu thuê nhận được' }
+    : isAdminViewer && !isOwner
+      ? { to: `${PATHS.myRentals}?role=all`, label: 'Tất cả đơn thuê' }
+      : { to: PATHS.rentalRequests, label: 'Yêu cầu thuê nhận được' }
 
   useEffect(() => {
     document.title = `${order ? `Đơn thuê ${order.code}` : 'Đơn thuê'} | ToyFlow`
   }, [order])
 
   const pricing = order?.pricing
+  // Đếm ngược của bước hiện tại (hạn phản hồi, thanh toán, xác nhận…) hiện ngay ở đầu trang
+  const remainingNow = order?.timer ? formatRemaining(order.timer.dueAt, now) : null
+  // Ước tính phần chủ đồ nhận chỉ có nghĩa khi đơn còn chạy và chưa quyết toán
+  const showOwnerEstimate =
+    isOwner && order && !order.settlement && !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(order.status)
   const ownerReceives = pricing ? pricing.rentalFee - pricing.platformFee : 0
 
   return (
-    <SiteLayout>
-      <div className="home-container rental-page">
+    <AccountLayout activeItem="rentals">
+      <div className="rental-page">
         <nav aria-label="Breadcrumb" className="rental-crumbs">
           <Link to={PATHS.home}>
             <Home aria-hidden /> Trang chủ
@@ -332,17 +349,20 @@ export function RentalRequestDetailPage() {
         {order && pricing && (
           <div className="rental-detail">
             <header className="rental-detail__head">
-              <RentalToyImage toyId={order.toyId} className="rental-detail__thumb" />
+              <RentalThumb src={order.toy?.primaryImage} className="rental-detail__thumb" />
               <div className="rental-detail__heading">
                 <p className="rental-detail__meta">
                   <span className="rental-row__code">{order.code}</span>
                   <RentalStatusBadge status={order.status} />
+                  {remainingNow && (
+                    <span className="rental-detail__timer">
+                      <Clock aria-hidden /> {remainingNow}
+                    </span>
+                  )}
                 </p>
                 <h1 className="rental-detail__title">
-                  {toy.data ? (
-                    <Link to={toyDetailPath(order.toyId)}>{toy.data.title}</Link>
-                  ) : toy.isPending ? (
-                    'Yêu cầu thuê đồ chơi'
+                  {order.toy ? (
+                    <Link to={toyDetailPath(order.toyId)}>{order.toy.name}</Link>
                   ) : (
                     'Tin đồ chơi đã ẩn hoặc bị xoá'
                   )}
@@ -352,18 +372,31 @@ export function RentalRequestDetailPage() {
 
             <aside className="rental-detail__side">
               {isOwner && <RenterCard renter={order.renter} />}
-              {/* Đang khiếu nại: panel khiếu nại đã nói rõ ai làm gì tiếp, không lặp khối thông báo chung */}
-              {!(disputeId && order.status === 'DISPUTING') && (
-                <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
-              )}
+              <DecisionPanel order={order} isOwner={isOwner} isRenter={isRenter} now={now} />
+              {/* UC17: trong 24 giờ đầu sau khi nhận, người thuê báo đồ có vấn đề */}
               {isRenter && order.status === 'IN_USE' && <RentalComplaintPanel order={order} now={now} />}
-              {disputeId && <RentalDisputePanel disputeId={disputeId} viewerId={profile.data?.id} now={now} />}
+              {(isOwner || isRenter) && (
+                <>
+                  <RentalCancelAction order={order} role={isOwner ? 'owner' : 'renter'} now={now} />
+                  <OpenChatButton
+                    kind="RENTAL_ORDER"
+                    id={order.id}
+                    className="rental-btn rental-btn--ghost rental-detail__chat"
+                    label={isOwner ? 'Nhắn tin với người thuê' : 'Nhắn tin với chủ đồ'}
+                  />
+                </>
+              )}
             </aside>
 
             <div className="rental-detail__main">
-              {/* Đơn hoàn tất: việc còn lại của cả hai bên là đánh giá nhau (UC24) */}
+              {/* Đơn hoàn tất: việc còn lại của cả hai bên là đánh giá nhau */}
               {order.status === 'COMPLETED' && (isOwner || isRenter) && (
                 <RentalReviewPanel order={order} isRenter={isRenter} now={now} />
+              )}
+
+              {/* Khiếu nại (UC17–UC19): nội dung hai bên và form phản hồi; vẫn hiện sau phán quyết để xem lại */}
+              {(isOwner || isRenter) && (order.status === 'DISPUTING' || order.settlement?.resolution) && (
+                <RentalDisputePanel orderId={order.id} now={now} />
               )}
 
               <section className="rental-block" aria-labelledby="period-title">
@@ -384,7 +417,7 @@ export function RentalRequestDetailPage() {
 
               <section className="rental-block" aria-labelledby="money-title">
                 <h2 id="money-title" className="rental-section-title">
-                  Chi phí
+                  Giá thuê
                 </h2>
                 <dl className="rental-money">
                   <div>
@@ -402,7 +435,7 @@ export function RentalRequestDetailPage() {
                     <dd>{formatVnd(pricing.totalPayable)}</dd>
                   </div>
                 </dl>
-                {isOwner && !order.settlement && (
+                {showOwnerEstimate && (
                   <dl className="rental-money rental-money--owner">
                     <div>
                       <dt>Tiền thuê</dt>
@@ -418,7 +451,7 @@ export function RentalRequestDetailPage() {
                     </div>
                   </dl>
                 )}
-                {isOwner && !order.settlement && (
+                {showOwnerEstimate && (
                   <p className="rental-block__note">
                     Tiền nằm trong ví ký quỹ ToyFlow cho đến khi bạn nhận lại đồ. Phí trả trễ (nếu có) được cộng thêm
                     cho bạn khi quyết toán.
@@ -426,33 +459,18 @@ export function RentalRequestDetailPage() {
                 )}
               </section>
 
+              {order.financialBreakdown && <RentalFinancialBreakdown breakdown={order.financialBreakdown} />}
+
               <section className="rental-block" aria-labelledby="history-title">
                 <h2 id="history-title" className="rental-section-title">
                   Lịch sử đơn
                 </h2>
-                {history.isError ? (
-                  <QueryErrorAlert error={history.error} onRetry={() => void history.refetch()} />
-                ) : history.isPending ? (
-                  <span className="rental-skeleton-text" aria-hidden="true" />
-                ) : (
-                  <ol className="rental-history">
-                    {history.data.map((entry, index) => (
-                      <li key={`${entry.occurredAt}-${index}`}>
-                        <span className="rental-history__dot" aria-hidden="true" />
-                        <span className="rental-history__body">
-                          <strong>{RENTAL_STATUS_META[entry.newStatus].label}</strong>
-                          {entry.notes && <span>{entry.notes}</span>}
-                        </span>
-                        <time dateTime={entry.occurredAt}>{formatDateTime(entry.occurredAt)}</time>
-                      </li>
-                    ))}
-                  </ol>
-                )}
+                <RentalTimeline entries={order.timeline ?? []} />
               </section>
             </div>
           </div>
         )}
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }

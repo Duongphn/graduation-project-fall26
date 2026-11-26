@@ -91,6 +91,31 @@ export function createToyListingPorts(): ToyListingPorts {
 
     closePendingDonationRequests: closePendingRequestsForToy,
 
+    async isDonated(toyId: string): Promise<boolean> {
+      if (!mongoose.Types.ObjectId.isValid(toyId)) {
+        return false;
+      }
+      const record = await DonationRequest.exists({
+        toyId,
+        status: { $in: ['received', 'completed'] },
+      });
+      return Boolean(record);
+    },
+
+    async hasCancelledShipment(toyId: string, since?: Date): Promise<boolean> {
+      if (!mongoose.Types.ObjectId.isValid(toyId)) {
+        return false;
+      }
+      // A Shipping request has the Donor's handover record; a cancelled one is the GB-60 case.
+      const record = await DonationRequest.exists({
+        toyId,
+        status: 'cancelled',
+        'handovers.step': 'DONOR_SENT',
+        ...(since ? { 'cancellation.at': { $gt: since } } : {}),
+      });
+      return Boolean(record);
+    },
+
     async getSoldToyIds(toyIds: string[]): Promise<Set<string>> {
       if (!toyIds || toyIds.length === 0) {
         return new Set<string>();

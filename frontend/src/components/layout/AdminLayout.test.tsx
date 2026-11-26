@@ -5,8 +5,10 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeProvider } from '../../contexts/theme-provider'
+import { accountsApi } from '../../features/accounts/api'
 import { identityVerificationsApi } from '../../features/identity-verifications/api'
 import { toyModerationApi } from '../../features/toy-moderation/api'
+import { violationReportsApi } from '../../features/violation-reports/api'
 import { adminMenuItems } from '../../routes/admin-menu'
 import { adminPaths } from '../../routes/paths'
 import { palette } from '../../styles/palette'
@@ -37,9 +39,17 @@ vi.mock('../../features/toy-moderation/api', () => ({
 vi.mock('../../features/identity-verifications/api', () => ({
   identityVerificationsApi: { counts: vi.fn() },
 }))
+vi.mock('../../features/violation-reports/api', () => ({
+  violationReportsApi: { counts: vi.fn() },
+}))
+vi.mock('../../features/accounts/api', () => ({
+  accountsApi: { counts: vi.fn() },
+}))
 
 const toyCounts = vi.mocked(toyModerationApi.counts)
 const identityCounts = vi.mocked(identityVerificationsApi.counts)
+const reportCounts = vi.mocked(violationReportsApi.counts)
+const accountCounts = vi.mocked(accountsApi.counts)
 
 const renderLayout = () => {
   const router = createMemoryRouter(
@@ -54,8 +64,12 @@ const menuItem = (label: string) => screen.getByText(label).closest('li') as HTM
 beforeEach(() => {
   toyCounts.mockReset()
   identityCounts.mockReset()
+  reportCounts.mockReset()
+  reportCounts.mockResolvedValue({ pending: 0, resolved: 0, dismissed: 0 })
   toyCounts.mockResolvedValue({ pending: 0, active: 0, hidden: 0 })
   identityCounts.mockResolvedValue({ pending: 0, verified: 0, rejected: 0 })
+  accountCounts.mockReset()
+  accountCounts.mockResolvedValue({ all: 5, active: 5, locked: 0, reported: 0, trust_review: 0 })
 })
 
 describe('AdminLayout pending counters (L7)', () => {
@@ -71,6 +85,27 @@ describe('AdminLayout pending counters (L7)', () => {
     ).toBeInTheDocument()
     // Counted over every listing, not a filtered view.
     expect(toyCounts).toHaveBeenCalledWith({})
+  })
+
+  it('shows the pending violation reports next to their menu entry (UC29)', async () => {
+    reportCounts.mockResolvedValue({ pending: 3, resolved: 5, dismissed: 1 })
+    renderLayout()
+
+    expect(
+      await within(menuItem('Báo cáo vi phạm')).findByTitle('3 đang chờ duyệt'),
+    ).toBeInTheDocument()
+    expect(reportCounts).toHaveBeenCalledWith({})
+  })
+
+  it('shows the Renters blocked by a low Trust Score next to the users entry (UC29, FE-09)', async () => {
+    accountCounts.mockResolvedValue({ all: 9, active: 8, locked: 1, reported: 2, trust_review: 2 })
+    renderLayout()
+
+    expect(
+      await within(menuItem('Quản lý người dùng')).findByTitle('2 đang chờ duyệt'),
+    ).toBeInTheDocument()
+    // Counted over every account, not the filters of the list page.
+    expect(accountCounts).toHaveBeenCalledWith({})
   })
 
   it('shows no counter when nothing is pending', async () => {
@@ -137,5 +172,96 @@ describe('AdminLayout', () => {
     renderAt(adminPaths.categories)
     await userEvent.setup().click(await screen.findByRole('link', { name: 'Tổ chức từ thiện' }))
     expect(await screen.findByText('Trang tổ chức')).toBeInTheDocument()
+  })
+})
+
+// Admin review 20/11 #1: at 390 px the 240 px menu took most of the screen and the page scrolled
+// sideways. Below the md breakpoint the menu is hidden and opens from the top bar.
+describe('AdminLayout on a phone', () => {
+  const originalMatchMedia = window.matchMedia
+  beforeEach(() => {
+    // Every max-width query matches, as on a 390 px screen.
+    window.matchMedia = ((query: string) => ({
+      ...originalMatchMedia(query),
+      matches: query.includes('max-width'),
+    })) as typeof window.matchMedia
+  })
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  const sider = () => document.querySelector('.ant-layout-sider') as HTMLElement
+
+  it('hides the menu and opens it from the menu button, then closes it after a pick', async () => {
+    renderAt(adminPaths.categories)
+    expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+
+    await vi.waitFor(() => expect(sider()).toHaveClass('ant-layout-sider-collapsed'))
+    expect(sider().style.width).toBe('0px')
+
+    const user = userEvent.setup()
+    const toggle = screen.getByRole('button', { name: 'Mở menu quản trị' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(sider()).not.toHaveClass('ant-layout-sider-collapsed')
+    expect(sider().style.width).toBe('240px')
+
+    await user.click(screen.getByRole('link', { name: 'Tổ chức từ thiện' }))
+    expect(await screen.findByText('Trang tổ chức')).toBeInTheDocument()
+    expect(sider()).toHaveClass('ant-layout-sider-collapsed')
+  })
+
+  it('keeps the full menu on a wide screen', async () => {
+    window.matchMedia = originalMatchMedia
+    renderAt(adminPaths.categories)
+    expect(await screen.findByText('Trang danh mục')).toBeInTheDocument()
+    expect(sider()).not.toHaveClass('ant-layout-sider-collapsed')
+    expect(screen.queryByRole('button', { name: 'Mở menu quản trị' })).not.toBeInTheDocument()
+  })
+})
+
+// Admin review 20/11 #2: /admin/notifications and unknown /admin/... links lit up "Tổng quan".
+describe('AdminLayout selected menu entry', () => {
+  const renderSelected = (url: string) => {
+    const page = (text: string) => <p>{text}</p>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/admin',
+          element: <AdminLayout />,
+          children: [
+            { index: true, element: page('Trang tổng quan') },
+            { path: 'toys/:id', element: page('Trang chi tiết tin') },
+            { path: 'disputes', element: page('Trang khiếu nại') },
+            { path: 'notifications', element: page('Trang thông báo') },
+            { path: '*', element: page('Không tìm thấy trang') },
+          ],
+        },
+      ],
+      { initialEntries: [url] },
+    )
+    renderWithProviders(<RouterProvider router={router} />)
+  }
+  const selectedEntries = () =>
+    [...document.querySelectorAll('.ant-menu-item-selected')].map((item) => item.textContent)
+
+  it.each([
+    ['/admin/notifications', 'Trang thông báo'],
+    ['/admin/link-la', 'Không tìm thấy trang'],
+  ])('selects no entry on %s', async (url, text) => {
+    renderSelected(url)
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(selectedEntries()).toEqual([])
+  })
+
+  it.each([
+    ['/admin', 'Trang tổng quan', 'Tổng quan'],
+    ['/admin/', 'Trang tổng quan', 'Tổng quan'],
+    ['/admin/toys/64b000000000000000000001', 'Trang chi tiết tin', 'Duyệt tin đăng'],
+    ['/admin/disputes', 'Trang khiếu nại', 'Giải quyết khiếu nại'],
+  ])('selects only the matching entry on %s', async (url, text, label) => {
+    renderSelected(url)
+    expect(await screen.findByText(text)).toBeInTheDocument()
+    expect(selectedEntries()).toEqual([label])
   })
 })

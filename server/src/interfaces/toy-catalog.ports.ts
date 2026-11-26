@@ -33,11 +33,11 @@ export interface ToyCardDto {
     maxAge: number;
   };
   condition: string;
-  rating: RatingSummary;
   location?: {
     type: string;
     coordinates: [number, number];
   } | null;
+  rating: RatingSummary;
   createdAt: string;
 }
 
@@ -59,7 +59,6 @@ export interface ToyDetailDto {
     maxAge: number;
   };
   condition: string;
-  rating: RatingSummary;
   location?: {
     type: string;
     coordinates: [number, number];
@@ -68,6 +67,7 @@ export interface ToyDetailDto {
     id: string;
     displayName: string;
   };
+  rating: RatingSummary;
   createdAt: string;
   updatedAt: string;
 }

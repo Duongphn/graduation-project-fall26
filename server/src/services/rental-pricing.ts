@@ -1,6 +1,5 @@
 import { type RentalPeriod, type RentalPricing, type RentalSettings } from '../types/rental-order.types.js';
 import { type LedgerEntry } from '../interfaces/wallet.ports.js';
-import { AppError } from '../utils/app-error.js';
 import { inclusiveDays, rentalEnd } from './rental-time.js';
 
 const DAY_MS = 86_400_000;
@@ -76,50 +75,62 @@ export function settlementEntries(
   ].filter((entry) => entry.amount !== 0);
 }
 
-export type ClaimantRole = 'renter' | 'owner';
-
-export interface DisputeAmounts {
+export interface RulingAmounts {
   rentalFee: number;
   depositAmount: number;
-  platformFee: number;
+  platformFeeRate: number;
   lateFee: number;
+  /** K: bồi thường cho chủ đồ, lấy từ tiền cọc */
+  compensation: number;
+  /** G: tiền thuê hoàn cho người thuê */
+  rentRefund: number;
 }
 
-export interface Payout {
-  renter: number;
+export interface RulingSplit {
+  /** R + D: toàn bộ tiền đang bị giữ ở escrow */
+  frozen: number;
+  /** R − G − F' + L + K */
   owner: number;
+  /** F' = p × (R − G) */
   platform: number;
+  /** D − L − K + G */
+  renter: number;
 }
 
-/** Maximum compensation: owner claimant D − L; renter claimant R. */
-export function disputeCompensationCap(amounts: DisputeAmounts, role: ClaimantRole): number {
-  return role === 'owner' ? Math.max(0, amounts.depositAmount - amounts.lateFee) : amounts.rentalFee;
-}
-
-/** Split of escrow R + D after a dispute verdict with compensation X. */
-export function disputePayout(amounts: DisputeAmounts, role: ClaimantRole, compensation: number): Payout {
-  const { rentalFee: R, depositAmount: D, platformFee: F, lateFee: L } = amounts;
-  const max = disputeCompensationCap(amounts, role);
-  if (compensation > max) {
-    throw new AppError(400, 'COMPENSATION_TOO_HIGH', 'Số tiền bồi thường vượt mức tối đa cho phép.', { max });
+/**
+ * Chia tiền theo phán quyết khiếu nại đơn thuê (R03 I.2.6.6): escrow trả hết R + D trong một bút toán.
+ * Giới hạn: L + K ≤ D (bồi thường chỉ lấy từ cọc) và G ≤ R.
+ */
+export function rulingSplit(amounts: RulingAmounts): RulingSplit {
+  const {
+    rentalFee: R,
+    depositAmount: D,
+    platformFeeRate: p,
+    lateFee: L,
+    compensation: K,
+    rentRefund: G,
+  } = amounts;
+  if (![K, G].every((v) => Number.isInteger(v) && v >= 0)) {
+    throw new Error('INVALID_RULING_AMOUNT');
   }
-  if (role === 'owner') {
-    return { owner: R - F + L + compensation, platform: F, renter: D - L - compensation };
+  if (L + K > D || G > R) {
+    throw new Error('RULING_EXCEEDS_LIMIT');
   }
-  const platform = R === 0 ? 0 : Math.round((F * (R - compensation)) / R);
-  return { renter: D + compensation, owner: R - compensation - platform, platform };
+  const platform = Math.round(p * (R - G));
+  return {
+    frozen: R + D,
+    owner: R - G - platform + L + K,
+    platform,
+    renter: D - L - K + G,
+  };
 }
 
-/** Ledger entries for a dispute payout: escrow −(R+D), zero lines dropped. */
-export function disputeSettlementEntries(
-  payout: Payout,
-  totalEscrow: number,
-  wallets: SettleWallets,
-): LedgerEntry[] {
+/** Bút toán phán quyết: escrow −(R + D), chia cho chủ đồ, nền tảng, người thuê; bỏ dòng 0 đồng. */
+export function rulingEntries(split: RulingSplit, wallets: SettleWallets): LedgerEntry[] {
   return [
-    { walletId: wallets.escrow, amount: -totalEscrow },
-    { walletId: wallets.owner, amount: payout.owner },
-    { walletId: wallets.platform, amount: payout.platform },
-    { walletId: wallets.renter, amount: payout.renter },
+    { walletId: wallets.escrow, amount: -split.frozen },
+    { walletId: wallets.owner, amount: split.owner },
+    { walletId: wallets.platform, amount: split.platform },
+    { walletId: wallets.renter, amount: split.renter },
   ].filter((entry) => entry.amount !== 0);
 }

@@ -50,9 +50,10 @@ export async function register({ fullName, phone, email, password }: RegisterFor
   return data.data
 }
 
-/** Xác minh OTP gửi về email — backend chỉ tạo tài khoản ở bước này, không tự đăng nhập */
-export async function verifyRegistrationOtp(payload: { email: string; otpCode: string }): Promise<void> {
-  await httpClient.post<ApiResponse<{ user: AuthUser }>>('/auth/register/verify-otp', payload)
+/** Xác minh OTP gửi về email — backend tạo tài khoản và trả phiên đăng nhập luôn (R03 UC01 bước 5) */
+export async function verifyRegistrationOtp(payload: { email: string; otpCode: string }): Promise<AuthSession> {
+  const { data } = await httpClient.post<ApiResponse<AuthSession>>('/auth/register/verify-otp', payload)
+  return data.data
 }
 
 export async function resendRegistrationOtp(email: string): Promise<OtpChallenge> {

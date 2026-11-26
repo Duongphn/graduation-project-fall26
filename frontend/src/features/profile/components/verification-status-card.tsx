@@ -15,6 +15,31 @@ const META: Record<ResultStatus, { title: string; badge: string; icon: LucideIco
 
 const formatTime = (iso: string) => inVietnam(iso).format('HH:mm DD/MM/YYYY')
 
+const DOCUMENT_LABELS = [
+  ['frontImage', 'CCCD mặt trước'],
+  ['backImage', 'CCCD mặt sau'],
+  ['selfie', 'Ảnh chân dung'],
+] as const
+
+/** Chờ duyệt: 3 ảnh đã gửi, chỉ xem (R03 III.6.1.2 (7), UC04 1.1) */
+function SubmittedDocuments({ documents }: { documents: NonNullable<LatestVerification['documents']> }) {
+  return (
+    <section aria-labelledby="verify-submitted-title">
+      <h3 id="verify-submitted-title" className="verify-submitted__title">
+        Ảnh đã gửi
+      </h3>
+      <div className="verify-submitted__grid">
+        {DOCUMENT_LABELS.map(([key, label]) => (
+          <figure key={key} className="verify-submitted__item">
+            <img src={documents[key]} alt={label} loading="lazy" />
+            <figcaption>{label}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 /** Câu mô tả dưới tiêu đề, kèm mốc thời gian thật của lần nộp gần nhất */
 function Summary({ status, latest }: { status: ResultStatus; latest: LatestVerification | null }) {
   if (status === 'pending') {
@@ -78,6 +103,8 @@ export function VerificationStatusCard({ status, latest, onResubmit }: Verificat
       </div>
 
       <VerificationStepper status={status} mode="result" embedded />
+
+      {status === 'pending' && latest?.documents && <SubmittedDocuments documents={latest.documents} />}
 
       {status === 'rejected' ? (
         <div className="verify-reason" role="alert">

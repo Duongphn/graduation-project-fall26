@@ -22,3 +22,9 @@ export const ageInYears = (dateOfBirth: Date, now: Date = new Date()): number =>
 /** ISO string for a response DTO, or null. */
 export const toIsoString = (date: Date | null | undefined): string | null =>
   date ? date.toISOString() : null;
+
+/** "dd/MM/yyyy" of an instant on the calendar in Viet Nam (notification texts). */
+export const formatVietnamDate = (date: Date | string): string => {
+  const { year, month, day } = vietnamDateParts(new Date(date));
+  return `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}/${year}`;
+};

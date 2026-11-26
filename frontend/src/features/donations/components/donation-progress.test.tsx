@@ -21,6 +21,8 @@ const expired: DonationRequestDetail = {
   trackingCode: null,
   receipt: null,
   dueAt: null,
+  confirmDueAt: null,
+  overdue: false,
   toy: null,
   donor: null,
   requester: null,
@@ -58,5 +60,19 @@ describe('expired donation request', () => {
   it('words it for the receiver', () => {
     render(<DonationProgress request={expired} perspective="receiver" />)
     expect(screen.getByText(/Yêu cầu nhận đã hết hạn/)).toBeInTheDocument()
+  })
+})
+
+// UC33 step 5, GB-56: the request the Donor sent to an organization waits for the Admin, not the Donor.
+describe('pending request sent to an organization', () => {
+  it('says the Admin decides it for the organization', () => {
+    render(
+      <DonationProgress
+        request={{ ...expired, status: 'pending', receiverType: 'ORGANIZATION', decider: 'ADMIN', expiredAt: null, expiryReason: null }}
+      />,
+    )
+    expect(screen.getByText('Đã gửi tới tổ chức')).toBeInTheDocument()
+    expect(screen.getByText('Chờ ToyFlow xác nhận thay tổ chức')).toBeInTheDocument()
+    expect(screen.queryByText('Chờ bạn đồng ý tặng')).not.toBeInTheDocument()
   })
 })

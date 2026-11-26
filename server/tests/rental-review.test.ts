@@ -10,7 +10,6 @@ import {
   FakeClock,
 } from './helpers/rental-fixtures.js';
 import { resetDatabase, startReplSet, stopReplSet } from './helpers/replset.js';
-import { seedReceivedReviews } from './helpers/review-fixtures.js';
 
 describe('UC07: Owner Review, List, Detail and History', () => {
   let app: any;
@@ -47,9 +46,8 @@ describe('UC07: Owner Review, List, Detail and History', () => {
     ownerId = owner._id.toString();
     ownerAuth = authHeader(ownerId);
 
-    const renter = await createUser({ fullName: 'Toy Renter' });
+    const renter = await createUser({ fullName: 'Toy Renter', trust: { score: 80 } });
     renterId = renter._id.toString();
-    await seedReceivedReviews(renterId, [4, 4, 4], clock.now(), 'OWNER_TO_RENTER');
     renterAuth = authHeader(renterId);
 
     const stranger = await createUser({ fullName: 'Stranger' });
@@ -140,7 +138,7 @@ describe('UC07: Owner Review, List, Detail and History', () => {
     expect(errorOf(second).code).toBe('INVALID_RENTAL_TRANSITION');
   });
 
-  it('owner detail shows renter trust, renter detail does not', async () => {
+  it('owner and renter detail show party trust profiles', async () => {
     const ownerView = await request(app).get(`/api/v1/rentals/${orderId}`).set(ownerAuth);
     expect(ownerView.status).toBe(200);
     expect(unwrap(ownerView).renter).toMatchObject({
@@ -151,7 +149,11 @@ describe('UC07: Owner Review, List, Detail and History', () => {
 
     const renterView = await request(app).get(`/api/v1/rentals/${orderId}`).set(renterAuth);
     expect(renterView.status).toBe(200);
-    expect(unwrap(renterView).renter).toBeUndefined();
+    expect(unwrap(renterView).renter).toMatchObject({
+      fullName: 'Toy Renter',
+      trustScore: 80,
+      verified: true,
+    });
   });
 
   it('list filters by role and status', async () => {

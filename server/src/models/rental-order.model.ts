@@ -5,7 +5,17 @@ import {
   rentalTimerKinds,
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
-import { type RentalPricing } from '../types/rental-order.types.js';
+import {
+  type RentalCancelActor,
+  rentalCancelActors,
+} from '../types/order-cancel.types.js';
+import { disputeRulings } from '../constants/dispute-ruling.js';
+import {
+  RENTAL_POLICY_FIELDS,
+  type RentalOrderPolicy,
+  type RentalPricing,
+  type RentalRulingSummary,
+} from '../types/rental-order.types.js';
 
 export interface RentalPhoto {
   url: string;
@@ -23,12 +33,21 @@ export interface IRentalOrder {
     endDate: Date;
   };
   pricing: RentalPricing;
+  /** Copy of the System Settings time limits taken at creation (GB-38); missing on older orders */
+  policy?: Partial<RentalOrderPolicy>;
   status: RentalOrderStatus;
   timer?: {
     kind: RentalTimerKind;
     dueAt: Date;
   };
   rejectionReason?: string;
+  cancellation?: {
+    by: RentalCancelActor;
+    userId: Types.ObjectId;
+    reason: string;
+    fee: number;
+    cancelledAt: Date;
+  };
   handover?: {
     ownerPhotos: RentalPhoto[];
     shippedAt?: Date;
@@ -51,8 +70,9 @@ export interface IRentalOrder {
     settledAt: Date;
     autoSettled?: boolean;
     disputeId?: Types.ObjectId;
+    /** Kết quả Admin giải quyết khiếu nại (UC19), để hai bên xem trên trang đơn */
+    resolution?: RentalRulingSummary;
   };
-  disputeId?: Types.ObjectId;
   lastReminderAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -81,6 +101,11 @@ const pricingSchema = new Schema(
   { _id: false },
 );
 
+const policySchema = new Schema(
+  Object.fromEntries(RENTAL_POLICY_FIELDS.map((field) => [field, { type: Number }])),
+  { _id: false },
+);
+
 const rentalOrderSchema = new Schema<IRentalOrder>(
   {
     code: { type: String, required: true },
@@ -92,6 +117,7 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       endDate: { type: Date, required: true },
     },
     pricing: { type: pricingSchema, required: true },
+    policy: { type: policySchema },
     status: {
       type: String,
       required: true,
@@ -103,6 +129,13 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       dueAt: { type: Date },
     },
     rejectionReason: { type: String },
+    cancellation: {
+      by: { type: String, enum: rentalCancelActors },
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      reason: { type: String },
+      fee: { type: Number },
+      cancelledAt: { type: Date },
+    },
     handover: {
       ownerPhotos: { type: [photoSchema], default: [] },
       shippedAt: { type: Date },
@@ -125,8 +158,22 @@ const rentalOrderSchema = new Schema<IRentalOrder>(
       settledAt: { type: Date },
       autoSettled: { type: Boolean, default: false },
       disputeId: { type: Schema.Types.ObjectId, ref: 'Dispute' },
+      resolution: {
+        type: new Schema(
+          {
+            ruling: { type: String, enum: disputeRulings, required: true },
+            compensationAmount: { type: Number, required: true },
+            rentRefundAmount: { type: Number, required: true },
+            ownerAmount: { type: Number, required: true },
+            renterAmount: { type: Number, required: true },
+            platformFee: { type: Number, required: true },
+            adminDecision: { type: String, required: true },
+            resolvedAt: { type: Date, required: true },
+          },
+          { _id: false },
+        ),
+      },
     },
-    disputeId: { type: Schema.Types.ObjectId, ref: 'Dispute' },
     lastReminderAt: { type: Date },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },

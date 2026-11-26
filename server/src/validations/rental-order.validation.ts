@@ -3,8 +3,23 @@ import {
   rentalOrderStatuses,
   type RentalOrderStatus,
 } from '../constants/rental-order-status.js';
+import {
+  COMPLAINT_DESCRIPTION_MAX,
+  COMPLAINT_DESCRIPTION_MIN,
+  DISPUTE_RESPONSE_MAX,
+  DISPUTE_RESPONSE_MIN,
+  renterComplaintReasons,
+  type RenterComplaintReason,
+} from '../constants/rental-complaint.js';
 import { parseDateOnly } from '../services/rental-time.js';
+import {
+  STATUS_GROUP_MAP,
+  type RentalStatusGroup,
+  type RentalListQuery,
+} from '../types/rental-order.types.js';
 import { AppError } from '../utils/app-error.js';
+
+export type { RentalListQuery } from '../types/rental-order.types.js';
 
 export interface RentalPeriodInput {
   toyId: string;
@@ -56,38 +71,114 @@ export function validateRejectRentalInput(body: unknown): { reason: string } {
   return { reason: trimmed };
 }
 
-export interface RentalListQuery {
-  role: 'renter' | 'owner';
-  status?: RentalOrderStatus | undefined;
-  page: number;
-  limit: number;
+export function validateCancelRentalInput(body: unknown): { reason: string } {
+  if (typeof body !== 'object' || body === null) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ.');
+  }
+
+  const { reason } = body as Record<string, unknown>;
+  if (typeof reason !== 'string') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Lý do hủy phải là chuỗi ký tự.');
+  }
+
+  const trimmed = reason.trim();
+  if (trimmed.length < 5 || trimmed.length > 500) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Lý do hủy phải từ 5 đến 500 ký tự.');
+  }
+
+  return { reason: trimmed };
 }
 
-export function validateRentalListQuery(query: unknown): RentalListQuery {
+export function validateRentalListQuery(
+  query: unknown,
+  actorRole?: string,
+): RentalListQuery {
   if (typeof query !== 'object' || query === null) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Query không hợp lệ.');
   }
 
   const q = query as Record<string, unknown>;
 
-  if (q.role !== 'renter' && q.role !== 'owner') {
-    throw new AppError(
-      400,
-      'VALIDATION_ERROR',
-      'role là bắt buộc và phải là "renter" hoặc "owner".',
-    );
+  let role: 'renter' | 'owner' | 'all' = 'renter';
+  if (q.role !== undefined && q.role !== '') {
+    if (q.role === 'all') {
+      if (actorRole?.toUpperCase() !== 'ADMIN') {
+        throw new AppError(
+          403,
+          'FORBIDDEN_RENTAL_ACTION',
+          'Chỉ quản trị viên mới có quyền xem tất cả đơn.',
+        );
+      }
+      role = 'all';
+    } else if (q.role === 'renter' || q.role === 'owner') {
+      role = q.role;
+    } else {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        'role phải là "renter", "owner" hoặc "all".',
+      );
+    }
   }
 
-  let status: RentalOrderStatus | undefined;
+  let group: RentalStatusGroup | undefined;
+  if (q.group !== undefined && q.group !== '') {
+    if (typeof q.group !== 'string' || !Object.hasOwn(STATUS_GROUP_MAP, q.group)) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Nhóm trạng thái không hợp lệ.');
+    }
+    group = q.group as RentalStatusGroup;
+  }
+
+  let statusList: RentalOrderStatus[] | undefined;
   if (q.status !== undefined && q.status !== '') {
-    if (typeof q.status !== 'string' || !rentalOrderStatuses.includes(q.status as RentalOrderStatus)) {
+    let rawStatuses: string[] = [];
+    if (typeof q.status === 'string') {
+      rawStatuses = q.status
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    } else if (Array.isArray(q.status)) {
+      rawStatuses = q.status
+        .flatMap((s) => (typeof s === 'string' ? s.split(',') : []))
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    } else {
       throw new AppError(400, 'VALIDATION_ERROR', 'Trạng thái đơn thuê không hợp lệ.');
     }
-    status = q.status as RentalOrderStatus;
+
+    if (rawStatuses.length === 0) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Trạng thái đơn thuê không hợp lệ.');
+    }
+
+    for (const s of rawStatuses) {
+      if (!rentalOrderStatuses.includes(s as RentalOrderStatus)) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Trạng thái đơn thuê không hợp lệ.');
+      }
+    }
+
+    statusList = Array.from(new Set(rawStatuses as RentalOrderStatus[]));
+  }
+
+  let finalStatus: RentalOrderStatus[] | undefined;
+  if (statusList && group) {
+    const allowed = STATUS_GROUP_MAP[group];
+    const filtered = statusList.filter((s) => allowed.includes(s));
+    if (filtered.length === 0) {
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        'Trạng thái và nhóm trạng thái mâu thuẫn.',
+      );
+    }
+    finalStatus = filtered;
+  } else if (statusList) {
+    finalStatus = statusList;
+  } else if (group) {
+    finalStatus = [...STATUS_GROUP_MAP[group]];
   }
 
   let page = 1;
-  let limit = 20;
+  let limit = 10;
 
   if (q.page !== undefined && q.page !== '') {
     const p = Number(q.page);
@@ -106,8 +197,9 @@ export function validateRentalListQuery(query: unknown): RentalListQuery {
   }
 
   return {
-    role: q.role,
-    status,
+    role,
+    ...(finalStatus !== undefined ? { status: finalStatus } : {}),
+    ...(group !== undefined ? { group } : {}),
     page,
     limit,
   };
@@ -116,7 +208,6 @@ export function validateRentalListQuery(query: unknown): RentalListQuery {
 export interface SettleRentalInput {
   result: 'GOOD' | 'DAMAGED';
   description?: string | undefined;
-  reason?: string | undefined;
 }
 
 export function validateSettleRentalInput(body: unknown): SettleRentalInput {
@@ -124,7 +215,7 @@ export function validateSettleRentalInput(body: unknown): SettleRentalInput {
     throw new AppError(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ.');
   }
 
-  const { result, description, reason } = body as Record<string, unknown>;
+  const { result, description } = body as Record<string, unknown>;
 
   if (result !== 'GOOD' && result !== 'DAMAGED') {
     throw new AppError(
@@ -144,11 +235,7 @@ export function validateSettleRentalInput(body: unknown): SettleRentalInput {
     throw new AppError(400, 'VALIDATION_ERROR', 'Mô tả hư hại phải có độ dài từ 10 đến 1000 ký tự.');
   }
 
-  if (reason !== undefined && reason !== '' && typeof reason !== 'string') {
-    throw new AppError(400, 'VALIDATION_ERROR', 'Lý do khiếu nại không hợp lệ.');
-  }
-
-  return { result, description: trimmed, reason: reason || undefined };
+  return { result, description: trimmed };
 }
 
 export function validateReturnRentalInput(body: unknown): { note?: string | undefined } {
@@ -166,4 +253,50 @@ export function validateReturnRentalInput(body: unknown): { note?: string | unde
   }
 
   return trimmed ? { note: trimmed } : {};
+}
+
+/** Chuỗi đã trim trong khoảng [min, max] ký tự, không thì báo `message` */
+function readText(value: unknown, min: number, max: number, message: string): string {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (trimmed.length < min || trimmed.length > max) {
+    throw new AppError(400, 'VALIDATION_ERROR', message);
+  }
+  return trimmed;
+}
+
+export interface RenterComplaintInput {
+  reason: RenterComplaintReason;
+  description: string;
+}
+
+/** UC17: kiểm tra trước khi service upload ảnh bằng chứng, để dữ liệu sai không để lại ảnh rác */
+export function validateRenterComplaintInput(body: unknown): RenterComplaintInput {
+  const { reason, description } =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  if (!(renterComplaintReasons as readonly unknown[]).includes(reason)) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Vui lòng chọn lý do khiếu nại.');
+  }
+  return {
+    reason: reason as RenterComplaintReason,
+    description: readText(
+      description,
+      COMPLAINT_DESCRIPTION_MIN,
+      COMPLAINT_DESCRIPTION_MAX,
+      `Mô tả vấn đề phải có độ dài từ ${COMPLAINT_DESCRIPTION_MIN} đến ${COMPLAINT_DESCRIPTION_MAX} ký tự.`,
+    ),
+  };
+}
+
+/** UC18: lời phản hồi của bên bị khiếu nại */
+export function validateDisputeResponseInput(body: unknown): { message: string } {
+  const { message } =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  return {
+    message: readText(
+      message,
+      DISPUTE_RESPONSE_MIN,
+      DISPUTE_RESPONSE_MAX,
+      `Phản hồi phải có độ dài từ ${DISPUTE_RESPONSE_MIN} đến ${DISPUTE_RESPONSE_MAX} ký tự.`,
+    ),
+  };
 }

@@ -4,7 +4,7 @@ import mongoose, { Types, type ClientSession } from 'mongoose';
 
 import { isDuplicateKeyError } from '../utils/mongo-errors.js';
 import { Organization, type IOrganization } from '../models/organization.model.js';
-import { Toy } from '../models/toy.model.js';
+import { Toy, type ToyDonationTarget } from '../models/toy.model.js';
 import { User } from '../models/user.model.js';
 import {
   DonationRequest,
@@ -21,12 +21,13 @@ export type DonationRecord = IDonationRequest;
 
 const oid = (id: string | Types.ObjectId) => (typeof id === 'string' ? new Types.ObjectId(id) : id);
 
-const toySummaryFields = 'ownerId title images condition ageRange listingType status';
+const toySummaryFields = 'ownerId categoryId title images condition ageRange listingType status';
 
 /** The lean toy fields the donation flow reads. */
 export interface ToySummary {
   _id: Types.ObjectId;
   ownerId: Types.ObjectId;
+  categoryId?: Types.ObjectId;
   title: string;
   images: Array<{ url: string; publicId: string }>;
   condition: string;
@@ -67,6 +68,11 @@ export const findUserStatus = async (userId: string | Types.ObjectId, session?: 
       .lean()
   )?.status;
 
+/** GB-06: the user's identity is verified (the status the identity review keeps on the user). */
+export const isVerifiedUser = async (userId: string): Promise<boolean> =>
+  Types.ObjectId.isValid(userId) &&
+  (await User.exists({ _id: oid(userId), verificationStatus: 'verified' })) !== null;
+
 /** An accepted or shipping request holds the toy (GB-12). */
 export const hasActiveRequestForToy = async (toyId: string): Promise<boolean> =>
   Types.ObjectId.isValid(toyId) &&
@@ -84,6 +90,27 @@ export const findDueRequestIds = async (status: StoredDonationStatus, now: Date,
       .limit(limit)
       .lean()
   ).map((item) => item._id);
+
+/**
+ * UC33 step 5: removes and returns the organization target of an approved (active) donation
+ * post, once (a second call finds none).
+ */
+export const takeDonationTarget = (toyId: string) =>
+  Toy.findOneAndUpdate(
+    {
+      _id: oid(toyId),
+      status: 'active',
+      listingType: 'donate',
+      donationTarget: { $type: 'object' },
+    },
+    { $unset: { donationTarget: 1 } },
+    { new: false, timestamps: false, projection: 'ownerId title donationTarget' },
+  ).lean<{
+    _id: Types.ObjectId;
+    ownerId: Types.ObjectId;
+    title: string;
+    donationTarget: ToyDonationTarget;
+  }>();
 
 /** Ids of the pending requests of a toy. */
 export const findPendingRequestIdsOfToy = async (toyId: string) =>
@@ -130,7 +157,7 @@ export const touchActiveOrganization = (
       new: true,
       session,
       timestamps: false,
-      projection: 'name status isAccepting receivingPoint',
+      projection: 'name status isAccepting receivingPoint categoryIds',
     },
   ).lean();
 
@@ -275,6 +302,14 @@ export const findDonationToyIdsByTitle = async (pattern: string, limit = 500) =>
       .lean()
   ).map((toy) => toy._id);
 
+/** Ids of the organizations whose receiving point is in a province (for the admin filter). */
+export const findOrganizationIdsByProvince = async (pattern: string) =>
+  (
+    await Organization.find({ 'receivingPoint.province': { $regex: pattern, $options: 'i' } })
+      .select('_id')
+      .lean()
+  ).map((organization) => organization._id);
+
 export const countCompletedByDonor = (donorId: string) =>
   DonationRequest.countDocuments({ donorId: oid(donorId), status: 'completed' });
 
@@ -312,7 +347,7 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
     ]),
   );
   const organizationIds = unique(records.map((item) => item.receiver?.organizationId));
-  const [toys, users, organizations] = await Promise.all([
+  const [toys, users, organizations, donatedToyIds] = await Promise.all([
     Toy.find({ _id: { $in: toyIds } })
       .select(toySummaryFields)
       .lean<ToySummary[]>(),
@@ -329,9 +364,12 @@ export const loadRelations = async (records: DonationRecord[], withContacts = fa
           : 'name status isAccepting receivingPoint contact_info',
       )
       .lean<IOrganization[]>(),
+    // GB-60: the toy of a confirmed (completed) request is Donated, derived and never stored.
+    DonationRequest.distinct('toyId', { toyId: { $in: toyIds }, status: 'completed' }),
   ]);
   return {
     toys: new Map(toys.map((toy) => [String(toy._id), toy])),
+    donatedToyIds: new Set(donatedToyIds.map(String)),
     users: new Map(users.map((user) => [String(user._id), user])),
     organizations: new Map(organizations.map((org) => [String(org._id), org])),
   };

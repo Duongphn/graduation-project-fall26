@@ -63,23 +63,26 @@ const tickedSchema = z.literal(true, {
 });
 
 export const safetyChecklistSchema = z
-  .object({
-    photosShowWholeToy: tickedSchema.openapi({
-      description: 'The photos show the whole toy, with no broken or sharp parts.',
-    }),
-    ageFitsSmallParts: tickedSchema.openapi({
-      description: 'The age range fits the small parts, magnets and batteries (GB-45).',
-    }),
-    batteryCompartmentSecured: tickedSchema.openapi({
-      description: 'A battery compartment, if any, is closed with a screw.',
-    }),
-    notRecalledOrBanned: tickedSchema.openapi({
-      description: 'The toy is not a known recalled or banned toy (GB-47).',
-    }),
-    noHiddenDefect: tickedSchema.openapi({
-      description: 'The description does not hide a known defect.',
-    }),
-  })
+  .object(
+    {
+      photosShowWholeToy: tickedSchema.openapi({
+        description: 'The photos show the whole toy, with no broken or sharp parts.',
+      }),
+      ageFitsSmallParts: tickedSchema.openapi({
+        description: 'The age range fits the small parts, magnets and batteries (GB-45).',
+      }),
+      batteryCompartmentSecured: tickedSchema.openapi({
+        description: 'A battery compartment, if any, is closed with a screw.',
+      }),
+      notRecalledOrBanned: tickedSchema.openapi({
+        description: 'The toy is not a known recalled or banned toy (GB-47).',
+      }),
+      noHiddenDefect: tickedSchema.openapi({
+        description: 'The description does not hide a known defect.',
+      }),
+    },
+    { error: 'Admin phải đánh dấu đủ các mục kiểm tra an toàn trước khi duyệt.' },
+  )
   .strict()
   .openapi('ToySafetyChecklist');
 export type SafetyChecklist = z.infer<typeof safetyChecklistSchema>;

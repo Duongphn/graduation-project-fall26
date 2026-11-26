@@ -20,8 +20,8 @@ const CATALOG_PROJECTION = {
   depositPrice: 1,
   ageRange: 1,
   'images.url': 1,
-  rating: 1,
   createdAt: 1,
+  rating: 1,
 } as const;
 
 type CatalogLeanToy = Pick<
@@ -41,7 +41,8 @@ function buildQuery(filter: ToyCatalogFilter): FilterQuery<IToy> {
   // [minAge, maxAge) (R03 S3 age groups: a 1-3 toy is not in the 3-6 group); a toy or a query
   // for one age only (minAge === maxAge) counts as [minAge, minAge + 1), as in ageRangesOverlap.
   if (filter.maxAge !== undefined) {
-    const upper = Math.max(filter.maxAge, (filter.minAge ?? filter.maxAge) + 1);
+    const upper =
+      filter.minAge !== undefined ? Math.max(filter.maxAge, filter.minAge + 1) : filter.maxAge;
     query['ageRange.minAge'] = { $lt: upper };
   }
   if (filter.minAge !== undefined) {
@@ -66,8 +67,8 @@ function toRecord(doc: CatalogLeanToy): CatalogToyRecord {
     depositPrice: doc.depositPrice,
     ageRange: { minAge: doc.ageRange.minAge, maxAge: doc.ageRange.maxAge },
     images: (doc.images ?? []).map((image) => ({ url: image.url })),
-    rating: toRatingSummary(doc.rating),
     createdAt: doc.createdAt,
+    rating: toRatingSummary(doc.rating),
   };
 }
 

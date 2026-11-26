@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, type LoaderFunctionArgs } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, type LoaderFunctionArgs } from 'react-router-dom'
 import { PageLoadingFallback } from '../components/ui/page-loading-fallback'
 import { parseCatalogSearch } from '../features/toy-catalog/catalog-search-params'
 import { toyDetailQuery, toySearchQuery } from '../features/toy-catalog/toy-catalog-queries'
@@ -16,20 +16,26 @@ import {
   myListingsQuery,
 } from '../features/toy-listings/toy-listing-queries'
 import { ForgotPasswordPage } from '../pages/forgot-password-page'
-import { latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
+import { addressesQuery, latestVerificationQuery, profileQuery } from '../features/profile/profile-queries'
 import { IdentityVerificationPage } from '../pages/identity-verification-page'
 import { HomePage } from '../pages/home-page'
 import { LoginPage } from '../pages/login-page'
 import { MyListingsPage } from '../pages/my-listings-page'
+import { MyReviewsPage } from '../pages/my-reviews-page'
+import { NotificationsPage } from '../pages/notifications-page'
 import { ProfilePage } from '../pages/profile-page'
+import { PrivacyPage } from '../pages/privacy-page'
 import { RegisterPage } from '../pages/register-page'
+import { TermsPage } from '../pages/terms-page'
 import { ToyDetailPage } from '../pages/toy-detail-page'
 import { ToyListingEditorPage } from '../pages/toy-listing-editor-page'
 import { ToySearchPage } from '../pages/toy-search-page'
 import { queryClient } from '../services/query-client'
 import { getAccessToken } from '../services/token-storage'
 import { PATHS } from './paths'
+import { GuestOnly } from './guest-only'
 import { RequireAuth } from './require-auth'
+import { lazyPage } from './lazy-page'
 import {
   completedDonationsQuery,
   myDonationQuery,
@@ -49,9 +55,19 @@ import { MyDonationsPage } from '../pages/my-donations-page'
 import { NewDonationPage } from '../pages/new-donation-page'
 import { MyDonationRequestDetailPage } from '../pages/my-donation-request-detail-page'
 import { MyDonationRequestsPage } from '../pages/my-donation-requests-page'
-import { MyReviewsPage } from '../pages/my-reviews-page'
+import { WalletPage } from '../pages/wallet-page'
+import { WalletTopupResultPage } from '../pages/wallet-topup-result-page'
+import { WalletPayosCheckoutPage } from '../pages/wallet-payos-checkout-page'
+import {
+  myWalletQuery,
+  parseWalletHistorySearch,
+  walletTransactionsQuery,
+} from '../features/wallet/wallet-queries'
 import { RentalRequestDetailPage } from '../pages/rental-request-detail-page'
 import { RentalOrdersListPage } from '../pages/rental-requests-page'
+import { PurchaseCheckoutPage } from '../pages/purchase-checkout-page'
+import { PurchaseOrderDetailPage } from '../pages/purchase-order-detail-page'
+import { PurchaseOrdersPage } from '../pages/purchase-orders-page'
 import { myRequestQuery, myRequestsQuery } from '../features/donations/receiver-queries'
 import { adminRoute } from './router'
 
@@ -81,11 +97,30 @@ async function newListingLoader() {
   return null
 }
 
+async function walletLoader({ request }: LoaderFunctionArgs) {
+  if (isGuest()) return null
+  const filters = parseWalletHistorySearch(new URL(request.url).searchParams)
+  await Promise.all([
+    queryClient.query(myWalletQuery).catch(ignoreError), // GET /wallets/me
+    queryClient.query(walletTransactionsQuery(filters)).catch(ignoreError), // GET /wallets/me/transactions?type=&direction=&page=
+  ])
+  return null
+}
+
 async function profileLoader() {
   if (isGuest()) return null
   await Promise.all([
     queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile
     queryClient.query(latestVerificationQuery).catch(ignoreError), // GET /identity-verifications/my-latest
+  ])
+  return null
+}
+
+async function myProfileLoader() {
+  if (isGuest()) return null
+  await Promise.all([
+    profileLoader(),
+    queryClient.query(addressesQuery).catch(ignoreError), // GET /users/addresses
   ])
   return null
 }
@@ -156,6 +191,7 @@ async function newDonationLoader({ request }: LoaderFunctionArgs) {
   const organizationId = new URL(request.url).searchParams.get('organizationId')
   await Promise.all([
     queryClient.query(categoriesQuery).catch(ignoreError), // GET /categories
+    queryClient.query(profileQuery).catch(ignoreError), // GET /users/profile (đã xác minh danh tính chưa)
     queryClient.query(organizationListQuery({ page: 1 })).catch(ignoreError), // GET /organizations
     organizationId && queryClient.query(organizationDetailQuery(organizationId)).catch(ignoreError),
   ])
@@ -186,12 +222,28 @@ async function myRequestLoader({ params }: LoaderFunctionArgs) {
 
 export const router = createBrowserRouter([
   { path: PATHS.home, loader: homeLoader, element: <HomePage />, HydrateFallback: PageLoadingFallback },
-  { path: PATHS.login, element: <LoginPage /> },
-  { path: PATHS.register, element: <RegisterPage /> },
+  {
+    path: PATHS.login,
+    element: (
+      <GuestOnly>
+        <LoginPage />
+      </GuestOnly>
+    ),
+  },
+  {
+    path: PATHS.register,
+    element: (
+      <GuestOnly>
+        <RegisterPage />
+      </GuestOnly>
+    ),
+  },
   { path: PATHS.forgotPassword, element: <ForgotPasswordPage /> },
+  { path: PATHS.terms, element: <TermsPage /> },
+  { path: PATHS.privacy, element: <PrivacyPage /> },
   {
     path: PATHS.profile,
-    loader: profileLoader,
+    loader: myProfileLoader,
     element: (
       <RequireAuth>
         <ProfilePage />
@@ -324,6 +376,32 @@ export const router = createBrowserRouter([
     HydrateFallback: PageLoadingFallback,
   },
   {
+    path: PATHS.wallet,
+    loader: walletLoader,
+    element: (
+      <RequireAuth>
+        <WalletPage />
+      </RequireAuth>
+    ),
+    HydrateFallback: PageLoadingFallback,
+  },
+  {
+    path: PATHS.walletPayosCheckout,
+    element: (
+      <RequireAuth>
+        <WalletPayosCheckoutPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.walletTopupPayosResult,
+    element: (
+      <RequireAuth>
+        <WalletTopupResultPage />
+      </RequireAuth>
+    ),
+  },
+  {
     path: PATHS.rentalRequests,
     element: (
       <RequireAuth>
@@ -332,10 +410,50 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: PATHS.toyBuy,
+    element: (
+      <RequireAuth>
+        <PurchaseCheckoutPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.purchases,
+    element: (
+      <RequireAuth>
+        <PurchaseOrdersPage role="buyer" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.sales,
+    element: (
+      <RequireAuth>
+        <PurchaseOrdersPage role="seller" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.purchaseOrder,
+    element: (
+      <RequireAuth>
+        <PurchaseOrderDetailPage />
+      </RequireAuth>
+    ),
+  },
+  {
     path: PATHS.myRentals,
     element: (
       <RequireAuth>
         <RentalOrdersListPage role="renter" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: PATHS.myReviews,
+    element: (
+      <RequireAuth>
+        <MyReviewsPage />
       </RequireAuth>
     ),
   },
@@ -355,11 +473,23 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
   },
+  // Chat (UC25): hộp thư và phòng chat dùng chung một trang, tải riêng một chunk
   {
-    path: PATHS.myReviews,
     element: (
       <RequireAuth>
-        <MyReviewsPage />
+        <Outlet />
+      </RequireAuth>
+    ),
+    children: [PATHS.chat, PATHS.chatRoom].map((path) => ({
+      path,
+      ...lazyPage(() => import('../pages/chat-page'), 'ChatPage'),
+    })),
+  },
+  {
+    path: PATHS.notifications,
+    element: (
+      <RequireAuth>
+        <NotificationsPage />
       </RequireAuth>
     ),
   },

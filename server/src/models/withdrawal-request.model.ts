@@ -2,6 +2,8 @@ import mongoose, { Schema } from 'mongoose';
 
 const withdrawalRequestSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    // Mã hiển thị cho người dùng, vd. WD1763452800000123
+    code: { type: String },
     amount: { type: Number, required: true },
     bankInfo: {
         bankName: { type: String, required: true },
@@ -10,6 +12,8 @@ const withdrawalRequestSchema = new Schema({
     },
     status: { type: String, required: true, default: 'pending' },
     processedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    // Lúc Admin chuyển khoản xong (completed) hoặc từ chối và hoàn tiền (rejected)
+    processedAt: { type: Date },
     notes: { type: String }
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 

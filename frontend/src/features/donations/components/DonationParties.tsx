@@ -1,4 +1,4 @@
-import { Card, Descriptions, Typography } from 'antd'
+import { Card, Descriptions, Tag, Typography } from 'antd'
 
 import { StatusTag, Thumbnail, UserSummary } from '../../../components/common'
 import { donationReceiverTypeLabels } from '../../../constants/labels'
@@ -22,7 +22,14 @@ export function DonationParties({ request }: { request: DonationRequestDetail })
               </Descriptions.Item>
               <Descriptions.Item label="Độ tuổi">{formatAgeRange(toy.ageRange)}</Descriptions.Item>
               <Descriptions.Item label="Trạng thái tin">
-                <StatusTag domain="toy" status={toy.status} />
+                {/* GB-60: Đã quyên góp là trạng thái suy ra khi yêu cầu đã xác nhận nhận hàng */}
+                {toy.status === 'donated' ? (
+                  <Tag color="green" className="m-0">
+                    Đã quyên góp
+                  </Tag>
+                ) : (
+                  <StatusTag domain="toy" status={toy.status} />
+                )}
               </Descriptions.Item>
             </Descriptions>
           </div>

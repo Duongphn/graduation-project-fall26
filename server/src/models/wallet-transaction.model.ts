@@ -1,4 +1,5 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+import { type LedgerReferenceKind, ledgerReferenceKinds } from '../constants/wallet-transaction.js';
 
 export interface IWalletTransaction extends Document {
   _id: Types.ObjectId;
@@ -8,7 +9,7 @@ export interface IWalletTransaction extends Document {
   amount: number;
   type: 'credit' | 'debit';
   reference?: {
-    kind: 'rental_order' | 'admin_credit';
+    kind: LedgerReferenceKind;
     id: Types.ObjectId;
   };
   description?: string;
@@ -24,7 +25,7 @@ const walletTransactionSchema = new Schema<IWalletTransaction>(
     amount: { type: Number, required: true },
     type: { type: String, required: true, enum: ['credit', 'debit'] },
     reference: {
-      kind: { type: String, enum: ['rental_order', 'admin_credit'] },
+      kind: { type: String, enum: ledgerReferenceKinds },
       id: { type: Schema.Types.ObjectId },
     },
     description: { type: String },

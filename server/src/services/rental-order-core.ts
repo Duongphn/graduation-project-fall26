@@ -1,5 +1,5 @@
 import { type ClientSession, type Model, Types } from 'mongoose';
-import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
+import { type RentalOrderStatus } from '../constants/rental-order-status.js';
 import {
   type Clock,
   type RentalNotifier,
@@ -7,7 +7,6 @@ import {
   type RentalSettingsProvider,
   systemClock,
 } from '../interfaces/rental-order.ports.js';
-import { type RentGate, type TrustRecomputer } from '../interfaces/trust.ports.js';
 import { type WalletLedgerPort } from '../interfaces/wallet.ports.js';
 import { Dispute, type IDispute } from '../models/dispute.model.js';
 import {
@@ -33,7 +32,6 @@ export interface RentalOrderServiceDeps {
   clock?: Clock;
   settings: RentalSettingsProvider;
   repository: RentalOrderRepository;
-  trust: TrustRecomputer & RentGate;
   toyModel?: Model<IToy>;
   userModel?: Model<IUser>;
   orderStatusHistoryModel?: Model<IOrderStatusHistory>;
@@ -64,7 +62,6 @@ export class RentalOrderCore {
   protected readonly clock: Clock;
   protected readonly settings: RentalSettingsProvider;
   protected readonly repository: RentalOrderRepository;
-  protected readonly trust: TrustRecomputer & RentGate;
   protected readonly toyModel: Model<IToy>;
   protected readonly userModel: Model<IUser>;
   protected readonly orderStatusHistoryModel: Model<IOrderStatusHistory>;
@@ -78,7 +75,6 @@ export class RentalOrderCore {
     this.clock = deps.clock ?? systemClock;
     this.settings = deps.settings;
     this.repository = deps.repository;
-    this.trust = deps.trust;
     this.toyModel = deps.toyModel ?? Toy;
     this.userModel = deps.userModel ?? User;
     this.orderStatusHistoryModel = deps.orderStatusHistoryModel ?? OrderStatusHistory;
@@ -149,30 +145,32 @@ export class RentalOrderCore {
     });
   }
 
-  /**
-   * Thao tác làm đổi kết cục (duyệt đơn, báo hư hỏng) phải xảy ra trước hạn của timer tương ứng,
-   * kể cả khi scheduler chưa kịp chạy. Dùng làm `filter` cho transition và để chặn sớm.
-   */
-  protected beforeDeadline(kind: RentalTimerKind, now: Date): Record<string, unknown> {
-    return { 'timer.kind': kind, 'timer.dueAt': { $gt: now } };
-  }
-
   protected async notifyParty(
     order: RentalOrderDoc | IRentalOrder,
     to: 'renter' | 'owner',
     title: string,
     body: string,
+    type?: 'DISPUTE',
   ): Promise<void> {
     try {
       const targetUserId = to === 'renter' ? order.renterId.toString() : order.ownerId.toString();
-      await this.notifier.notify({ userId: targetUserId, title, body });
+      await this.notifier.notify({
+        userId: targetUserId,
+        title,
+        body,
+        orderId: order._id.toString(),
+        party: to,
+        ...(type ? { type } : {}),
+      });
     } catch {
       // Swallows error
     }
   }
 
   /** Tạo sẵn 4 ví quyết toán ngoài transaction (xem ghi chú ở `pay`). */
-  protected async prepareSettleWallets(order: RentalOrderDoc): Promise<SettleWallets> {
+  protected async prepareSettleWallets(
+    order: Pick<IRentalOrder, 'ownerId' | 'renterId'>,
+  ): Promise<SettleWallets> {
     const [escrow, owner, platform, renter] = await Promise.all([
       this.ledger.getOrCreateSystemWallet('escrow'),
       this.ledger.getOrCreateUserWallet(order.ownerId.toString()),

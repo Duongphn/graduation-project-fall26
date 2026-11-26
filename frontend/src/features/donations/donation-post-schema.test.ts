@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { composeDonationDescription, donationDescriptionRoom, donationPostSchema } from './donation-post-schema'
+import { donationPostSchema } from './donation-post-schema'
 
 // A complete donation post; each test changes one field.
 const valid = {
@@ -45,11 +45,22 @@ describe('donationPostSchema', () => {
     expect(issues({ title: 'Gấu bông Momo', description: `${'x'.repeat(50)} Tobot.vn, TikTok` })).toEqual([])
   })
 
-  // The server takes 1000 characters, the lines the form adds at the end included.
-  it('leaves room for the handover and organization lines', () => {
-    const name = 'T'.repeat(150)
-    const room = donationDescriptionRoom('CARRIER', name)
-    expect(composeDonationDescription('d'.repeat(room), 'CARRIER', name)).toHaveLength(1000)
-    expect(donationDescriptionRoom('CARRIER', null)).toBeGreaterThan(800)
+  // The organization and the handover method are sent as their own fields (UC33 step 4), so the
+  // Donor's description has the whole 1000 characters of the Toy Form.
+  // R03 III.5.2.1 (8): the note to the organization is optional, at most 300 characters (trimmed).
+  it('takes a note to the organization of up to 300 characters', () => {
+    const noteErrors = (note: string | undefined) => {
+      const result = donationPostSchema.safeParse({ ...valid, note })
+      return result.success ? [] : result.error.issues.map((issue) => issue.message)
+    }
+    expect(noteErrors(undefined)).toEqual([])
+    expect(noteErrors('')).toEqual([])
+    expect(noteErrors(` ${'n'.repeat(300)} `)).toEqual([])
+    expect(noteErrors('n'.repeat(301))).toEqual(['Ghi chú cho tổ chức tối đa 300 ký tự'])
+  })
+
+  it('takes a description of up to 1000 characters', () => {
+    expect(descriptionErrors('d'.repeat(1000))).toEqual([])
+    expect(descriptionErrors('d'.repeat(1001)).map((issue) => issue.message)).toEqual(['Mô tả tối đa 1000 ký tự'])
   })
 })

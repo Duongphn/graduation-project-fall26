@@ -23,10 +23,21 @@ export interface IToy {
   ageRange: ToyAgeRange;
   images: ToyImage[];
   quantity: number;
+  /** When the Owner last declared the toy safe (UC05): on create and on every edit. */
+  safetyDeclaredAt?: Date | undefined;
   bookingVersion: number;
+  // UC33: a new donation post sent to an organization (donation flow only).
+  donationTarget?: ToyDonationTarget | undefined;
   rating?: { sum: number; count: number };
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ToyDonationTarget {
+  organizationId: mongoose.Types.ObjectId;
+  handoverMethod: 'drop_off' | 'carrier';
+  // R03 III.5.2.1 (8): the Donor's note to the organization, at most 300 characters.
+  note?: string | undefined;
 }
 
 export type ToyDocument = Document<mongoose.Types.ObjectId> & IToy;
@@ -93,7 +104,23 @@ export const toySchema = new Schema<IToy>(
       },
     ],
     quantity: { type: Number, required: true, default: 1 },
+    // Not required: older listings and donation posts have none (UC05).
+    safetyDeclaredAt: { type: Date },
     bookingVersion: { type: Number, required: true, default: 0 },
+    // UC33 step 5 (donation flow): the organization and handover method chosen on a new donation
+    // post. The donation request is created when the Admin approves the post, which clears it.
+    donationTarget: {
+      type: new Schema(
+        {
+          organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
+          handoverMethod: { type: String, required: true, enum: ['drop_off', 'carrier'] },
+          note: { type: String },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+    // Tổng và số lượt điểm đồ chơi người thuê chấm; trung bình = sum / count
     rating: {
       sum: { type: Number, default: 0 },
       count: { type: Number, default: 0 },

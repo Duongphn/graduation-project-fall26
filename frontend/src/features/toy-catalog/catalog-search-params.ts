@@ -95,11 +95,9 @@ export const effectiveSort = (filters: CatalogFilters): CatalogSort =>
 
 export const hasLocation = (filters: CatalogFilters) => filters.lat !== undefined && filters.radiusKm !== undefined
 
-/** Patch xoá các điều kiện trong panel Bộ lọc; giữ từ khoá và loại tin (hai thứ này nằm ở thanh công cụ) */
+/** Patch xoá các điều kiện trong panel Bộ lọc; giữ từ khoá, loại tin và độ tuổi (nằm ở hàng lọc nhanh) */
 export const CLEARED_FILTERS: Partial<CatalogFilters> = {
   categoryId: undefined,
-  ageMin: undefined,
-  ageMax: undefined,
   minPrice: undefined,
   maxPrice: undefined,
   lat: undefined,
@@ -109,10 +107,9 @@ export const CLEARED_FILTERS: Partial<CatalogFilters> = {
 }
 
 export function countActiveFilters(filters: CatalogFilters): number {
-  // Chỉ đếm điều kiện trong panel Bộ lọc (số trên nút mở drawer); loại tin đã hiện ở tab
+  // Chỉ đếm điều kiện trong panel Bộ lọc (số trên nút mở drawer); loại tin và độ tuổi đã hiện ở hàng lọc nhanh
   return [
     filters.categoryId,
-    filters.ageMin ?? filters.ageMax,
     filters.minPrice ?? filters.maxPrice,
     filters.radiusKm,
   ].filter((value) => value !== undefined).length
@@ -120,6 +117,50 @@ export function countActiveFilters(filters: CatalogFilters): number {
 
 export function findAgeOptionIndex(filters: CatalogFilters): number {
   return AGE_OPTIONS.findIndex((option) => option.minAge === filters.ageMin && option.maxAge === filters.ageMax)
+}
+
+/** Nhãn ngắn của AGE_OPTIONS cho hàng chip "Bé mấy tuổi?" (cùng thứ tự, cùng khoảng tuổi) */
+export const AGE_CHIP_LABELS = ['0–12 tháng', '1–3 tuổi', '3–6 tuổi', '6–12 tuổi', 'Trên 12 tuổi'] as const
+
+export interface PricePreset {
+  label: string
+  minPrice?: number
+  maxPrice?: number
+}
+
+/**
+ * Mức giá bấm một lần: giá thuê tính theo ngày nên thang nhỏ hơn hẳn giá bán.
+ * Chưa chọn loại tin thì không có gợi ý (giá thuê/ngày và giá bán không so được với nhau).
+ */
+export const PRICE_PRESETS: Record<'rent' | 'sell', PricePreset[]> = {
+  rent: [
+    { label: 'Dưới 20.000 ₫', maxPrice: 20_000 },
+    { label: '20.000 – 50.000 ₫', minPrice: 20_000, maxPrice: 50_000 },
+    { label: '50.000 – 100.000 ₫', minPrice: 50_000, maxPrice: 100_000 },
+    { label: 'Trên 100.000 ₫', minPrice: 100_000 },
+  ],
+  sell: [
+    { label: 'Dưới 200.000 ₫', maxPrice: 200_000 },
+    { label: '200.000 – 500.000 ₫', minPrice: 200_000, maxPrice: 500_000 },
+    { label: '500.000 – 1.000.000 ₫', minPrice: 500_000, maxPrice: 1_000_000 },
+    { label: 'Trên 1.000.000 ₫', minPrice: 1_000_000 },
+  ],
+}
+
+export const isPresetActive = (filters: CatalogFilters, preset: PricePreset) =>
+  filters.minPrice === preset.minPrice && filters.maxPrice === preset.maxPrice
+
+/**
+ * Mức tình trạng 1–4 theo CONDITION_OPTIONS của form đăng tin ("Mới" … "Cũ nhiều") và nhãn ngắn
+ * bỏ phần trăm. Tin cũ ghi tình trạng tự do thì không có mức, thẻ chỉ hiện chữ.
+ */
+export function conditionLevel(condition: string): { level?: 1 | 2 | 3 | 4; short: string } {
+  const text = condition.trim()
+  if (text.startsWith('Như mới')) return { level: 3, short: 'Như mới' }
+  if (text.startsWith('Mới')) return { level: 4, short: 'Mới' }
+  if (text.startsWith('Tốt')) return { level: 2, short: 'Tốt' }
+  if (text.startsWith('Cũ')) return { level: 1, short: 'Cũ nhiều' }
+  return { short: text }
 }
 
 /** Nhãn ngắn cho khoảng giá bất kỳ (kể cả khoảng không nằm trong danh sách gợi ý) */

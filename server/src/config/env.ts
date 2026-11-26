@@ -71,4 +71,11 @@ export const env = Object.freeze({
 
   // Rental Scheduler
   rentalSchedulerEnabled: process.env.RENTAL_SCHEDULER_ENABLED === 'true',
+
+  // PayOS (UC17 top-up by bank transfer QR, real money). Empty keys: POST /payments/topup/payos returns 503.
+  payosClientId: process.env.PAYOS_CLIENT_ID?.trim() ?? '',
+  payosApiKey: process.env.PAYOS_API_KEY?.trim() ?? '',
+  payosChecksumKey: process.env.PAYOS_CHECKSUM_KEY?.trim() ?? '',
+  // Frontend page PayOS sends the browser back to (paid or cancelled); it calls GET /payments/payos-return
+  payosReturnUrl: process.env.PAYOS_RETURN_URL ?? 'http://localhost:5173/wallet/topup/payos-result',
 });

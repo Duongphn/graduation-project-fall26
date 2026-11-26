@@ -1,38 +1,6 @@
 import mongoose, { type Model, Schema, type Types } from 'mongoose';
-import { DISPUTE_VERDICTS, type DisputeStatus, type DisputeVerdict } from '../constants/dispute.js';
-import { type RentalPhoto } from './rental-order.model.js';
-
-export interface IDispute {
-  _id: Types.ObjectId;
-  code: string;
-  orderType: string;
-  orderId: Types.ObjectId;
-  claimantId: Types.ObjectId;
-  respondentId: Types.ObjectId;
-  // Same shape as ClaimantRole in services/rental-pricing.ts (models may not import services)
-  claimantRole: 'renter' | 'owner';
-  reason: string;
-  description: string;
-  evidencePhotos: RentalPhoto[];
-  status: DisputeStatus;
-  openedAt: Date;
-  timer?: {
-    dueAt?: Date;
-  };
-  response?: { message: string; photos: RentalPhoto[]; respondedAt: Date };
-  reviewStartedAt?: Date;
-  responseMissed?: boolean;
-  resolution?: {
-    verdict: DisputeVerdict;
-    compensation: number;
-    reason: string;
-    resolvedAt: Date;
-    payout: { renter: number; owner: number; platform: number }; // same shape as Payout in rental-pricing.ts
-  };
-  resolvedBy?: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { compensationRates, disputeRulings, type DisputeRuling } from '../constants/dispute-ruling.js';
+import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 
 const photoSchema = new Schema(
   {
@@ -42,6 +10,53 @@ const photoSchema = new Schema(
   { _id: false },
 );
 
+/** Phán quyết của Admin (UC19). Ghi một lần, không sửa được (GB-26). */
+export interface IDisputeResolution {
+  ruling: DisputeRuling;
+  compensationRate: number;
+  /** K: phần cọc bồi thường cho chủ đồ */
+  compensationAmount: number;
+  /** G: phần tiền thuê hoàn cho người thuê */
+  rentRefundAmount: number;
+  /** Số tiền mỗi bên nhận từ escrow theo phán quyết */
+  ownerAmount: number;
+  renterAmount: number;
+  platformFee: number;
+  /** Lý do gửi cho cả hai bên, 30–500 ký tự */
+  adminDecision: string;
+}
+
+/** Phản hồi một lần của bên bị khiếu nại trong hạn 72 giờ (UC18, GB-24). */
+export interface IDisputeResponse {
+  message: string;
+  photos: ToyImage[];
+  respondedAt: Date;
+}
+
+export interface IDispute {
+  _id: Types.ObjectId;
+  code: string;
+  orderType: string;
+  orderId: Types.ObjectId;
+  claimantId: Types.ObjectId;
+  respondentId: Types.ObjectId;
+  reason: string;
+  description: string;
+  /** Ảnh bằng chứng khi người thuê khiếu nại (UC17); khiếu nại của chủ đồ dùng settlement.evidencePhotos của đơn */
+  evidencePhotos?: ToyImage[];
+  response?: IDisputeResponse;
+  status: 'open' | 'under_review' | 'resolved' | 'closed';
+  openedAt: Date;
+  timer?: {
+    dueAt?: Date;
+  };
+  resolvedBy?: Types.ObjectId;
+  resolvedAt?: Date;
+  resolution?: IDisputeResolution;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const disputeSchema = new Schema<IDispute>(
   {
     code: { type: String, required: true },
@@ -49,15 +64,9 @@ const disputeSchema = new Schema<IDispute>(
     orderId: { type: Schema.Types.ObjectId, required: true },
     claimantId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     respondentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    claimantRole: { type: String, required: true, enum: ['renter', 'owner'] },
     reason: { type: String, required: true },
     description: { type: String, required: true },
-    evidencePhotos: { type: [photoSchema], default: [] },
-    status: { type: String, required: true, default: 'open' }, // open, under_review, resolved, closed
-    openedAt: { type: Date, default: Date.now },
-    timer: {
-      dueAt: { type: Date },
-    },
+    evidencePhotos: { type: [photoSchema], default: undefined },
     response: {
       type: new Schema(
         {
@@ -68,33 +77,39 @@ const disputeSchema = new Schema<IDispute>(
         { _id: false },
       ),
     },
-    reviewStartedAt: { type: Date },
-    responseMissed: { type: Boolean },
+    status: { type: String, required: true, default: 'open' }, // open, under_review, resolved, closed
+    openedAt: { type: Date, default: Date.now },
+    // Hạn bên bị khiếu nại phản hồi (72 giờ, GB-24); Admin quyết định sau hạn này (UC19)
+    timer: {
+      dueAt: { type: Date },
+    },
+    resolvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    resolvedAt: { type: Date },
     resolution: {
       type: new Schema(
         {
-          verdict: { type: String, required: true, enum: DISPUTE_VERDICTS },
-          compensation: { type: Number, required: true },
-          reason: { type: String, required: true },
-          resolvedAt: { type: Date, required: true },
-          payout: {
-            renter: { type: Number, required: true },
-            owner: { type: Number, required: true },
-            platform: { type: Number, required: true },
-          },
+          ruling: { type: String, enum: disputeRulings, required: true },
+          compensationRate: { type: Number, enum: compensationRates, required: true },
+          compensationAmount: { type: Number, required: true, min: 0 },
+          rentRefundAmount: { type: Number, required: true, min: 0 },
+          ownerAmount: { type: Number, required: true, min: 0 },
+          renterAmount: { type: Number, required: true, min: 0 },
+          platformFee: { type: Number, required: true, min: 0 },
+          adminDecision: { type: String, required: true },
         },
         { _id: false },
       ),
     },
-    resolvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } },
 );
 
 // Tạo các Index đồng bộ tuyệt đối với Atlas
 disputeSchema.index({ code: 1 }, { unique: true, name: 'code_unique' });
-disputeSchema.index({ orderType: 1, orderId: 1 }, { unique: true, name: 'one_per_order' });
-disputeSchema.index({ status: 1, reviewStartedAt: 1 }, { name: 'review_queue' });
+disputeSchema.index(
+  { orderType: 1, orderId: 1 },
+  { unique: true, partialFilterExpression: { status: 'open' }, name: 'one_open_per_order' },
+);
 disputeSchema.index({ status: 1, openedAt: 1 }, { name: 'admin_queue' });
 disputeSchema.index({ claimantId: 1, openedAt: -1 }, { name: 'claimant_disputes' });
 disputeSchema.index({ respondentId: 1, openedAt: -1 }, { name: 'respondent_disputes' });

@@ -2,10 +2,10 @@ import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import {
   RENTER_COMPLAINT_HOURS,
-  type ComplaintReason,
   type DisputeStatus,
-  type DisputeVerdict,
+  type RentalGroup,
   type RentalOrder,
+  type RentalRole,
   type RentalStatus,
 } from './rental-orders-api'
 
@@ -24,6 +24,15 @@ export const RENTAL_STATUS_META: Record<RentalStatus, { label: string; tone: 'wa
   DISPUTING: { label: 'Đang khiếu nại', tone: 'alert' },
 }
 
+/** Nhãn bộ lọc theo nhóm trạng thái; nhóm gom nhiều trạng thái ở server (vd. Đang diễn ra = ACCEPTED…RETURNING) */
+export const RENTAL_GROUP_LABELS: Record<RentalGroup, string> = {
+  all: 'Tất cả',
+  pending: 'Chờ duyệt',
+  active: 'Đang diễn ra',
+  completed: 'Hoàn tất',
+  cancelled: 'Đã huỷ',
+  disputed: 'Tranh chấp',
+}
 /** Bộ lọc của chủ đồ: các bước cần chú ý trước, sau đó là kết cục */
 export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'PENDING',
@@ -32,8 +41,10 @@ export const OWNER_STATUS_FILTERS: readonly RentalStatus[] = [
   'SHIPPING',
   'IN_USE',
   'RETURNING',
+  'DISPUTING',
   'COMPLETED',
   'REJECTED',
+  'CANCELLED',
   'EXPIRED',
 ]
 
@@ -45,39 +56,12 @@ export const RENTER_STATUS_FILTERS: readonly RentalStatus[] = [
   'SHIPPING',
   'IN_USE',
   'RETURNING',
+  'DISPUTING',
   'COMPLETED',
   'REJECTED',
+  'CANCELLED',
   'EXPIRED',
 ]
-
-/** Hạn khiếu nại của người thuê: 24 giờ sau lúc xác nhận nhận đồ; null khi chưa nhận */
-export const renterComplaintDueAt = (rentalStartedAt: string | undefined): string | null =>
-  rentalStartedAt
-    ? new Date(new Date(rentalStartedAt).getTime() + RENTER_COMPLAINT_HOURS * 3_600_000).toISOString()
-    : null
-
-/** Nhãn và gợi ý của từng lý do khiếu nại */
-export const COMPLAINT_REASON_META: Record<ComplaintReason, { label: string; hint: string }> = {
-  DAMAGED_ON_RECEIPT: { label: 'Hư hỏng khi nhận', hint: 'Đồ chơi đã hỏng, nứt, vỡ lúc bạn nhận' },
-  DAMAGED_ON_RETURN: { label: 'Hư hỏng khi trả về', hint: 'Đồ chơi bị hỏng so với ảnh lúc giao' },
-  MISSING_PARTS: { label: 'Thiếu chi tiết', hint: 'Thiếu phụ kiện, linh kiện so với lúc giao' },
-  NOT_AS_DESCRIBED: { label: 'Không đúng mô tả', hint: 'Khác ảnh hoặc mô tả trên tin đăng' },
-  OTHER: { label: 'Lý do khác', hint: 'Ghi rõ vấn đề trong phần mô tả' },
-}
-
-/** Trạng thái khiếu nại; tông dùng chung class .rental-status--{tone} */
-export const DISPUTE_STATUS_META: Record<DisputeStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' }> = {
-  open: { label: 'Chờ phản hồi', tone: 'wait' },
-  under_review: { label: 'Đang xem xét', tone: 'go' },
-  resolved: { label: 'Đã giải quyết', tone: 'done' },
-  closed: { label: 'Đã đóng', tone: 'stop' },
-}
-
-export const DISPUTE_VERDICT_LABELS: Record<DisputeVerdict, string> = {
-  CLAIMANT_FAVORED: 'Chấp nhận khiếu nại',
-  RESPONDENT_FAVORED: 'Bác khiếu nại',
-  PARTIAL: 'Chấp nhận một phần',
-}
 
 /** Lý do từ chối gợi ý — chủ đồ vẫn sửa được (5–500 ký tự như server) */
 export const OWNER_REJECT_REASON_PRESETS = [
@@ -142,6 +126,57 @@ export const estimateLateFee = (order: Pick<RentalOrder, 'period' | 'pricing'>, 
   return { lateDays, lateFee }
 }
 
+/** Tỷ lệ phí huỷ mặc định của server (cấu hình được): % tiền thuê khi người thuê huỷ đơn đã thanh toán */
+export const DEFAULT_CANCEL_FEE_RATE = 0.2
+
+/** Lý do huỷ gợi ý theo vai trò; người dùng vẫn sửa được (5–500 ký tự như server) */
+export const CANCEL_REASON_PRESETS: Record<RentalRole, readonly string[]> = {
+  renter: [
+    'Gia đình đổi kế hoạch, không còn cần thuê nữa.',
+    'Mình đã tìm được món đồ chơi khác phù hợp hơn.',
+    'Chủ đồ chưa giao đúng hẹn.',
+  ],
+  owner: [
+    'Đồ chơi bị hỏng, chưa thể cho thuê.',
+    'Mình không sắp xếp được việc giao đồ trong những ngày này.',
+    'Mình cần dùng đồ chơi trong khoảng thời gian này.',
+  ],
+}
+
+export type CancelPreview =
+  | { allowed: true; paid: boolean; fee: number; refund: number; feeWaived: boolean }
+  | { allowed: false; reason: 'shipped' | 'use-reject' | 'closed' }
+
+/**
+ * Hệ quả nếu huỷ lúc `now`, theo chính sách huỷ của server: chờ duyệt/chờ thanh toán thì chưa có tiền;
+ * đã thanh toán thì chủ đồ huỷ hoàn 100%, người thuê huỷ mất phí (miễn khi tới ngày nhận mà chưa được giao);
+ * từ lúc giao trở đi thì không huỷ được. Phí cuối cùng do server chốt.
+ */
+export const previewCancel = (order: RentalOrder, role: RentalRole, now: number): CancelPreview => {
+  switch (order.status) {
+    case 'PENDING':
+      return role === 'owner'
+        ? { allowed: false, reason: 'use-reject' }
+        : { allowed: true, paid: false, fee: 0, refund: 0, feeWaived: false }
+    case 'ACCEPTED':
+      return { allowed: true, paid: false, fee: 0, refund: 0, feeWaived: false }
+    case 'PAID': {
+      const total = order.pricing.totalPayable
+      if (role === 'owner') return { allowed: true, paid: true, fee: 0, refund: total, feeWaived: false }
+      const rentalStarted = now >= Date.parse(`${order.period.startDate}T00:00:00+07:00`)
+      const fee = rentalStarted ? 0 : Math.min(Math.round(DEFAULT_CANCEL_FEE_RATE * order.pricing.rentalFee), total)
+      return { allowed: true, paid: true, fee, refund: total - fee, feeWaived: rentalStarted }
+    }
+    case 'SHIPPING':
+    case 'IN_USE':
+    case 'RETURNING':
+    case 'DISPUTING':
+      return { allowed: false, reason: 'shipped' }
+    default:
+      return { allowed: false, reason: 'closed' }
+  }
+}
+
 /** Thời điểm hiện tại, cập nhật định kỳ để đếm ngược hạn phản hồi/thanh toán */
 export function useNow(intervalMs = 30_000): number {
   const [now, setNow] = useState(() => Date.now())
@@ -151,3 +186,28 @@ export function useNow(intervalMs = 30_000): number {
   }, [intervalMs])
   return now
 }
+
+/** Lý do khiếu nại: của người thuê khi nhận đồ (UC17) và của chủ đồ khi quyết toán Hư hỏng */
+export const COMPLAINT_REASON_META: Record<string, { label: string; hint?: string }> = {
+  DAMAGED_ON_RECEIPT: { label: 'Hư hỏng khi nhận', hint: 'Nứt, gãy, không hoạt động ngay khi mở ra' },
+  MISSING_PARTS: { label: 'Thiếu bộ phận', hint: 'Thiếu chi tiết, phụ kiện so với ảnh và mô tả' },
+  NOT_AS_DESCRIBED: { label: 'Không đúng mô tả', hint: 'Khác mẫu, khác tình trạng chủ đồ đã ghi' },
+  OTHER: { label: 'Vấn đề khác', hint: 'Mô tả cụ thể ở bên dưới' },
+  DAMAGED_ON_RETURN: { label: 'Hư hỏng khi trả' },
+}
+
+export const complaintReasonLabel = (reason: string) => COMPLAINT_REASON_META[reason]?.label ?? reason
+
+/** Trạng thái khiếu nại; tông dùng chung class .rental-status--{tone} */
+export const DISPUTE_STATUS_META: Record<DisputeStatus, { label: string; tone: 'wait' | 'go' | 'done' | 'stop' | 'alert' }> = {
+  open: { label: 'Chờ phản hồi', tone: 'alert' },
+  under_review: { label: 'Quản trị viên đang xem xét', tone: 'wait' },
+  resolved: { label: 'Đã có phán quyết', tone: 'done' },
+  closed: { label: 'Đã đóng', tone: 'stop' },
+}
+
+/** Hạn người thuê khiếu nại: 24 giờ kể từ lúc nhận đồ; null khi chưa nhận */
+export const renterComplaintDueAt = (rentalStartedAt: string | undefined): string | null =>
+  rentalStartedAt
+    ? new Date(new Date(rentalStartedAt).getTime() + RENTER_COMPLAINT_HOURS * 3_600_000).toISOString()
+    : null

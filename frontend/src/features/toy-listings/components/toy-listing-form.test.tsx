@@ -75,6 +75,13 @@ beforeEach(() => {
 })
 
 const saveButton = () => screen.getByRole('button', { name: 'Lưu thay đổi' })
+const safetyGroup = () => screen.getByRole('group', { name: /Cam kết an toàn/ })
+// UC05: every save of a rent or sale listing needs all safety commitments ticked.
+const tickSafety = async (user: ReturnType<typeof userEvent.setup>) => {
+  for (const box of within(safetyGroup()).getAllByRole('checkbox')) {
+    if (!(box as HTMLInputElement).checked) await user.click(box)
+  }
+}
 const photoErrors = () => screen.queryByRole('alert')
 
 describe('ToyListingForm', () => {
@@ -86,6 +93,7 @@ describe('ToyListingForm', () => {
     expect(optionNames()).toEqual(['Chọn danh mục', 'Đồ chơi gỗ', 'Xe điều khiển', 'Đồ chơi nhập vai (đã ẩn)'])
 
     await user.type(screen.getByRole('textbox', { name: /^Tên đồ chơi/ }), ' (mới)')
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
@@ -101,6 +109,7 @@ describe('ToyListingForm', () => {
     const { onSaved, user } = renderForm()
 
     await user.selectOptions(categorySelect(), 'Xe điều khiển')
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
@@ -139,6 +148,23 @@ describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
     expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
     expect(screen.getByText(/JPG, PNG hoặc WebP · tối đa 5 MB mỗi ảnh · từ 4 đến 8 ảnh/)).toBeInTheDocument()
     expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('takes a sale with 3 photos only after a fourth is added (GB-10: 4–8 ảnh)', async () => {
+    patch.mockResolvedValue({ data: listing })
+    const { user } = renderForm({ listing: { ...listing, status: 'pending' } })
+    await user.click(screen.getByRole('button', { name: 'Bán lại' }))
+    fireEvent.change(screen.getByRole('textbox', { name: /^Giá bán mong muốn/ }), { target: { value: '250000' } })
+    await tickSafety(user)
+
+    await user.click(saveButton())
+    expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
+    expect(patch).not.toHaveBeenCalled()
+
+    await user.upload(screen.getByLabelText(/Kéo thả ảnh vào đây/), new File(['toy'], 'toy-4.jpg', { type: 'image/jpeg' }))
+    await user.click(saveButton())
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
+    expect(sentForm().get('listingType')).toBe('sell')
   })
 
   it('takes JPG, PNG and WebP photos only, at most 8', async () => {
@@ -192,6 +218,7 @@ describe('ToyListingForm photo and price rules (GB-10, R03 III.3.1)', () => {
     )
     const { user } = renderForm()
 
+    await tickSafety(user)
     await user.click(saveButton())
     expect(await screen.findByText('Vui lòng tải lên ít nhất 4 ảnh.')).toBeInTheDocument()
   })
@@ -225,6 +252,7 @@ describe('ToyListingForm contact details (GB-11, MSG22)', () => {
     await user.type(titleBox(), 'Bộ nấu ăn Momo')
     await user.click(descriptionBox())
     await user.paste(' Mã vạch 8936036022345, hàng Tobot.vn, hot trên TikTok.')
+    await tickSafety(user)
     await user.click(saveButton())
 
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
@@ -248,6 +276,7 @@ describe('ToyListingForm contact details (GB-11, MSG22)', () => {
     )
     const { user } = renderForm()
 
+    await tickSafety(user)
     await user.click(saveButton())
     await waitFor(() => expect(descriptionBox()).toHaveAttribute('aria-invalid', 'true'))
     // Under the description box, and in the panel next to the save button.
@@ -268,6 +297,7 @@ describe('ToyListingForm and the Admin review (GB-08, GB-09)', () => {
     expect(screen.getByText('Ảnh bị mờ, chụp lại giúp')).toBeInTheDocument()
     // Never approved: the type can still change.
     expect(screen.getByRole('button', { name: 'Bán lại' })).toBeEnabled()
+    await tickSafety(user)
     await user.click(screen.getByRole('button', { name: 'Gửi duyệt lại' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
   })
@@ -287,5 +317,59 @@ describe('ToyListingForm and the Admin review (GB-08, GB-09)', () => {
     renderForm({ listing: { ...listing, status: 'pending', moderation: { reviewedAt: '2026-11-01T08:00:00.000Z' } } })
     expect(screen.getByRole('button', { name: 'Bán lại' })).toBeDisabled()
     expect(screen.queryByText(/Sau khi lưu, tin sẽ/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ToyListingForm safety commitments (UC05)', () => {
+  it('does not save until every safety commitment is ticked', async () => {
+    patch.mockResolvedValue({ data: listing })
+    const { user } = renderForm()
+
+    await user.click(saveButton())
+    expect(await within(safetyGroup()).findByText('Vui lòng xác nhận đủ các cam kết an toàn.')).toBeInTheDocument()
+    expect(within(safetyGroup()).getAllByRole('checkbox')).toHaveLength(5)
+    expect(patch).not.toHaveBeenCalled()
+
+    await tickSafety(user)
+    await user.click(saveButton())
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1))
+    expect(sentForm().get('safetyDeclaration')).toBe('true')
+  })
+
+  it('asks for the commitments again after an edit is saved', async () => {
+    patch.mockResolvedValue({ data: listing })
+    const { user, onSaved } = renderForm()
+
+    await tickSafety(user)
+    await user.click(saveButton())
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+
+    for (const box of within(safetyGroup()).getAllByRole('checkbox')) expect(box).not.toBeChecked()
+    await user.click(saveButton())
+    expect(await within(safetyGroup()).findByText('Vui lòng xác nhận đủ các cam kết an toàn.')).toBeInTheDocument()
+    expect(patch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the SAFETY_DECLARATION_REQUIRED refusal of the server at the commitments', async () => {
+    patch.mockRejectedValue(
+      new AxiosError('Vui lòng xác nhận cam kết an toàn trước khi đăng tin.', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: {
+          error: {
+            code: 'SAFETY_DECLARATION_REQUIRED',
+            message: 'Vui lòng xác nhận cam kết an toàn trước khi đăng tin.',
+            details: { field: 'safetyDeclaration' },
+          },
+        },
+      }),
+    )
+    const { user } = renderForm()
+
+    await tickSafety(user)
+    await user.click(saveButton())
+    expect(await within(safetyGroup()).findByText('Vui lòng xác nhận đủ các cam kết an toàn.')).toBeInTheDocument()
   })
 })

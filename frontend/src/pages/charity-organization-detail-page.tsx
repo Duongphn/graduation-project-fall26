@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { QueryErrorAlert } from '../components/common'
 import { OrganizationProfile } from '../features/organizations/components/organization-profile'
+import { useCategoryNames } from '../features/organizations/hooks'
 import { organizationDetailQuery } from '../features/organizations/public-queries'
 import { SiteLayout } from '../layouts/site/site-layout'
 import { PATHS } from '../routes/paths'
@@ -13,6 +14,7 @@ export function CharityOrganizationDetailPage() {
   const { organizationId = '' } = useParams()
   const detail = useQuery(organizationDetailQuery(organizationId))
   const organization = detail.data
+  const categoryNames = useCategoryNames()
 
   useEffect(() => {
     document.title = `${organization?.name ?? 'Tổ chức từ thiện'} | ToyFlow`
@@ -63,7 +65,7 @@ export function CharityOrganizationDetailPage() {
 
           {organization && (
             <article className="rounded-xl border border-tf-surface bg-white p-5 sm:p-6">
-              <OrganizationProfile organization={organization} />
+              <OrganizationProfile organization={organization} categoryNames={categoryNames} />
             </article>
           )}
         </div>

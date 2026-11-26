@@ -3,6 +3,9 @@ import type { Container } from '../container.js';
 import { featureEnv } from '../config/feature-env.js';
 import { createDocsRouter } from '../config/openapi.js';
 import { authenticate } from '../middlewares/authenticate.js';
+import { createAiRouter } from './ai.routes.js';
+import { adminAccountsRouter } from './account-admin.routes.js';
+import { adminAuditLogsRouter } from './audit-log.routes.js';
 import { adminCategoriesRouter } from './category-admin.routes.js';
 import { createDonationPostsRouter } from './donation-post.routes.js';
 import {
@@ -10,27 +13,35 @@ import {
   donationRequestsRouter,
   donorProfileRouter,
 } from './donation-request.routes.js';
-import './dispute.openapi.js';
-import './review.openapi.js';
-import './trust-review.openapi.js';
 import './health.openapi.js';
+import './review.openapi.js';
 import { adminIdentityReviewRouter } from './identity-review.routes.js';
 import { notificationsRouter } from './notification.routes.js';
+import {
+  createRentalReviewRouter,
+  createToyReviewsRouter,
+  createUserReviewsRouter,
+} from './review.routes.js';
 import { adminOrganizationsRouter, organizationsRouter } from './organization.routes.js';
+import { adminSettingsRouter, publicSettingsRouter } from './system-setting.routes.js';
 import { adminToyModerationRouter } from './toy-moderation.routes.js';
 import { uploadsRouter } from './upload.routes.js';
+import {
+  adminViolationReportsRouter,
+  violationReportsRouter,
+} from './violation-report.routes.js';
 import { createAuthRouter } from './auth.routes.js';
+import { createChatRouter } from './chat.routes.js';
 import { categoriesRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { createIdentityVerificationRouter } from './identity-verification.routes.js';
-import { createAdminDisputeRouter } from './dispute-admin.routes.js';
-import { createDisputeRouter } from './dispute.routes.js';
-import { createAdminTrustReviewRouter } from './trust-review-admin.routes.js';
-import { createToyReviewsRouter, createUserReviewsRouter } from './review.routes.js';
+import { createAdminDisputeRouter } from './rental-dispute.routes.js';
 import { createRentalOrderRouter } from './rental-order.routes.js';
 import { createToyCatalogRouter } from './toy-catalog.routes.js';
 import { createToyListingRouter } from './toy-listing.routes.js';
 import { createUsersRouter } from './user.routes.js';
+import { createPaymentRouter } from './payment.routes.js';
+import { createPurchaseOrderRouter } from './purchase-order.routes.js';
 import { createWalletRouter } from './wallet.routes.js';
 
 export function createApiRouter(container: Container): Router {
@@ -43,6 +54,8 @@ export function createApiRouter(container: Container): Router {
   // Thứ tự quan trọng: router đăng tin đứng trước router công khai để /toys/mine không bị
   // hiểu là GET /toys/:toyId. Router đăng tin chỉ gắn requireActor trên từng route,
   // nên khách vẫn đi tiếp tới GET /toys, /toys/showcase, /toys/:toyId… mà không cần đăng nhập.
+  // Đánh giá công khai (GET /toys/:id/reviews, /users/:id/reviews) không cần đăng nhập, nên gắn
+  // trước router /users vốn bắt đăng nhập cho mọi route.
   router.use('/toys', createToyReviewsRouter(container.reviewService));
   router.use('/toys', createToyListingRouter(container.toyListingService));
   router.use('/toys', createToyCatalogRouter(container.toyCatalogService));
@@ -55,17 +68,12 @@ export function createApiRouter(container: Container): Router {
     createIdentityVerificationRouter(container.identityVerificationService),
   );
 
-  router.use(createWalletRouter(container.walletService));
-  router.use(
-    '/rentals',
-    createRentalOrderRouter(
-      container.rentalOrderService,
-      container.disputeService,
-      container.reviewService,
-    ),
-  );
-
-  router.use('/disputes', createDisputeRouter(container.disputeService));
+  router.use(createWalletRouter(container.walletService, container.withdrawalService));
+  // UC17 PayOS top-up: /payments/topup/payos, /payos/:code, /payos/:code/cancel, /payos-return, /payos-webhook
+  router.use('/payments', createPaymentRouter(container.payosTopupService));
+  router.use('/rentals', createRentalReviewRouter(container.reviewService));
+  router.use('/rentals', createRentalOrderRouter(container.rentalOrderService));
+  router.use('/purchase-orders', createPurchaseOrderRouter(container.purchaseOrderService));
 
   // Admin back office and charity donations (each router checks requireActor / requireAdmin).
   router.use('/admin/categories', authenticate, adminCategoriesRouter);
@@ -73,12 +81,17 @@ export function createApiRouter(container: Container): Router {
   router.use('/admin/toys', authenticate, adminToyModerationRouter);
   router.use('/admin/identity-verifications', authenticate, adminIdentityReviewRouter);
   router.use('/admin/donation-requests', authenticate, adminDonationRequestsRouter);
-  router.use('/admin/disputes', authenticate, createAdminDisputeRouter(container.disputeService));
   router.use(
-    '/admin/trust-reviews',
+    '/admin/disputes',
     authenticate,
-    createAdminTrustReviewRouter(container.trustReviewService),
+    createAdminDisputeRouter(container.rentalDisputeService),
   );
+  router.use('/admin/audit-logs', authenticate, adminAuditLogsRouter);
+  router.use('/admin/violation-reports', authenticate, adminViolationReportsRouter);
+  router.use('/admin/users', authenticate, adminAccountsRouter);
+  router.use('/admin/settings', authenticate, adminSettingsRouter);
+  router.use('/settings', publicSettingsRouter);
+  router.use('/violation-reports', authenticate, violationReportsRouter);
   router.use('/organizations', organizationsRouter);
   router.use('/notifications', authenticate, notificationsRouter);
   router.use('/donation-requests', authenticate, donationRequestsRouter);
@@ -89,6 +102,9 @@ export function createApiRouter(container: Container): Router {
   );
   router.use('/donors', donorProfileRouter);
   router.use('/uploads', authenticate, uploadsRouter);
+  // Trợ lý AI: router tự kiểm tra cờ tính năng trước khi xác thực (tắt thì 503).
+  router.use('/ai', createAiRouter(container.aiAssistanceService));
+  router.use('/conversations', createChatRouter(container.chatService));
 
   // Swagger UI and the OpenAPI JSON of the documented routes (never in production).
   if (featureEnv.docsEnabled) {

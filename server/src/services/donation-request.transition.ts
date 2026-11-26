@@ -19,10 +19,14 @@ import {
 import * as repository from '../repositories/donation-request.repository.js';
 import type { DonationRecord } from '../repositories/donation-request.repository.js';
 import { donationTransitions } from '../constants/donation-request-transitions.js';
+import { SystemSettingService } from './system-setting.service.js';
 
 // The ONE path for every status move of a donation request:
 // read -> permission -> assertTransition -> conditional update -> toy move -> sibling rejects
 // -> audit (Admin) -> commit -> DONATION_STATUS_CHANGED events.
+
+/** GB-57 time limits from the System Settings (UC30), read on every use. */
+export const donationSettings = () => new SystemSettingService().getDonationSettings();
 
 export const requestNotFound = () =>
   notFound('DONATION_REQUEST_NOT_FOUND', 'Không tìm thấy yêu cầu nhận tặng.');
@@ -38,6 +42,17 @@ export const organizationNotAccepting = () =>
   conflict(
     'ORGANIZATION_NOT_ACCEPTING',
     'Tổ chức này hiện không nhận đồ chơi. Vui lòng chọn tổ chức khác.',
+  );
+
+/**
+ * GB-51: an organization receives toys through its receiving point. One saved before receiving
+ * points existed has none until the Admin enters it, so it takes no new request, no accept and
+ * no handover.
+ */
+export const organizationWithoutPoint = () =>
+  conflict(
+    'ORGANIZATION_NO_RECEIVING_POINT',
+    'Tổ chức chưa có điểm nhận đồ chơi nên chưa nhận quyên góp. Vui lòng chọn tổ chức khác.',
   );
 
 /** The audit context of an Admin actor (DonationActor carries the same facts). */
@@ -86,6 +101,14 @@ export const buildEvent = (
   to,
   ...(reason ? { reason } : {}),
   ...(changedBy ? { changedBy } : {}),
+  // MSG54 names the handover deadline, MSG55 the received date (the Admin's date for an
+  // organization, else the confirmation time).
+  ...(to === 'accepted' && record.timer?.dueAt
+    ? { handoverDueAt: record.timer.dueAt.toISOString() }
+    : {}),
+  ...(to === 'completed' && (record.receivedAt ?? record.completedAt)
+    ? { receivedAt: (record.receivedAt ?? record.completedAt)!.toISOString() }
+    : {}),
 });
 
 export const transition = async (command: TransitionCommand): Promise<DonationRecord> => {
@@ -110,9 +133,13 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
 
     if (to === 'accepted' && current.receiver?.organizationId) {
       // A write, so a concurrent hide of the organization write-conflicts with the accept.
-      if (!(await repository.touchActiveOrganization(current.receiver.organizationId, session))) {
-        throw organizationNotAvailable();
-      }
+      const organization = await repository.touchActiveOrganization(
+        current.receiver.organizationId,
+        session,
+      );
+      if (!organization) throw organizationNotAvailable();
+      // GB-51: the toy goes to the receiving point; an older organization has none yet.
+      if (!organization.receivingPoint) throw organizationWithoutPoint();
     }
 
     // The conditional toy move also guarantees one accepted request per toy.
@@ -155,10 +182,12 @@ export const transition = async (command: TransitionCommand): Promise<DonationRe
 
     if (actor.isAdmin) {
       await writeAuditLog(
-        adminAuditEntry(adminContextOf(actor), auditActionFor(to), {
-          kind: 'DONATION_REQUEST',
-          id: String(current._id),
-        }),
+        adminAuditEntry(
+          adminContextOf(actor),
+          auditActionFor(to),
+          { kind: 'DONATION_REQUEST', id: String(current._id) },
+          { from, to },
+        ),
         session,
       );
     }

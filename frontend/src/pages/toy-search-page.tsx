@@ -1,14 +1,15 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { ChevronRight, Home, Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { ChevronRight, Home, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AdvisorFloatingChat } from '../features/ai-chat/components/advisor-floating-chat'
 import { ActiveFilterChips } from '../features/toy-catalog/components/active-filter-chips'
 import { CatalogPagination } from '../features/toy-catalog/components/catalog-pagination'
 import { EmptySuggestions } from '../features/toy-catalog/components/empty-suggestions'
 import { FilterDrawer } from '../features/toy-catalog/components/filter-drawer'
 import { SortSelect } from '../features/toy-catalog/components/filter-fields'
 import { FilterPanel } from '../features/toy-catalog/components/filter-panel'
-import { ListingTypeTabs } from '../features/toy-catalog/components/listing-type-tabs'
+import { AgeChips, TypeSwitch } from '../features/toy-catalog/components/quick-filters'
 import { ToyCard, ToyCardSkeleton } from '../features/toy-catalog/components/toy-card'
 import {
   countActiveFilters,
@@ -19,7 +20,7 @@ import {
 import type { CatalogFilters } from '../features/toy-catalog/toy-catalog-api'
 import { toySearchQuery } from '../features/toy-catalog/toy-catalog-queries'
 import { categoriesQuery } from '../features/toy-listings/toy-listing-queries'
-import { AccountLayout } from '../layouts/account/account-layout'
+import { SiteLayout } from '../layouts/site/site-layout'
 import { PATHS } from '../routes/paths'
 import { getApiErrorMessage } from '../services/http-client'
 
@@ -140,8 +141,8 @@ export function ToySearchPage() {
   }
 
   return (
-    <AccountLayout activeItem="browse">
-      <div className="catalog-page">
+    <SiteLayout>
+      <div className="home-container catalog-page py-5 sm:py-7">
         <nav aria-label="Breadcrumb" className="tf-breadcrumb">
           <Link to={PATHS.home} className="tf-breadcrumb__link">
             <Home aria-hidden /> Trang chủ
@@ -152,64 +153,53 @@ export function ToySearchPage() {
           </span>
         </nav>
 
-        {/* Cùng thẻ đầu trang với "Đăng tin đồ chơi" (.editor-header); thanh tab + ô tìm bên dưới như "Tin đăng của tôi" */}
-        <header className="tf-card editor-header">
-          <div className="editor-header__text">
-            <div className="editor-header__title-row">
-              <h1 className="editor-header__title">Tìm đồ chơi</h1>
-              {total !== undefined && (
-                <span className="tf-pill tf-pill--secondary">
-                  <span className="tf-pill__pulse" aria-hidden />
-                  {countFormatter.format(total)} món phù hợp
-                </span>
-              )}
-            </div>
-            <p className="editor-header__lead">
-              Thuê theo ngày hoặc mua lại đồ chơi từ các gia đình khác. Lọc theo độ tuổi, giá và khu vực để chọn món hợp
-              với bé.
-            </p>
+        {/* Đầu trang gọn: tiêu đề + ô tìm cùng hàng để danh sách lên sớm trong màn hình đầu.
+            Nút đăng tin đã có trên header nên không lặp lại ở đây. */}
+        <header className="catalog-hero">
+          <div className="catalog-hero__text">
+            <h1 className="catalog-hero__title">Tìm đồ chơi cho bé</h1>
+            <p className="catalog-hero__lead">Thuê theo ngày từ các gia đình gần bạn, hoặc mua lại đồ còn tốt.</p>
           </div>
-          <Link to={PATHS.newListing} className="tf-btn tf-btn--primary tf-btn--inline catalog-head__post">
-            <Plus aria-hidden />
-            Đăng tin mới
-          </Link>
-        </header>
-
-        <div className="listings-toolbar catalog-toolbar">
-          <ListingTypeTabs filters={filters} />
 
           <form role="search" className="catalog-search" onSubmit={submitKeyword}>
-            <div className="catalog-search__field">
-              <label htmlFor="catalog-keyword" className="sr-only">
-                Tìm đồ chơi theo tên
-              </label>
-              <Search className="catalog-search__icon" aria-hidden="true" />
-              <input
-                key={filters.q ?? ''}
-                id="catalog-keyword"
-                name="q"
-                type="search"
-                className="tf-input"
-                defaultValue={filters.q}
-                placeholder="Lego, xe điều khiển, búp bê…"
-                autoComplete="off"
-                enterKeyHint="search"
-              />
-            </div>
-            <button type="submit" className="tf-btn tf-btn--primary tf-btn--inline catalog-search__submit">
+            <label htmlFor="catalog-keyword" className="sr-only">
+              Tìm đồ chơi theo tên
+            </label>
+            <Search className="catalog-search__icon" aria-hidden="true" />
+            <input
+              key={filters.q ?? ''}
+              id="catalog-keyword"
+              name="q"
+              type="search"
+              className="catalog-search__input"
+              defaultValue={filters.q}
+              placeholder="Lego, xe điều khiển, búp bê…"
+              autoComplete="off"
+              enterKeyHint="search"
+            />
+            <button type="submit" className="catalog-search__submit">
               Tìm
             </button>
           </form>
+        </header>
+
+        {/* Hàng lọc nhanh: loại tin + độ tuổi, một chạm là áp dụng */}
+        <div className="catalog-quick">
+          <TypeSwitch filters={filters} />
+          <AgeChips filters={filters} onChange={updateFilters} />
         </div>
 
         <div className="catalog-layout">
+          <aside className="catalog-sidebar" aria-label="Bộ lọc">
+            <FilterPanel key={panelKey} filters={filters} categories={categories} onChange={updateFilters} />
+          </aside>
+
           <section
             ref={resultsRef}
             className="catalog-results"
             aria-labelledby="catalog-results-title"
             aria-busy={search.isFetching}
           >
-            {/* Số kết quả và sắp xếp luôn chung một hàng; chip lọc xuống hàng riêng để không đẩy ô sắp xếp */}
             <div className="catalog-results__head">
               <h2 id="catalog-results-title" className="catalog-results__count" aria-live="polite">
                 <ResultSummary total={total} keyword={filters.q} />
@@ -218,7 +208,7 @@ export function ToySearchPage() {
               <div className="catalog-results__tools">
                 <button type="button" className="catalog-filter-toggle" onClick={() => setDrawerOpen(true)}>
                   <SlidersHorizontal aria-hidden="true" />
-                  Bộ lọc
+                  Giá, danh mục
                   {activeCount > 0 && <span className="catalog-filter-toggle__count">{activeCount}</span>}
                 </button>
                 <div className="catalog-sort">
@@ -231,24 +221,25 @@ export function ToySearchPage() {
 
             {results}
           </section>
-
-          <aside className="catalog-sidebar" aria-label="Bộ lọc">
-            <FilterPanel key={panelKey} filters={filters} categories={categories} onApply={updateFilters} />
-          </aside>
         </div>
 
+        {/* Màn hẹp: mỗi lựa chọn áp dụng ngay, kết quả cập nhật phía sau; nút cuối chỉ để đóng */}
         <FilterDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           <FilterPanel
             key={panelKey}
             filters={filters}
             categories={categories}
-            onApply={(patch) => {
-              updateFilters(patch)
-              setDrawerOpen(false)
-            }}
+            onChange={updateFilters}
+            footer={
+              <button type="button" className="pl-btn pl-btn--primary filter-panel__apply" onClick={() => setDrawerOpen(false)}>
+                {total === undefined ? 'Xem kết quả' : `Xem ${countFormatter.format(total)} đồ chơi`}
+              </button>
+            }
           />
         </FilterDrawer>
       </div>
-    </AccountLayout>
+
+      <AdvisorFloatingChat />
+    </SiteLayout>
   )
 }

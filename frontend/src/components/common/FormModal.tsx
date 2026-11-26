@@ -6,6 +6,8 @@ interface FormModalProps {
   title: ReactNode
   // Text of the confirm button, e.g. "Lưu", "Thêm" or "Từ chối".
   okText?: string
+  // Text of the dismiss button; change it when "Huỷ" would read like the action itself.
+  cancelText?: string
   danger?: boolean
   loading?: boolean
   // Disables the confirm button, e.g. an edit form with no changes.
@@ -23,6 +25,7 @@ export function FormModal({
   open,
   title,
   okText = 'Lưu',
+  cancelText = 'Huỷ',
   danger,
   loading,
   okDisabled,
@@ -43,7 +46,7 @@ export function FormModal({
       open={open}
       title={title}
       okText={okText}
-      cancelText="Huỷ"
+      cancelText={cancelText}
       okButtonProps={{ danger, disabled: okDisabled }}
       confirmLoading={loading}
       // Cannot be closed (mask, Esc, X) while the request runs.

@@ -9,6 +9,8 @@ export default defineConfig({
     // Chuyển tiếp /api sang backend khi dev để tránh lỗi CORS
     proxy: {
       '/api': 'http://localhost:3000',
+      // Socket.IO (thông báo realtime): cùng backend, cần chuyển tiếp cả WebSocket
+      '/socket.io': { target: 'http://localhost:3000', ws: true },
     },
   },
 })
