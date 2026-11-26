@@ -3,6 +3,7 @@ import type {
   DonationRequest,
   DonationRequestDetail,
   DonorDonationSummary,
+  DonorOrganizationRequestInput,
   HandoverInput,
   IncomingDonationParams,
 } from './types'
@@ -18,6 +19,11 @@ export const donorDonationsApi = {
   summary: (userId: string) => apiGet<DonorDonationSummary>(`/donors/${userId}/donation-summary`),
 
   detail: (id: string) => apiGet<DonationRequestDetail>(`${BASE}/${id}`),
+
+  // UC33 (GB-56): the Donor sends their own Active donation post to an organization (Pending, the
+  // Admin decides for the organization).
+  sendToOrganization: (input: DonorOrganizationRequestInput) =>
+    apiPost<DonationRequestDetail>(`${BASE}/to-organization`, input),
 
   // D-04: only the Donor accepts or rejects a PENDING request.
   accept: (id: string) => apiPost<DonationRequestDetail>(`${BASE}/${id}/accept`),

@@ -4,6 +4,7 @@ import { donationReceiverTypes, donationStatuses } from '../../constants/domain'
 import { reasonSchema } from '../../schemas/common'
 import { enumParam, objectIdParam, searchParam } from '../../schemas/list-params'
 import { handoverMethods } from './constants'
+import { ORGANIZATION_NOTE_MAX } from './donation-post-schema'
 import type { HandoverInput } from './types'
 
 // Admin confirmation that the receiver got the toy: a required reason, optional photos and note.
@@ -98,6 +99,18 @@ export const confirmReceiptSchema = z.object({
   note: z.string().trim().max(1000, 'Tối đa 1000 ký tự.'),
 })
 export type ConfirmReceiptValues = z.infer<typeof confirmReceiptSchema>
+
+// UC33 (GB-56): the Donor sends an Active donation post to an organization
+// (POST /donation-requests/to-organization). MSG52: the handover method is required.
+export const sendToOrganizationSchema = z.object({
+  organizationId: z.string().min(1, 'Chọn tổ chức tiếp nhận.'),
+  handoverMethod: z.enum(handoverMethods, { error: 'Vui lòng chọn mang đến hoặc gửi qua vận chuyển.' }),
+  note: z
+    .string()
+    .trim()
+    .max(ORGANIZATION_NOTE_MAX, `Ghi chú cho tổ chức tối đa ${ORGANIZATION_NOTE_MAX} ký tự.`),
+})
+export type SendToOrganizationValues = z.infer<typeof sendToOrganizationSchema>
 
 // Admin creates a request for an organization (POST /admin/donation-requests).
 export const createOrganizationRequestSchema = z.object({
