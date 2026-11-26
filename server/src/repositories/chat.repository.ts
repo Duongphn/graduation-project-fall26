@@ -1,7 +1,7 @@
 import { Types, type FilterQuery } from 'mongoose';
 
 import type { ChatOrderKind, MaskedContactKind } from '../constants/chat.js';
-import { Conversation, type IConversation } from '../models/conversation.model.js';
+import { Conversation, ONE_PER_ORDER_INDEX, type IConversation } from '../models/conversation.model.js';
 import { Message, type IMessage } from '../models/message.model.js';
 import { PurchaseOrder } from '../models/purchase-order.model.js';
 import { RentalOrder } from '../models/rental-order.model.js';
@@ -383,3 +383,18 @@ export const markReadFor = async (
   ).exec();
   return result.modifiedCount;
 };
+
+/**
+ * Replaces an `one_per_order` index built without the partial filter (an older schema): that
+ * index treats every listing chat as the same { null, null } key, so a second listing chat fails
+ * with E11000. Leaves a correct index alone, so it is safe to run again.
+ */
+export async function rebuildOnePerOrderIndex(): Promise<{ rebuilt: boolean }> {
+  const collection = Conversation.collection;
+  const { name } = ONE_PER_ORDER_INDEX.options;
+  const current = (await collection.indexes()).find((index) => index.name === name);
+  if (current?.partialFilterExpression) return { rebuilt: false };
+  if (current) await collection.dropIndex(name);
+  await collection.createIndex(ONE_PER_ORDER_INDEX.key, { ...ONE_PER_ORDER_INDEX.options });
+  return { rebuilt: true };
+}
