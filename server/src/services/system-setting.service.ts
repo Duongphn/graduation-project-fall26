@@ -65,12 +65,6 @@ export class SystemSettingService {
     max?: Partial<Record<keyof T, number>>,
   ): Promise<T> {
     const keys = Object.keys(defaults) as (keyof T)[];
-    const dbKeys = keys.map((k) => `${prefix}.${String(k)}`);
-    const rows = await this.model.find({ key: { $in: dbKeys } }).lean();
-
-    const rowMap = new Map<string, string>();
-    for (const row of rows) {
-      rowMap.set(row.key, row.value);
     const stored = await this.storedValues(keys.map((k) => `${prefix}.${String(k)}`));
     const result = { ...defaults };
     for (const key of keys) {
@@ -111,13 +105,6 @@ export class SystemSettingService {
     }
 
     return result;
-  }
-
-  public async getRentalSettings(): Promise<RentalSettings> {
-    return this.getNumbers('rental', DEFAULT_RENTAL_SETTINGS, {
-      cancelFeeRate: 1,
-      platformFeeRate: 1,
-    });
   }
 
   /**

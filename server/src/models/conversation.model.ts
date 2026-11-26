@@ -55,10 +55,17 @@ const conversationSchema = new Schema<IConversation>(
 );
 
 // Tạo các Index đồng bộ với Atlas
-conversationSchema.index(
-  { 'context.kind': 1, 'context.id': 1 },
-  { unique: true, sparse: true, name: 'one_per_order' },
-);
+// Only order chats are unique by context. A partial filter (not `sparse`) so listing chats, saved
+// without `context` or with `context: null`, never collide on { null, null }.
+export const ONE_PER_ORDER_INDEX = {
+  key: { 'context.kind': 1, 'context.id': 1 },
+  options: {
+    unique: true,
+    partialFilterExpression: { 'context.id': { $exists: true } },
+    name: 'one_per_order',
+  },
+} as const;
+conversationSchema.index(ONE_PER_ORDER_INDEX.key, ONE_PER_ORDER_INDEX.options);
 conversationSchema.index({ 'participants.userId': 1, lastMessageAt: -1 }, { name: 'inbox' });
 conversationSchema.index(
   { listingKey: 1 },
