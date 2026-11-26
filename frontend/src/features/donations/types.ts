@@ -171,6 +171,17 @@ export interface HandoverInput {
   note?: string
 }
 
+// UC33 (GB-56): the Donor sends their own Active donation post to an organization
+// (POST /donation-requests/to-organization); the Admin accepts or rejects it for the organization.
+export interface DonorOrganizationRequestInput {
+  toyId: string
+  organizationId: string
+  // GB-58: one the organization's receiving point accepts.
+  handoverMethod: 'drop_off' | 'carrier'
+  // Note to the organization, at most 300 characters.
+  message?: string
+}
+
 // GET /donors/:userId/donation-summary: donations the receiver confirmed (COMPLETED).
 export interface DonorDonationSummary {
   userId: string
