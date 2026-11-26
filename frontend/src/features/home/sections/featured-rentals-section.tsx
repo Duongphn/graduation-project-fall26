@@ -1,12 +1,12 @@
 import { PackagePlus } from 'lucide-react'
-import { browseToysPath, PATHS } from '../../../routes/paths'
+import { browseToysPath, PATHS, RENT_TOYS_ANCHOR } from '../../../routes/paths'
 import { SectionHeader } from '../components/section-header'
 import { ToyGrid } from '../components/toy-grid'
 import { featuredRentalsQuery } from '../home-queries'
 
 export function FeaturedRentalsSection() {
   return (
-    <section className="home-container mt-6 sm:mt-8" aria-labelledby="home-rentals-title">
+    <section id={RENT_TOYS_ANCHOR} className="home-container mt-6 scroll-mt-24 sm:mt-8" aria-labelledby="home-rentals-title">
       <SectionHeader
         id="home-rentals-title"
         title="Đồ cho thuê"

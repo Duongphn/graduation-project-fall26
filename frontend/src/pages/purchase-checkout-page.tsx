@@ -148,7 +148,7 @@ export function PurchaseCheckoutPage() {
   const delivery = values.deliveryMethod === 'DELIVERY'
 
   return (
-    <AccountLayout activeItem="browse">
+    <AccountLayout activeItem="purchases">
       <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-xs text-tf-ink-muted">
         <Link to={PATHS.home} className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap hover:text-tf-primary">
           <Home className="size-3.5" aria-hidden /> Trang chủ

@@ -27,7 +27,9 @@
  * nên chỉ cần đổi biến trong .account-layout. Màu nhấn (primary, secondary, error) sáng lên và chữ
  * "trắng" trên nền nhấn thành chữ tối (giống colorTextLightSolid của antd dark).
  */
-.dark .account-layout {
+/* .catalog-page: trang Tìm đồ chơi / chi tiết đồ chơi dùng khung trang chủ nhưng vẫn dùng thẻ tf-* của khu tài khoản */
+.dark .account-layout,
+.dark .catalog-page {
   color-scheme: dark;
   --color-white: #1c1d27;
   --color-tf-page: #15161e;

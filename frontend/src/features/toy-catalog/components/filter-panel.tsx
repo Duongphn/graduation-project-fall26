@@ -1,27 +1,24 @@
-import { SlidersHorizontal } from 'lucide-react'
 import { useId, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import type { Category } from '../../toy-listings/toy-listing-api'
-import { formatVnd } from '../../toy-listings/format-vnd'
-import { AGE_OPTIONS } from '../../toy-listings/toy-listing-schema'
-import { CLEARED_FILTERS, findAgeOptionIndex, orderCategories } from '../catalog-search-params'
+import {
+  CLEARED_FILTERS,
+  countActiveFilters,
+  isPresetActive,
+  orderCategories,
+  PRICE_PRESETS,
+} from '../catalog-search-params'
 import type { CatalogFilters } from '../toy-catalog-api'
-import { LocationField, SelectField } from './filter-fields'
 
 type FilterPatch = Partial<CatalogFilters>
-
-/** Thang kéo của thanh trượt giá: giá thuê theo ngày nhỏ hơn hẳn giá bán */
-const PRICE_SCALE = {
-  rent: { max: 500_000, step: 5_000 },
-  sell: { max: 3_000_000, step: 50_000 },
-} as const
 
 /** Số danh mục hiện sẵn trước khi bấm "Xem thêm" */
 const VISIBLE_CATEGORIES = 6
 
-function PanelSection({ title, children }: { title?: string; children: ReactNode }) {
+function PanelSection({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <fieldset className="filter-panel__section">
-      {title && <legend className="filter-panel__legend">{title}</legend>}
+      <legend className="filter-panel__legend">{title}</legend>
+      {hint && <p className="filter-panel__hint">{hint}</p>}
       {children}
     </fieldset>
   )
@@ -37,29 +34,62 @@ const priceText = (value: number | undefined) => (value === undefined ? '' : new
 /** R03 2.1.1 (3): "Từ" phải nhỏ hơn hoặc bằng "Đến", nếu không thì báo lỗi và không áp dụng */
 const PRICE_RANGE_ERROR = 'Giá "Từ" phải nhỏ hơn hoặc bằng giá "Đến".'
 
-const isPriceRangeInverted = ({ minPrice, maxPrice }: CatalogFilters) =>
-  minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice
-
-interface PriceFieldProps {
-  draft: CatalogFilters
-  onChange: (patch: FilterPatch) => void
-  error?: string
-}
-
-function PriceField({ draft, onChange, error }: PriceFieldProps) {
+/**
+ * Mức giá gợi ý áp dụng ngay; khoảng tự nhập cần bấm "Áp dụng" để không gọi API theo từng phím gõ.
+ * Trang cha đặt `key` theo URL nên ô nhập làm mới khi giá đổi từ nơi khác (chip, gợi ý, nút Back).
+ */
+function PriceField({ filters, onChange }: { filters: CatalogFilters; onChange: (patch: FilterPatch) => void }) {
   const id = useId()
   const errorId = `${id}-error`
+  const [min, setMin] = useState(filters.minPrice)
+  const [max, setMax] = useState(filters.maxPrice)
+  // Lỗi chỉ hiện sau khi bấm "Áp dụng", và tự hết khi khoảng giá đã đúng
+  const [checked, setChecked] = useState(false)
+  const error = checked && min !== undefined && max !== undefined && min > max ? PRICE_RANGE_ERROR : undefined
   const invalidProps = error ? { 'aria-invalid': true, 'aria-describedby': errorId } : {}
-  const scale = PRICE_SCALE[draft.type ?? 'sell']
-  const low = Math.min(draft.minPrice ?? 0, scale.max)
-  const high = Math.min(draft.maxPrice ?? scale.max, scale.max)
-  // Kéo hết về đầu/cuối thang nghĩa là không giới hạn phía đó
-  const setLow = (value: number) => onChange({ minPrice: value <= 0 ? undefined : Math.min(value, high) })
-  const setHigh = (value: number) => onChange({ maxPrice: value >= scale.max ? undefined : Math.max(value, low) })
+  const presets = filters.type ? PRICE_PRESETS[filters.type] : []
+
+  const apply = (event: FormEvent) => {
+    event.preventDefault()
+    setChecked(true)
+    if (min !== undefined && max !== undefined && min > max) return
+    onChange({ minPrice: min, maxPrice: max })
+  }
 
   return (
-    <PanelSection title={draft.type === 'rent' ? 'Giá thuê / ngày (₫)' : 'Giá (₫)'}>
-      <div className="price-field__inputs">
+    <PanelSection
+      title={filters.type === 'rent' ? 'Giá thuê mỗi ngày' : filters.type === 'sell' ? 'Giá mua' : 'Giá'}
+      hint={
+        filters.type === 'rent'
+          ? 'Chưa gồm tiền cọc. Cọc được hoàn khi bạn trả đồ.'
+          : filters.type
+            ? undefined
+            : 'Chọn "Thuê theo ngày" hoặc "Mua lại" để có mức giá gợi ý.'
+      }
+    >
+      {presets.length > 0 && (
+        <div className="price-presets">
+          {presets.map((preset) => {
+            const isOn = isPresetActive(filters, preset)
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                className="filter-pill"
+                aria-pressed={isOn}
+                onClick={() =>
+                  onChange(isOn ? { minPrice: undefined, maxPrice: undefined } : { minPrice: preset.minPrice, maxPrice: preset.maxPrice })
+                }
+              >
+                {preset.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Không lồng <form> trong form: nhấn Enter trong ô giá cũng gọi apply qua onKeyDown */}
+      <div className="price-custom">
         <label className="sr-only" htmlFor={`${id}-min`}>
           Giá từ
         </label>
@@ -68,8 +98,9 @@ function PriceField({ draft, onChange, error }: PriceFieldProps) {
           className={`tf-input filter-input ${error ? 'is-invalid' : ''}`}
           inputMode="numeric"
           placeholder="Từ"
-          value={priceText(draft.minPrice)}
-          onChange={(event) => onChange({ minPrice: parsePrice(event.target.value) })}
+          value={priceText(min)}
+          onChange={(event) => setMin(parsePrice(event.target.value))}
+          onKeyDown={(event) => event.key === 'Enter' && apply(event)}
           {...invalidProps}
         />
         <span aria-hidden="true">–</span>
@@ -81,49 +112,20 @@ function PriceField({ draft, onChange, error }: PriceFieldProps) {
           className={`tf-input filter-input ${error ? 'is-invalid' : ''}`}
           inputMode="numeric"
           placeholder="Đến"
-          value={priceText(draft.maxPrice)}
-          onChange={(event) => onChange({ maxPrice: parsePrice(event.target.value) })}
+          value={priceText(max)}
+          onChange={(event) => setMax(parsePrice(event.target.value))}
+          onKeyDown={(event) => event.key === 'Enter' && apply(event)}
           {...invalidProps}
         />
+        <button type="button" className="price-custom__apply" onClick={apply}>
+          Áp dụng
+        </button>
       </div>
       {error && (
         <p id={errorId} className="tf-field-error" role="alert">
           {error}
         </p>
       )}
-
-      <div
-        className="price-range"
-        style={{ '--low': `${(low / scale.max) * 100}%`, '--high': `${(high / scale.max) * 100}%` } as CSSProperties}
-      >
-        <input
-          type="range"
-          min={0}
-          max={scale.max}
-          step={scale.step}
-          value={low}
-          aria-label="Giá thấp nhất"
-          aria-valuetext={low === 0 ? 'Không giới hạn' : formatVnd(low)}
-          onChange={(event) => setLow(Number(event.target.value))}
-        />
-        <input
-          type="range"
-          min={0}
-          max={scale.max}
-          step={scale.step}
-          value={high}
-          aria-label="Giá cao nhất"
-          aria-valuetext={high === scale.max ? 'Không giới hạn' : formatVnd(high)}
-          onChange={(event) => setHigh(Number(event.target.value))}
-        />
-      </div>
-      <p className="filter-panel__hint">
-        {draft.type === 'rent'
-          ? 'Giá cho mỗi ngày thuê, chưa gồm tiền cọc.'
-          : draft.type === 'sell'
-            ? 'Giá bán một lần.'
-            : 'Chọn "Cho thuê" để lọc theo giá thuê mỗi ngày.'}
-      </p>
     </PanelSection>
   )
 }
@@ -171,98 +173,36 @@ function CategoryField({
 interface FilterPanelProps {
   filters: CatalogFilters
   categories: Category[]
-  /** Nhận toàn bộ bộ lọc nháp khi bấm "Áp dụng" */
-  onApply: (patch: FilterPatch) => void
-  className?: string
+  /** Mỗi thay đổi áp dụng ngay (trừ khoảng giá tự nhập: chờ bấm "Áp dụng") */
+  onChange: (patch: FilterPatch) => void
+  /** Nút cuối panel, vd. "Xem kết quả" trong drawer màn hẹp */
+  footer?: ReactNode
 }
 
-/**
- * Bộ lọc dạng form: chỉnh nhiều điều kiện rồi áp dụng một lần, tránh gọi API theo từng phím gõ ô giá.
- * Bản nháp khởi tạo từ URL; trang cha đặt `key` theo URL để nháp làm mới khi bộ lọc đổi từ nơi khác (chip, gợi ý).
- */
-export function FilterPanel({ filters, categories, onApply, className }: FilterPanelProps) {
-  const [draft, setDraft] = useState(filters)
-  // Lỗi khoảng giá chỉ hiện sau khi bấm "Áp dụng", và tự hết khi khoảng giá đã đúng
-  const [priceChecked, setPriceChecked] = useState(false)
-  const priceError = priceChecked && isPriceRangeInverted(draft) ? PRICE_RANGE_ERROR : undefined
-  const update = (patch: FilterPatch) => setDraft((current) => ({ ...current, ...patch }))
-  const ageIndex = findAgeOptionIndex(draft)
-  const hasAge = draft.ageMin !== undefined || draft.ageMax !== undefined
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    // R03 2.1.1 (3): "Từ" lớn hơn "Đến" thì báo lỗi, không áp dụng bộ lọc
-    setPriceChecked(true)
-    if (isPriceRangeInverted(draft)) return
-    onApply({
-      type: draft.type,
-      categoryId: draft.categoryId,
-      ageMin: draft.ageMin,
-      ageMax: draft.ageMax,
-      minPrice: draft.minPrice,
-      maxPrice: draft.maxPrice,
-      lat: draft.lat,
-      lng: draft.lng,
-      radiusKm: draft.radiusKm,
-      sort: draft.sort === 'distance' && draft.lat === undefined ? undefined : draft.sort,
-    })
-  }
-
-  const clearAll = () => {
-    setDraft((current) => ({ ...current, ...CLEARED_FILTERS }))
-    onApply(CLEARED_FILTERS)
-  }
+/** Giá → danh mục: thứ tự bố mẹ cân nhắc sau độ tuổi (độ tuổi nằm ở hàng lọc nhanh) */
+export function FilterPanel({ filters, categories, onChange, footer }: FilterPanelProps) {
+  const activeCount = countActiveFilters(filters)
+  const titleId = useId()
 
   return (
-    <form className={`tf-card filter-panel ${className ?? ''}`} onSubmit={submit} aria-label="Bộ lọc">
+    <div className="filter-panel" role="group" aria-labelledby={titleId}>
       <div className="filter-panel__head">
-        <h2 className="tf-section-title tf-section-title--md">
-          <span className="tf-section-title__icon">
-            <SlidersHorizontal aria-hidden="true" />
-          </span>
+        <h2 id={titleId} className="filter-panel__title">
           Bộ lọc
         </h2>
-        <button type="button" className="filter-panel__clear" onClick={clearAll}>
-          Xoá tất cả
-        </button>
+        {activeCount > 0 && (
+          <button type="button" className="filter-panel__clear" onClick={() => onChange(CLEARED_FILTERS)}>
+            Xoá {activeCount} bộ lọc
+          </button>
+        )}
       </div>
 
-      <PanelSection>
-        <SelectField
-          label="Độ tuổi phù hợp"
-          value={ageIndex >= 0 ? String(ageIndex) : hasAge ? 'custom' : ''}
-          onChange={(value) => {
-            const option = AGE_OPTIONS[Number(value)]
-            update(value === '' || !option ? { ageMin: undefined, ageMax: undefined } : { ageMin: option.minAge, ageMax: option.maxAge })
-          }}
-        >
-          <option value="">Mọi độ tuổi</option>
-          {AGE_OPTIONS.map((option, index) => (
-            <option key={option.label} value={index}>
-              {option.label}
-            </option>
-          ))}
-          {ageIndex < 0 && hasAge && (
-            <option value="custom" disabled>
-              Từ {draft.ageMin ?? 0} đến {draft.ageMax ?? '…'} tuổi
-            </option>
-          )}
-        </SelectField>
-      </PanelSection>
+      <PriceField filters={filters} onChange={onChange} />
 
-      <CategoryField categories={categories} value={draft.categoryId} onChange={(categoryId) => update({ categoryId })} />
 
-      <PriceField draft={draft} onChange={update} error={priceError} />
+      <CategoryField categories={categories} value={filters.categoryId} onChange={(categoryId) => onChange({ categoryId })} />
 
-      <PanelSection title="Khu vực">
-        <LocationField filters={draft} onChange={update} />
-      </PanelSection>
-
-      <div className="filter-panel__foot">
-        <button type="submit" className="pl-btn pl-btn--primary filter-panel__apply">
-          Áp dụng bộ lọc
-        </button>
-      </div>
-    </form>
+      {footer && <div className="filter-panel__foot">{footer}</div>}
+    </div>
   )
 }

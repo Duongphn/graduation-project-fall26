@@ -12,7 +12,7 @@ import type { ToyDetail } from '../features/toy-catalog/toy-catalog-api'
 import { toyDetailQuery } from '../features/toy-catalog/toy-catalog-queries'
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { formatDate } from '../features/toy-listings/listing-display'
-import { AccountLayout } from '../layouts/account/account-layout'
+import { SiteLayout } from '../layouts/site/site-layout'
 import { profileQuery } from '../features/profile/profile-queries'
 import { useIsSignedIn } from '../hooks/use-is-signed-in'
 import { PATHS, toyBuyPath } from '../routes/paths'
@@ -45,8 +45,8 @@ const initialsOf = (name: string) =>
 
 function Shell({ crumb, children }: { crumb?: ToyDetail; children: ReactNode }) {
   return (
-    <AccountLayout activeItem="browse">
-      <div className="catalog-page toy-detail">
+    <SiteLayout>
+      <div className="home-container catalog-page toy-detail py-6 sm:py-8">
         <nav aria-label="Breadcrumb" className="tf-breadcrumb">
           <Link to={PATHS.home} className="tf-breadcrumb__link">
             <Home aria-hidden /> Trang chủ
@@ -73,7 +73,7 @@ function Shell({ crumb, children }: { crumb?: ToyDetail; children: ReactNode }) 
         </nav>
         {children}
       </div>
-    </AccountLayout>
+    </SiteLayout>
   )
 }
 

@@ -20,7 +20,7 @@ import {
 import { describeReturnDue, formatRemaining, RENTAL_GROUP_LABELS, useNow } from '../features/rentals/rental-display'
 import { formatVnd } from '../features/toy-listings/format-vnd'
 import { useListParams } from '../hooks/useListParams'
-import { SiteLayout } from '../layouts/site/site-layout'
+import { AccountLayout } from '../layouts/account/account-layout'
 import { enumParam } from '../schemas/list-params'
 import { getCurrentRole } from '../services/current-role'
 import { myRentalPath, PATHS, rentalRequestPath } from '../routes/paths'
@@ -235,8 +235,8 @@ export function RentalOrdersListPage({ role: routeRole }: { role: RentalRole }) 
   }, [view.title])
 
   return (
-    <SiteLayout>
-      <div className="home-container rental-page">
+    <AccountLayout activeItem="rentals">
+      <div className="rental-page">
         <nav aria-label="Breadcrumb" className="rental-crumbs">
           <Link to={PATHS.home}>
             <Home aria-hidden /> Trang chủ
@@ -315,6 +315,6 @@ export function RentalOrdersListPage({ role: routeRole }: { role: RentalRole }) 
           )}
         </section>
       </div>
-    </SiteLayout>
+    </AccountLayout>
   )
 }

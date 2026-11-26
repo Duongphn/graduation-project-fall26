@@ -8,7 +8,6 @@ import {
   LogOut,
   Package,
   ReceiptText,
-  Search,
   ShoppingBag,
   Star,
   Wallet,
@@ -23,7 +22,6 @@ import { getAccessToken } from "../../services/token-storage";
 import { ThemeToggle } from "./theme-toggle";
 
 export type SidebarItemKey =
-  | "browse"
   | "donations"
   | "profile"
   | "listings"
@@ -51,7 +49,6 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: CircleUserRound,
     to: PATHS.profile,
   },
-  { key: "browse", label: "Tìm đồ chơi", icon: Search, to: PATHS.toys },
   {
     key: "donations",
     label: "Quyên góp của tôi",

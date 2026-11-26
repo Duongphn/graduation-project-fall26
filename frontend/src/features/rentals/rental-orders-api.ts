@@ -127,6 +127,15 @@ export interface RentalRulingSummary {
   resolvedAt: string
 }
 
+/** Một mốc lịch sử đơn trong hồ sơ khiếu nại (API Admin): changedBy là id người thao tác */
+export interface RentalHistoryEntry {
+  oldStatus?: RentalStatus
+  newStatus: RentalStatus
+  changedBy: string
+  notes?: string
+  occurredAt: string
+}
+
 /** Một mốc trong lịch sử đơn; changedBy.isSystem khi hệ thống tự chuyển (hết hạn, tự xác nhận…) */
 export interface RentalTimelineEntry {
   oldStatus?: RentalStatus | null

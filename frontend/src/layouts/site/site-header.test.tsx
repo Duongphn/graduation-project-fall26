@@ -46,10 +46,13 @@ describe('Mục đang chọn ở menu header', () => {
     expect(isCurrent(nav, 'Quyên góp')).toBe(true)
   })
 
-  it('/toys?type=sell: chỉ "Mua lại" sáng, không sáng cả "Thuê đồ chơi"', () => {
-    const nav = renderHeaderAt('/toys?type=sell&page=2')
+  it('"Thuê đồ chơi" và "Mua lại" trỏ tới mục trên trang chủ, chỉ mục đang xem sáng', () => {
+    const nav = renderHeaderAt('/#do-choi-mua-lai')
+    expect(nav.getByRole('link', { name: 'Thuê đồ chơi' })).toHaveAttribute('href', PATHS.rentToys)
+    expect(nav.getByRole('link', { name: 'Mua lại' })).toHaveAttribute('href', PATHS.resaleToys)
     expect(isCurrent(nav, 'Mua lại')).toBe(true)
     expect(isCurrent(nav, 'Thuê đồ chơi')).toBe(false)
+    expect(isCurrent(nav, 'Quyên góp')).toBe(false)
   })
 })
 
@@ -61,8 +64,8 @@ describe('Menu ☰ (màn hẹp không có menu chính ở header)', () => {
     const menu = within(await screen.findByRole('navigation', { name: 'Khám phá' }))
     expect(menu.getByRole('link', { name: 'Quyên góp' })).toHaveAttribute('href', PATHS.donations)
     expect(menu.getByRole('link', { name: 'Tổ chức từ thiện' })).toHaveAttribute('href', PATHS.charityOrganizations)
-    expect(menu.getByRole('link', { name: 'Thuê đồ chơi' })).toHaveAttribute('href', '/toys?type=rent')
-    expect(menu.getByRole('link', { name: 'Mua lại' })).toHaveAttribute('href', '/toys?type=sell')
+    expect(menu.getByRole('link', { name: 'Thuê đồ chơi' })).toHaveAttribute('href', PATHS.rentToys)
+    expect(menu.getByRole('link', { name: 'Mua lại' })).toHaveAttribute('href', PATHS.resaleToys)
     expect(screen.getByRole('navigation', { name: 'Danh mục đồ chơi' })).toBeInTheDocument()
   })
 })
