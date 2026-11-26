@@ -34,4 +34,6 @@ export const adminRoutes: RouteObject[] = [
   { path: adminChildPath(adminPaths.withdrawals), ...lazyPage(() => import('../features/withdrawal-requests/pages/AdminWithdrawalsPage'), 'AdminWithdrawalsPage') },
 
   { path: adminChildPath(adminPaths.auditLogs), ...lazyPage(() => import('../features/audit-logs/pages/AuditLogPage'), 'AuditLogPage') },
+  // System settings (UC30): fees, limits, time limits; ?edit=<key> opens Setting Detail
+  { path: adminChildPath(adminPaths.settings), ...lazyPage(() => import('../features/system-settings/pages/SystemSettingsPage'), 'SystemSettingsPage') },
 ]

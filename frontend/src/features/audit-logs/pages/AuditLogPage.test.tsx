@@ -117,6 +117,40 @@ describe('AuditLogPage (UC31)', () => {
     expect(screen.queryByText('unsafe_toy')).not.toBeInTheDocument()
   })
 
+  // UC30: a setting change is listed in Vietnamese with the old and new value.
+  it('shows a system setting change with its old and new value', async () => {
+    list.mockResolvedValue({
+      items: [
+        {
+          id: '7',
+          action: 'setting.update',
+          actor: { id: ADMIN_ID, fullName: 'Admin Một' },
+          targetType: 'SYSTEM_SETTING',
+          targetId: '64b000000000000000000a11',
+          details: {
+            setting: 'Phí nền tảng đơn thuê',
+            key: 'rental.platformFeeRate',
+            oldValue: '10%',
+            newValue: '12%',
+            note: 'Tăng phí',
+          },
+          ipAddress: null,
+          createdAt: '2026-11-25T03:00:00.000Z',
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    })
+    renderAt('/admin/audit-logs')
+
+    expect(await screen.findByText('Thay đổi cấu hình hệ thống')).toBeInTheDocument()
+    expect(screen.getByText('Cấu hình hệ thống')).toBeInTheDocument()
+    expect(screen.getByText('Phí nền tảng đơn thuê')).toBeInTheDocument()
+    expect(screen.getByText('Giá trị cũ:')).toBeInTheDocument()
+    expect(screen.getByText('10%')).toBeInTheDocument()
+    expect(screen.getByText('Giá trị mới:')).toBeInTheDocument()
+    expect(screen.getByText('12%')).toBeInTheDocument()
+  })
+
   // UC29 (FE-09): the three Trust Score decisions are listed in Vietnamese with their details.
   it('shows the Trust Score decisions in Vietnamese', async () => {
     const base = { actor: { id: ADMIN_ID, fullName: 'Admin Một' }, targetType: 'USER' as const, targetId: '64b0000000000000000000ab', ipAddress: null }

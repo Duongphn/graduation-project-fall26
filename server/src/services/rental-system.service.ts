@@ -4,6 +4,7 @@ import { type RentalOrderDoc } from '../models/rental-order.model.js';
 import { nextOverdueReminder, rentalEnd, returnReminderDue } from './rental-time.js';
 import { AppError } from '../utils/app-error.js';
 import { RentalOrderCore } from './rental-order-core.js';
+import { withOrderPolicy } from './rental-policy.js';
 
 /**
  * Hành động do scheduler gọi khi timer tới hạn (actor là System). Mỗi hàm lọc lại theo
@@ -24,7 +25,7 @@ export class RentalSystemService extends RentalOrderCore {
       return;
     }
 
-    const s = await this.settings.getRentalSettings();
+    const s = withOrderPolicy(await this.settings.getRentalSettings(), order.policy);
     const dueAt = returnReminderDue(order.period.endDate, now, s);
 
     try {
@@ -132,7 +133,7 @@ export class RentalSystemService extends RentalOrderCore {
     const note = `system:${kind}`;
     const now = this.clock.now();
     // Số giờ trong thông báo lấy theo cấu hình hệ thống (Admin đổi được), không ghi cứng 24 h / 12 h
-    const s = await this.settings.getRentalSettings();
+    const current = await this.settings.getRentalSettings();
 
     try {
       const updated = await this.transition({
@@ -146,6 +147,8 @@ export class RentalSystemService extends RentalOrderCore {
           'timer.dueAt': { $lte: now },
         },
       });
+      // Số giờ của chính đơn này (GB-38), đơn cũ chưa lưu bản sao thì theo cấu hình hiện tại
+      const s = withOrderPolicy(current, updated.policy);
 
       if (kind === 'OWNER_RESPONSE') {
         await this.notifyParty(
