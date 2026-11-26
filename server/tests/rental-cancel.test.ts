@@ -232,6 +232,83 @@ describe('UC14: Cancel Order & Escrow Refunds', () => {
     expect(ownerW?.balance ?? 0).toBe(0);
   });
 
+  // E2E 26/11 bug 2: the cost breakdown of a paid-then-cancelled order matches the cancel ledger
+  describe('financial breakdown after cancelling', () => {
+    const breakdown = async (auth: any, id: string) =>
+      unwrap(await request(app).get(`/api/v1/rentals/${id}`).set(auth)).financialBreakdown;
+
+    it('renter cancels PAID with a fee: paid, refund and fee for both sides', async () => {
+      const orderId = await toPaid();
+      expect((await cancel(renterAuth, orderId)).status).toBe(200);
+
+      const renter = await breakdown(renterAuth, orderId);
+      expect(renter.settlementStatus).toBe('REFUNDED');
+      expect(renter.items).toMatchObject({
+        rentalFee: 150_000,
+        depositPaid: 200_000,
+        depositRefunded: 200_000,
+        rentRefunded: 120_000,
+        cancelFee: 30_000,
+        totalRefunded: 320_000,
+        totalActualCost: 30_000,
+      });
+      expect(renter.summary.description).toContain('320.000');
+      expect(renter.summary.description).toContain('30.000');
+      expect('platformFee' in renter.items).toBe(false);
+
+      const owner = await breakdown(ownerAuth, orderId);
+      expect(owner.payoutStatus).toBe('PAID_OUT');
+      expect(owner.items).toMatchObject({ cancelFee: 30_000, netEarnings: 30_000, platformFee: 0 });
+
+      // Same numbers as the wallets
+      expect((await Wallet.findOne({ userId: renterId }))?.balance).toBe(renter.items.totalRefunded);
+      expect((await Wallet.findOne({ userId: ownerId }))?.balance).toBe(owner.items.netEarnings);
+
+      const admin = await createUser({ role: 'ADMIN' });
+      const all = await breakdown(authHeader(admin._id.toString(), 'ADMIN'), orderId);
+      expect(all.platformRevenue).toBe(0);
+      expect(all.items.escrowBalance).toBe(0);
+      expect(all.renter.items.totalRefunded).toBe(320_000);
+      expect(all.owner.items.netEarnings).toBe(30_000);
+    });
+
+    it('owner cancels PAID (no fee): shown as paid and fully refunded', async () => {
+      const orderId = await toPaid();
+      expect((await cancel(ownerAuth, orderId)).status).toBe(200);
+
+      const renter = await breakdown(renterAuth, orderId);
+      expect(renter.settlementStatus).toBe('REFUNDED');
+      expect(renter.items).toMatchObject({
+        depositPaid: 200_000,
+        depositRefunded: 200_000,
+        rentRefunded: 150_000,
+        cancelFee: 0,
+        totalRefunded: 350_000,
+        totalActualCost: 0,
+      });
+
+      const owner = await breakdown(ownerAuth, orderId);
+      expect(owner.payoutStatus).toBe('CANCELLED');
+      expect(owner.items).toMatchObject({ cancelFee: 0, netEarnings: 0 });
+    });
+
+    it('cancel before paying: nothing paid, nothing refunded', async () => {
+      const created = await request(app)
+        .post('/api/v1/rentals')
+        .set(renterAuth)
+        .send({ toyId, startDate: '2026-11-05', endDate: '2026-11-07' });
+      const orderId = unwrap(created).id;
+      await request(app).post(`/api/v1/rentals/${orderId}/accept`).set(ownerAuth);
+      expect((await cancel(renterAuth, orderId)).status).toBe(200);
+
+      const renter = await breakdown(renterAuth, orderId);
+      expect(renter.settlementStatus).toBe('CANCELLED');
+      expect(renter.items).toMatchObject({ depositPaid: 0, depositRefunded: 0, totalActualCost: 0 });
+      expect(renter.items.totalRefunded).toBeUndefined();
+      expect((await breakdown(ownerAuth, orderId)).items.netEarnings).toBe(0);
+    });
+  });
+
   it('cannot cancel SHIPPING: 409 RENTAL_CANCEL_NOT_ALLOWED', async () => {
     const orderId = await toPaid();
 

@@ -484,7 +484,7 @@ export class RentalOrderService extends RentalOrderCore {
       toyDto = {
         id: toyDoc._id.toString(),
         name: toyDoc.title,
-        slug: (toyDoc as any).slug || slugify(toyDoc.title, { fallback: 'toy' }),
+        slug: (toyDoc as { slug?: string }).slug || slugify(toyDoc.title, { fallback: 'toy' }),
         primaryImage: images[0]?.url,
         images,
         dailyRate: toyDoc.priceOrRate,
@@ -535,7 +535,7 @@ export class RentalOrderService extends RentalOrderCore {
         .select('fullName role')
         .lean();
       for (const u of users) {
-        otherUserMap.set(u._id.toString(), u as any);
+        otherUserMap.set(u._id.toString(), { _id: u._id, fullName: u.fullName, role: u.role });
       }
     }
 
@@ -585,7 +585,13 @@ export class RentalOrderService extends RentalOrderCore {
       };
     });
 
-    const financialBreakdown = computeFinancialBreakdown(order, effectiveRole);
+    // A cancelled order that went through PAID was refunded: the breakdown shows the refund and fee
+    const wasPaid = historyRows.some((row) => row.newStatus === 'PAID');
+    const financialBreakdown = computeFinancialBreakdown(
+      order,
+      effectiveRole,
+      wasPaid ? { wasPaid } : {},
+    );
 
     return toRentalOrderDetailDto(order, {
       toy: toyDto,

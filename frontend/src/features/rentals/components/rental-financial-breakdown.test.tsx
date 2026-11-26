@@ -90,6 +90,121 @@ describe('RentalFinancialBreakdown', () => {
     expect(amountOf(platform, 'Số dư ký quỹ')).toBe(vnd(360_000))
   })
 
+  // E2E 26/11 bug 2: paid then cancelled by the renter (3 days × 15k, deposit 200k, fee 9k)
+  it('shows a paid-then-cancelled order: what was paid, the refund and the cancel fee', () => {
+    const { unmount } = render(
+      <RentalFinancialBreakdown
+        breakdown={{
+          ...renter,
+          settlementStatus: 'REFUNDED',
+          items: {
+            rentalFee: 45_000,
+            depositPaid: 200_000,
+            lateFee: 0,
+            depositRefunded: 200_000,
+            totalActualCost: 9_000,
+            rentRefunded: 36_000,
+            cancelFee: 9_000,
+            totalRefunded: 236_000,
+          },
+          summary: { status: 'REFUNDED', description: 'Đơn thuê đã bị huỷ sau khi thanh toán.' },
+        }}
+      />,
+    )
+    const cost = screen.getByLabelText('Chi phí người thuê')
+    expect(amountOf(cost, 'Tiền thuê')).toBe(vnd(45_000))
+    expect(amountOf(cost, 'Tiền thuê được hoàn')).toBe(`−${vnd(36_000)}`)
+    expect(amountOf(cost, 'Tổng chi thực tế (phí huỷ đơn)')).toBe(vnd(9_000))
+    const deposit = screen.getByLabelText('Tiền cọc')
+    expect(amountOf(deposit, 'Cọc đã trả')).toBe(vnd(200_000))
+    expect(amountOf(deposit, 'Cọc hoàn lại')).toBe(vnd(200_000))
+    expect(amountOf(deposit, 'Tổng hoàn vào ví')).toBe(vnd(236_000))
+    unmount()
+
+    render(
+      <RentalFinancialBreakdown
+        breakdown={{
+          ...owner,
+          isEstimated: false,
+          payoutStatus: 'PAID_OUT',
+          items: { grossRentalFee: 45_000, platformFeeRate: 0.1, platformFee: 0, lateCompensation: 0, netEarnings: 9_000, cancelFee: 9_000 },
+        }}
+      />,
+    )
+    const list = screen.getByLabelText('Thu nhập chủ đồ')
+    expect(amountOf(list, 'Phí huỷ đơn nhận được')).toBe(`+${vnd(9_000)}`)
+    expect(amountOf(list, 'Thực nhận')).toBe(vnd(9_000))
+    expect(within(list).queryByText('Tiền thuê gộp')).toBeNull()
+    expect(within(list).queryByText(/Phí nền tảng/)).toBeNull()
+  })
+
+  // E2E 26/11 bug 3: 2 days × 30k, deposit 400k, 2 days late, renter at fault 50%
+  it('shows the dispute ruling split: compensation, refund to the wallet and owner net', () => {
+    const { unmount } = render(
+      <RentalFinancialBreakdown
+        breakdown={{
+          ...renter,
+          items: {
+            rentalFee: 60_000,
+            depositPaid: 400_000,
+            lateFee: 60_000,
+            depositRefunded: 140_000,
+            totalActualCost: 320_000,
+            rentRefunded: 0,
+            compensation: 200_000,
+            totalRefunded: 140_000,
+          },
+        }}
+      />,
+    )
+    const cost = screen.getByLabelText('Chi phí người thuê')
+    expect(amountOf(cost, 'Bồi thường hư hỏng')).toBe(`+${vnd(200_000)}`)
+    expect(within(cost).queryByText('Tiền thuê được hoàn')).toBeNull()
+    expect(amountOf(cost, 'Tổng chi thực tế')).toBe(vnd(320_000))
+    expect(amountOf(screen.getByLabelText('Tiền cọc'), 'Tổng hoàn vào ví')).toBe(vnd(140_000))
+    unmount()
+
+    render(
+      <RentalFinancialBreakdown
+        breakdown={{
+          ...owner,
+          isEstimated: false,
+          payoutStatus: 'PAID_OUT',
+          items: {
+            grossRentalFee: 60_000,
+            platformFeeRate: 0.1,
+            platformFee: 6_000,
+            lateCompensation: 60_000,
+            netEarnings: 314_000,
+            compensation: 200_000,
+            rentRefund: 0,
+          },
+        }}
+      />,
+    )
+    const list = screen.getByLabelText('Thu nhập chủ đồ')
+    expect(amountOf(list, 'Bồi thường hư hỏng')).toBe(`+${vnd(200_000)}`)
+    expect(amountOf(list, 'Thực nhận')).toBe(vnd(314_000))
+  })
+
+  it('owner at fault: the rent given back is subtracted before the platform fee', () => {
+    render(
+      <RentalFinancialBreakdown
+        breakdown={{
+          ...owner,
+          isEstimated: false,
+          payoutStatus: 'PAID_OUT',
+          items: { grossRentalFee: 60_000, platformFeeRate: 0.1, platformFee: 0, lateCompensation: 0, netEarnings: 0, compensation: 0, rentRefund: 60_000 },
+        }}
+      />,
+    )
+    const list = screen.getByLabelText('Thu nhập chủ đồ')
+    expect(amountOf(list, 'Hoàn tiền thuê cho người thuê')).toBe(`−${vnd(60_000)}`)
+    expect(amountOf(list, 'Phí nền tảng 10%')).toBe(vnd(0))
+    expect(within(list).queryByText('Bồi thường hư hỏng')).toBeNull()
+    expect(amountOf(list, 'Thực nhận')).toBe(vnd(0))
+  })
+
   it('labels the numbers "Tạm tính" only while the order is still in progress', () => {
     const { rerender } = render(<RentalFinancialBreakdown breakdown={owner} />)
     expect(screen.getByText('Tạm tính')).toBeInTheDocument()

@@ -30,24 +30,49 @@ function MoneyList({ rows, label }: { rows: MoneyRow[]; label?: string }) {
   )
 }
 
-/** Người thuê: chi phí thật (tiền thuê + phí trễ) tách khỏi tiền cọc, vì cọc được hoàn lại */
+/** Dòng chỉ hiện khi có tiền (hoàn tiền thuê, bồi thường, phí huỷ) */
+const ifPositive = (row: MoneyRow): MoneyRow[] => (row.amount > 0 ? [row] : [])
+
+/**
+ * Người thuê: chi phí thật (tiền thuê − phần được hoàn + phí trễ + bồi thường) tách khỏi tiền cọc,
+ * vì cọc được hoàn lại. Huỷ đơn đã thanh toán: phần tiền thuê không được hoàn chính là phí huỷ.
+ */
 const renterCostRows = (items: RenterFinancialItems): MoneyRow[] => [
   { label: 'Tiền thuê', amount: items.rentalFee },
+  ...ifPositive({ label: 'Tiền thuê được hoàn', amount: items.rentRefunded ?? 0, sign: '−' }),
   { label: 'Phí trả trễ', amount: items.lateFee, sign: '+' },
-  { label: 'Tổng chi thực tế', amount: items.totalActualCost, total: true },
+  ...ifPositive({ label: 'Bồi thường hư hỏng', amount: items.compensation ?? 0, sign: '+' }),
+  {
+    label: (items.cancelFee ?? 0) > 0 ? 'Tổng chi thực tế (phí huỷ đơn)' : 'Tổng chi thực tế',
+    amount: items.totalActualCost,
+    total: true,
+  },
 ]
 
 const renterDepositRows = (items: RenterFinancialItems): MoneyRow[] => [
   { label: 'Cọc đã trả', amount: items.depositPaid },
   { label: 'Cọc hoàn lại', amount: items.depositRefunded },
+  // Huỷ hoặc phán quyết: tổng tiền về ví (cọc + tiền thuê được hoàn), khớp với lịch sử ví
+  ...(items.totalRefunded !== undefined
+    ? [{ label: 'Tổng hoàn vào ví', amount: items.totalRefunded, total: true }]
+    : []),
 ]
 
-const ownerRows = (items: OwnerFinancialItems): MoneyRow[] => [
-  { label: 'Tiền thuê gộp', amount: items.grossRentalFee },
-  { label: `Phí nền tảng ${formatRate(items.platformFeeRate)}`, amount: items.platformFee, sign: '−' },
-  { label: 'Bồi thường trả trễ', amount: items.lateCompensation, sign: '+' },
-  { label: 'Thực nhận', amount: items.netEarnings, total: true },
-]
+const ownerRows = (items: OwnerFinancialItems): MoneyRow[] =>
+  // Đơn đã huỷ: chủ đồ chỉ có thể nhận phí huỷ, không có tiền thuê hay phí nền tảng
+  items.cancelFee !== undefined
+    ? [
+        { label: 'Phí huỷ đơn nhận được', amount: items.cancelFee, sign: '+' },
+        { label: 'Thực nhận', amount: items.netEarnings, total: true },
+      ]
+    : [
+        { label: 'Tiền thuê gộp', amount: items.grossRentalFee },
+        ...ifPositive({ label: 'Hoàn tiền thuê cho người thuê', amount: items.rentRefund ?? 0, sign: '−' }),
+        { label: `Phí nền tảng ${formatRate(items.platformFeeRate)}`, amount: items.platformFee, sign: '−' },
+        { label: 'Bồi thường trả trễ', amount: items.lateCompensation, sign: '+' },
+        ...ifPositive({ label: 'Bồi thường hư hỏng', amount: items.compensation ?? 0, sign: '+' }),
+        { label: 'Thực nhận', amount: items.netEarnings, total: true },
+      ]
 
 function RenterColumn({ items }: { items: RenterFinancialItems }) {
   return (

@@ -161,6 +161,14 @@ export interface RenterFinancialItems {
   lateFee: number
   depositRefunded: number
   totalActualCost: number
+  /** Tiền thuê được trả lại: huỷ đơn đã thanh toán hoặc phán quyết khiếu nại */
+  rentRefunded?: number
+  /** Phí huỷ bị giữ khi huỷ đơn đã thanh toán (chuyển cho chủ đồ) */
+  cancelFee?: number
+  /** Bồi thường hư hỏng trừ vào cọc theo phán quyết */
+  compensation?: number
+  /** Tổng tiền đã hoàn vào ví (khi huỷ hoặc theo phán quyết) */
+  totalRefunded?: number
 }
 
 export interface OwnerFinancialItems {
@@ -169,6 +177,12 @@ export interface OwnerFinancialItems {
   platformFee: number
   lateCompensation: number
   netEarnings: number
+  /** Có trên đơn đã huỷ: phí huỷ chủ đồ nhận được (0 nếu không có) */
+  cancelFee?: number
+  /** Bồi thường hư hỏng nhận được theo phán quyết */
+  compensation?: number
+  /** Tiền thuê hoàn cho người thuê theo phán quyết */
+  rentRefund?: number
 }
 
 interface FinancialSummary {
