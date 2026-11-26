@@ -47,8 +47,6 @@ export function FormModal({
       title={title}
       okText={okText}
       cancelText={cancelText}
-      okButtonProps={{ danger }}
-      cancelText="Huỷ"
       okButtonProps={{ danger, disabled: okDisabled }}
       confirmLoading={loading}
       // Cannot be closed (mask, Esc, X) while the request runs.

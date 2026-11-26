@@ -69,7 +69,6 @@ export function ReasonModal({
       onSubmit={handleSubmit(({ reason }) => onSubmit(reason))}
     >
       {children}
-      <FormField control={control} name="reason" label={label} required>
       <FormField control={control} name="reason" label={label} required={!optional}>
         {(field) => (
           <ReasonInput

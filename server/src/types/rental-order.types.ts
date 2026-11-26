@@ -4,7 +4,6 @@ import {
   type RentalTimerKind,
 } from '../constants/rental-order-status.js';
 import { type DisputeRuling } from '../constants/dispute-ruling.js';
-import { type RentalOrderStatus, type RentalTimerKind } from '../constants/rental-order-status.js';
 import { type ToyImage } from '../interfaces/toy-listing.ports.js';
 import { type RentalCancelActor } from './order-cancel.types.js';
 

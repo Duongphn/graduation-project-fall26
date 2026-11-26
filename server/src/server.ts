@@ -11,7 +11,6 @@ import { registerEventHandlers } from './event-handlers.js';
 import { startAccountUnlockJob } from './jobs/account-unlock.job.js';
 import { startDonationExpiryJob } from './jobs/donation-expiry.job.js';
 import { startOrderTimersJob } from './jobs/order-timers.job.js';
-import { createSocketServer } from './sockets/socket.js';
 import { startPaymentExpiryJob } from './jobs/payment-expiry.job.js';
 import { startPurchaseOrderTimerJob } from './jobs/purchase-order-timer.job.js';
 import { setOpenConnectionCloser } from './services/account-lock.service.js';

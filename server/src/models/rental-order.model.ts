@@ -9,7 +9,6 @@ import {
   type RentalCancelActor,
   rentalCancelActors,
 } from '../types/order-cancel.types.js';
-import { type RentalPricing } from '../types/rental-order.types.js';
 import { disputeRulings } from '../constants/dispute-ruling.js';
 import {
   RENTAL_POLICY_FIELDS,
