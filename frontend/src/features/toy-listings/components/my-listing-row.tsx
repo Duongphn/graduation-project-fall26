@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Eye, EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
+import { Building2, Eye, EyeOff, ImageOff, Loader2, MessageSquareWarning, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PATHS, toyListingEditPath } from '../../../routes/paths'
@@ -8,6 +8,7 @@ import { displayCode, formatDate, isRejected, REJECTED_LABEL, STATUS_LABELS } fr
 import { deleteToyListing, getListingErrorMessage, hideToyListing, showToyListing, type ToyListing } from '../toy-listing-api'
 import { MY_LISTINGS_ROOT_KEY, myListingQuery } from '../toy-listing-queries'
 import type { DonationToyState } from '../../donations/donor-queries'
+import { SendToOrganizationModal } from '../../donations/components/send-to-organization-modal'
 
 interface MyListingRowProps {
   listing: ToyListing
@@ -49,6 +50,9 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
   // đã ẩn (không bị từ chối) có "Hiện lại" (GB-08)
   const canHide = !lockedByDonation && listing.status === 'active'
   const canShowAgain = !lockedByDonation && listing.status === 'hidden' && !rejected
+  // UC33 (GB-56): tin tặng đang hiển thị, chưa có ai được đồng ý tặng, gửi được tới một tổ chức
+  const canSendToOrganization = isDonation && !lockedByDonation && listing.status === 'active'
+  const [sendingToOrganization, setSendingToOrganization] = useState(false)
 
   return (
     <article className={`listing-row ${isBusy ? 'is-busy' : ''}`}>
@@ -145,6 +149,17 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
                 Sửa
               </Link>
             )}
+            {canSendToOrganization && (
+              <button
+                type="button"
+                className="row-btn row-btn--primary"
+                onClick={() => setSendingToOrganization(true)}
+                disabled={isBusy}
+              >
+                <Building2 aria-hidden />
+                Gửi tới tổ chức
+              </button>
+            )}
             {canHide && (
               <button type="button" className="row-btn" onClick={() => hideMutation.mutate()} disabled={isBusy}>
                 {hideMutation.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <EyeOff aria-hidden />}
@@ -170,6 +185,14 @@ export function MyListingRow({ listing, categoryName, donationState }: MyListing
           </>
         )}
       </div>
+
+      {canSendToOrganization && (
+        <SendToOrganizationModal
+          open={sendingToOrganization}
+          onClose={() => setSendingToOrganization(false)}
+          toy={listing}
+        />
+      )}
     </article>
   )
 }
