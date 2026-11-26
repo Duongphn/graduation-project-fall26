@@ -138,3 +138,43 @@ export const withdrawalListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(20),
 });
 export type WithdrawalListQuery = z.infer<typeof withdrawalListQuerySchema>;
+
+/** Statuses an Admin can filter the queue by ("all" = no filter), same as the lead's adminWithdrawalListQuerySchema */
+export const adminWithdrawalStatuses = ['all', 'pending', 'approved', 'completed', 'rejected'] as const;
+
+/** GET /wallets/admin/withdrawals */
+export const adminWithdrawalListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(20),
+    status: z.enum(adminWithdrawalStatuses).optional(),
+    startDate: isoDate.optional(),
+    endDate: isoDate.optional(),
+  })
+  .refine((query) => !query.startDate || !query.endDate || query.startDate <= query.endDate, {
+    message: 'Ngày bắt đầu không được sau ngày kết thúc.',
+    path: ['startDate'],
+  });
+export type AdminWithdrawalListQuery = z.infer<typeof adminWithdrawalListQuerySchema>;
+
+export const withdrawalIdParamsSchema = z.object({
+  id: z.string().regex(/^[a-f\d]{24}$/i, 'Mã yêu cầu rút tiền không hợp lệ.'),
+});
+export type WithdrawalIdParams = z.infer<typeof withdrawalIdParamsSchema>;
+
+/**
+ * PATCH /wallets/admin/withdrawals/:id/process (same body as the lead's adminProcessWithdrawalSchema):
+ * completed = money transferred to the user's bank; approved means the same; rejected = refund
+ * to the wallet, with a reason of 5–500 characters (the shared ReasonModal rule).
+ */
+export const adminProcessWithdrawalSchema = z
+  .object({
+    status: z.enum(['completed', 'rejected', 'approved']),
+    notes: z.string().trim().max(500, 'Ghi chú tối đa 500 ký tự.').optional(),
+  })
+  .strict()
+  .refine((body) => body.status !== 'rejected' || (body.notes?.length ?? 0) >= 5, {
+    message: 'Vui lòng nhập lý do từ chối (tối thiểu 5 ký tự).',
+    path: ['notes'],
+  });
+export type AdminProcessWithdrawalBody = z.infer<typeof adminProcessWithdrawalSchema>;

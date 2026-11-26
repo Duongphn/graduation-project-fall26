@@ -7,7 +7,16 @@ import { accountsApi } from '../api'
 import type { AccountDetail } from '../types'
 import { AccountDetailPage } from './AccountDetailPage'
 
-vi.mock('../api', () => ({ accountsApi: { detail: vi.fn(), lock: vi.fn(), unlock: vi.fn() } }))
+vi.mock('../api', () => ({
+  accountsApi: {
+    detail: vi.fn(),
+    lock: vi.fn(),
+    unlock: vi.fn(),
+    liftTrustBlock: vi.fn(),
+    keepTrustBlock: vi.fn(),
+    lockForTrustReview: vi.fn(),
+  },
+}))
 
 const detail = vi.mocked(accountsApi.detail)
 
@@ -36,6 +45,8 @@ const account: AccountDetail = {
   completedBookingCount: 4,
   lock: null,
   activeListingCount: 2,
+  trustBlockStatus: null,
+  trustBlock: { threshold: 50, depositLimit: 500_000, blocked: false, review: null, lift: null, lastDecision: null },
   violations: [
     {
       source: 'dispute',
@@ -150,6 +161,43 @@ describe('AccountDetailPage (R03 III.7.2.1 (5)-(7))', () => {
     expect(within(rows[0]!).getByText('Gỡ tin đăng')).toBeInTheDocument()
     const metrics = screen.getByText('Chỉ số hoạt động').closest('.ant-card') as HTMLElement
     expect(within(metrics).getByText('Số vi phạm').closest('tr')).toHaveTextContent('Số vi phạm1')
+  })
+
+  it('shows the Trust Score review next to the enforcement card (UC29, FE-09)', async () => {
+    detail.mockResolvedValue({
+      ...account,
+      trustScore: 35,
+      trustBlockStatus: 'review',
+      trustBlock: {
+        threshold: 50,
+        depositLimit: 500_000,
+        blocked: true,
+        review: {
+          requestedAt: '2026-11-25T02:00:00.000Z',
+          lastBlockedAt: '2026-11-25T02:00:00.000Z',
+          attemptCount: 1,
+          toy: { id: '64b0000000000000000000f1', title: 'Xe cọc cao' },
+          depositPrice: 800_000,
+          score: 35,
+          threshold: 50,
+          depositLimit: 500_000,
+        },
+        lift: null,
+        lastDecision: null,
+      },
+    })
+    renderPage()
+
+    const card = (await screen.findByText('Chặn thuê do Trust Score')).closest('.ant-card') as HTMLElement
+    expect(within(card).getByText('Chờ xem xét Trust Score')).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Gỡ chặn' })).toBeInTheDocument()
+    expect(screen.getByText('Xử lý tài khoản')).toBeInTheDocument()
+  })
+
+  it('shows no Trust Score card for an account that is not blocked', async () => {
+    renderPage()
+    await screen.findByText('Hồ sơ')
+    expect(screen.queryByText('Chặn thuê do Trust Score')).not.toBeInTheDocument()
   })
 
   it('says so when the last sign-in is not recorded yet', async () => {

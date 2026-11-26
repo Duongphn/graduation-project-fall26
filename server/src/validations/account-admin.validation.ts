@@ -1,4 +1,5 @@
 import { disputeRulings } from '../constants/dispute-ruling.js';
+import { trustDecisionActions } from '../constants/trust-review.js';
 import { lockDurations, reportActions } from '../constants/violation-report.js';
 import {
   isoDateTimeSchema,
@@ -9,7 +10,7 @@ import { z } from './zod.js';
 
 // Admin account management (UC29, R03 III.7.2.1): list, detail, lock and unlock with a reason.
 
-export const accountListTabs = ['all', 'active', 'locked', 'reported'] as const;
+export const accountListTabs = ['all', 'active', 'locked', 'reported', 'trust_review'] as const;
 export type AccountListTab = (typeof accountListTabs)[number];
 
 export const accountSortFields = ['createdAt', 'violationCount'] as const;
@@ -32,7 +33,9 @@ const accountFilterShape = {
 export const accountListQuerySchema = paginationQueryWithSort(accountSortFields)
   .extend({
     tab: z.enum(accountListTabs).default('all').openapi({
-      description: 'all, active, locked, or reported = users with pending reports ("New reports").',
+      description:
+        'all, active, locked, reported = users with pending reports ("New reports"), or ' +
+        'trust_review = Renters blocked by a low Trust Score who wait for an Admin (UC29, FE-09).',
     }),
     ...accountFilterShape,
   })
@@ -82,6 +85,11 @@ export const accountListItemSchema = z
         'One per entry of the violation history: Admin decision on reports, dispute ruled against the user, late return.',
     }),
     pendingReportCount: z.number().int(),
+    trustBlockStatus: z.enum(['review', 'lifted']).nullable().openapi({
+      description:
+        'review = refused for a low Trust Score and waiting for an Admin; lifted = an Admin lifted ' +
+        'the Trust Score block and it still holds; null otherwise.',
+    }),
     createdAt: isoDateTimeSchema,
   })
   .openapi('AdminAccountListItem');
@@ -130,6 +138,64 @@ export const accountViolationSchema = z
   .openapi('AdminAccountViolation');
 export type AccountViolation = z.infer<typeof accountViolationSchema>;
 
+const adminRefSchema = z.object({ id: z.string(), fullName: z.string().nullable() });
+
+/**
+ * GB-29 block of the account and its Admin review (UC29, FE-09; R03 screen 47: "lift a Trust
+ * Score block"). One open review per user; history of decisions is in the audit log.
+ */
+export const accountTrustBlockSchema = z
+  .object({
+    threshold: z.number().openapi({ description: 'Current Trust Score threshold (system setting).' }),
+    depositLimit: z.number().openapi({
+      description: 'Current deposit (VND) above which the threshold applies (system setting).',
+    }),
+    blocked: z.boolean().openapi({
+      description:
+        'True when a booking of a toy with a deposit above depositLimit is refused now: the score ' +
+        'is below the threshold and no lift holds.',
+    }),
+    review: z
+      .object({
+        requestedAt: isoDateTimeSchema.openapi({ description: 'First refused attempt.' }),
+        lastBlockedAt: isoDateTimeSchema,
+        attemptCount: z.number().int().openapi({
+          description: 'Refused attempts; repeats on the same toy within 30 minutes count once.',
+        }),
+        toy: z.object({ id: z.string(), title: z.string().nullable() }).nullable().openapi({
+          description: 'The latest toy the Renter tried to book.',
+        }),
+        depositPrice: z.number(),
+        score: z.number().openapi({ description: 'Score at the latest refused attempt.' }),
+        threshold: z.number(),
+        depositLimit: z.number(),
+      })
+      .nullable()
+      .openapi({ description: 'The open review; null when none waits for an Admin.' }),
+    lift: z
+      .object({
+        liftedAt: isoDateTimeSchema,
+        liftedBy: adminRefSchema.nullable(),
+        reason: z.string(),
+        score: z.number().openapi({
+          description: 'The lift holds while the Trust Score stays at or above this score.',
+        }),
+      })
+      .nullable()
+      .openapi({ description: 'A lift that still holds.' }),
+    lastDecision: z
+      .object({
+        action: z.enum(trustDecisionActions),
+        reason: z.string(),
+        decidedAt: isoDateTimeSchema,
+        decidedBy: adminRefSchema.nullable(),
+        score: z.number(),
+      })
+      .nullable(),
+  })
+  .openapi('AdminAccountTrustBlock');
+export type AccountTrustBlock = z.infer<typeof accountTrustBlockSchema>;
+
 export const accountDetailSchema = accountListItemSchema
   .extend({
     phone: z.string(),
@@ -157,6 +223,7 @@ export const accountDetailSchema = accountListItemSchema
       description:
         'Resolved reports against the user, disputes ruled against them and late returns, newest first (max 50).',
     }),
+    trustBlock: accountTrustBlockSchema,
   })
   .openapi('AdminAccountDetail');
 export type AccountDetail = z.infer<typeof accountDetailSchema>;
@@ -172,3 +239,24 @@ export const accountActionResultSchema = z
   })
   .openapi('AdminAccountActionResult');
 export type AccountActionResult = z.infer<typeof accountActionResultSchema>;
+
+/** Lift or keep a Trust Score block: a reason sent to the Renter, 20 to 300 characters. */
+export const trustDecisionBodySchema = z
+  .object({ reason: accountReasonSchema })
+  .strict()
+  .openapi('TrustDecisionRequest');
+export type TrustDecisionBody = z.infer<typeof trustDecisionBodySchema>;
+
+/** Lock from a Trust Score review: the same choices and reason as any lock (R03 III.7.2.1 (8)-(9)). */
+export const trustLockBodySchema = lockAccountBodySchema;
+export type TrustLockBody = LockAccountBody;
+
+export const trustDecisionResultSchema = z
+  .object({
+    id: z.string(),
+    decision: z.enum(trustDecisionActions),
+    accountStatus: accountStatusSchema,
+    lockedUntil: isoDateTimeSchema.nullable(),
+  })
+  .openapi('TrustDecisionResult');
+export type TrustDecisionResult = z.infer<typeof trustDecisionResultSchema>;

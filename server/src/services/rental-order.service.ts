@@ -37,6 +37,8 @@ import {
 import { AppError } from '../utils/app-error.js';
 import { validateToyImage } from '../utils/image-validation.js';
 import { RentalOrderCore } from './rental-order-core.js';
+import { isTrustBlocked } from './trust-review.rules.js';
+import { recordTrustBlock } from './trust-review.service.js';
 
 export type { RentalOrderServiceDeps, TransitionParams } from './rental-order-core.js';
 
@@ -132,14 +134,16 @@ export class RentalOrderService extends RentalOrderCore {
       throw new AppError(403, 'CANNOT_RENT_OWN_LISTING', 'Không thể thuê đồ chơi của chính mình.');
     }
 
-    // GB-29: chỉ chặn khi điểm dưới ngưỡng VÀ tiền cọc trên mức Admin đặt (MSG28)
-    const score = user.trust?.score;
-    if (
-      score !== undefined &&
-      score !== null &&
-      score < settings.minTrustScore &&
-      (toy.depositPrice ?? 0) > settings.trustDepositLimit
-    ) {
+    // GB-29: chỉ chặn khi điểm dưới ngưỡng VÀ tiền cọc trên mức Admin đặt (MSG28), trừ khi Admin
+    // đã gỡ chặn; lượt bị chặn được ghi lại cho Admin xem xét (UC29, FE-09)
+    if (isTrustBlocked(user.trust, toy.depositPrice ?? 0, settings)) {
+      await recordTrustBlock({
+        userId: actor.userId,
+        trust: user.trust,
+        toy,
+        settings,
+        now: this.clock.now(),
+      });
       throw new AppError(
         403,
         'RENTER_RESTRICTED',

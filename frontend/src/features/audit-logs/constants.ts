@@ -45,6 +45,9 @@ export const auditActionLabels: Record<string, string> = {
   'user.lock': 'Khóa tài khoản',
   'user.unlock': 'Mở khóa tài khoản',
   'user.warn': 'Cảnh cáo người dùng',
+  'user.trust_lift': 'Gỡ chặn Trust Score',
+  'user.trust_keep': 'Giữ chặn Trust Score',
+  'user.trust_lock': 'Xử lý chặn Trust Score: khóa tài khoản',
   'report.dismiss': 'Bỏ qua báo cáo',
   'report.remove_listing': 'Xử lý báo cáo: gỡ tin',
   'report.warn': 'Xử lý báo cáo: cảnh cáo',
@@ -53,6 +56,8 @@ export const auditActionLabels: Record<string, string> = {
   'wallet.credit': 'Cộng tiền vào ví',
   'setting.update': 'Thay đổi cấu hình hệ thống',
   'setting.reset': 'Đặt lại cấu hình mặc định',
+  'withdrawal.complete': 'Duyệt lệnh rút tiền (đã chuyển khoản)',
+  'withdrawal.reject': 'Từ chối lệnh rút tiền (hoàn tiền vào ví)',
 }
 
 export const auditActionLabel = (action: string): string =>
@@ -66,6 +71,7 @@ export const auditTargetLabels: Record<AuditTargetType, string> = {
   IDENTITY_VERIFICATION: 'Yêu cầu xác minh',
   USER: 'Tài khoản',
   VIOLATION_REPORT: 'Báo cáo vi phạm',
+  WITHDRAWAL_REQUEST: 'Lệnh rút tiền',
   MESSAGE: 'Tin nhắn',
   SYSTEM_SETTING: 'Cấu hình hệ thống',
 }
@@ -92,6 +98,10 @@ export const auditDetailLabels: Record<string, string> = {
   oldValue: 'Giá trị cũ',
   newValue: 'Giá trị mới',
   invalidStored: 'Giá trị lưu sai trước đó',
+  score: 'Điểm tin cậy',
+  threshold: 'Ngưỡng',
+  attempts: 'Lượt bị chặn',
+  liftRevoked: 'Áp dụng lại sau khi gỡ chặn',
 }
 
 // `from` / `to` are donation request statuses (the only transition the server logs with them).

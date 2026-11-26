@@ -7,6 +7,7 @@ import type {
   AccountFilters,
   AccountListItem,
   AccountListParams,
+  TrustDecisionResult,
 } from './types'
 
 const BASE = '/admin/users'
@@ -25,4 +26,14 @@ export const accountsApi = {
 
   unlock: (id: string, reason: string) =>
     apiPost<AccountActionResult>(`${BASE}/${id}/unlock`, { reason }),
+
+  // Renters blocked by a low Trust Score (FE-09): lift the block, keep it, or lock the account.
+  liftTrustBlock: (id: string, reason: string) =>
+    apiPost<TrustDecisionResult>(`${BASE}/${id}/trust-block/lift`, { reason }),
+
+  keepTrustBlock: (id: string, reason: string) =>
+    apiPost<TrustDecisionResult>(`${BASE}/${id}/trust-block/keep`, { reason }),
+
+  lockForTrustReview: (id: string, duration: LockDuration, reason: string) =>
+    apiPost<TrustDecisionResult>(`${BASE}/${id}/trust-block/lock`, { duration, reason }),
 }

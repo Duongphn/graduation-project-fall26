@@ -151,6 +151,30 @@ describe('AuditLogPage (UC31)', () => {
     expect(screen.getByText('12%')).toBeInTheDocument()
   })
 
+  // UC29 (FE-09): the three Trust Score decisions are listed in Vietnamese with their details.
+  it('shows the Trust Score decisions in Vietnamese', async () => {
+    const base = { actor: { id: ADMIN_ID, fullName: 'Admin Một' }, targetType: 'USER' as const, targetId: '64b0000000000000000000ab', ipAddress: null }
+    list.mockResolvedValue({
+      items: [
+        { ...base, id: '11', action: 'user.trust_lift', details: { reason: 'Đã xác minh qua điện thoại', score: 35, threshold: 50, attempts: 2 }, createdAt: '2026-11-25T03:00:00.000Z' },
+        { ...base, id: '12', action: 'user.trust_keep', details: { reason: 'Điểm còn thấp', score: 35, threshold: 50, attempts: 0, liftRevoked: true }, createdAt: '2026-11-25T02:00:00.000Z' },
+        { ...base, id: '13', action: 'user.trust_lock', details: { reason: 'Cố thuê nhiều lần', duration: '30d', score: 20, threshold: 50, attempts: 4 }, createdAt: '2026-11-25T01:00:00.000Z' },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 3, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+    })
+    renderAt('/admin/audit-logs')
+
+    expect(await screen.findByText('Gỡ chặn Trust Score')).toBeInTheDocument()
+    expect(screen.getByText('Giữ chặn Trust Score')).toBeInTheDocument()
+    expect(screen.getByText('Xử lý chặn Trust Score: khóa tài khoản')).toBeInTheDocument()
+    expect(screen.getAllByText('Điểm tin cậy:')).toHaveLength(3)
+    expect(screen.getAllByText('Ngưỡng:')).toHaveLength(3)
+    expect(screen.getAllByText('Lượt bị chặn:')).toHaveLength(3)
+    expect(screen.getByText('Áp dụng lại sau khi gỡ chặn:')).toBeInTheDocument()
+    expect(screen.getByText('30 ngày')).toBeInTheDocument()
+    expect(screen.queryByText(/user\.trust_lift:|liftRevoked/)).not.toBeInTheDocument()
+  })
+
   // DEF-ST-28: an Admin wallet credit is listed in Vietnamese with the amount and the note.
   it('shows an Admin wallet credit with its amount and note', async () => {
     list.mockResolvedValue({

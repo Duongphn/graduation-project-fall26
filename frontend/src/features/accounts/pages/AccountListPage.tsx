@@ -9,6 +9,7 @@ import { useListParams } from '../../../hooks/useListParams'
 import { adminHomeCrumb, adminPaths } from '../../../routes/paths'
 import { palette } from '../../../styles/palette'
 import { formatDate, formatDateTime } from '../../../utils/format'
+import { TrustBlockTag } from '../components/TrustBlockTag'
 import { useAccountCounts, useAccounts } from '../hooks'
 import { accountFiltersSchema, accountSortFields } from '../schemas'
 import {
@@ -24,6 +25,7 @@ const tabLabels: Record<AccountTab, string> = {
   active: 'Hoạt động',
   locked: 'Đã khoá',
   reported: 'Có báo cáo mới',
+  trust_review: 'Bị chặn do Trust Score',
 }
 
 const roleLabels: Record<UserRole, string> = { USER: 'Người dùng', ADMIN: 'Quản trị viên' }
@@ -71,7 +73,12 @@ export function AccountListPage() {
     {
       title: 'Điểm tin cậy',
       key: 'trustScore',
-      render: (_, item) => item.trustScore ?? '—',
+      render: (_, item) => (
+        <div className="flex flex-col items-start gap-1">
+          <span>{item.trustScore ?? '—'}</span>
+          {item.trustBlockStatus && <TrustBlockTag status={item.trustBlockStatus} />}
+        </div>
+      ),
     },
     {
       title: 'Vi phạm',
@@ -110,7 +117,13 @@ export function AccountListPage() {
       fixed: 'right',
       render: (_, item) => (
         <Button icon={<EyeOutlined />} onClick={() => navigate(adminPaths.user(item.id))}>
-          {item.role === 'ADMIN' ? 'Xem chi tiết' : item.accountStatus === 'LOCKED' ? 'Mở khóa' : 'Khóa'}
+          {item.role === 'ADMIN'
+            ? 'Xem chi tiết'
+            : item.trustBlockStatus === 'review'
+              ? 'Xem xét'
+              : item.accountStatus === 'LOCKED'
+                ? 'Mở khóa'
+                : 'Khóa'}
         </Button>
       ),
     },
@@ -120,7 +133,7 @@ export function AccountListPage() {
     <>
       <PageHeader
         title="Quản lý người dùng"
-        description="Khóa hoặc mở khóa tài khoản, luôn kèm lý do (UC29). Số điện thoại và email được che một phần."
+        description="Khóa hoặc mở khóa tài khoản và xem xét Renter bị chặn do Trust Score, luôn kèm lý do (UC29). Số điện thoại và email được che một phần."
         breadcrumb={[adminHomeCrumb, { title: 'Quản lý người dùng' }]}
       />
 
@@ -133,7 +146,13 @@ export function AccountListPage() {
             <span className="flex items-center gap-2">
               {tabLabels[tab]}
               {counts.data && (
-                <Badge count={counts.data[tab]} showZero overflowCount={9999} color={palette.textMuted} />
+                <Badge
+                  count={counts.data[tab]}
+                  showZero
+                  overflowCount={9999}
+                  // Renters waiting for a Trust Score decision stand out (UC29, FE-09).
+                  color={tab === 'trust_review' && counts.data[tab] > 0 ? palette.warning : palette.textMuted}
+                />
               )}
             </span>
           ),
