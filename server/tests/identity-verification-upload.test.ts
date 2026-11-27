@@ -357,6 +357,21 @@ describe('CloudinaryIdentityStorage', () => {
     expect(delivery.expiresAt.getTime()).toBeLessThanOrEqual(after + 1800 * 1000 + 1000);
   });
 
+  // The assets are uploaded as `authenticated`; a download link without that type points at an
+  // `upload` asset and Cloudinary answers 404, so the Admin review showed broken images.
+  it('signs the download link for an authenticated asset', async () => {
+    const { client } = createMockCloudinaryClient();
+    const storage = new CloudinaryIdentityStorage({ client });
+
+    await storage.getAuthorizedDelivery('toyflow/identity/img-1');
+
+    expect(client.utils.private_download_url).toHaveBeenCalledWith(
+      'toyflow/identity/img-1',
+      '',
+      expect.objectContaining({ type: 'authenticated' }),
+    );
+  });
+
   it('signs identity links for 10 minutes by default (TC-SEC-017)', async () => {
     const { client } = createMockCloudinaryClient();
     vi.useFakeTimers();

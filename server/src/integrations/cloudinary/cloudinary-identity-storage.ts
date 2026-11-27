@@ -105,7 +105,10 @@ export class CloudinaryIdentityStorage implements IdentityImageStorage {
 
     let url: string;
     if (typeof this.client.utils?.private_download_url === 'function') {
+      // The assets are uploaded as `authenticated`: without the type, the download API looks for an
+      // `upload` asset and answers 404 (Resource not found), so the Admin sees broken images.
       url = this.client.utils.private_download_url(publicId, '', {
+        type: 'authenticated',
         expires_at: expiresAtTimestamp,
       });
     } else {
