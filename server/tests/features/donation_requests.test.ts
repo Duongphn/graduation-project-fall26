@@ -399,9 +399,6 @@ describe('handover, receipt and cancel', () => {
     const noDetails = await confirm({ photos: [photoOf(admin)] });
     expect(noDetails.status).toBe(422);
     expect(noDetails.body.error.code).toBe('RECEIPT_DETAILS_REQUIRED');
-    const noPhoto = await confirm(receipt);
-    expect(noPhoto.status).toBe(422);
-    expect(noPhoto.body.error.code).toBe('RECEIPT_PHOTO_REQUIRED');
     for (const receivedAt of ['2099-01-01', '2020-01-01']) {
       const badDate = await confirm({ ...receipt, receivedAt, photos: [photoOf(admin)] });
       expect(badDate.body.error.code).toBe('RECEIVED_AT_INVALID');
@@ -411,7 +408,8 @@ describe('handover, receipt and cancel', () => {
     );
     expect((await DonationRequest.findById(id).lean())?.status).toBe('shipping');
 
-    const done = await confirm({ ...receipt, photos: [photoOf(admin)] });
+    // UC28: the receipt photo is optional.
+    const done = await confirm(receipt);
     expect(done.status).toBe(200);
     expect(done.body.data).toMatchObject({
       status: 'completed',
@@ -420,7 +418,7 @@ describe('handover, receipt and cancel', () => {
     expect(done.body.data.receipt.receivedAt).toBe(
       new Date(`${today}T00:00:00+07:00`).toISOString(),
     );
-    expect(done.body.data.handovers).toHaveLength(2);
+    expect(done.body.data.handovers).toHaveLength(1);
     expect(done.body.data.donor.phone).toMatch(/\*/);
     const stored = await DonationRequest.findById(id).lean();
     expect(stored).toMatchObject({ confirmedBy: 'Chị Lan', channel: 'phone' });

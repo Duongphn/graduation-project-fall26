@@ -105,7 +105,7 @@ describe('DonationActions (Admin)', () => {
     expect(screen.getByRole('button', { name: 'Từ chối' })).toBeEnabled()
   })
 
-  it("asks for the organization's receipt details and a photo before confirming (GB-59)", async () => {
+  it("asks for the organization's receipt details, not a photo, before confirming (GB-59)", async () => {
     const user = renderActions({ status: 'shipping' })
 
     await user.click(screen.getByRole('button', { name: 'Xác nhận đã nhận' }))
@@ -113,8 +113,8 @@ describe('DonationActions (Admin)', () => {
     expect(within(dialog).getByText('Kênh xác nhận')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: /Xác nhận đã nhận/ }))
 
-    expect(await within(dialog).findByText('Vui lòng tải lên ít nhất một ảnh nhận hàng.')).toBeInTheDocument()
-    expect(within(dialog).getByText('Chọn kênh xác nhận.')).toBeInTheDocument()
+    expect(await within(dialog).findByText('Chọn kênh xác nhận.')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Vui lòng tải lên ít nhất một ảnh nhận hàng.')).not.toBeInTheDocument()
     expect(within(dialog).getByText('Chọn ngày nhận.')).toBeInTheDocument()
     expect(api.confirmReceived).not.toHaveBeenCalled()
   })

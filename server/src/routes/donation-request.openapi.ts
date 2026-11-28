@@ -318,7 +318,7 @@ register({
   summary: 'Admin: confirm receipt (shipping -> completed, toy DONATED)',
   description:
     'For an organization (GB-59): confirmedBy, channel and receivedAt are required (422 ' +
-    'RECEIPT_DETAILS_REQUIRED), at least one photo (422 RECEIPT_PHOTO_REQUIRED, MSG53), and ' +
+    'RECEIPT_DETAILS_REQUIRED), photos are optional (UC28), and ' +
     'receivedAt is not before the sent date nor in the future (422 RECEIVED_AT_INVALID). For a ' +
     'USER receiver who does not confirm, `reason` is required (422 REASON_REQUIRED) and the ' +
     'receipt fields are ignored. Audited.',

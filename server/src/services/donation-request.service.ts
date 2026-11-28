@@ -531,13 +531,12 @@ const vietnamDay = (date: Date) => new Date(date.getTime() + VN_OFFSET_MS).toISO
 const fromVietnamDay = (day: string) => new Date(`${day}T00:00:00+07:00`);
 
 /**
- * GB-59 for an organization: who confirmed, the channel, the received date and at least one
- * photo (MSG53). The date is not before the sent date and not in the future.
+ * GB-59 for an organization: who confirmed, the channel and the received date; receipt photos
+ * are optional (UC28). The date is not before the sent date and not in the future.
  */
 const assertOrganizationReceipt = (
   record: DonationRecord,
   receipt: OrganizationReceipt,
-  photoCount: number,
 ) => {
   const missing = [
     ...(receipt.confirmedBy ? [] : ['confirmedBy']),
@@ -550,11 +549,6 @@ const assertOrganizationReceipt = (
       'Cần nhập người xác nhận, kênh xác nhận và ngày nhận của tổ chức.',
       missing.map((field) => ({ field, message: 'Bắt buộc khi xác nhận cho tổ chức.' })),
     );
-  }
-  if (photoCount === 0) {
-    throw unprocessable('RECEIPT_PHOTO_REQUIRED', 'Vui lòng tải lên ít nhất một ảnh nhận hàng.', [
-      { field: 'photos', message: 'Cần ít nhất một ảnh.' },
-    ]);
   }
   const sent = record.handovers.find((item) => item.step === 'DONOR_SENT');
   const day = receipt.receivedAt!;
@@ -599,7 +593,7 @@ export const confirmReceived = async (
           );
         }
         if (actor.isAdmin && receiverTypeOf(record) === 'ORGANIZATION') {
-          assertOrganizationReceipt(record, receipt, (body.photos ?? []).length);
+          assertOrganizationReceipt(record, receipt);
         }
       },
       set: (record) => ({

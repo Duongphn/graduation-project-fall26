@@ -19,14 +19,13 @@ export type ConfirmReceivedValues = z.infer<typeof confirmReceivedSchema>
 
 // GB-59: the Admin records an organization's receipt: who confirmed, the channel, the received
 // date (not before the sent date, not in the future: checked by the date picker and the API)
-// and 1–10 receipt photos (MSG53).
+// and 0–10 receipt photos (optional, UC28).
 export const organizationReceiptSchema = z.object({
   confirmedBy: z.string().trim().min(2, 'Nhập tên người xác nhận (2–100 ký tự).').max(100),
   channel: z.enum(['phone', 'email', 'in_person'], { error: 'Chọn kênh xác nhận.' }),
   receivedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Chọn ngày nhận.'),
   photos: z
     .array(z.object({ publicId: z.string(), url: z.string(), format: z.string() }))
-    .min(1, 'Vui lòng tải lên ít nhất một ảnh nhận hàng.')
     .max(10, 'Tối đa 10 ảnh.'),
   note: z.string().trim().max(1000, 'Tối đa 1000 ký tự.'),
 })
