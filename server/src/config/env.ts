@@ -50,6 +50,10 @@ export const env = Object.freeze({
   emailPort: Number(process.env.EMAIL_PORT ?? 587),
   emailUser: process.env.EMAIL_USER ?? '',
   emailAppPassword: process.env.EMAIL_APP_PASSWORD ?? '',
+  // Brevo HTTPS API, used instead of SMTP when set (Render free blocks SMTP ports).
+  brevoApiKey: process.env.BREVO_API_KEY ?? '',
+  // Sender address; must be a verified sender in Brevo. Defaults to EMAIL_USER.
+  emailFrom: process.env.EMAIL_FROM ?? process.env.EMAIL_USER ?? '',
 
   // JWT (R04 III.1.1: access token 1 hour, refresh token 30 days)
   get jwtAccessSecret(): string {

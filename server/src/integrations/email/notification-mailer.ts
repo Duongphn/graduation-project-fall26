@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 
 import { env } from '../../config/env.js';
+import { createBrevoTransport } from './brevo-transport.js';
 import type { SendMailOptions } from 'nodemailer';
 import type { Mailer } from '../../interfaces/notification.ports.js';
 
@@ -61,7 +62,17 @@ export const createTransportMailer = (transport: MailTransport, from: string): M
   },
 });
 
+/** Brevo HTTPS API when BREVO_API_KEY is set (Render free blocks SMTP). */
+export const createBrevoMailer = (apiKey: string, from: string, fetchImpl?: typeof fetch): Mailer =>
+  createTransportMailer(
+    createBrevoTransport({ apiKey, defaultFrom: from, timeoutMs: SMTP_TIMEOUT_MS, ...(fetchImpl ? { fetchImpl } : {}) }),
+    from,
+  );
+
 export const createMailer = (settings: SmtpSettings = readSmtpSettings()): Mailer => {
+  if (env.brevoApiKey && env.emailFrom) {
+    return createBrevoMailer(env.brevoApiKey, `"ToyFlow Platform" <${env.emailFrom}>`);
+  }
   const { host } = settings;
   if (!host) return createLoggingMailer();
   let mailer: Mailer | undefined;
