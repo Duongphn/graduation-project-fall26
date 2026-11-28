@@ -66,7 +66,7 @@ export function OrganizationReceiptModal({
       confirmedBy,
       channel,
       receivedAt,
-      photos: photos.map(({ publicId, format }) => ({ publicId, format })),
+      ...(photos.length > 0 ? { photos: photos.map(({ publicId, format }) => ({ publicId, format })) } : {}),
       ...(note ? { note } : {}),
     }),
   )
@@ -109,7 +109,7 @@ export function OrganizationReceiptModal({
           />
         )}
       </FormField>
-      <FormField control={control} name="photos" label="Ảnh nhận hàng" required>
+      <FormField control={control} name="photos" label="Ảnh nhận hàng (không bắt buộc)">
         {(field) => (
           <ImageUploader
             purpose="HANDOVER_PHOTO"
