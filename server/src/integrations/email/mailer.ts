@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { env } from '../../config/env.js';
+import { createBrevoTransport } from './brevo-transport.js';
 
 /**
  * An unreachable or blocked SMTP server must fail fast: the web client gives up after 15 s, so
@@ -22,7 +23,15 @@ export const createOtpTransport = (timeoutMs: number = OTP_SMTP_TIMEOUT_MS) =>
     socketTimeout: timeoutMs,
   });
 
-const transporter = createOtpTransport();
+// Brevo (HTTPS) when BREVO_API_KEY is set, otherwise SMTP.
+const transporter = env.brevoApiKey
+  ? createBrevoTransport({
+      apiKey: env.brevoApiKey,
+      defaultFrom: `"ToyFlow Platform" <${env.emailFrom}>`,
+      timeoutMs: OTP_SMTP_TIMEOUT_MS,
+    })
+  : createOtpTransport();
+const senderAddress = (): string => env.emailFrom || env.emailUser;
 
 /** Nội dung email OTP theo mục đích sử dụng */
 const OTP_EMAIL_CONTENT = {
@@ -45,7 +54,7 @@ export const sendOtpEmail = async (
 ): Promise<void> => {
   const content = OTP_EMAIL_CONTENT[purpose];
   const mailOptions = {
-    from: `"ToyFlow Platform" <${env.emailUser}>`,
+    from: `"ToyFlow Platform" <${senderAddress()}>`,
     to: toEmail,
     subject: content.subject,
     html: `
@@ -88,7 +97,7 @@ export const sendResetPasswordEmail = async (
   resetLink?: string
 ): Promise<void> => {
   const mailOptions = {
-    from: `"ToyFlow Platform" <${env.emailUser}>`,
+    from: `"ToyFlow Platform" <${senderAddress()}>`,
     to: toEmail,
     subject: 'Yêu cầu đặt lại mật khẩu tài khoản ToyFlow',
     html: `
